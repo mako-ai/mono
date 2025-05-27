@@ -1,0 +1,41 @@
+{
+    "name": "multi-tenant-analytics",
+    "version": "1.0.0",
+    "description": "Multi-tenant analytics platform syncing data from Close.com, Stripe, and other sources",
+    "main": "dist/index.js",
+    "scripts": {
+      "build": "tsc",
+      "start": "node dist/index.js",
+      "dev": "ts-node src/index.ts",
+      "sync:close:leads": "ts-node src/sync-close.ts leads",
+      "sync:close:opportunities": "ts-node src/sync-close.ts opportunities",
+      "sync:close:contacts": "ts-node src/sync-close.ts contacts",
+      "sync:close:activities": "ts-node src/sync-close.ts activities",
+      "sync:close:all": "ts-node src/sync-close.ts all",
+      "sync:close": "pnpm run sync:close:all",
+      "docker:up": "docker compose up -d",
+      "docker:down": "docker compose down",
+      "docker:logs": "docker compose logs -f",
+      "docker:status": "docker compose ps",
+      "docker:restart": "docker compose down && docker compose up -d && sleep 15",
+      "config:validate": "ts-node scripts/config.ts validate",
+      "config:list": "ts-node scripts/config.ts list",
+      "config:show": "ts-node scripts/config.ts show",
+      "setup": "pnpm install && pnpm run docker:up && echo 'Waiting for MongoDB to start...' && sleep 15"
+    },
+    "dependencies": {
+      "mongodb": "^6.3.0",
+      "axios": "^1.6.2",
+      "dotenv": "^16.3.1",
+      "js-yaml": "^4.1.0"
+    },
+    "devDependencies": {
+      "@types/node": "^20.10.5",
+      "@types/js-yaml": "^4.0.8",
+      "typescript": "^5.3.3",
+      "ts-node": "^10.9.2"
+    },
+    "keywords": ["close.com", "stripe", "analytics", "mongodb", "multi-tenant", "crm"],
+    "author": "",
+    "license": "MIT"
+  }
