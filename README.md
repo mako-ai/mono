@@ -54,14 +54,14 @@ A local analytics tool for Close.com CRM data using MongoDB for complex querying
 
 ### Environment Variables
 
-| Variable                  | Description                     | Default                                     |
-| ------------------------- | ------------------------------- | ------------------------------------------- |
-| `CLOSE_API_KEY`           | Your Close.com API key          | Required                                    |
-| `CLOSE_API_BASE_URL`      | Close.com API base URL          | `https://api.close.com/api/v1`              |
-| `MONGO_CONNECTION_STRING` | MongoDB connection string       | `mongodb://localhost:27018/close_analytics` |
-| `RATE_LIMIT_DELAY_MS`     | Delay between API requests      | `200`                                       |
-| `MAX_RETRIES`             | Max retries for failed requests | `5`                                         |
-| `BATCH_SIZE`              | Records per API request         | `100`                                       |
+| Variable                  | Description                     | Default                                            |
+| ------------------------- | ------------------------------- | -------------------------------------------------- |
+| `CLOSE_API_KEY`           | Your Close.com API key          | Required                                           |
+| `CLOSE_API_BASE_URL`      | Close.com API base URL          | `https://api.close.com/api/v1`                     |
+| `MONGO_CONNECTION_STRING` | MongoDB connection string       | `mongodb://localhost:27018/multi_tenant_analytics` |
+| `RATE_LIMIT_DELAY_MS`     | Delay between API requests      | `200`                                              |
+| `MAX_RETRIES`             | Max retries for failed requests | `5`                                                |
+| `BATCH_SIZE`              | Records per API request         | `100`                                              |
 
 ### Getting Your Close.com API Key
 
@@ -81,6 +81,37 @@ pnpm run sync:leads
 # Sync all data types (when implemented)
 pnpm run sync:all
 ```
+
+### Running Queries
+
+Execute pre-built MongoDB queries from the `queries/` directory:
+
+```bash
+# Run a specific query
+pnpm run query leads_by_csm
+
+# List all available queries
+pnpm run query --list
+```
+
+**Query File Format:**
+Create `.js` files in the `queries/` directory with standard MongoDB syntax:
+
+```javascript
+// queries/my_query.js
+db.collection_name.aggregate([
+  { $match: { status: "active" } },
+  { $group: { _id: "$category", count: { $sum: 1 } } },
+  { $sort: { count: -1 } },
+]);
+```
+
+The query runner will:
+
+- Connect to your MongoDB database automatically
+- Execute the query and display formatted results
+- Handle both aggregation pipelines and find operations
+- Show query execution time and result counts
 
 ### Docker Commands
 
@@ -130,18 +161,18 @@ This ensures your queries never see partial data.
 ### Using Mongo Express
 
 1. Open http://localhost:8082
-2. Navigate to `close_analytics` database
+2. Navigate to `multi_tenant_analytics` database
 3. Browse collections and run queries
 
 ### Using MongoDB Compass
 
-Connect to: `mongodb://localhost:27018/close_analytics`
+Connect to: `mongodb://localhost:27018/multi_tenant_analytics`
 
 ### Command Line
 
 ```bash
 # Connect to MongoDB container
-docker exec -it close-analytics-mongo mongosh close_analytics
+docker exec -it close-analytics-mongo mongosh multi_tenant_analytics
 
 # Example query
 db.leads.find({status_id: "lead_status_xyz"}).count()
@@ -149,12 +180,22 @@ db.leads.find({status_id: "lead_status_xyz"}).count()
 
 ## Sample Analytics Queries
 
-Ready-made queries will be available in the `queries/` folder for:
+Ready-made queries are available in the `queries/` folder. Execute them with `pnpm run query <query_name>`:
 
 - Sales by salesperson by month
 - Average time to close by salesperson
 - Open opportunities by salesperson
 - Stale opportunities analysis
+
+**Example:**
+
+```bash
+# Run the leads by CSM analysis
+pnpm run query leads_by_csm
+
+# See all available queries
+pnpm run query --list
+```
 
 ## Troubleshooting
 
