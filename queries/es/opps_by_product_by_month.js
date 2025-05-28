@@ -6,11 +6,22 @@ db.spain_close_opportunities.aggregate([
     },
   },
 
-  // Group by month (yyyy-mm format) and calculate metrics
+  // Group by month (yyyy-mm format) and custom field, then calculate metrics
   {
     $group: {
       _id: {
-        $substr: ["$date_won", 0, 7], // Extract yyyy-mm from date_won
+        month: { $substr: ["$date_won", 0, 7] }, // Extract yyyy-mm from date_won
+        product: {
+          $ifNull: [
+            {
+              $getField: {
+                field: "custom.cf_M2IFcDmkpaKL6mIK90Cr7AzGL6i8AvAspixN3AeS1IV",
+                input: "$$ROOT",
+              },
+            },
+            "Unknown",
+          ],
+        },
       },
       opportunities_won: { $sum: 1 },
       monthly_value: {
@@ -41,15 +52,16 @@ db.spain_close_opportunities.aggregate([
   {
     $project: {
       _id: 0,
-      month: "$_id",
+      month: "$_id.month",
+      product: "$_id.product",
       opportunities_won: 1,
       monthly_value: { $round: ["$monthly_value", 0] },
       average_monthly_value: { $round: ["$average_monthly_value", 0] },
     },
   },
 
-  // Sort by month chronologically
+  // Sort by month and custom field chronologically
   {
-    $sort: { month: 1 },
+    $sort: { product: 1, month: 1 },
   },
 ]);
