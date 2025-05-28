@@ -11,11 +11,10 @@ import {
   Typography,
 } from "@mui/material";
 import {
-  Folder,
-  FolderOpen,
-  Description,
+  DescriptionOutlined,
   ExpandLess,
   ExpandMore,
+  FolderOutlined,
 } from "@mui/icons-material";
 
 interface QueryFile {
@@ -97,13 +96,9 @@ const QueryExplorer: React.FC<QueryExplorerProps> = ({ onQuerySelect }) => {
           >
             <ListItemIcon>
               {queryFile.isDirectory ? (
-                isExpanded ? (
-                  <FolderOpen />
-                ) : (
-                  <Folder />
-                )
+                <FolderOutlined />
               ) : (
-                <Description />
+                <DescriptionOutlined />
               )}
             </ListItemIcon>
             <ListItemText primary={queryFile.name} />
