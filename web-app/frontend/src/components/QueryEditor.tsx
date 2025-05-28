@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Box, Button, Typography } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
@@ -7,7 +7,7 @@ import { useTheme } from "../contexts/ThemeContext";
 interface QueryEditorProps {
   queryContent: string;
   selectedQuery: string;
-  onExecute: () => void;
+  onExecute: (content: string) => void;
   isExecuting: boolean;
 }
 
@@ -20,6 +20,12 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
   const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { effectiveMode } = useTheme();
+  const [currentContent, setCurrentContent] = useState(queryContent);
+
+  // Update current content when queryContent changes (new query selected)
+  useEffect(() => {
+    setCurrentContent(queryContent);
+  }, [queryContent]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -42,6 +48,14 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
     editorRef.current = editor;
   };
 
+  const handleEditorChange = (value: string | undefined) => {
+    setCurrentContent(value || "");
+  };
+
+  const handleExecute = () => {
+    onExecute(currentContent);
+  };
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Box
@@ -59,8 +73,8 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
           variant="contained"
           size="small"
           startIcon={<PlayArrow />}
-          onClick={onExecute}
-          disabled={!selectedQuery || isExecuting}
+          onClick={handleExecute}
+          disabled={!currentContent.trim() || isExecuting}
         >
           {isExecuting ? "Executing..." : "Run Query"}
         </Button>
@@ -70,13 +84,14 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
         {selectedQuery ? (
           <Editor
             defaultLanguage="javascript"
-            value={queryContent}
+            value={currentContent}
             height="100%"
             theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
             onMount={handleEditorDidMount}
+            onChange={handleEditorChange}
             options={{
               automaticLayout: true,
-              readOnly: true,
+              readOnly: false,
               minimap: { enabled: false },
               fontSize: 12,
               wordWrap: "on",
@@ -94,7 +109,7 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
             }}
           >
             <Typography>
-              Select a query from the explorer to view its content
+              Select a query from the explorer to view and edit its content
             </Typography>
           </Box>
         )}

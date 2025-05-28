@@ -9,7 +9,6 @@ import ThemeSelector from "./components/ThemeSelector";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 interface QueryResult {
-  query: string;
   results: any[];
   executedAt: string;
   resultCount: number;
@@ -48,16 +47,17 @@ function App() {
     setQueryResults(null); // Clear previous results
   };
 
-  const handleQueryExecute = async () => {
-    if (!selectedQuery) return;
+  const handleQueryExecute = async (queryContent: string) => {
+    if (!queryContent.trim()) return;
 
     setIsExecuting(true);
     try {
-      const response = await fetch(`/api/run/${selectedQuery}`, {
+      const response = await fetch(`/api/execute`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({ content: queryContent }),
       });
 
       const data = await response.json();

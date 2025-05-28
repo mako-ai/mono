@@ -6,7 +6,45 @@ export const executeRoutes = new Hono();
 const queryManager = new QueryManager();
 const queryExecutor = new QueryExecutor();
 
-// POST /api/run/:path - Execute query and return results
+// POST /api/execute - Execute query content directly from request body
+executeRoutes.post("/", async (c) => {
+  try {
+    const body = await c.req.json();
+
+    if (!body.content) {
+      return c.json(
+        {
+          success: false,
+          error: "Query content is required in request body",
+        },
+        400
+      );
+    }
+
+    // Execute query content directly
+    const results = await queryExecutor.executeQuery(body.content);
+
+    return c.json({
+      success: true,
+      data: {
+        results,
+        executedAt: new Date().toISOString(),
+        resultCount: Array.isArray(results) ? results.length : 1,
+      },
+    });
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Query execution failed",
+      },
+      500
+    );
+  }
+});
+
+// POST /api/run/:path - Execute query and return results (legacy endpoint)
 executeRoutes.post("/:path{.+}", async (c) => {
   try {
     const queryPath = c.req.param("path");
