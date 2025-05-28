@@ -1,7 +1,18 @@
-import React, { useMemo, useCallback } from "react";
-import { Box, Typography, Button, Snackbar, Alert } from "@mui/material";
+import React, { useMemo, useCallback, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Button,
+  Snackbar,
+  Alert,
+  ToggleButtonGroup,
+  ToggleButton,
+} from "@mui/material";
 import { DataGridPremium, GridColDef } from "@mui/x-data-grid-premium";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import TableViewIcon from "@mui/icons-material/TableView";
+import CodeIcon from "@mui/icons-material/Code";
+import Editor from "@monaco-editor/react";
 
 interface QueryResult {
   query: string;
@@ -16,6 +27,14 @@ interface ResultsTableProps {
 
 const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   const [snackbarOpen, setSnackbarOpen] = React.useState(false);
+  const [viewMode, setViewMode] = React.useState<"table" | "json">("table");
+
+  // Reset to table view whenever new results are received
+  useEffect(() => {
+    if (results) {
+      setViewMode("table");
+    }
+  }, [results?.executedAt]); // Use executedAt as dependency to detect new query executions
 
   const { columns, rows } = useMemo(() => {
     if (!results || !results.results || results.results.length === 0) {
@@ -107,6 +126,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     }
   }, [results, columns]);
 
+  const handleViewModeChange = useCallback(
+    (_event: React.MouseEvent<HTMLElement>, newViewMode: "table" | "json") => {
+      if (newViewMode !== null) {
+        setViewMode(newViewMode);
+      }
+    },
+    []
+  );
+
+  const jsonContent = JSON.stringify(results, null, 2);
+
   if (!results) {
     return (
       <Box
@@ -153,20 +183,37 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       }}
     >
       <Box sx={{ flexGrow: 1, width: "100%", overflow: "hidden" }}>
-        <DataGridPremium
-          rows={rows}
-          columns={columns}
-          density="compact"
-          disableRowSelectionOnClick
-          style={{ height: "100%", width: "100%" }}
-          sx={{
-            "& .MuiDataGrid-cell": {
-              fontSize: "0.875rem",
-            },
-            borderRadius: 0,
-            border: "none",
-          }}
-        />
+        {viewMode === "table" ? (
+          <DataGridPremium
+            rows={rows}
+            columns={columns}
+            density="compact"
+            disableRowSelectionOnClick
+            style={{ height: "100%", width: "100%" }}
+            sx={{
+              "& .MuiDataGrid-cell": {
+                fontSize: "0.875rem",
+              },
+              borderRadius: 0,
+              border: "none",
+            }}
+          />
+        ) : (
+          <Editor
+            height="100%"
+            defaultLanguage="json"
+            value={jsonContent}
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              fontSize: 14,
+              wordWrap: "on",
+              automaticLayout: true,
+            }}
+            theme="vs-light"
+          />
+        )}
       </Box>
       <Box
         sx={{
@@ -181,15 +228,31 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           {results.resultCount} result(s) • Executed at{" "}
           {new Date(results.executedAt).toLocaleString()}
         </Typography>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<ContentCopyIcon />}
-          onClick={copyToClipboard}
-          sx={{ minWidth: "auto" }}
-        >
-          Copy Table
-        </Button>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <ToggleButtonGroup
+            value={viewMode}
+            exclusive
+            onChange={handleViewModeChange}
+            size="small"
+            aria-label="view mode"
+          >
+            <ToggleButton value="table" aria-label="table view">
+              <TableViewIcon fontSize="small" />
+            </ToggleButton>
+            <ToggleButton value="json" aria-label="json view">
+              <CodeIcon fontSize="small" />
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<ContentCopyIcon />}
+            onClick={copyToClipboard}
+            sx={{ minWidth: "auto" }}
+          >
+            Copy Table
+          </Button>
+        </Box>
       </Box>
       <Snackbar
         open={snackbarOpen}
