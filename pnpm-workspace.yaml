@@ -1,3 +1,6 @@
 # pnpm workspace configuration
 packages:
   - "."
+  - "web-app"
+  - "web-app/frontend"
+  - "web-app/backend"

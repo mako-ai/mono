@@ -27,6 +27,57 @@ services:
     networks:
       - close-network
 
+  # Development backend service
+  web-backend-dev:
+    build:
+      context: ./web-app/backend
+      dockerfile: Dockerfile.dev
+    container_name: close-analytics-web-backend-dev
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - WEB_API_PORT=3001
+      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+      - MONGODB_DATABASE=close_analytics
+    volumes:
+      - ./web-app/backend/src:/app/src
+      - ./queries:/app/queries:ro
+      - ./.env:/app/.env:ro
+      - ./config:/app/config:ro
+      - ./src:/app/root-src:ro
+    depends_on:
+      - mongodb
+    networks:
+      - close-network
+
+  # Production web app service (keep for production builds)
+  web-app:
+    build:
+      context: ./web-app
+      dockerfile: Dockerfile
+    container_name: close-analytics-web-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - WEB_API_PORT=3000
+      - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
+      - MONGODB_DATABASE=close_analytics
+    volumes:
+      - ./queries:/app/queries:ro
+      - ./.env:/app/.env:ro
+      - ./config:/app/config:ro
+      - ./src:/app/src:ro
+    depends_on:
+      - mongodb
+    networks:
+      - close-network
+    profiles:
+      - production
+
 volumes:
   mongodb_data:
 
