@@ -20,10 +20,13 @@ import {
   AccordionSummary,
   AccordionDetails,
   Divider,
+  InputAdornment,
 } from "@mui/material";
 import {
   Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
+  Visibility,
+  VisibilityOff,
 } from "@mui/icons-material";
 
 interface DataSource {
@@ -98,6 +101,12 @@ function DataSourceForm({
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Password visibility state
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showApiKeyOptional, setShowApiKeyOptional] = useState(false);
+  const [showPasswordOptional, setShowPasswordOptional] = useState(false);
 
   useEffect(() => {
     if (dataSource) {
@@ -277,7 +286,7 @@ function DataSourceForm({
             <TextField
               fullWidth
               label="API Key"
-              type="password"
+              type={showApiKey ? "text" : "password"}
               value={formData.config.api_key}
               onChange={(e) =>
                 handleInputChange("config.api_key", e.target.value)
@@ -285,6 +294,18 @@ function DataSourceForm({
               error={!!errors["config.api_key"]}
               helperText={errors["config.api_key"]}
               margin="normal"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      edge="end"
+                    >
+                      {showApiKey ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             {formData.source === "close" && (
               <TextField
@@ -361,12 +382,24 @@ function DataSourceForm({
                 <TextField
                   fullWidth
                   label="Password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={formData.config.password}
                   onChange={(e) =>
                     handleInputChange("config.password", e.target.value)
                   }
                   margin="normal"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <Visibility /> : <VisibilityOff />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
             </Grid>
@@ -393,12 +426,24 @@ function DataSourceForm({
             <TextField
               fullWidth
               label="API Key (optional)"
-              type="password"
+              type={showApiKeyOptional ? "text" : "password"}
               value={formData.config.api_key}
               onChange={(e) =>
                 handleInputChange("config.api_key", e.target.value)
               }
               margin="normal"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowApiKeyOptional(!showApiKeyOptional)}
+                      edge="end"
+                    >
+                      {showApiKeyOptional ? <Visibility /> : <VisibilityOff />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <Grid container spacing={2}>
               <Grid size={6}>
@@ -416,12 +461,30 @@ function DataSourceForm({
                 <TextField
                   fullWidth
                   label="Password (optional)"
-                  type="password"
+                  type={showPasswordOptional ? "text" : "password"}
                   value={formData.config.password}
                   onChange={(e) =>
                     handleInputChange("config.password", e.target.value)
                   }
                   margin="normal"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() =>
+                            setShowPasswordOptional(!showPasswordOptional)
+                          }
+                          edge="end"
+                        >
+                          {showPasswordOptional ? (
+                            <Visibility />
+                          ) : (
+                            <VisibilityOff />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
             </Grid>

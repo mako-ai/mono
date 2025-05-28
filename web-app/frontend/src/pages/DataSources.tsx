@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogActions,
   Alert,
-  Fab,
   Tooltip,
   CircularProgress,
 } from "@mui/material";
@@ -74,7 +73,7 @@ function DataSources() {
   const fetchDataSources = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/data-sources");
+      const response = await fetch("/api/sources");
       const data = await response.json();
 
       if (data.success) {
@@ -109,12 +108,9 @@ function DataSources() {
     if (!dataSourceToDelete) return;
 
     try {
-      const response = await fetch(
-        `/api/data-sources/${dataSourceToDelete._id}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`/api/sources/${dataSourceToDelete._id}`, {
+        method: "DELETE",
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -134,16 +130,13 @@ function DataSources() {
 
   const handleToggleEnabled = async (dataSource: DataSource) => {
     try {
-      const response = await fetch(
-        `/api/data-sources/${dataSource._id}/enable`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ enabled: !dataSource.enabled }),
-        }
-      );
+      const response = await fetch(`/api/sources/${dataSource._id}/enable`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ enabled: !dataSource.enabled }),
+      });
       const data = await response.json();
 
       if (data.success) {
@@ -164,7 +157,7 @@ function DataSources() {
   const handleTestConnection = async (dataSource: DataSource) => {
     setTestingId(dataSource._id);
     try {
-      const response = await fetch(`/api/data-sources/${dataSource._id}/test`, {
+      const response = await fetch(`/api/sources/${dataSource._id}/test`, {
         method: "POST",
       });
       const data = await response.json();
@@ -187,8 +180,8 @@ function DataSources() {
   const handleFormSubmit = async (formData: any) => {
     try {
       const url = editingDataSource
-        ? `/api/data-sources/${editingDataSource._id}`
-        : "/api/data-sources";
+        ? `/api/sources/${editingDataSource._id}`
+        : "/api/sources";
 
       const method = editingDataSource ? "PUT" : "POST";
 
@@ -281,7 +274,10 @@ function DataSources() {
 
       <Grid container spacing={3}>
         {dataSources.map((dataSource) => (
-          <Grid item xs={12} sm={6} md={4} key={dataSource._id}>
+          <Grid
+            size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2 }}
+            key={dataSource._id}
+          >
             <Card
               sx={{ height: "100%", display: "flex", flexDirection: "column" }}
             >

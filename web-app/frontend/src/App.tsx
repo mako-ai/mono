@@ -33,7 +33,7 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<Queries />} />
-          <Route path="/data-sources" element={<DataSources />} />
+          <Route path="/sources" element={<DataSources />} />
           <Route path="/collections" element={<Collections />} />
           <Route path="/views" element={<Views />} />
           <Route path="/settings" element={<Settings />} />

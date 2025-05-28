@@ -4,7 +4,7 @@ import {
   FolderOutlined as CollectionIcon,
   VisibilityOutlined as ViewIcon,
   SettingsOutlined as SettingsIcon,
-  StorageOutlined as DataSourceIcon,
+  CloudUploadOutlined as DataSourceIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -37,8 +37,8 @@ const NavButton = styled(IconButton, {
 const navigationItems = [
   { path: "/", icon: FileIcon, label: "Queries" },
   { path: "/views", icon: ViewIcon, label: "Views" },
-  { path: "/data-sources", icon: DataSourceIcon, label: "Data Sources" },
   { path: "/collections", icon: CollectionIcon, label: "Collections" },
+  { path: "/sources", icon: DataSourceIcon, label: "Data Sources" },
   { path: "/settings", icon: SettingsIcon, label: "Settings" },
 ];
 

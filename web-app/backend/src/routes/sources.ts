@@ -4,7 +4,7 @@ import { DataSourceManager } from "../utils/data-source-manager";
 export const dataSourceRoutes = new Hono();
 const dataSourceManager = new DataSourceManager();
 
-// GET /api/data-sources - List all data sources
+// GET /api/sources - List all data sources
 dataSourceRoutes.get("/", async (c) => {
   try {
     const dataSources = await dataSourceManager.listDataSources();
@@ -20,7 +20,7 @@ dataSourceRoutes.get("/", async (c) => {
   }
 });
 
-// GET /api/data-sources/:id - Get specific data source
+// GET /api/sources/:id - Get specific data source
 dataSourceRoutes.get("/:id", async (c) => {
   try {
     const id = c.req.param("id");
@@ -42,7 +42,7 @@ dataSourceRoutes.get("/:id", async (c) => {
   }
 });
 
-// POST /api/data-sources - Create new data source
+// POST /api/sources - Create new data source
 dataSourceRoutes.post("/", async (c) => {
   try {
     const body = await c.req.json();
@@ -94,7 +94,7 @@ dataSourceRoutes.post("/", async (c) => {
   }
 });
 
-// PUT /api/data-sources/:id - Update existing data source
+// PUT /api/sources/:id - Update existing data source
 dataSourceRoutes.put("/:id", async (c) => {
   try {
     const id = c.req.param("id");
@@ -120,7 +120,7 @@ dataSourceRoutes.put("/:id", async (c) => {
   }
 });
 
-// DELETE /api/data-sources/:id - Delete data source
+// DELETE /api/sources/:id - Delete data source
 dataSourceRoutes.delete("/:id", async (c) => {
   try {
     const id = c.req.param("id");
@@ -140,7 +140,7 @@ dataSourceRoutes.delete("/:id", async (c) => {
   }
 });
 
-// POST /api/data-sources/:id/test - Test data source connection
+// POST /api/sources/:id/test - Test data source connection
 dataSourceRoutes.post("/:id/test", async (c) => {
   try {
     const id = c.req.param("id");
@@ -160,7 +160,7 @@ dataSourceRoutes.post("/:id/test", async (c) => {
   }
 });
 
-// PATCH /api/data-sources/:id/enable - Enable/disable data source
+// PATCH /api/sources/:id/enable - Enable/disable data source
 dataSourceRoutes.patch("/:id/enable", async (c) => {
   try {
     const id = c.req.param("id");
