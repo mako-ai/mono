@@ -83,8 +83,9 @@ const QueryExplorer: React.FC<QueryExplorerProps> = ({ onQuerySelect }) => {
 
     return (
       <React.Fragment key={queryFile.path}>
-        <ListItem disablePadding sx={{ pl: level * 2 }}>
+        <ListItem disablePadding>
           <ListItemButton
+            sx={{ py: 0.5, pl: level * 2 + 1 }}
             onClick={() => {
               if (queryFile.isDirectory) {
                 handleFolderToggle(queryFile.path);
@@ -145,6 +146,9 @@ const QueryExplorer: React.FC<QueryExplorerProps> = ({ onQuerySelect }) => {
 
   return (
     <Box sx={{ height: "100%", overflow: "auto" }}>
+      <Typography variant="h6" m={1}>
+        Explorer
+      </Typography>
       <List dense>
         {queries.map((queryFile) => renderQueryItem(queryFile))}
       </List>
