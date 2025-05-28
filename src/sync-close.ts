@@ -253,6 +253,10 @@ class CloseSyncService {
   async syncActivities(): Promise<SyncStats> {
     return this.syncData("activity", "activities");
   }
+
+  async syncUsers(): Promise<SyncStats> {
+    return this.syncData("user", "users");
+  }
 }
 
 // Load tenant configuration
@@ -315,36 +319,43 @@ async function main() {
         case "activities":
           stats = await sync.syncActivities();
           break;
+        case "users":
+          stats = await sync.syncUsers();
+          break;
         case "all":
           console.log("Syncing all Close.com data...");
           const leadsStats = await sync.syncLeads();
           const oppsStats = await sync.syncOpportunities();
           const contactsStats = await sync.syncContacts();
           const activitiesStats = await sync.syncActivities();
+          const usersStats = await sync.syncUsers();
 
           stats = {
             totalRecords:
               leadsStats.totalRecords +
               oppsStats.totalRecords +
               contactsStats.totalRecords +
-              activitiesStats.totalRecords,
+              activitiesStats.totalRecords +
+              usersStats.totalRecords,
             batchesProcessed:
               leadsStats.batchesProcessed +
               oppsStats.batchesProcessed +
               contactsStats.batchesProcessed +
-              activitiesStats.batchesProcessed,
+              activitiesStats.batchesProcessed +
+              usersStats.batchesProcessed,
             errors:
               leadsStats.errors +
               oppsStats.errors +
               contactsStats.errors +
-              activitiesStats.errors,
+              activitiesStats.errors +
+              usersStats.errors,
             startTime: leadsStats.startTime,
             endTime: new Date(),
           };
           break;
         default:
           console.error(
-            "Unknown sync type. Use: leads, opportunities, contacts, activities, all"
+            "Unknown sync type. Use: leads, opportunities, contacts, activities, users, all"
           );
           process.exit(1);
       }
