@@ -61,7 +61,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         field: key,
         headerName: key.charAt(0).toUpperCase() + key.slice(1),
         flex: 1,
-        minWidth: 150,
+        minWidth: 100,
+        maxWidth: 300,
         align: isNumericColumn ? "right" : "left",
         headerAlign: isNumericColumn ? "right" : "left",
         renderCell: (params) => {
@@ -175,22 +176,37 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       sx={{
         height: "100%",
         width: "100%",
+        maxWidth: "100%",
         display: "flex",
         flexDirection: "column",
+        overflow: "hidden",
       }}
     >
-      <Box sx={{ flexGrow: 1, width: "100%", overflow: "hidden" }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          overflow: "hidden",
+          width: "100%",
+          maxWidth: "100%",
+        }}
+      >
         {viewMode === "table" ? (
           <DataGridPremium
             rows={rows}
             columns={columns}
             density="compact"
             disableRowSelectionOnClick
-            style={{ height: "100%", width: "100%" }}
+            style={{
+              height: "100%",
+              width: "100%",
+              maxWidth: "100%",
+            }}
             sx={{
               "& .MuiDataGrid-cell": {
                 fontSize: "0.875rem",
                 backgroundColor: "background.paper",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               },
               "& .MuiDataGrid-columnHeaders": {
                 backgroundColor: "background.default",
@@ -198,25 +214,45 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               "& .MuiDataGrid-columnHeader": {
                 backgroundColor: "background.default",
               },
+              "& .MuiDataGrid-root": {
+                overflow: "hidden",
+              },
+              "& .MuiDataGrid-main": {
+                overflow: "hidden",
+              },
+              "& .MuiDataGrid-virtualScroller": {
+                overflow: "auto",
+              },
               borderRadius: 0,
               border: "none",
+              width: "100%",
+              maxWidth: "100%",
             }}
           />
         ) : (
-          <Editor
-            height="100%"
-            defaultLanguage="json"
-            value={jsonContent}
-            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              fontSize: 14,
-              wordWrap: "on",
-              automaticLayout: true,
+          <Box
+            sx={{
+              height: "100%",
+              width: "100%",
+              maxWidth: "100%",
+              overflow: "hidden",
             }}
-          />
+          >
+            <Editor
+              height="100%"
+              defaultLanguage="json"
+              value={jsonContent}
+              theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontSize: 14,
+                wordWrap: "on",
+                automaticLayout: true,
+              }}
+            />
+          </Box>
         )}
       </Box>
       <Box
