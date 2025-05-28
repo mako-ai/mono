@@ -498,7 +498,6 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
         sx={{
           flex: 1,
           overflow: "auto",
-          p: 2,
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -702,13 +701,7 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
       )}
 
       {/* Input Area */}
-      <Box
-        sx={{
-          p: 2,
-          borderTop: 1,
-          borderColor: "divider",
-        }}
-      >
+      <Box>
         {/* Attached Context Display */}
         {attachedContext.length > 0 && (
           <Box sx={{ mb: 2 }}>
@@ -745,37 +738,43 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
           </Box>
         )}
 
-        {/* Input Row */}
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <IconButton
-            onClick={handleContextMenuOpen}
-            disabled={isLoading}
-            sx={{ alignSelf: "flex-end" }}
-          >
-            <AttachFile />
-          </IconButton>
+        {/* Input Area wrapped in Paper */}
+        <Paper elevation={2} sx={{ p: 1 }}>
+          {/* Text Area - Full width */}
           <TextField
             fullWidth
             multiline
-            maxRows={4}
+            rows={6}
             placeholder="Ask me anything..."
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            sx={{ backgroundColor: "paper.background" }}
             disabled={isLoading}
             variant="outlined"
-            size="small"
+            sx={{
+              mb: 2,
+              "& .MuiInputBase-input": {
+                fontSize: 14,
+              },
+              "& .MuiInputBase-root": {
+                fontSize: 14,
+              },
+            }}
           />
-          <Button
-            variant="contained"
-            onClick={sendMessage}
-            disabled={!inputMessage.trim() || isLoading}
-            sx={{ minWidth: 48, alignSelf: "flex-end" }}
-          >
-            <SendIcon />
-          </Button>
-        </Box>
+
+          {/* Send Button - Below text area */}
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <IconButton onClick={handleContextMenuOpen} disabled={isLoading}>
+              <AttachFile sx={{ fontSize: "18px" }} />
+            </IconButton>
+            <IconButton
+              onClick={sendMessage}
+              disabled={!inputMessage.trim() || isLoading}
+            >
+              <SendIcon sx={{ fontSize: "18px" }} />
+            </IconButton>
+          </Box>
+        </Paper>
 
         {/* Context Menu */}
         <Menu

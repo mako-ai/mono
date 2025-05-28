@@ -206,21 +206,23 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
       : "No view selected";
 
     const handleDelete = () => {
-      setIsDeleting(true);
       setDeleteDialogOpen(true);
     };
 
     const handleDeleteConfirm = async () => {
       if (onDelete && selectedView && !isCreatingNew) {
+        setIsDeleting(true);
         try {
           await onDelete(selectedView);
           setDeleteDialogOpen(false);
         } catch (error) {
           console.error("Failed to delete view:", error);
+        } finally {
+          setIsDeleting(false);
         }
+      } else {
+        setDeleteDialogOpen(false);
       }
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
     };
 
     const handleDeleteCancel = () => {
