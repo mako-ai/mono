@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { Box, Grid, Paper, Typography, AppBar, Toolbar } from "@mui/material";
+import { Box, Paper, Typography, AppBar, Toolbar } from "@mui/material";
 import QueryExplorer from "./components/QueryExplorer";
 import QueryEditor from "./components/QueryEditor";
 import ResultsTable from "./components/ResultsTable";
 import ChatBot from "./components/ChatBot";
+// @ts-ignore – types will be available once the package is installed
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 interface QueryResult {
   query: string;
@@ -70,27 +72,26 @@ function App() {
       </AppBar>
 
       <Box sx={{ flexGrow: 1, p: 2 }}>
-        <Grid container spacing={2} sx={{ height: "100%" }}>
+        <PanelGroup direction="horizontal" style={{ height: "100%" }}>
           {/* Left Panel - Query Explorer */}
-          <Grid item xs={3}>
+          <Panel defaultSize={25} minSize={20}>
             <Paper sx={{ height: "100%", p: 2 }}>
               <Typography variant="h6" gutterBottom>
                 Queries
               </Typography>
               <QueryExplorer onQuerySelect={handleQuerySelect} />
             </Paper>
-          </Grid>
+          </Panel>
+
+          <PanelResizeHandle
+            style={{ width: "4px", background: "#ddd", cursor: "col-resize" }}
+          />
 
           {/* Middle Panel - Editor and Results */}
-          <Grid item xs={6}>
-            <Grid
-              container
-              direction="column"
-              spacing={2}
-              sx={{ height: "100%" }}
-            >
+          <Panel defaultSize={50} minSize={30}>
+            <PanelGroup direction="vertical" style={{ height: "100%" }}>
               {/* Query Editor */}
-              <Grid item xs={6}>
+              <Panel defaultSize={50} minSize={30}>
                 <Paper sx={{ height: "100%", p: 2 }}>
                   <QueryEditor
                     queryContent={queryContent}
@@ -99,30 +100,42 @@ function App() {
                     isExecuting={isExecuting}
                   />
                 </Paper>
-              </Grid>
+              </Panel>
+
+              <PanelResizeHandle
+                style={{
+                  height: "4px",
+                  background: "#ddd",
+                  cursor: "row-resize",
+                }}
+              />
 
               {/* Results */}
-              <Grid item xs={6}>
+              <Panel defaultSize={50} minSize={30}>
                 <Paper sx={{ height: "100%", p: 2 }}>
                   <Typography variant="h6" gutterBottom>
                     Results
                   </Typography>
                   <ResultsTable results={queryResults} />
                 </Paper>
-              </Grid>
-            </Grid>
-          </Grid>
+              </Panel>
+            </PanelGroup>
+          </Panel>
+
+          <PanelResizeHandle
+            style={{ width: "4px", background: "#ddd", cursor: "col-resize" }}
+          />
 
           {/* Right Panel - ChatBot */}
-          <Grid item xs={3}>
+          <Panel defaultSize={25} minSize={15}>
             <Paper sx={{ height: "100%", p: 2 }}>
               <Typography variant="h6" gutterBottom>
                 AI Assistant
               </Typography>
               <ChatBot />
             </Paper>
-          </Grid>
-        </Grid>
+          </Panel>
+        </PanelGroup>
       </Box>
     </Box>
   );
