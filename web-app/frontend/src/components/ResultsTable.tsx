@@ -1,12 +1,5 @@
 import React, { useMemo, useCallback } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  IconButton,
-  Snackbar,
-  Alert,
-} from "@mui/material";
+import { Box, Typography, Button, Snackbar, Alert } from "@mui/material";
 import { DataGridPremium, GridColDef } from "@mui/x-data-grid-premium";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
@@ -31,25 +24,41 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
     // Generate columns from the first result object
     const firstResult = results.results[0];
-    const cols: GridColDef[] = Object.keys(firstResult).map((key) => ({
-      field: key,
-      headerName: key.charAt(0).toUpperCase() + key.slice(1),
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => {
-        const value = params.value;
-        if (typeof value === "undefined") {
-          return undefined;
-        }
-        if (value === null) {
-          return null;
-        }
-        if (typeof value === "object" && value !== null) {
-          return JSON.stringify(value);
-        }
-        return String(value);
-      },
-    }));
+    const cols: GridColDef[] = Object.keys(firstResult).map((key) => {
+      // Check if this column contains numeric values by sampling the first few rows
+      const sampleValues = results.results.slice(0, 10).map((row) => row[key]);
+      const isNumericColumn = sampleValues.every(
+        (value) =>
+          value === null ||
+          value === undefined ||
+          (typeof value === "number" && !isNaN(value)) ||
+          (typeof value === "string" &&
+            !isNaN(Number(value)) &&
+            value.trim() !== "")
+      );
+
+      return {
+        field: key,
+        headerName: key.charAt(0).toUpperCase() + key.slice(1),
+        flex: 1,
+        minWidth: 150,
+        align: isNumericColumn ? "right" : "left",
+        headerAlign: isNumericColumn ? "right" : "left",
+        renderCell: (params) => {
+          const value = params.value;
+          if (typeof value === "undefined") {
+            return undefined;
+          }
+          if (value === null) {
+            return null;
+          }
+          if (typeof value === "object" && value !== null) {
+            return JSON.stringify(value);
+          }
+          return String(value);
+        },
+      };
+    });
 
     // Generate rows with unique IDs
     const rowsData = results.results.map((result, index) => ({
