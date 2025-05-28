@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Box, Paper, Typography } from "@mui/material";
+import { Box, Paper, Typography, styled, AppBar, Toolbar } from "@mui/material";
 import QueryExplorer from "./components/QueryExplorer";
 import QueryEditor from "./components/QueryEditor";
 import ResultsTable from "./components/ResultsTable";
 import ChatBot from "./components/ChatBot";
+import ThemeSelector from "./components/ThemeSelector";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -13,6 +14,27 @@ interface QueryResult {
   executedAt: string;
   resultCount: number;
 }
+
+// Styled PanelResizeHandle components
+const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
+  width: "4px",
+  background: theme.palette.divider,
+  cursor: "col-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
+    backgroundColor: theme.palette.primary.main,
+  },
+}));
+
+const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
+  height: "4px",
+  background: theme.palette.divider,
+  cursor: "row-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
+    backgroundColor: theme.palette.primary.main,
+  },
+}));
 
 function App() {
   const [selectedQuery, setSelectedQuery] = useState<string>("");
@@ -63,58 +85,66 @@ function App() {
         flexDirection: "column",
       }}
     >
-      <PanelGroup direction="horizontal" style={{ height: "100%" }}>
-        {/* Left Panel - Query Explorer */}
-        <Panel defaultSize={20} minSize={1}>
-          <QueryExplorer onQuerySelect={handleQuerySelect} />
-        </Panel>
+      {/* Header with Theme Selector */}
+      <AppBar
+        position="static"
+        color="transparent"
+        elevation={0}
+        sx={{ borderBottom: 1, borderColor: "divider" }}
+      >
+        <Toolbar
+          sx={{ justifyContent: "space-between", minHeight: "48px !important" }}
+        >
+          <Typography variant="h6" component="div">
+            RevOps Query Explorer
+          </Typography>
+          <ThemeSelector />
+        </Toolbar>
+      </AppBar>
 
-        <PanelResizeHandle
-          style={{ width: "4px", background: "#ddd", cursor: "col-resize" }}
-        />
+      {/* Main Content */}
+      <Box sx={{ flexGrow: 1, height: "calc(100vh - 48px)" }}>
+        <PanelGroup direction="horizontal" style={{ height: "100%" }}>
+          {/* Left Panel - Query Explorer */}
+          <Panel defaultSize={20} minSize={1}>
+            <QueryExplorer onQuerySelect={handleQuerySelect} />
+          </Panel>
 
-        {/* Middle Panel - Editor and Results */}
-        <Panel defaultSize={50} minSize={30}>
-          <PanelGroup direction="vertical" style={{ height: "100%" }}>
-            {/* Query Editor */}
-            <Panel defaultSize={50} minSize={1}>
-              <QueryEditor
-                queryContent={queryContent}
-                selectedQuery={selectedQuery}
-                onExecute={handleQueryExecute}
-                isExecuting={isExecuting}
-              />
-            </Panel>
+          <StyledHorizontalResizeHandle />
 
-            <PanelResizeHandle
-              style={{
-                height: "4px",
-                background: "#ddd",
-                cursor: "row-resize",
-              }}
-            />
+          {/* Middle Panel - Editor and Results */}
+          <Panel defaultSize={50} minSize={30}>
+            <PanelGroup direction="vertical" style={{ height: "100%" }}>
+              {/* Query Editor */}
+              <Panel defaultSize={50} minSize={1}>
+                <QueryEditor
+                  queryContent={queryContent}
+                  selectedQuery={selectedQuery}
+                  onExecute={handleQueryExecute}
+                  isExecuting={isExecuting}
+                />
+              </Panel>
 
-            {/* Results */}
-            <Panel defaultSize={50} minSize={1}>
-              <ResultsTable results={queryResults} />
-            </Panel>
-          </PanelGroup>
-        </Panel>
+              <StyledVerticalResizeHandle />
 
-        <PanelResizeHandle
-          style={{ width: "4px", background: "#ddd", cursor: "col-resize" }}
-        />
+              {/* Results */}
+              <Panel defaultSize={50} minSize={1}>
+                <ResultsTable results={queryResults} />
+              </Panel>
+            </PanelGroup>
+          </Panel>
 
-        {/* Right Panel - ChatBot */}
-        <Panel defaultSize={25} minSize={1}>
-          <Paper sx={{ height: "100%", p: 2 }}>
+          <StyledHorizontalResizeHandle />
+
+          {/* Right Panel - ChatBot */}
+          <Panel defaultSize={25} minSize={1}>
             <Typography variant="h6" gutterBottom>
               AI Assistant
             </Typography>
             <ChatBot />
-          </Paper>
-        </Panel>
-      </PanelGroup>
+          </Panel>
+        </PanelGroup>
+      </Box>
     </Box>
   );
 }

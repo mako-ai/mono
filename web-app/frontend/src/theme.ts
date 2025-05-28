@@ -2,8 +2,38 @@ import { createTheme } from "@mui/material/styles";
 
 // Extend the default Material-UI theme here. Update the palette & typography as desired.
 const theme = createTheme({
-  palette: {
-    mode: "light",
+  cssVariables: true, // Enable CSS variables for better theme switching
+  colorSchemes: {
+    light: {
+      palette: {
+        mode: "light",
+        background: {
+          default: "#fafafafa",
+          paper: "#ffffff",
+        },
+        primary: {
+          main: "#1976d2",
+        },
+        secondary: {
+          main: "#dc004e",
+        },
+      },
+    },
+    dark: {
+      palette: {
+        mode: "dark",
+        background: {
+          default: "#121212", // Dark background
+          paper: "#1e1e1e", // Slightly lighter for paper elements
+        },
+        primary: {
+          main: "#90caf9",
+        },
+        secondary: {
+          main: "#f48fb1",
+        },
+      },
+    },
   },
   typography: {
     fontFamily: [

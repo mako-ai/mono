@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { Box, Button, Typography } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface QueryEditorProps {
   queryContent: string;
@@ -18,6 +19,7 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
 }) => {
   const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const { effectiveMode } = useTheme();
 
   useEffect(() => {
     const handleResize = () => {
@@ -70,6 +72,7 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
             defaultLanguage="javascript"
             value={queryContent}
             height="100%"
+            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
             onMount={handleEditorDidMount}
             options={{
               automaticLayout: true,
@@ -87,8 +90,6 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "1px dashed #ccc",
-              borderRadius: 1,
               color: "text.secondary",
             }}
           >
