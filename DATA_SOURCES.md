@@ -53,13 +53,13 @@ This will:
 The backend provides REST API endpoints for data source management:
 
 ```
-GET    /api/data-sources          # List all data sources
-GET    /api/data-sources/:id      # Get specific data source
-POST   /api/data-sources          # Create new data source
-PUT    /api/data-sources/:id      # Update existing data source
-DELETE /api/data-sources/:id      # Delete data source
-POST   /api/data-sources/:id/test # Test connection
-PATCH  /api/data-sources/:id/enable # Enable/disable data source
+GET    /api/sources          # List all data sources
+GET    /api/sources/:id      # Get specific data source
+POST   /api/sources          # Create new data source
+PUT    /api/sources/:id      # Update existing data source
+DELETE /api/sources/:id      # Delete data source
+POST   /api/sources/:id/test # Test connection
+PATCH  /api/sources/:id/enable # Enable/disable data source
 ```
 
 ## Database Schema
@@ -96,7 +96,7 @@ Data sources are stored in the `data_sources` collection with this structure:
 
 ## Web Interface
 
-Navigate to `/data-sources` in your web application to:
+Navigate to `/sources` in your web application to:
 
 1. **View all data sources** in a card-based layout
 2. **Add new data sources** with the "Add Data Source" button

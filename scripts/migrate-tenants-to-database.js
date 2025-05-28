@@ -143,7 +143,7 @@ async function migrateTenants() {
       "\n🎉 You can now manage your data sources through the web interface!"
     );
     console.log(
-      "💡 Navigate to /data-sources in your application to view and manage them."
+      "💡 Navigate to /sources in your application to view and manage them."
     );
   } catch (error) {
     console.error("❌ Migration failed:", error);
