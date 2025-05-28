@@ -5,7 +5,6 @@ import {
   CardContent,
   Switch,
   FormControlLabel,
-  Divider,
   Button,
   TextField,
   Select,
