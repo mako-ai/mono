@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { Box, Button, Typography } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
@@ -16,6 +16,30 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
   onExecute,
   isExecuting,
 }) => {
+  const editorRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (editorRef.current) {
+        editorRef.current.layout();
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  const handleEditorDidMount = (editor: any) => {
+    editorRef.current = editor;
+  };
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Box
@@ -40,13 +64,15 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
         </Button>
       </Box>
 
-      <Box sx={{ flexGrow: 1 }}>
+      <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
         {selectedQuery ? (
           <Editor
-            height="100%"
             defaultLanguage="javascript"
             value={queryContent}
+            height="100%"
+            onMount={handleEditorDidMount}
             options={{
+              automaticLayout: true,
               readOnly: true,
               minimap: { enabled: false },
               fontSize: 14,
