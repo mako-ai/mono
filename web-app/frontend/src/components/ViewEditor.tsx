@@ -118,7 +118,7 @@ const ViewEditor: React.FC<ViewEditorProps> = ({
         <Typography variant="h6">
           {selectedView ? `View: ${selectedView}` : "No view selected"}
         </Typography>
-        <ButtonGroup variant="contained" size="small">
+        <Box sx={{ display: "flex", gap: 0.5 }}>
           <Button startIcon={<AddIcon />} onClick={onCreate} color="secondary">
             New View
           </Button>
@@ -144,7 +144,7 @@ const ViewEditor: React.FC<ViewEditorProps> = ({
               </Button>
             </>
           )}
-        </ButtonGroup>
+        </Box>
       </Box>
 
       <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
