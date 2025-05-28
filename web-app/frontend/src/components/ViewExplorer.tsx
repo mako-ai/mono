@@ -31,11 +31,13 @@ interface ViewInfo {
 interface ViewExplorerProps {
   onViewSelect: (viewName: string, viewDefinition: any) => void;
   selectedView?: string;
+  onCreateNew?: () => void;
 }
 
 const ViewExplorer: React.FC<ViewExplorerProps> = ({
   onViewSelect,
   selectedView,
+  onCreateNew,
 }) => {
   const [views, setViews] = useState<ViewInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
             </Typography>
           </Box>
           <Box>
-            <IconButton size="small">
+            <IconButton size="small" onClick={onCreateNew}>
               <AddIcon />
             </IconButton>
             <IconButton size="small" onClick={handleRefresh} color="primary">

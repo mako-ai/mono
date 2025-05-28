@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Box,
   Typography,
@@ -14,9 +14,8 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import ViewExplorer from "../components/ViewExplorer";
-import ViewEditor from "../components/ViewEditor";
+import ViewEditor, { ViewEditorRef } from "../components/ViewEditor";
 import ResultsTable from "../components/ResultsTable";
-import CreateViewDialog from "../components/CreateViewDialog";
 import ChatBot from "../components/ChatBot";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -63,15 +62,20 @@ function Views() {
   const [queryResults, setQueryResults] = useState<QueryResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const viewEditorRef = useRef<ViewEditorRef>(null);
 
   const handleViewSelect = (viewName: string, definition: ViewDefinition) => {
+    // If we're currently creating a new view, exit creation mode first
+    if (viewEditorRef.current) {
+      // Reset the creation state in ViewEditor
+      viewEditorRef.current.cancelCreation?.();
+    }
+
     setSelectedView(viewName);
     setViewDefinition(definition);
     setQueryResults(null); // Clear previous results
@@ -174,45 +178,6 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
     }
   };
 
-  const handleCreateView = async (definition: ViewDefinition) => {
-    setIsCreating(true);
-    try {
-      const response = await fetch("/api/database/views", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(definition),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setSnackbarMessage(`View "${definition.name}" created successfully`);
-        setSnackbarOpen(true);
-        setCreateDialogOpen(false);
-        setSelectedView(definition.name);
-        setViewDefinition(definition);
-        // Refresh the view explorer
-        setRefreshKey((prev) => prev + 1);
-      } else {
-        console.error("View creation failed:", data.error);
-        setErrorMessage(JSON.stringify(data.error, null, 2));
-        setErrorModalOpen(true);
-      }
-    } catch (error) {
-      console.error("Failed to create view:", error);
-      setErrorMessage(JSON.stringify(error, null, 2));
-      setErrorModalOpen(true);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleCreateNewView = () => {
-    setCreateDialogOpen(true);
-  };
-
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
     setErrorMessage("");
@@ -221,6 +186,16 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
     setSnackbarMessage("");
+  };
+
+  const handleCreateNewView = () => {
+    // Clear current selection when creating a new view
+    setSelectedView("");
+    setViewDefinition(null);
+    setQueryResults(null);
+
+    // Trigger creation mode in the editor
+    viewEditorRef.current?.createNew();
   };
 
   return (
@@ -245,6 +220,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
               onViewSelect={handleViewSelect}
               selectedView={selectedView}
               key={refreshKey} // Force refresh when key changes
+              onCreateNew={handleCreateNewView}
             />
           </Box>
         </Panel>
@@ -266,9 +242,9 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
                     selectedView={selectedView}
                     onExecute={handleViewExecute}
                     onSave={handleViewSave}
-                    onCreate={handleCreateNewView}
                     isExecuting={isExecuting}
                     isSaving={isSaving}
+                    ref={viewEditorRef}
                   />
                 </Box>
               </Panel>
@@ -297,14 +273,6 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
           </Box>
         </Panel>
       </PanelGroup>
-
-      {/* Create View Dialog */}
-      <CreateViewDialog
-        open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onCreateView={handleCreateView}
-        isCreating={isCreating}
-      />
 
       {/* Error Modal */}
       <Dialog
