@@ -101,7 +101,6 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
       name: viewName.trim(),
       viewOn: viewOn,
       pipeline: parsedPipeline,
-      options: {},
     };
 
     onCreateView(viewDefinition);

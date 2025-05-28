@@ -42,9 +42,48 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       return { columns: [], rows: [] };
     }
 
-    // Generate columns from the first result object
-    const firstResult = results.results[0];
-    const cols: GridColDef[] = Object.keys(firstResult).map((key) => {
+    // Generate columns from the first 10 results (or all if fewer than 10)
+    const sampleResults = results.results.slice(0, 10);
+    const allKeys = new Set<string>();
+
+    // Collect all unique keys from the sample results
+    sampleResults.forEach((result) => {
+      Object.keys(result).forEach((key) => allKeys.add(key));
+    });
+
+    // Function to check if a key looks like a date (YYYY, YYYY-MM, YYYY-MM-DD, etc.)
+    const isDateLikeKey = (key: string): boolean => {
+      // Match patterns like: YYYY, YYYY-MM, YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, etc.
+      const datePattern = /^\d{4}(-\d{2})?(-\d{2})?(\s\d{2}:\d{2}(:\d{2})?)?$/;
+      return datePattern.test(key.trim());
+    };
+
+    // Separate date columns from non-date columns
+    const allKeysArray = Array.from(allKeys);
+    const dateKeys = allKeysArray.filter(isDateLikeKey);
+    const nonDateKeys = allKeysArray.filter((key) => !isDateLikeKey(key));
+
+    // Sort date keys chronologically
+    const sortedDateKeys = dateKeys.sort((a, b) => {
+      // Convert to comparable date strings by padding if needed
+      const normalizeDate = (dateStr: string) => {
+        const parts = dateStr.trim().split(/[\s-:]/);
+        return (
+          parts[0] +
+          (parts[1] || "01").padStart(2, "0") +
+          (parts[2] || "01").padStart(2, "0") +
+          (parts[3] || "00").padStart(2, "0") +
+          (parts[4] || "00").padStart(2, "0") +
+          (parts[5] || "00").padStart(2, "0")
+        );
+      };
+      return normalizeDate(a).localeCompare(normalizeDate(b));
+    });
+
+    // Combine non-date keys first, then sorted date keys
+    const orderedKeys = [...nonDateKeys, ...sortedDateKeys];
+
+    const cols: GridColDef[] = orderedKeys.map((key) => {
       // Check if this column contains numeric values by sampling the first few rows
       const sampleValues = results.results.slice(0, 10).map((row) => row[key]);
       const isNumericColumn = sampleValues.every(
