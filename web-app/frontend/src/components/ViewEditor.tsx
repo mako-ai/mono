@@ -5,11 +5,21 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Typography,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+} from "@mui/material";
 import {
   PlayArrow,
   Save as SaveIcon,
   Add as AddIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
@@ -26,6 +36,7 @@ interface ViewEditorProps {
   onExecute: (viewDefinition: ViewDefinition) => void;
   onSave: (viewDefinition: ViewDefinition) => void;
   onCreateNew?: () => void;
+  onDelete?: (viewName: string) => void;
   isExecuting: boolean;
   isSaving: boolean;
 }
@@ -43,6 +54,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
       onExecute,
       onSave,
       onCreateNew,
+      onDelete,
       isExecuting,
       isSaving,
     },
@@ -54,6 +66,8 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     const [currentContent, setCurrentContent] = useState("");
     const [isCreatingNew, setIsCreatingNew] = useState(false);
     const [collections, setCollections] = useState<string[]>([]);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     // Fetch collections for placeholder
     useEffect(() => {
@@ -74,12 +88,9 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     // Update current content when viewDefinition changes or when creating new
     useEffect(() => {
       if (isCreatingNew) {
-        // Create placeholder content for new view
-        const placeholderCollection =
-          collections.length > 0 ? collections[0] : "your_collection";
         const placeholderContent = {
-          name: "new_view_name",
-          viewOn: placeholderCollection,
+          name: "",
+          viewOn: "your_collection",
           pipeline: [
             {
               $match: {
@@ -189,6 +200,29 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
       ? `View: ${selectedView}`
       : "No view selected";
 
+    const handleDelete = () => {
+      setIsDeleting(true);
+      setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+      if (onDelete && selectedView && !isCreatingNew) {
+        try {
+          await onDelete(selectedView);
+          setDeleteDialogOpen(false);
+        } catch (error) {
+          console.error("Failed to delete view:", error);
+        }
+      }
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+    };
+
+    const handleDeleteCancel = () => {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+    };
+
     useImperativeHandle(ref, () => ({
       createNew: () => setIsCreatingNew(true),
       cancelCreation: () => setIsCreatingNew(false),
@@ -233,6 +267,16 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
                 >
                   {isExecuting ? "Executing..." : "Run View"}
                 </Button>
+                {selectedView && !isCreatingNew && onDelete && (
+                  <Button
+                    startIcon={<DeleteIcon />}
+                    onClick={handleDelete}
+                    color="error"
+                    disabled={isDeleting}
+                  >
+                    Delete
+                  </Button>
+                )}
               </>
             )}
           </Box>
@@ -285,6 +329,34 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
             </Box>
           )}
         </Box>
+
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={handleDeleteCancel}
+          aria-labelledby="delete-dialog-title"
+          aria-describedby="delete-dialog-description"
+        >
+          <DialogTitle id="delete-dialog-title">Delete View</DialogTitle>
+          <DialogContent>
+            <DialogContentText id="delete-dialog-description">
+              Are you sure you want to delete the view "{selectedView}"? This
+              action cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDeleteCancel} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              color="error"
+              variant="contained"
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     );
   }

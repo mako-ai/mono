@@ -10,19 +10,12 @@ import {
   CircularProgress,
   Alert,
   IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  Button,
   Collapse,
 } from "@mui/material";
 import {
   VisibilityOutlined as ViewIcon,
   Refresh as RefreshIcon,
   Add as AddIcon,
-  Delete as DeleteIcon,
   FolderOutlined,
   ExpandLess,
   ExpandMore,
@@ -52,11 +45,6 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   const [views, setViews] = useState<ViewInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<{
-    open: boolean;
-    viewName: string | null;
-  }>({ open: false, viewName: null });
-  const [deleting, setDeleting] = useState(false);
   const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
     new Set()
   );
@@ -77,13 +65,8 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
         console.log("Raw views data from API:", data.data); // Debug log
         setViews(data.data);
 
-        // Auto-expand all collections by default
-        const collections = new Set<string>();
-        data.data.forEach((view: ViewInfo) => {
-          const collection = view.options.viewOn || "Unknown Collection";
-          collections.add(collection);
-        });
-        setExpandedCollections(collections);
+        // Keep all collections collapsed by default
+        setExpandedCollections(new Set());
       } else {
         setError(data.error || "Failed to fetch views");
       }
@@ -142,53 +125,6 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
     return grouped;
   };
 
-  const handleDeleteClick = (viewName: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent view selection
-    setDeleteDialog({ open: true, viewName });
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteDialog({ open: false, viewName: null });
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteDialog.viewName) return;
-
-    try {
-      setDeleting(true);
-      setError(null);
-
-      const response = await fetch(
-        `/api/database/views/${deleteDialog.viewName}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.success) {
-        // Remove the deleted view from the list
-        setViews((prevViews) =>
-          prevViews.filter((view) => view.name !== deleteDialog.viewName)
-        );
-
-        // If the deleted view was selected, clear the selection
-        if (selectedView === deleteDialog.viewName) {
-          onViewSelect("", null);
-        }
-      } else {
-        setError(data.error || "Failed to delete view");
-      }
-    } catch (err) {
-      setError("Failed to delete view");
-      console.error("Error deleting view:", err);
-    } finally {
-      setDeleting(false);
-      setDeleteDialog({ open: false, viewName: null });
-    }
-  };
-
   if (loading) {
     return (
       <Box
@@ -236,10 +172,10 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
             </Typography>
           </Box>
           <Box>
-            <IconButton size="small" onClick={onCreateNew}>
+            <IconButton size="small" onClick={onCreateNew} color="primary">
               <AddIcon />
             </IconButton>
-            <IconButton size="small" onClick={handleRefresh} color="primary">
+            <IconButton size="small" onClick={handleRefresh}>
               <RefreshIcon />
             </IconButton>
           </Box>
@@ -317,20 +253,6 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
                               }}
                             />
                           </ListItemButton>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => handleDeleteClick(view.name, e)}
-                            sx={{
-                              ml: 1,
-                              mr: 1,
-                              color: "text.secondary",
-                              "&:hover": {
-                                color: "error.main",
-                              },
-                            }}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
                         </ListItem>
                       ))}
                     </Collapse>
@@ -341,35 +263,6 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
           </List>
         )}
       </Box>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialog.open}
-        onClose={handleDeleteCancel}
-        aria-labelledby="delete-dialog-title"
-        aria-describedby="delete-dialog-description"
-      >
-        <DialogTitle id="delete-dialog-title">Delete View</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="delete-dialog-description">
-            Are you sure you want to delete the view "{deleteDialog.viewName}"?
-            This action cannot be undone.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDeleteCancel} disabled={deleting}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteConfirm}
-            color="error"
-            variant="contained"
-            disabled={deleting}
-          >
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

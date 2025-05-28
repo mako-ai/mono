@@ -177,6 +177,38 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
     }
   };
 
+  const handleViewDelete = async (viewName: string) => {
+    try {
+      const response = await fetch(
+        `/api/database/views/${encodeURIComponent(viewName)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSnackbarMessage(`View "${viewName}" deleted successfully`);
+        setSnackbarOpen(true);
+        // Clear the current selection
+        setSelectedView("");
+        setViewDefinition(null);
+        setQueryResults(null);
+        // Refresh the view explorer
+        setRefreshKey((prev) => prev + 1);
+      } else {
+        console.error("View delete failed:", data.error);
+        setErrorMessage(JSON.stringify(data.error, null, 2));
+        setErrorModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Failed to delete view:", error);
+      setErrorMessage(JSON.stringify(error, null, 2));
+      setErrorModalOpen(true);
+    }
+  };
+
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
     setErrorMessage("");
@@ -241,6 +273,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
                     selectedView={selectedView}
                     onExecute={handleViewExecute}
                     onSave={handleViewSave}
+                    onDelete={handleViewDelete}
                     isExecuting={isExecuting}
                     isSaving={isSaving}
                     ref={viewEditorRef}
