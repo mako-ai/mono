@@ -13,6 +13,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import TableViewIcon from "@mui/icons-material/TableView";
 import CodeIcon from "@mui/icons-material/Code";
 import Editor from "@monaco-editor/react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface QueryResult {
   query: string;
@@ -28,6 +29,7 @@ interface ResultsTableProps {
 const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   const [snackbarOpen, setSnackbarOpen] = React.useState(false);
   const [viewMode, setViewMode] = React.useState<"table" | "json">("table");
+  const { effectiveMode } = useTheme();
 
   // Reset to table view whenever new results are received
   useEffect(() => {
@@ -145,8 +147,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          border: "1px dashed #ccc",
-          borderRadius: 1,
           color: "text.secondary",
         }}
       >
@@ -163,8 +163,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          border: "1px solid #ccc",
-          borderRadius: 1,
           color: "text.secondary",
         }}
       >
@@ -193,6 +191,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             sx={{
               "& .MuiDataGrid-cell": {
                 fontSize: "0.875rem",
+                backgroundColor: "background.paper",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                backgroundColor: "background.default",
+              },
+              "& .MuiDataGrid-columnHeader": {
+                backgroundColor: "background.default",
               },
               borderRadius: 0,
               border: "none",
@@ -203,6 +208,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             height="100%"
             defaultLanguage="json"
             value={jsonContent}
+            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
             options={{
               readOnly: true,
               minimap: { enabled: false },
@@ -211,14 +217,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               wordWrap: "on",
               automaticLayout: true,
             }}
-            theme="vs-light"
           />
         )}
       </Box>
       <Box
         sx={{
           p: 1,
-          backgroundColor: "#f5f5f5",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",

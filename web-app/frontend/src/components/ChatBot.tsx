@@ -9,8 +9,6 @@ const ChatBot: React.FC = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        border: "1px dashed #ccc",
-        borderRadius: 1,
         color: "text.secondary",
       }}
     >
