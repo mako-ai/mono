@@ -24,7 +24,7 @@ A local analytics tool for Close.com CRM data using MongoDB for complex querying
 
    ```bash
    git clone <your-repo>
-   cd close-analytics
+   cd multi-tenant-analytics
    pnpm install
    ```
 
@@ -172,7 +172,7 @@ Connect to: `mongodb://localhost:27018/multi_tenant_analytics`
 
 ```bash
 # Connect to MongoDB container
-docker exec -it close-analytics-mongo mongosh multi_tenant_analytics
+docker exec -it multi-tenant-analytics-mongo mongosh multi_tenant_analytics
 
 # Example query
 db.leads.find({status_id: "lead_status_xyz"}).count()
@@ -226,7 +226,7 @@ pnpm run query --list
 ## Project Structure
 
 ```
-close-analytics/
+multi-tenant-analytics/
 ├── src/
 │   ├── sync-leads.ts      # Leads sync script
 │   └── index.ts           # Main entry point
