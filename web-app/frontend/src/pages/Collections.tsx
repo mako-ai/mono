@@ -314,9 +314,6 @@ function Collections() {
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={20} minSize={1}>
           <Box sx={{ height: "100%", overflow: "hidden", p: 1 }}>
-            <Typography variant="h6" gutterBottom>
-              AI Assistant
-            </Typography>
             <ChatBot currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>

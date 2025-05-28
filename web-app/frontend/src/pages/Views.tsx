@@ -323,10 +323,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
 
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={30} minSize={1}>
-          <Box sx={{ height: "100%", overflow: "hidden", p: 1 }}>
-            <Typography variant="h6" gutterBottom>
-              AI Assistant
-            </Typography>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <ChatBot currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
