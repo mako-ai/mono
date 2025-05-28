@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Box, Button, Typography, ButtonGroup } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import {
   PlayArrow,
   Save as SaveIcon,
@@ -175,12 +175,22 @@ const ViewEditor: React.FC<ViewEditorProps> = ({
               alignItems: "center",
               justifyContent: "center",
               color: "text.secondary",
+              flexDirection: "column",
+              gap: 2,
             }}
           >
             <Typography>
               Select a view from the explorer to view and edit its definition,
               or create a new view
             </Typography>
+            <Button
+              startIcon={<AddIcon />}
+              onClick={onCreate}
+              color="primary"
+              variant="contained"
+            >
+              New View
+            </Button>
           </Box>
         )}
       </Box>

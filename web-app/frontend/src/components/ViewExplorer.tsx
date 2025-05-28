@@ -15,6 +15,7 @@ import {
 import {
   Visibility as ViewIcon,
   Refresh as RefreshIcon,
+  Add as AddIcon,
 } from "@mui/icons-material";
 
 interface ViewInfo {
@@ -116,7 +117,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",
@@ -124,14 +125,21 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
             alignItems: "center",
           }}
         >
-          <Typography variant="h6">Database Views</Typography>
-          <IconButton size="small" onClick={handleRefresh} color="primary">
-            <RefreshIcon />
-          </IconButton>
+          <Box>
+            <Typography variant="h6">Database Views</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {views.length} view{views.length !== 1 ? "s" : ""} found
+            </Typography>
+          </Box>
+          <Box>
+            <IconButton size="small">
+              <AddIcon />
+            </IconButton>
+            <IconButton size="small" onClick={handleRefresh} color="primary">
+              <RefreshIcon />
+            </IconButton>
+          </Box>
         </Box>
-        <Typography variant="body2" color="text.secondary">
-          {views.length} view{views.length !== 1 ? "s" : ""} found
-        </Typography>
       </Box>
 
       <Box sx={{ flexGrow: 1, overflow: "auto" }}>
