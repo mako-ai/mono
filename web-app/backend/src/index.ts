@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import dotenv from "dotenv";
 import { queryRoutes } from "./routes/queries";
 import { executeRoutes } from "./routes/execute";
+import { databaseRoutes } from "./routes/database";
 
 // Load environment variables from the root project
 dotenv.config({ path: "../../.env" });
@@ -29,6 +30,7 @@ app.get("/health", (c) => {
 app.route("/api/queries", queryRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
+app.route("/api/database", databaseRoutes);
 
 const port = parseInt(process.env.WEB_API_PORT || "3001");
 
