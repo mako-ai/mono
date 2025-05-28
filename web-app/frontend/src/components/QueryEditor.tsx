@@ -1,6 +1,7 @@
 import React from "react";
-import { Box, Button, Typography, TextField } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
+import Editor from "@monaco-editor/react";
 
 interface QueryEditorProps {
   queryContent: string;
@@ -22,7 +23,7 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          mb: 2,
+          p: 1,
         }}
       >
         <Typography variant="h6">
@@ -30,6 +31,7 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
         </Typography>
         <Button
           variant="contained"
+          size="small"
           startIcon={<PlayArrow />}
           onClick={onExecute}
           disabled={!selectedQuery || isExecuting}
@@ -40,25 +42,17 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
 
       <Box sx={{ flexGrow: 1 }}>
         {selectedQuery ? (
-          <TextField
-            multiline
-            fullWidth
+          <Editor
+            height="100%"
+            defaultLanguage="javascript"
             value={queryContent}
-            variant="outlined"
-            placeholder="Query content will appear here..."
-            InputProps={{
+            options={{
               readOnly: true,
-              sx: {
-                height: "100%",
-                "& .MuiInputBase-input": {
-                  height: "100% !important",
-                  overflow: "auto !important",
-                  fontFamily: "monospace",
-                  fontSize: "14px",
-                },
-              },
+              minimap: { enabled: false },
+              fontSize: 14,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
             }}
-            sx={{ height: "100%" }}
           />
         ) : (
           <Box
