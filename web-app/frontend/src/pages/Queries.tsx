@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import QueryExplorer from "../components/QueryExplorer";
-import QueryEditor from "../components/QueryEditor";
+import QueryEditor, { QueryEditorRef } from "../components/QueryEditor";
 import ResultsTable from "../components/ResultsTable";
 import ChatBot from "../components/ChatBot";
 // @ts-ignore – types will be available once the package is installed
@@ -52,6 +52,33 @@ function Queries() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [currentEditorContent, setCurrentEditorContent] = useState<
+    | {
+        content: string;
+        fileName?: string;
+        language?: string;
+      }
+    | undefined
+  >(undefined);
+  const queryEditorRef = useRef<QueryEditorRef>(null);
+
+  // Update current editor content periodically
+  useEffect(() => {
+    const updateEditorContent = () => {
+      if (queryEditorRef.current) {
+        const content = queryEditorRef.current.getCurrentContent();
+        setCurrentEditorContent(content);
+      }
+    };
+
+    // Update immediately
+    updateEditorContent();
+
+    // Set up interval to check for content changes
+    const interval = setInterval(updateEditorContent, 1000);
+
+    return () => clearInterval(interval);
+  }, [selectedQuery, queryContent]);
 
   const handleQuerySelect = (queryPath: string, content: string) => {
     setSelectedQuery(queryPath);
@@ -134,6 +161,7 @@ function Queries() {
                     selectedQuery={selectedQuery}
                     onExecute={handleQueryExecute}
                     isExecuting={isExecuting}
+                    ref={queryEditorRef}
                   />
                 </Box>
               </Panel>
@@ -158,7 +186,7 @@ function Queries() {
             <Typography variant="h6" gutterBottom>
               AI Assistant
             </Typography>
-            <ChatBot />
+            <ChatBot currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
       </PanelGroup>

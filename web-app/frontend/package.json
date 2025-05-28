@@ -16,6 +16,7 @@
     "@mui/x-data-grid-premium": "^8.4.0",
     "@mui/x-license": "^8.4.0",
     "axios": "^1.6.2",
+    "openai": "^4.103.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.1"

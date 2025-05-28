@@ -44,6 +44,11 @@ interface ViewEditorProps {
 export interface ViewEditorRef {
   createNew: () => void;
   cancelCreation: () => void;
+  getCurrentContent: () => {
+    content: string;
+    fileName?: string;
+    language?: string;
+  };
 }
 
 const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
@@ -226,6 +231,11 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     useImperativeHandle(ref, () => ({
       createNew: () => setIsCreatingNew(true),
       cancelCreation: () => setIsCreatingNew(false),
+      getCurrentContent: () => ({
+        content: currentContent,
+        fileName: "view_definition.json",
+        language: "json",
+      }),
     }));
 
     return (
