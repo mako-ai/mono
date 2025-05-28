@@ -405,7 +405,7 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
           },
           ...conversationHistory,
         ],
-        max_tokens: 500,
+        max_tokens: 4000,
         temperature: 0.7,
       });
 
@@ -472,20 +472,26 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
   return (
     <Box
       sx={{
-        height: "100%",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
+        height: "100%",
+        p: 1,
       }}
     >
-      <Button
-        size="small"
-        onClick={clearChat}
-        disabled={messages.length === 0}
-        sx={{ alignSelf: "flex-end" }}
-      >
-        Clear Chat
-      </Button>
+      <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Typography variant="h6" gutterBottom>
+          AI Assistant
+        </Typography>
+        <Button
+          size="small"
+          onClick={clearChat}
+          disabled={messages.length === 0}
+          sx={{ alignSelf: "flex-end" }}
+        >
+          Clear Chat
+        </Button>
+      </Box>
 
       {/* Messages Area */}
       <Box
@@ -756,6 +762,7 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
+            sx={{ backgroundColor: "paper.background" }}
             disabled={isLoading}
             variant="outlined"
             size="small"
