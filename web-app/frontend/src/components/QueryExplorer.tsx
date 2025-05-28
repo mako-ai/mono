@@ -94,14 +94,23 @@ const QueryExplorer: React.FC<QueryExplorerProps> = ({ onQuerySelect }) => {
             }}
             selected={isSelected}
           >
-            <ListItemIcon>
+            <ListItemIcon sx={{ minWidth: 32 }}>
               {queryFile.isDirectory ? (
                 <FolderOutlined />
               ) : (
                 <DescriptionOutlined />
               )}
             </ListItemIcon>
-            <ListItemText primary={queryFile.name} />
+            <ListItemText
+              primary={queryFile.name}
+              sx={{
+                "& .MuiListItemText-primary": {
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                },
+              }}
+            />
             {queryFile.isDirectory &&
               (isExpanded ? <ExpandLess /> : <ExpandMore />)}
           </ListItemButton>
