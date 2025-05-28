@@ -18,7 +18,6 @@ interface ViewDefinition {
   name: string;
   viewOn: string;
   pipeline: any[];
-  options?: any;
 }
 
 interface ViewEditorProps {
@@ -94,7 +93,6 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
               },
             },
           ],
-          options: {},
         };
         const formattedContent = JSON.stringify(placeholderContent, null, 2);
         setCurrentContent(formattedContent);

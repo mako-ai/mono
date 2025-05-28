@@ -24,7 +24,6 @@ interface ViewDefinition {
   name: string;
   viewOn: string;
   pipeline: any[];
-  options?: any;
 }
 
 interface QueryResult {
