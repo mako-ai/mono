@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Paper, Typography, styled, AppBar, Toolbar } from "@mui/material";
+import { Box, Typography, styled, AppBar, Toolbar } from "@mui/material";
 import QueryExplorer from "./components/QueryExplorer";
 import QueryEditor from "./components/QueryEditor";
 import ResultsTable from "./components/ResultsTable";
