@@ -3,7 +3,7 @@ version: "3.8"
 services:
   mongodb:
     image: mongo:7.0
-    container_name: close-analytics-mongo
+    container_name: multi-tenant-analytics-mongo
     restart: unless-stopped
     ports:
       - "27018:27017"
@@ -15,7 +15,7 @@ services:
 
   mongo-express:
     image: mongo-express:1.0.2
-    container_name: close-analytics-mongo-express
+    container_name: multi-tenant-analytics-mongo-express
     restart: unless-stopped
     ports:
       - "8082:8081"
@@ -32,7 +32,7 @@ services:
     build:
       context: ./web-app/backend
       dockerfile: Dockerfile.dev
-    container_name: close-analytics-web-backend-dev
+    container_name: multi-tenant-analytics-web-backend-dev
     restart: unless-stopped
     ports:
       - "3001:3001"
@@ -57,7 +57,7 @@ services:
     build:
       context: ./web-app
       dockerfile: Dockerfile
-    container_name: close-analytics-web-app
+    container_name: multi-tenant-analytics-web-app
     restart: unless-stopped
     ports:
       - "3000:3000"
