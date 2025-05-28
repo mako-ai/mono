@@ -147,7 +147,7 @@ const QueryExplorer: React.FC<QueryExplorerProps> = ({ onQuerySelect }) => {
   return (
     <Box sx={{ height: "100%", overflow: "auto" }}>
       <Typography variant="h6" m={1}>
-        Explorer
+        EXPLORER
       </Typography>
       <List dense>
         {queries.map((queryFile) => renderQueryItem(queryFile))}
