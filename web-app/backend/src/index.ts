@@ -28,6 +28,7 @@ app.get("/health", (c) => {
 // API routes
 app.route("/api/queries", queryRoutes);
 app.route("/api/run", executeRoutes);
+app.route("/api/execute", executeRoutes);
 
 const port = parseInt(process.env.WEB_API_PORT || "3001");
 

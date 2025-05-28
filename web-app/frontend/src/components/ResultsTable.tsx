@@ -16,7 +16,6 @@ import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
 interface QueryResult {
-  query: string;
   results: any[];
   executedAt: string;
   resultCount: number;
