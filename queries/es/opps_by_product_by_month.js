@@ -50,13 +50,14 @@ db.spain_close_opportunities.aggregate([
 
   // Reshape the output to have cleaner field names
   {
-    $project: {
-      _id: 0,
-      month: "$_id.month",
-      product: "$_id.product",
-      opportunities_won: 1,
-      monthly_value: { $round: ["$monthly_value", 0] },
-      average_monthly_value: { $round: ["$average_monthly_value", 0] },
+    $replaceRoot: {
+      newRoot: {
+        month: "$_id.month",
+        product: "$_id.product",
+        opportunities_won: "$opportunities_won",
+        monthly_value: { $round: ["$monthly_value", 0] },
+        average_monthly_value: { $round: ["$average_monthly_value", 0] },
+      },
     },
   },
 

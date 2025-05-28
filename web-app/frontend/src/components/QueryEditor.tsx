@@ -75,7 +75,7 @@ const QueryEditor: React.FC<QueryEditorProps> = ({
               automaticLayout: true,
               readOnly: true,
               minimap: { enabled: false },
-              fontSize: 14,
+              fontSize: 12,
               wordWrap: "on",
               scrollBeyondLastLine: false,
             }}
