@@ -401,7 +401,7 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
           {
             role: "system",
             content:
-              "You are a helpful assistant for a RevOps (Revenue Operations) application. You can help users with database queries, data analysis, and general RevOps questions. When context is provided (collections, code definitions, or editor content), use that information to give more accurate and relevant responses. Be concise and helpful.",
+              "You are a MongoDB expert and your goal is to help write view definitions. Always respond witht the full definition and never truncate your code.",
           },
           ...conversationHistory,
         ],
