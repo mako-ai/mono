@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -71,7 +71,33 @@ function Collections() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentEditorContent, setCurrentEditorContent] = useState<
+    | {
+        content: string;
+        fileName?: string;
+        language?: string;
+      }
+    | undefined
+  >(undefined);
   const collectionEditorRef = useRef<CollectionEditorRef>(null);
+
+  // Update current editor content periodically
+  useEffect(() => {
+    const updateEditorContent = () => {
+      if (collectionEditorRef.current) {
+        const content = collectionEditorRef.current.getCurrentContent();
+        setCurrentEditorContent(content);
+      }
+    };
+
+    // Update immediately
+    updateEditorContent();
+
+    // Set up interval to check for content changes
+    const interval = setInterval(updateEditorContent, 1000);
+
+    return () => clearInterval(interval);
+  }, [selectedCollection, collectionInfo]);
 
   const handleCollectionSelect = (
     collectionName: string,
@@ -291,7 +317,7 @@ function Collections() {
             <Typography variant="h6" gutterBottom>
               AI Assistant
             </Typography>
-            <ChatBot />
+            <ChatBot currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
       </PanelGroup>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -66,7 +66,33 @@ function Views() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentEditorContent, setCurrentEditorContent] = useState<
+    | {
+        content: string;
+        fileName?: string;
+        language?: string;
+      }
+    | undefined
+  >(undefined);
   const viewEditorRef = useRef<ViewEditorRef>(null);
+
+  // Update current editor content periodically
+  useEffect(() => {
+    const updateEditorContent = () => {
+      if (viewEditorRef.current) {
+        const content = viewEditorRef.current.getCurrentContent();
+        setCurrentEditorContent(content);
+      }
+    };
+
+    // Update immediately
+    updateEditorContent();
+
+    // Set up interval to check for content changes
+    const interval = setInterval(updateEditorContent, 1000);
+
+    return () => clearInterval(interval);
+  }, [selectedView, viewDefinition]);
 
   const handleViewSelect = (viewName: string, definition: ViewDefinition) => {
     // If we're currently creating a new view, exit creation mode first
@@ -259,7 +285,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         <StyledHorizontalResizeHandle />
 
         {/* Middle Panel - Editor and Results */}
-        <Panel defaultSize={65} minSize={30}>
+        <Panel defaultSize={55} minSize={30}>
           <Box sx={{ height: "100%", overflow: "hidden" }}>
             <PanelGroup
               direction="vertical"
@@ -296,12 +322,12 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         <StyledHorizontalResizeHandle />
 
         {/* Right Panel - ChatBot */}
-        <Panel defaultSize={20} minSize={1}>
+        <Panel defaultSize={30} minSize={1}>
           <Box sx={{ height: "100%", overflow: "hidden", p: 1 }}>
             <Typography variant="h6" gutterBottom>
               AI Assistant
             </Typography>
-            <ChatBot />
+            <ChatBot currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
       </PanelGroup>
