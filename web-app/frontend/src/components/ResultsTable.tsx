@@ -98,7 +98,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
       return {
         field: key,
-        headerName: key.charAt(0).toUpperCase() + key.slice(1),
+        headerName: key,
         flex: 1,
         minWidth: 100,
         maxWidth: 300,
