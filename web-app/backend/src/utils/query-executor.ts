@@ -10,7 +10,7 @@ function loadConfig() {
   // Use environment variables primarily (which are set in docker-compose)
   const mongoUrl =
     process.env.MONGODB_CONNECTION_STRING || "mongodb://mongodb:27017";
-  const database = process.env.MONGODB_DATABASE || "close_analytics";
+  const database = process.env.MONGODB_DATABASE || "multi_tenant_analytics";
 
   console.log(`🔌 Connecting to MongoDB: ${mongoUrl}/${database}`);
 

@@ -40,7 +40,7 @@ services:
       - NODE_ENV=development
       - WEB_API_PORT=3001
       - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
-      - MONGODB_DATABASE=close_analytics
+      - MONGODB_DATABASE=multi_tenant_analytics
     volumes:
       - ./web-app/backend/src:/app/src
       - ./queries:/app/queries:ro
@@ -65,7 +65,7 @@ services:
       - NODE_ENV=production
       - WEB_API_PORT=3000
       - MONGODB_CONNECTION_STRING=mongodb://mongodb:27017
-      - MONGODB_DATABASE=close_analytics
+      - MONGODB_DATABASE=multi_tenant_analytics
     volumes:
       - ./queries:/app/queries:ro
       - ./.env:/app/.env:ro
