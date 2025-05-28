@@ -1,9 +1,10 @@
 import { Box, IconButton, Tooltip, styled } from "@mui/material";
 import {
-  SearchOutlined as QueryIcon,
+  ArticleOutlined as FileIcon,
   FolderOutlined as CollectionIcon,
   VisibilityOutlined as ViewIcon,
   SettingsOutlined as SettingsIcon,
+  StorageOutlined as DataSourceIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -34,9 +35,10 @@ const NavButton = styled(IconButton, {
 }));
 
 const navigationItems = [
-  { path: "/", icon: QueryIcon, label: "Queries" },
-  { path: "/collections", icon: CollectionIcon, label: "Collections" },
+  { path: "/", icon: FileIcon, label: "Queries" },
   { path: "/views", icon: ViewIcon, label: "Views" },
+  { path: "/data-sources", icon: DataSourceIcon, label: "Data Sources" },
+  { path: "/collections", icon: CollectionIcon, label: "Collections" },
   { path: "/settings", icon: SettingsIcon, label: "Settings" },
 ];
 

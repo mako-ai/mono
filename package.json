@@ -23,6 +23,7 @@
     "config:validate": "ts-node scripts/config.ts validate",
     "config:list": "ts-node scripts/config.ts list",
     "config:show": "ts-node scripts/config.ts show",
+    "migrate:tenants": "node scripts/migrate-tenants-to-database.js",
     "setup": "pnpm install && pnpm run docker:up && echo 'Waiting for MongoDB to start...' && sleep 15"
   },
   "dependencies": {

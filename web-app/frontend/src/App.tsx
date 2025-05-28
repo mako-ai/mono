@@ -5,6 +5,7 @@ import Queries from "./pages/Queries";
 import Collections from "./pages/Collections";
 import Views from "./pages/Views";
 import Settings from "./pages/Settings";
+import DataSources from "./pages/DataSources";
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<Queries />} />
+          <Route path="/data-sources" element={<DataSources />} />
           <Route path="/collections" element={<Collections />} />
           <Route path="/views" element={<Views />} />
           <Route path="/settings" element={<Settings />} />
