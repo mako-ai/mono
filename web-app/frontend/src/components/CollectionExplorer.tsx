@@ -124,14 +124,32 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
             alignItems: "center",
           }}
         >
-          <Box>
+          <Box
+            sx={{
+              flexGrow: 1,
+              overflow: "hidden",
+              maxWidth: "calc(100% - 70px)",
+              "& .MuiTypography-root": {
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              },
+            }}
+          >
             <Typography variant="h6">Collections</Typography>
             <Typography variant="body2" color="text.secondary">
               {collections.length} collection
               {collections.length !== 1 ? "s" : ""} found
             </Typography>
           </Box>
-          <Box>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "row",
+              gap: 0,
+              width: "70px",
+            }}
+          >
             <IconButton size="small" onClick={onCreateNew} color="primary">
               <AddIcon />
             </IconButton>

@@ -7,6 +7,10 @@ import {
   CircularProgress,
   Paper,
   Avatar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { SmartToy } from "@mui/icons-material";
 import OpenAI from "openai";
@@ -29,6 +33,8 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Context attachment state
@@ -180,6 +186,34 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     fetchCollections();
     fetchViews();
   }, []);
+
+  // Fetch available OpenAI models once the client is initialized
+  useEffect(() => {
+    if (!openaiClient) return;
+
+    const fetchModels = async () => {
+      try {
+        // List all models available for the provided API key
+        const response = await openaiClient.models.list();
+        const modelIds = (response.data as any).map(
+          (m: any) => m.id
+        ) as string[];
+
+        // Optionally, prioritise chat-capable models (simple heuristic)
+        const sorted = modelIds.sort((a, b) => a.localeCompare(b));
+        setAvailableModels(sorted);
+
+        // Ensure we have a valid selection
+        if (sorted.length && !sorted.includes(selectedModel)) {
+          setSelectedModel(sorted[0]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch available OpenAI models:", err);
+      }
+    };
+
+    fetchModels();
+  }, [openaiClient]);
 
   // Context management
   const addContextItem = (item: AttachedContext) => {
@@ -352,8 +386,12 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
       conversationHistory.push({ role: "user", content: messageContent });
 
-      const completion = await openaiClient.chat.completions.create({
-        model: "gpt-3.5-turbo",
+      const isO3 =
+        selectedModel.toLowerCase().startsWith("o3") ||
+        selectedModel.toLowerCase().includes("gpt-4o");
+
+      const completion = await (openaiClient.chat.completions.create as any)({
+        model: selectedModel,
         messages: [
           {
             role: "system",
@@ -361,8 +399,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           },
           ...conversationHistory,
         ],
-        max_tokens: 4000,
-        temperature: 0.7,
+        ...(isO3 ? { max_completion_tokens: 4000 } : { max_tokens: 4000 }),
+        ...(!isO3 ? { temperature: 0.7 } : {}),
       });
 
       const assistantResponse = completion.choices[0]?.message?.content;
@@ -530,6 +568,29 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           />
         </>
       )}
+
+      {/* Model selection dropdown */}
+      <Box sx={{ mt: 1 }}>
+        <FormControl
+          size="small"
+          sx={{ minWidth: 200 }}
+          disabled={availableModels.length === 0}
+        >
+          <InputLabel id="model-select-label">Model</InputLabel>
+          <Select
+            labelId="model-select-label"
+            label="Model"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value as string)}
+          >
+            {availableModels.map((modelId) => (
+              <MenuItem key={modelId} value={modelId}>
+                {modelId}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
 
       <AttachmentSelector
         contextMenuAnchor={contextMenuAnchor}
