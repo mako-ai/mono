@@ -194,7 +194,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     );
   }
 
-  if (results.results.length === 0) {
+  if (results?.results?.length === 0) {
     return (
       <Box
         sx={{

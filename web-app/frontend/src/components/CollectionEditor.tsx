@@ -50,6 +50,11 @@ interface CollectionEditorProps {
 export interface CollectionEditorRef {
   createNew: () => void;
   cancelCreation: () => void;
+  getCurrentContent: () => {
+    content: string;
+    fileName?: string;
+    language?: string;
+  };
 }
 
 const CollectionEditor = forwardRef<CollectionEditorRef, CollectionEditorProps>(
@@ -230,6 +235,11 @@ db.createCollection("new_collection_name", {
     useImperativeHandle(ref, () => ({
       createNew: () => setIsCreatingNew(true),
       cancelCreation: () => setIsCreatingNew(false),
+      getCurrentContent: () => ({
+        content: currentQuery,
+        fileName: selectedCollection,
+        language: "javascript",
+      }),
     }));
 
     const isShowingContent =

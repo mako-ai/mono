@@ -44,6 +44,11 @@ interface ViewEditorProps {
 export interface ViewEditorRef {
   createNew: () => void;
   cancelCreation: () => void;
+  getCurrentContent: () => {
+    content: string;
+    fileName?: string;
+    language?: string;
+  };
 }
 
 const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
@@ -201,21 +206,23 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
       : "No view selected";
 
     const handleDelete = () => {
-      setIsDeleting(true);
       setDeleteDialogOpen(true);
     };
 
     const handleDeleteConfirm = async () => {
       if (onDelete && selectedView && !isCreatingNew) {
+        setIsDeleting(true);
         try {
           await onDelete(selectedView);
           setDeleteDialogOpen(false);
         } catch (error) {
           console.error("Failed to delete view:", error);
+        } finally {
+          setIsDeleting(false);
         }
+      } else {
+        setDeleteDialogOpen(false);
       }
-      setIsDeleting(false);
-      setDeleteDialogOpen(false);
     };
 
     const handleDeleteCancel = () => {
@@ -226,6 +233,11 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     useImperativeHandle(ref, () => ({
       createNew: () => setIsCreatingNew(true),
       cancelCreation: () => setIsCreatingNew(false),
+      getCurrentContent: () => ({
+        content: currentContent,
+        fileName: "view_definition.json",
+        language: "json",
+      }),
     }));
 
     return (
@@ -282,7 +294,10 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
           </Box>
         </Box>
 
-        <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
+        <Box
+          ref={containerRef}
+          sx={{ flexGrow: 1, height: 0, borderTop: 1, borderColor: "divider" }}
+        >
           {isShowingContent ? (
             <Editor
               defaultLanguage="json"
