@@ -147,6 +147,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       },
     },
     components: {
+      MuiButton: {
+        styleOverrides: {
+          root: {
+            textTransform: "none",
+          },
+          sizeSmall: {
+            py: 1,
+            px: 2,
+          },
+        },
+      },
       MuiAppBar: {
         styleOverrides: {
           root: {
@@ -159,6 +170,37 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           root: {
             transition: "background-color 0.2s ease, border-color 0.2s ease",
           },
+        },
+      },
+      MuiTabs: {
+        styleOverrides: {
+          root: {
+            minHeight: 0,
+            padding: 0,
+          },
+          scroller: {
+            minHeight: 0,
+          },
+          indicator: {
+            transition: "none",
+          },
+        },
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: ({ theme }: any) => ({
+            textTransform: "none",
+            minHeight: 0,
+            padding: theme.spacing(0.5, 1),
+            color: theme.palette.text.secondary,
+            "&:hover": {
+              color: theme.palette.text.primary,
+            },
+            "&.Mui-selected": {
+              backgroundColor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+            },
+          }),
         },
       },
     },

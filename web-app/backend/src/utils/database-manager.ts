@@ -1,49 +1,12 @@
-import { MongoClient, Db, Collection, CreateCollectionOptions } from "mongodb";
-import dotenv from "dotenv";
-
-dotenv.config({ path: "./.env" });
-
-// Simple configuration loader for the web app
-function loadConfig() {
-  // Use environment variables primarily (which are set in docker-compose)
-  const mongoUrl =
-    process.env.MONGODB_CONNECTION_STRING || "mongodb://mongodb:27017";
-  const database = process.env.MONGODB_DATABASE || "multi_tenant_analytics";
-
-  console.log(`🔌 Connecting to MongoDB: ${mongoUrl}/${database}`);
-
-  return {
-    mongodb: {
-      connection_string: mongoUrl,
-      database: database,
-    },
-  };
-}
+import { Db, Collection, CreateCollectionOptions } from "mongodb";
+import { mongoConnection } from "./mongodb-connection";
 
 export class DatabaseManager {
-  private client: MongoClient;
-  private db!: Db;
-
-  constructor() {
-    const config = loadConfig();
-    this.client = new MongoClient(config.mongodb.connection_string);
-  }
-
-  private async connect(): Promise<void> {
-    await this.client.connect();
-    const config = loadConfig();
-    this.db = this.client.db(config.mongodb.database);
-  }
-
-  private async disconnect(): Promise<void> {
-    await this.client.close();
-  }
-
   async listCollections(): Promise<any[]> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
-      const collections = await this.db
+      const collections = await db
         .listCollections({ type: "collection" })
         .toArray();
 
@@ -60,16 +23,14 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
   async listViews(): Promise<any[]> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
-      const views = await this.db.listCollections({ type: "view" }).toArray();
+      const views = await db.listCollections({ type: "view" }).toArray();
 
       return views.map((view) => ({
         name: view.name,
@@ -84,8 +45,6 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
@@ -94,17 +53,15 @@ export class DatabaseManager {
     options?: CreateCollectionOptions
   ): Promise<any> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
       // Check if collection already exists
-      const existingCollections = await this.db
-        .listCollections({ name })
-        .toArray();
+      const existingCollections = await db.listCollections({ name }).toArray();
       if (existingCollections.length > 0) {
         throw new Error(`Collection '${name}' already exists`);
       }
 
-      const collection = await this.db.createCollection(name, options);
+      const collection = await db.createCollection(name, options);
 
       return {
         name: collection.collectionName,
@@ -118,8 +75,6 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
@@ -130,23 +85,23 @@ export class DatabaseManager {
     options?: any
   ): Promise<any> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
       // Check if view already exists
-      const existingViews = await this.db.listCollections({ name }).toArray();
+      const existingViews = await db.listCollections({ name }).toArray();
       if (existingViews.length > 0) {
         throw new Error(`View '${name}' already exists`);
       }
 
       // Check if source collection exists
-      const sourceCollections = await this.db
+      const sourceCollections = await db
         .listCollections({ name: viewOn })
         .toArray();
       if (sourceCollections.length === 0) {
         throw new Error(`Source collection '${viewOn}' does not exist`);
       }
 
-      await this.db.createCollection(name, {
+      await db.createCollection(name, {
         viewOn,
         pipeline,
         ...options,
@@ -165,24 +120,20 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
   async deleteCollection(name: string): Promise<any> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
       // Check if collection exists
-      const existingCollections = await this.db
-        .listCollections({ name })
-        .toArray();
+      const existingCollections = await db.listCollections({ name }).toArray();
       if (existingCollections.length === 0) {
         throw new Error(`Collection '${name}' does not exist`);
       }
 
-      const result = await this.db.dropCollection(name);
+      const result = await db.dropCollection(name);
 
       return {
         name,
@@ -195,24 +146,22 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
   async deleteView(name: string): Promise<any> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
       // Check if view exists
-      const existingViews = await this.db
+      const existingViews = await db
         .listCollections({ name, type: "view" })
         .toArray();
       if (existingViews.length === 0) {
         throw new Error(`View '${name}' does not exist`);
       }
 
-      const result = await this.db.dropCollection(name);
+      const result = await db.dropCollection(name);
 
       return {
         name,
@@ -225,25 +174,23 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
   async getCollectionInfo(name: string): Promise<any> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
       // Check if collection exists
-      const collections = await this.db.listCollections({ name }).toArray();
+      const collections = await db.listCollections({ name }).toArray();
       if (collections.length === 0) {
         throw new Error(`Collection '${name}' does not exist`);
       }
 
-      const collection = this.db.collection(name);
+      const collection = db.collection(name);
 
       // Get collection stats
-      const stats = await this.db.command({ collStats: name });
+      const stats = await db.command({ collStats: name });
 
       // Get indexes
       const indexes = await collection.indexes();
@@ -273,28 +220,24 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 
   async getViewInfo(name: string): Promise<any> {
     try {
-      await this.connect();
+      const db = await mongoConnection.getDb();
 
       // Check if view exists
-      const views = await this.db
-        .listCollections({ name, type: "view" })
-        .toArray();
+      const views = await db.listCollections({ name, type: "view" }).toArray();
       if (views.length === 0) {
         throw new Error(`View '${name}' does not exist`);
       }
 
       const viewInfo = views[0];
-      const collection = this.db.collection(name);
+      const collection = db.collection(name);
 
       // Get view stats
-      const stats = await this.db.command({ collStats: name });
+      const stats = await db.command({ collStats: name });
 
       // Get sample documents (first 5)
       const sampleDocs = await collection.find({}).limit(5).toArray();
@@ -319,8 +262,6 @@ export class DatabaseManager {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 }

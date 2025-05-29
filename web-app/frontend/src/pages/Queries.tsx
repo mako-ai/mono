@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -12,9 +12,9 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import QueryExplorer from "../components/QueryExplorer";
-import QueryEditor from "../components/QueryEditor";
+import Console, { ConsoleRef } from "../components/Console";
 import ResultsTable from "../components/ResultsTable";
-import ChatBot from "../components/ChatBot";
+import { Chat } from "../components/Chat";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -52,6 +52,33 @@ function Queries() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [currentEditorContent, setCurrentEditorContent] = useState<
+    | {
+        content: string;
+        fileName?: string;
+        language?: string;
+      }
+    | undefined
+  >(undefined);
+  const consoleRef = useRef<ConsoleRef>(null);
+
+  // Update current editor content periodically
+  useEffect(() => {
+    const updateEditorContent = () => {
+      if (consoleRef.current) {
+        const content = consoleRef.current.getCurrentContent();
+        setCurrentEditorContent(content);
+      }
+    };
+
+    // Update immediately
+    updateEditorContent();
+
+    // Set up interval to check for content changes
+    const interval = setInterval(updateEditorContent, 1000);
+
+    return () => clearInterval(interval);
+  }, [selectedQuery, queryContent]);
 
   const handleQuerySelect = (queryPath: string, content: string) => {
     setSelectedQuery(queryPath);
@@ -129,11 +156,14 @@ function Queries() {
               {/* Query Editor */}
               <Panel defaultSize={50} minSize={1}>
                 <Box sx={{ height: "100%", overflow: "hidden" }}>
-                  <QueryEditor
-                    queryContent={queryContent}
-                    selectedQuery={selectedQuery}
+                  <Console
+                    initialContent={queryContent}
+                    title={
+                      selectedQuery ? `Query: ${selectedQuery}` : "Console"
+                    }
                     onExecute={handleQueryExecute}
                     isExecuting={isExecuting}
+                    ref={consoleRef}
                   />
                 </Box>
               </Panel>
@@ -154,11 +184,8 @@ function Queries() {
 
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={20} minSize={1}>
-          <Box sx={{ height: "100%", overflow: "hidden", p: 1 }}>
-            <Typography variant="h6" gutterBottom>
-              AI Assistant
-            </Typography>
-            <ChatBot />
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
+            <Chat currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
       </PanelGroup>

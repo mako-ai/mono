@@ -13,11 +13,24 @@ import {
   InputLabel,
 } from "@mui/material";
 import { Save as SaveIcon } from "@mui/icons-material";
+import { useState } from "react";
 import ThemeSelector from "../components/ThemeSelector";
 
 function Settings() {
+  const [openaiApiKey, setOpenaiApiKey] = useState(
+    localStorage.getItem("openai_api_key") || ""
+  );
+
+  const handleSaveSettings = () => {
+    // Save OpenAI API key to localStorage
+    localStorage.setItem("openai_api_key", openaiApiKey);
+
+    // Here you could also show a success notification
+    console.log("Settings saved successfully");
+  };
+
   return (
-    <Box sx={{ height: "100%", p: 3 }}>
+    <Box sx={{ height: "100%", p: 3, overflow: "auto" }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Settings
       </Typography>
@@ -25,6 +38,35 @@ function Settings() {
       <Box
         sx={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 600 }}
       >
+        {/* OpenAI Configuration */}
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              OpenAI Configuration
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField
+                label="OpenAI API Key"
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                type="password"
+                size="small"
+                fullWidth
+                placeholder="sk-..."
+                helperText="Enter your OpenAI API key to enable AI chat functionality"
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                sx={{ alignSelf: "flex-start" }}
+                disabled={!openaiApiKey.trim()}
+              >
+                Test API Key
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+
         {/* Appearance Settings */}
         <Card>
           <CardContent>
@@ -140,32 +182,14 @@ function Settings() {
           </CardContent>
         </Card>
 
-        {/* Notifications */}
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Notifications
-            </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Query completion notifications"
-              />
-              <FormControlLabel
-                control={<Switch />}
-                label="Error notifications"
-              />
-              <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="System maintenance alerts"
-              />
-            </Box>
-          </CardContent>
-        </Card>
-
         {/* Save Button */}
         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-          <Button variant="contained" startIcon={<SaveIcon />} size="large">
+          <Button
+            variant="contained"
+            startIcon={<SaveIcon />}
+            size="large"
+            onClick={handleSaveSettings}
+          >
             Save Settings
           </Button>
         </Box>
