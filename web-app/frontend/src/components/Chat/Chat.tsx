@@ -21,11 +21,7 @@ import {
   View,
   Definition,
 } from "./types";
-
-// For now, let's define the system prompt as a constant
-// In a production app, you could load this from a file
-const systemPromptContent =
-  "You are a MongoDB expert and your goal is to help write view definitions. Always respond with the full definition and never truncate your code.";
+import { systemPromptContent } from "./SystemPrompt";
 
 const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -100,42 +96,44 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   useEffect(() => {
     const fetchCollections = async () => {
       try {
-        const response = await fetch("/api/database/collections");
+        const response = await fetch("/api/collections");
         const data = await response.json();
         if (data.success) {
           const collectionsWithSamples = await Promise.all(
             data.data.map(async (col: any) => {
               try {
-                const statsResponse = await fetch(
-                  `/api/database/collections/${encodeURIComponent(
-                    col.name
-                  )}/info`
+                // Fetch collection info
+                const infoResponse = await fetch(
+                  `/api/collections/${encodeURIComponent(col.name)}`
                 );
-                const statsData = await statsResponse.json();
+                const infoData = await infoResponse.json();
+                console.log(`Info for ${col.name}:`, infoData);
 
-                const sampleResponse = await fetch("/api/database/query", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    query: `db.${col.name}.findOne({})`,
-                  }),
-                });
+                // Fetch sample documents with schema analysis
+                const sampleResponse = await fetch(
+                  `/api/collections/${encodeURIComponent(
+                    col.name
+                  )}/sample?size=5`
+                );
                 const sampleData = await sampleResponse.json();
+                console.log(`Sample data for ${col.name}:`, sampleData);
 
-                return {
+                const documentCount = infoData.success
+                  ? infoData.data?.stats?.count || 0
+                  : 0;
+
+                const collectionInfo = {
                   id: col.name,
                   name: col.name,
-                  description: `MongoDB collection with ${
-                    statsData.success ? statsData.data.stats?.count || 0 : 0
-                  } documents`,
-                  sampleDocument:
-                    sampleData.success && sampleData.data?.length > 0
-                      ? sampleData.data[0]
-                      : {},
-                  documentCount: statsData.success
-                    ? statsData.data.stats?.count || 0
-                    : 0,
+                  description: `MongoDB collection with ${documentCount} documents`,
+                  sampleDocument: sampleData.data?.documents?.[0] || {},
+                  sampleDocuments: sampleData.data?.documents || [],
+                  schemaInfo: sampleData.data?.schema || {},
+                  documentCount,
                 };
+
+                console.log(`Collection info for ${col.name}:`, collectionInfo);
+                return collectionInfo;
               } catch (error) {
                 console.error(
                   `Failed to fetch details for collection ${col.name}:`,
@@ -146,6 +144,8 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
                   name: col.name,
                   description: "MongoDB collection",
                   sampleDocument: {},
+                  sampleDocuments: [],
+                  schemaInfo: {},
                   documentCount: 0,
                 };
               }
@@ -199,19 +199,48 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   };
 
   const addCollectionContext = (collection: Collection) => {
+    // Build schema description
+    let schemaDescription = "";
+    if (
+      collection.schemaInfo &&
+      Object.keys(collection.schemaInfo).length > 0
+    ) {
+      schemaDescription = "\n\nSchema Analysis:\n";
+      Object.entries(collection.schemaInfo).forEach(
+        ([field, info]: [string, any]) => {
+          schemaDescription += `- ${field}: ${info.types.join(" | ")}`;
+          if (info.exampleValues.length > 0) {
+            const examples = info.exampleValues
+              .slice(0, 2)
+              .map((v: any) =>
+                typeof v === "object" ? JSON.stringify(v) : String(v)
+              )
+              .join(", ");
+            schemaDescription += ` (e.g., ${examples})`;
+          }
+          schemaDescription += "\n";
+        }
+      );
+    }
+
+    // Include multiple sample documents
+    let sampleDocumentsStr = "";
+    if (collection.sampleDocuments && collection.sampleDocuments.length > 0) {
+      sampleDocumentsStr = `\n\nSample Documents (${collection.sampleDocuments.length} shown):\n`;
+      collection.sampleDocuments.forEach((doc, index) => {
+        sampleDocumentsStr += `\n--- Document ${
+          index + 1
+        } ---\n${JSON.stringify(doc, null, 2)}\n`;
+      });
+    }
+
     const contextItem: AttachedContext = {
       id: `collection-${collection.id}-${Date.now()}`,
       type: "collection",
       title: collection.name,
-      content: `Collection: ${collection.name}\nDescription: ${
-        collection.description
-      }\nDocument Count: ${
-        collection.documentCount
-      }\n\nSample Document:\n${JSON.stringify(
-        collection.sampleDocument,
-        null,
-        2
-      )}`,
+      content: `Collection: ${collection.name}
+Description: ${collection.description}
+Document Count: ${collection.documentCount}${schemaDescription}${sampleDocumentsStr}`,
       metadata: {
         collectionName: collection.name,
       },

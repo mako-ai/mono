@@ -117,11 +117,70 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
                       >
                         {collection.documentCount.toLocaleString()} documents
                       </Typography>
+
+                      {/* Schema Information */}
+                      {collection.schemaInfo &&
+                        Object.keys(collection.schemaInfo).length > 0 && (
+                          <>
+                            <Typography
+                              variant="caption"
+                              sx={{ mt: 1, display: "block", fontWeight: 600 }}
+                            >
+                              Detected Schema:
+                            </Typography>
+                            <Paper
+                              variant="outlined"
+                              sx={{
+                                p: 1,
+                                mt: 0.5,
+                                bgcolor: "grey.50",
+                                maxHeight: 80,
+                                overflow: "auto",
+                              }}
+                            >
+                              {Object.entries(collection.schemaInfo)
+                                .slice(0, 5)
+                                .map(([field, info]: [string, any]) => (
+                                  <Typography
+                                    key={field}
+                                    variant="caption"
+                                    sx={{
+                                      display: "block",
+                                      fontFamily: "monospace",
+                                      fontSize: "0.7rem",
+                                    }}
+                                  >
+                                    {field}: {info.types.join(" | ")}
+                                  </Typography>
+                                ))}
+                              {Object.keys(collection.schemaInfo).length >
+                                5 && (
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    display: "block",
+                                    fontFamily: "monospace",
+                                    fontSize: "0.7rem",
+                                    fontStyle: "italic",
+                                  }}
+                                >
+                                  ...and{" "}
+                                  {Object.keys(collection.schemaInfo).length -
+                                    5}{" "}
+                                  more fields
+                                </Typography>
+                              )}
+                            </Paper>
+                          </>
+                        )}
+
+                      {/* Sample Documents */}
                       <Typography
                         variant="caption"
-                        sx={{ mt: 1, display: "block" }}
+                        sx={{ mt: 1, display: "block", fontWeight: 600 }}
                       >
-                        Sample Document:
+                        Sample Documents (
+                        {collection.sampleDocuments?.length || 1}):
                       </Typography>
                       <Paper
                         variant="outlined"
@@ -129,7 +188,7 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
                           p: 1,
                           mt: 0.5,
                           bgcolor: "grey.50",
-                          maxHeight: 100,
+                          maxHeight: 120,
                           overflow: "auto",
                         }}
                       >
@@ -141,8 +200,34 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
                             fontSize: "0.7rem",
                           }}
                         >
-                          {JSON.stringify(collection.sampleDocument, null, 2)}
+                          {collection.sampleDocuments &&
+                          collection.sampleDocuments.length > 0
+                            ? JSON.stringify(
+                                collection.sampleDocuments[0],
+                                null,
+                                2
+                              )
+                            : JSON.stringify(
+                                collection.sampleDocument,
+                                null,
+                                2
+                              )}
                         </Typography>
+                        {collection.sampleDocuments &&
+                          collection.sampleDocuments.length > 1 && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                fontStyle: "italic",
+                                mt: 1,
+                              }}
+                            >
+                              + {collection.sampleDocuments.length - 1} more
+                              sample
+                              {collection.sampleDocuments.length > 2 ? "s" : ""}
+                            </Typography>
+                          )}
                       </Paper>
                     </Box>
                   }
