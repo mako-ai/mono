@@ -62,6 +62,8 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [lastMessageUpdateTime, setLastMessageUpdateTime] = useState<number>(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Context attachment state
   const [contextMenuAnchor, setContextMenuAnchor] =
@@ -124,9 +126,10 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   }, []);
 
   // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Removed duplicate - now handled by the improved useEffect that tracks streaming updates
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // }, [messages]);
 
   // Fetch collections and views
   useEffect(() => {
@@ -445,6 +448,15 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         const delta: string = chunk?.choices?.[0]?.delta?.content || "";
         if (delta) {
           updateMessage(assistantMessageId, delta);
+          // Trigger re-render for auto-scroll during streaming
+          setLastMessageUpdateTime(Date.now());
+          // Force immediate scroll during streaming
+          requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop =
+                scrollContainerRef.current.scrollHeight;
+            }
+          });
         }
       }
     } catch (err: any) {
@@ -500,6 +512,62 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       </Typography>
     </Box>
   );
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    if (scrollContainerRef.current) {
+      const scrollContainer = scrollContainerRef.current;
+      // Use instant scrolling during streaming for better responsiveness
+      const scrollBehavior = isLoading ? "instant" : behavior;
+
+      requestAnimationFrame(() => {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: scrollBehavior as ScrollBehavior,
+        });
+      });
+    }
+  };
+
+  // Auto-scroll to bottom when messages change or during streaming updates
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, lastMessageUpdateTime]);
+
+  // Scroll to bottom instantly when component mounts or chat changes
+  useEffect(() => {
+    // Use instant scroll on mount/chat change for immediate positioning
+    const scrollToBottomInstant = () => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop =
+          scrollContainerRef.current.scrollHeight;
+      }
+    };
+
+    // Double requestAnimationFrame to ensure DOM is fully painted
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToBottomInstant();
+      });
+    });
+  }, [currentChatId]); // Also triggers when switching between chats
+
+  // Watch for any DOM mutations in the messages area to ensure scrolling during streaming
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+
+    const observer = new MutationObserver(() => {
+      scrollToBottom();
+    });
+
+    observer.observe(scrollContainerRef.current, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      characterDataOldValue: false,
+    });
+
+    return () => observer.disconnect();
+  }, [messages.length]); // Re-create observer when messages are added/removed
 
   if (!openaiClient) {
     return (
@@ -629,14 +697,17 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
       {/* Messages area – grows only after first message so the input stays at bottom */}
       <Box
+        ref={scrollContainerRef}
         sx={{
           flex: messages.length > 0 ? 1 : 0,
           display: "flex",
           flexDirection: "column",
           overflow: "auto",
+          pb: 2,
         }}
       >
         <MessageList messages={messages} />
+
         <div ref={messagesEndRef} />
       </Box>
 
