@@ -294,7 +294,10 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
           </Box>
         </Box>
 
-        <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
+        <Box
+          ref={containerRef}
+          sx={{ flexGrow: 1, height: 0, borderTop: 1, borderColor: "divider" }}
+        >
           {isShowingContent ? (
             <Editor
               defaultLanguage="json"

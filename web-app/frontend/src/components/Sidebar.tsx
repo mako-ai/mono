@@ -10,7 +10,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 const SidebarContainer = styled(Box)(({ theme }) => ({
   height: "100vh",
-  backgroundColor: theme.palette.background.paper,
   borderRight: `1px solid ${theme.palette.divider}`,
   display: "flex",
   flexDirection: "column",

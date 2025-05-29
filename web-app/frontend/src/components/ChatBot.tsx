@@ -37,6 +37,9 @@ import {
   TableView,
 } from "@mui/icons-material";
 import OpenAI from "openai";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 interface ChatBotProps {
   currentEditorContent?: {
@@ -493,321 +496,532 @@ const ChatBot: React.FC<ChatBotProps> = ({ currentEditorContent }) => {
         </Button>
       </Box>
 
-      {/* Messages Area */}
-      <Box
-        sx={{
-          flex: 1,
-          overflow: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
-        {messages.length === 0 && (
-          <Box
-            sx={{
-              textAlign: "center",
-              color: "text.secondary",
-              mt: 4,
-            }}
-          >
-            <SmartToy sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
-            <Typography variant="h6" gutterBottom>
-              Welcome to the AI Assistant!
-            </Typography>
-            <Typography>
-              Ask me anything about RevOps, data analysis, or general questions.
-            </Typography>
-          </Box>
-        )}
+      {/* Conditional Layout: Input at top when no messages, otherwise normal layout */}
+      {messages.length === 0 ? (
+        <>
+          {/* Error Display */}
+          {error && (
+            <Box sx={{ p: 2 }}>
+              <Alert severity="error" onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            </Box>
+          )}
 
-        {messages.map((message) => (
-          <Box
-            key={message.id}
-            sx={{
-              display: "flex",
-              justifyContent:
-                message.role === "user" ? "flex-end" : "flex-start",
-              mb: 1,
-            }}
-          >
+          {/* Input Area at top when no messages */}
+          <Box>
+            {/* Attached Context Display */}
+            {attachedContext.length > 0 && (
+              <Box sx={{ mb: 2 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: 500, mb: 1, display: "block" }}
+                >
+                  Attached Context ({attachedContext.length}):
+                </Typography>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {attachedContext.map((context) => (
+                    <Chip
+                      key={context.id}
+                      label={context.title}
+                      size="small"
+                      icon={
+                        context.type === "collection" ? (
+                          <Storage />
+                        ) : context.type === "definition" ? (
+                          <Code />
+                        ) : context.type === "view" ? (
+                          <TableView />
+                        ) : (
+                          <Description />
+                        )
+                      }
+                      onDelete={() => removeContextItem(context.id)}
+                      deleteIcon={<Close />}
+                      variant="outlined"
+                      sx={{ maxWidth: 200 }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Attach Button above input */}
+            <Box sx={{ mb: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AttachFile />}
+                onClick={handleContextMenuOpen}
+                disabled={isLoading}
+              >
+                Attach Context
+              </Button>
+            </Box>
+
+            {/* Input Area wrapped in Paper */}
+            <Paper
+              elevation={0}
+              sx={{ border: 1, borderColor: "divider", borderRadius: 2.5 }}
+            >
+              {/* Text Area - Full width */}
+              <TextField
+                fullWidth
+                autoFocus
+                multiline
+                minRows={3}
+                placeholder="Ask me anything..."
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={isLoading}
+                variant="outlined"
+                sx={{
+                  mb: 2,
+                  "& .MuiInputBase-input": {
+                    fontSize: 14,
+                  },
+                  "& .MuiInputBase-root": {
+                    fontSize: 14,
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    border: "none",
+                  },
+                  "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
+                    {
+                      border: "none",
+                    },
+                  "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                    {
+                      border: "none",
+                    },
+                }}
+              />
+
+              {/* Send Button - Below text area */}
+              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <IconButton
+                  onClick={sendMessage}
+                  disabled={!inputMessage.trim() || isLoading}
+                >
+                  <SendIcon sx={{ fontSize: "18px" }} />
+                </IconButton>
+              </Box>
+            </Paper>
+          </Box>
+
+          {/* Empty space for when loading the first message */}
+          {isLoading && (
             <Box
               sx={{
+                flex: 1,
                 display: "flex",
-                flexDirection: message.role === "user" ? "row-reverse" : "row",
-                alignItems: "flex-start",
-                gap: 1,
-                maxWidth: "80%",
+                justifyContent: "flex-start",
+                mt: 2,
               }}
             >
-              <Avatar
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                <Avatar
+                  sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
+                >
+                  <SmartToy />
+                </Avatar>
+                <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
+                  <CircularProgress size={20} />
+                  <Typography variant="body2" sx={{ ml: 1, display: "inline" }}>
+                    Thinking...
+                  </Typography>
+                </Paper>
+              </Box>
+            </Box>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Messages Area */}
+          <Box
+            sx={{
+              flex: 1,
+              overflow: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {messages.map((message) => (
+              <Box
+                key={message.id}
                 sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor:
-                    message.role === "user" ? "primary.main" : "secondary.main",
+                  display: "flex",
+                  justifyContent:
+                    message.role === "user" ? "flex-end" : "flex-start",
+                  mb: 1,
                 }}
               >
-                {message.role === "user" ? <Person /> : <SmartToy />}
-              </Avatar>
-              <Paper
-                elevation={1}
-                sx={{
-                  p: 2,
-                  color: "text.primary",
-                }}
-              >
-                <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
-                  {message.content}
-                </Typography>
+                {message.role === "user" ? (
+                  // User message - keep in bubble
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "row-reverse",
+                      alignItems: "flex-start",
+                      gap: 1,
+                      maxWidth: "80%",
+                    }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        bgcolor: "primary.main",
+                      }}
+                    >
+                      <Person />
+                    </Avatar>
+                    <Paper
+                      elevation={1}
+                      sx={{
+                        p: 2,
+                        color: "text.primary",
+                      }}
+                    >
+                      <Typography
+                        variant="body1"
+                        sx={{ whiteSpace: "pre-wrap" }}
+                      >
+                        {message.content}
+                      </Typography>
 
-                {/* Display attached context */}
-                {message.attachedContext &&
-                  message.attachedContext.length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Accordion elevation={0} sx={{ bgcolor: "transparent" }}>
-                        <AccordionSummary
-                          expandIcon={<ExpandMore />}
-                          sx={{
-                            minHeight: 32,
-                            "& .MuiAccordionSummary-content": {
-                              margin: "8px 0",
-                            },
-                          }}
-                        >
-                          <Typography
-                            variant="caption"
-                            sx={{ fontWeight: 500 }}
-                          >
-                            {message.attachedContext.length} attached context
-                            item{message.attachedContext.length > 1 ? "s" : ""}
-                          </Typography>
-                        </AccordionSummary>
-                        <AccordionDetails sx={{ pt: 0 }}>
-                          {message.attachedContext.map((context, index) => (
-                            <Box
-                              key={context.id}
-                              sx={{
-                                mb:
-                                  index < message.attachedContext!.length - 1
-                                    ? 2
-                                    : 0,
-                              }}
+                      {/* Display attached context */}
+                      {message.attachedContext &&
+                        message.attachedContext.length > 0 && (
+                          <Box sx={{ mt: 2 }}>
+                            <Accordion
+                              elevation={0}
+                              sx={{ bgcolor: "transparent" }}
                             >
-                              <Box
+                              <AccordionSummary
+                                expandIcon={<ExpandMore />}
                                 sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 1,
-                                  mb: 1,
+                                  minHeight: 32,
+                                  "& .MuiAccordionSummary-content": {
+                                    margin: "8px 0",
+                                  },
                                 }}
                               >
-                                {context.type === "collection" && (
-                                  <Storage fontSize="small" />
-                                )}
-                                {context.type === "definition" && (
-                                  <Code fontSize="small" />
-                                )}
-                                {context.type === "editor" && (
-                                  <Description fontSize="small" />
-                                )}
-                                {context.type === "view" && (
-                                  <TableView fontSize="small" />
-                                )}
                                 <Typography
                                   variant="caption"
                                   sx={{ fontWeight: 500 }}
                                 >
-                                  {context.title}
+                                  {message.attachedContext.length} attached
+                                  context item
+                                  {message.attachedContext.length > 1
+                                    ? "s"
+                                    : ""}
                                 </Typography>
-                                {context.metadata?.fileName && (
-                                  <Chip
-                                    label={context.metadata.fileName}
-                                    size="small"
-                                    variant="outlined"
-                                    sx={{ height: 16, fontSize: "0.65rem" }}
-                                  />
+                              </AccordionSummary>
+                              <AccordionDetails sx={{ pt: 0 }}>
+                                {message.attachedContext.map(
+                                  (context, index) => (
+                                    <Box
+                                      key={context.id}
+                                      sx={{
+                                        mb:
+                                          index <
+                                          message.attachedContext!.length - 1
+                                            ? 2
+                                            : 0,
+                                      }}
+                                    >
+                                      <Box
+                                        sx={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 1,
+                                          mb: 1,
+                                        }}
+                                      >
+                                        {context.type === "collection" && (
+                                          <Storage fontSize="small" />
+                                        )}
+                                        {context.type === "definition" && (
+                                          <Code fontSize="small" />
+                                        )}
+                                        {context.type === "editor" && (
+                                          <Description fontSize="small" />
+                                        )}
+                                        {context.type === "view" && (
+                                          <TableView fontSize="small" />
+                                        )}
+                                        <Typography
+                                          variant="caption"
+                                          sx={{ fontWeight: 500 }}
+                                        >
+                                          {context.title}
+                                        </Typography>
+                                        {context.metadata?.fileName && (
+                                          <Chip
+                                            label={context.metadata.fileName}
+                                            size="small"
+                                            variant="outlined"
+                                            sx={{
+                                              height: 16,
+                                              fontSize: "0.65rem",
+                                            }}
+                                          />
+                                        )}
+                                      </Box>
+                                      <Paper
+                                        variant="outlined"
+                                        sx={{
+                                          p: 1,
+                                          bgcolor: "grey.50",
+                                          maxHeight: 150,
+                                          overflow: "auto",
+                                        }}
+                                      >
+                                        <Typography
+                                          variant="caption"
+                                          component="pre"
+                                          sx={{
+                                            whiteSpace: "pre-wrap",
+                                            fontFamily: "monospace",
+                                            fontSize: "0.75rem",
+                                          }}
+                                        >
+                                          {context.content}
+                                        </Typography>
+                                      </Paper>
+                                    </Box>
+                                  )
                                 )}
-                              </Box>
-                              <Paper
-                                variant="outlined"
-                                sx={{
-                                  p: 1,
-                                  bgcolor: "grey.50",
-                                  maxHeight: 150,
-                                  overflow: "auto",
-                                }}
-                              >
-                                <Typography
-                                  variant="caption"
-                                  component="pre"
-                                  sx={{
-                                    whiteSpace: "pre-wrap",
-                                    fontFamily: "monospace",
-                                    fontSize: "0.75rem",
-                                  }}
-                                >
-                                  {context.content}
-                                </Typography>
-                              </Paper>
-                            </Box>
-                          ))}
-                        </AccordionDetails>
-                      </Accordion>
-                    </Box>
-                  )}
+                              </AccordionDetails>
+                            </Accordion>
+                          </Box>
+                        )}
 
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          display: "block",
+                          mt: 1,
+                          opacity: 0.7,
+                        }}
+                      >
+                        {message.timestamp.toLocaleTimeString()}
+                      </Typography>
+                    </Paper>
+                  </Box>
+                ) : (
+                  // Assistant message - no bubble, direct content with markdown
+                  <Box sx={{ flex: 1 }}>
+                    <ReactMarkdown
+                      components={{
+                        code({ className, children }) {
+                          const match = /language-(\w+)/.exec(className || "");
+                          const isInline = !match;
+                          return !isInline ? (
+                            <SyntaxHighlighter
+                              style={tomorrow as any}
+                              language={match[1]}
+                              PreTag="div"
+                            >
+                              {String(children).replace(/\n$/, "")}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code className={className}>{children}</code>
+                          );
+                        },
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: "block",
+                        mt: 1,
+                        opacity: 0.7,
+                      }}
+                    >
+                      {message.timestamp.toLocaleTimeString()}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            ))}
+
+            {isLoading && (
+              <Box
+                sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }}
+              >
+                <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+                  <Avatar
+                    sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
+                  >
+                    <SmartToy />
+                  </Avatar>
+                  <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
+                    <CircularProgress size={20} />
+                    <Typography
+                      variant="body2"
+                      sx={{ ml: 1, display: "inline" }}
+                    >
+                      Thinking...
+                    </Typography>
+                  </Paper>
+                </Box>
+              </Box>
+            )}
+
+            <div ref={messagesEndRef} />
+          </Box>
+
+          {/* Error Display */}
+          {error && (
+            <Box sx={{ p: 2 }}>
+              <Alert severity="error" onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            </Box>
+          )}
+
+          {/* Input Area */}
+          <Box>
+            {/* Attached Context Display */}
+            {attachedContext.length > 0 && (
+              <Box sx={{ mb: 2 }}>
                 <Typography
                   variant="caption"
-                  sx={{
-                    display: "block",
-                    mt: 1,
-                    opacity: 0.7,
-                  }}
+                  sx={{ fontWeight: 500, mb: 1, display: "block" }}
                 >
-                  {message.timestamp.toLocaleTimeString()}
+                  Attached Context ({attachedContext.length}):
                 </Typography>
-              </Paper>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                  {attachedContext.map((context) => (
+                    <Chip
+                      key={context.id}
+                      label={context.title}
+                      size="small"
+                      icon={
+                        context.type === "collection" ? (
+                          <Storage />
+                        ) : context.type === "definition" ? (
+                          <Code />
+                        ) : context.type === "view" ? (
+                          <TableView />
+                        ) : (
+                          <Description />
+                        )
+                      }
+                      onDelete={() => removeContextItem(context.id)}
+                      deleteIcon={<Close />}
+                      variant="outlined"
+                      sx={{ maxWidth: 200 }}
+                    />
+                  ))}
+                </Box>
+              </Box>
+            )}
+
+            {/* Attach Button above input */}
+            <Box sx={{ mb: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AttachFile />}
+                onClick={handleContextMenuOpen}
+                disabled={isLoading}
+              >
+                Attach Context
+              </Button>
             </Box>
+
+            {/* Input Area wrapped in Paper */}
+            <Paper
+              elevation={0}
+              sx={{ border: 1, borderColor: "divider", borderRadius: 2.5 }}
+            >
+              {/* Text Area - Full width */}
+              <TextField
+                fullWidth
+                autoFocus
+                multiline
+                minRows={3}
+                placeholder="Ask me anything..."
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={isLoading}
+                variant="outlined"
+                sx={{
+                  mb: 2,
+                  "& .MuiInputBase-input": {
+                    fontSize: 14,
+                  },
+                  "& .MuiInputBase-root": {
+                    fontSize: 14,
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    border: "none",
+                  },
+                  "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline":
+                    {
+                      border: "none",
+                    },
+                  "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+                    {
+                      border: "none",
+                    },
+                }}
+              />
+
+              {/* Send Button - Below text area */}
+              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                <IconButton
+                  onClick={sendMessage}
+                  disabled={!inputMessage.trim() || isLoading}
+                >
+                  <SendIcon sx={{ fontSize: "18px" }} />
+                </IconButton>
+              </Box>
+            </Paper>
           </Box>
-        ))}
-
-        {isLoading && (
-          <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-              <Avatar sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}>
-                <SmartToy />
-              </Avatar>
-              <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
-                <CircularProgress size={20} />
-                <Typography variant="body2" sx={{ ml: 1, display: "inline" }}>
-                  Thinking...
-                </Typography>
-              </Paper>
-            </Box>
-          </Box>
-        )}
-
-        <div ref={messagesEndRef} />
-      </Box>
-
-      {/* Error Display */}
-      {error && (
-        <Box sx={{ p: 2 }}>
-          <Alert severity="error" onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        </Box>
+        </>
       )}
 
-      {/* Input Area */}
-      <Box>
-        {/* Attached Context Display */}
-        {attachedContext.length > 0 && (
-          <Box sx={{ mb: 2 }}>
-            <Typography
-              variant="caption"
-              sx={{ fontWeight: 500, mb: 1, display: "block" }}
-            >
-              Attached Context ({attachedContext.length}):
-            </Typography>
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-              {attachedContext.map((context) => (
-                <Chip
-                  key={context.id}
-                  label={context.title}
-                  size="small"
-                  icon={
-                    context.type === "collection" ? (
-                      <Storage />
-                    ) : context.type === "definition" ? (
-                      <Code />
-                    ) : context.type === "view" ? (
-                      <TableView />
-                    ) : (
-                      <Description />
-                    )
-                  }
-                  onDelete={() => removeContextItem(context.id)}
-                  deleteIcon={<Close />}
-                  variant="outlined"
-                  sx={{ maxWidth: 200 }}
-                />
-              ))}
-            </Box>
-          </Box>
-        )}
-
-        {/* Input Area wrapped in Paper */}
-        <Paper elevation={2} sx={{ p: 1 }}>
-          {/* Text Area - Full width */}
-          <TextField
-            fullWidth
-            multiline
-            rows={6}
-            placeholder="Ask me anything..."
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            disabled={isLoading}
-            variant="outlined"
-            sx={{
-              mb: 2,
-              "& .MuiInputBase-input": {
-                fontSize: 14,
-              },
-              "& .MuiInputBase-root": {
-                fontSize: 14,
-              },
-            }}
-          />
-
-          {/* Send Button - Below text area */}
-          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-            <IconButton onClick={handleContextMenuOpen} disabled={isLoading}>
-              <AttachFile sx={{ fontSize: "18px" }} />
-            </IconButton>
-            <IconButton
-              onClick={sendMessage}
-              disabled={!inputMessage.trim() || isLoading}
-            >
-              <SendIcon sx={{ fontSize: "18px" }} />
-            </IconButton>
-          </Box>
-        </Paper>
-
-        {/* Context Menu */}
-        <Menu
-          anchorEl={contextMenuAnchor}
-          open={Boolean(contextMenuAnchor)}
-          onClose={handleContextMenuClose}
-        >
-          <MenuItem onClick={() => setCollectionsDialogOpen(true)}>
-            <ListItemIcon>
-              <Storage fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Add Collection" />
-          </MenuItem>
-          <MenuItem onClick={() => setDefinitionsDialogOpen(true)}>
-            <ListItemIcon>
-              <Code fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Add Definition" />
-          </MenuItem>
-          <MenuItem onClick={() => setViewsDialogOpen(true)}>
-            <ListItemIcon>
-              <TableView fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Add View" />
-          </MenuItem>
-          <MenuItem onClick={addEditorContext}>
-            <ListItemIcon>
-              <Description fontSize="small" />
-            </ListItemIcon>
-            <ListItemText primary="Add Editor Content" />
-          </MenuItem>
-        </Menu>
-      </Box>
+      {/* Context Menu */}
+      <Menu
+        anchorEl={contextMenuAnchor}
+        open={Boolean(contextMenuAnchor)}
+        onClose={handleContextMenuClose}
+      >
+        <MenuItem onClick={() => setCollectionsDialogOpen(true)}>
+          <ListItemIcon>
+            <Storage fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Add Collection" />
+        </MenuItem>
+        <MenuItem onClick={() => setDefinitionsDialogOpen(true)}>
+          <ListItemIcon>
+            <Code fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Add Definition" />
+        </MenuItem>
+        <MenuItem onClick={() => setViewsDialogOpen(true)}>
+          <ListItemIcon>
+            <TableView fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Add View" />
+        </MenuItem>
+        <MenuItem onClick={addEditorContext}>
+          <ListItemIcon>
+            <Description fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Add Editor Content" />
+        </MenuItem>
+      </Menu>
 
       {/* Collections Dialog */}
       <Dialog
