@@ -22,19 +22,31 @@ import {
   Definition,
 } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
+import { useChatStore } from "../../store/chatStore";
 
 const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Get state and actions from Zustand store
+  const {
+    messages,
+    addMessage,
+    updateMessage,
+    clearMessages,
+    attachedContext,
+    addContextItem,
+    removeContextItem,
+    selectedModel,
+    setSelectedModel,
+    error,
+    setError,
+  } = useChatStore();
+
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Context attachment state
-  const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
   const [contextMenuAnchor, setContextMenuAnchor] =
     useState<null | HTMLElement>(null);
   const [collectionsDialogOpen, setCollectionsDialogOpen] = useState(false);
@@ -212,14 +224,6 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   }, [openaiClient]);
 
   // Context management
-  const addContextItem = (item: AttachedContext) => {
-    setAttachedContext((prev) => [...prev, item]);
-  };
-
-  const removeContextItem = (id: string) => {
-    setAttachedContext((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const handleContextMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setContextMenuAnchor(event.currentTarget);
   };
@@ -337,33 +341,24 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     handleContextMenuClose();
   };
 
-  const addMessage = (
-    role: "user" | "assistant",
-    content: string,
-    context?: AttachedContext[]
-  ) => {
-    const newMessage: Message = {
-      id: Date.now().toString() + Math.random(),
-      role,
-      content,
-      timestamp: new Date(),
-      attachedContext: context,
-    };
-    setMessages((prev) => [...prev, newMessage]);
-  };
-
   const sendMessage = async () => {
     if (!inputMessage.trim() || !openaiClient || isLoading) return;
 
     const userMessage = inputMessage.trim();
     const currentContext = [...attachedContext];
     setInputMessage("");
-    setAttachedContext([]);
     setError(null);
     setIsLoading(true);
 
     // 1. Add the user message first so it appears in the UI immediately
-    addMessage("user", userMessage, currentContext);
+    const userMessageObj: Message = {
+      id: Date.now().toString() + Math.random(),
+      role: "user",
+      content: userMessage,
+      timestamp: new Date(),
+      attachedContext: currentContext,
+    };
+    addMessage(userMessageObj);
 
     try {
       // Build conversation history for the API call (excluding system prompt)
@@ -390,16 +385,14 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
       // 2. Prepare an empty assistant message that we will progressively fill as we receive streamed chunks
       const assistantMessageId = `assistant-${Date.now()}-${Math.random()}`;
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMessageId,
-          role: "assistant",
-          content: "", // will be filled incrementally
-          timestamp: new Date(),
-          attachedContext: [],
-        },
-      ]);
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "", // will be filled incrementally
+        timestamp: new Date(),
+        attachedContext: [],
+      };
+      addMessage(assistantMessage);
 
       // 3. Call the OpenAI chat completion endpoint with streaming enabled
       const completionStream: AsyncIterable<any> = await (
@@ -422,13 +415,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       for await (const chunk of completionStream) {
         const delta: string = chunk?.choices?.[0]?.delta?.content || "";
         if (delta) {
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMessageId
-                ? { ...m, content: m.content + delta }
-                : m
-            )
-          );
+          updateMessage(assistantMessageId, delta);
         }
       }
     } catch (err: any) {
@@ -450,7 +437,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   };
 
   const clearChat = () => {
-    setMessages([]);
+    clearMessages();
     setError(null);
   };
 
