@@ -313,7 +313,7 @@ function Collections() {
 
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={20} minSize={1}>
-          <Box sx={{ height: "100%", overflow: "hidden", p: 1 }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <ChatBot currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
