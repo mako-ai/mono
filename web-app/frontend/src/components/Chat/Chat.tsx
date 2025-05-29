@@ -8,6 +8,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
+  Menu,
+  ListItemText,
+  ListItemIcon,
 } from "@mui/material";
 import OpenAI from "openai";
 import UserInput from "./UserInput";
@@ -23,14 +27,24 @@ import {
 } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
 import { useChatStore } from "../../store/chatStore";
+import {
+  History as HistoryIcon,
+  Add as AddIcon,
+  Chat as ChatIcon,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
 
 const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   // Get state and actions from Zustand store
   const {
-    messages,
+    chatSessions,
+    currentChatId,
+    createNewChat,
+    setCurrentChat,
+    deleteChat,
+    getCurrentMessages,
     addMessage,
     updateMessage,
-    clearMessages,
     attachedContext,
     addContextItem,
     removeContextItem,
@@ -39,6 +53,9 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     error,
     setError,
   } = useChatStore();
+
+  // Get current messages
+  const messages = getCurrentMessages();
 
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -52,6 +69,11 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const [collectionsDialogOpen, setCollectionsDialogOpen] = useState(false);
   const [definitionsDialogOpen, setDefinitionsDialogOpen] = useState(false);
   const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
+
+  // History menu state
+  const [historyMenuAnchor, setHistoryMenuAnchor] =
+    useState<null | HTMLElement>(null);
+  const historyMenuOpen = Boolean(historyMenuAnchor);
 
   // Real data from API
   const [availableCollections, setAvailableCollections] = useState<
@@ -222,6 +244,13 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
 
     fetchModels();
   }, [openaiClient]);
+
+  // Initialize first chat if none exists
+  useEffect(() => {
+    if (chatSessions.length === 0) {
+      createNewChat();
+    }
+  }, [chatSessions.length, createNewChat]);
 
   // Context management
   const handleContextMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -436,14 +465,33 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     }
   };
 
-  const clearChat = () => {
-    clearMessages();
+  // History menu handlers
+  const handleHistoryMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setHistoryMenuAnchor(event.currentTarget);
+  };
+
+  const handleHistoryMenuClose = () => {
+    setHistoryMenuAnchor(null);
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    setCurrentChat(chatId);
+    handleHistoryMenuClose();
+  };
+
+  const handleDeleteChat = (chatId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    deleteChat(chatId);
+  };
+
+  const handleNewChat = () => {
+    createNewChat();
     setError(null);
   };
 
   // Discrete loading notice shown while assistant is generating a response
   const LoadingNotice: React.FC = () => (
-    <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-start", mt: 2 }}>
+    <Box sx={{ display: "flex", justifyContent: "flex-start", mt: 2 }}>
       <Typography
         variant="body2"
         sx={{ fontStyle: "italic", color: "text.secondary" }}
@@ -487,19 +535,88 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         p: 1,
       }}
     >
-      <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-        <Typography variant="h6" gutterBottom>
-          AI Assistant
-        </Typography>
-        <Button
-          size="small"
-          onClick={clearChat}
-          disabled={messages.length === 0}
-          sx={{ alignSelf: "flex-end" }}
-        >
-          Clear Chat
-        </Button>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1,
+        }}
+      >
+        <Typography variant="h6">AI Assistant</Typography>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <IconButton
+            size="small"
+            onClick={handleHistoryMenuOpen}
+            disabled={chatSessions.length === 0}
+          >
+            <HistoryIcon />
+          </IconButton>
+          <Button size="small" startIcon={<AddIcon />} onClick={handleNewChat}>
+            New Chat
+          </Button>
+        </Box>
       </Box>
+
+      {/* History Menu */}
+      <Menu
+        anchorEl={historyMenuAnchor}
+        open={historyMenuOpen}
+        onClose={handleHistoryMenuClose}
+        PaperProps={{
+          sx: { maxHeight: 400, width: 300 },
+        }}
+      >
+        {chatSessions
+          .filter(
+            (chat) => chat.messages.length > 0 || chat.id === currentChatId
+          )
+          .map((chat) => (
+            <MenuItem
+              key={chat.id}
+              onClick={() => handleSelectChat(chat.id)}
+              selected={chat.id === currentChatId}
+              sx={{ display: "flex", justifyContent: "space-between" }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+                <ListItemIcon>
+                  <ChatIcon fontSize="small" />
+                </ListItemIcon>
+                <Box>
+                  <ListItemText
+                    primary={chat.title}
+                    secondary={
+                      chat.lastMessageAt
+                        ? new Date(chat.lastMessageAt).toLocaleDateString()
+                        : new Date(chat.createdAt).toLocaleDateString()
+                    }
+                    primaryTypographyProps={{
+                      noWrap: true,
+                      sx: { maxWidth: 200 },
+                    }}
+                  />
+                </Box>
+              </Box>
+              {(chat.messages.length > 0 || chat.id !== currentChatId) && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => handleDeleteChat(chat.id, e)}
+                  sx={{ ml: 1 }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              )}
+            </MenuItem>
+          ))}
+        {chatSessions.filter((chat) => chat.messages.length > 0).length ===
+          0 && (
+          <MenuItem disabled>
+            <Typography variant="body2" color="text.secondary">
+              No chat history yet
+            </Typography>
+          </MenuItem>
+        )}
+      </Menu>
 
       {/* Error notice (shown above the input) */}
       {error && (

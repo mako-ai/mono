@@ -53,7 +53,7 @@ const MessageItem = React.memo(({ message }: { message: Message }) => {
       sx={{
         display: "flex",
         justifyContent: message.role === "user" ? "flex-end" : "flex-start",
-        mb: 1,
+        mb: 0.5,
       }}
     >
       {message.role === "user" ? (
@@ -92,17 +92,6 @@ const MessageItem = React.memo(({ message }: { message: Message }) => {
               {message.content}
             </ReactMarkdown>
           </Box>
-
-          <Typography
-            variant="caption"
-            sx={{
-              display: "block",
-              mt: 1,
-              opacity: 0.7,
-            }}
-          >
-            {message.timestamp.toLocaleTimeString()}
-          </Typography>
         </Box>
       )}
     </Box>
@@ -119,18 +108,9 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         overflow: "auto",
         display: "flex",
         flexDirection: "column",
-        gap: 2,
+        gap: 1,
       }}
     >
-      <MessageItem
-        message={{
-          id: "system",
-          role: "user",
-          content: "You are a helpful assistant.",
-          timestamp: new Date(),
-          attachedContext: [],
-        }}
-      />
       {messages.map((message) => (
         <MessageItem key={message.id} message={message} />
       ))}
