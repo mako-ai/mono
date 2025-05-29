@@ -21,10 +21,11 @@ import CollectionEditor, {
 } from "../components/CollectionEditor";
 import CreateCollectionDialog from "../components/CreateCollectionDialog";
 import ResultsTable from "../components/ResultsTable";
-import { Chat } from "../components/Chat";
+import Chat from "../components/Chat/Chat";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "../components/Console";
+import { useConsoleStore } from "../store/consoleStore";
 
 interface CollectionInfo {
   name: string;
@@ -84,46 +85,48 @@ function Collections() {
   >(undefined);
   const collectionEditorRef = useRef<CollectionEditorRef>(null);
 
-  // New state for console tabs
-  interface ConsoleTab {
-    id: string;
-    title: string;
-    initialContent: string;
-  }
+  // Use Zustand store for console tabs
+  const {
+    consoleTabs,
+    activeConsoleId,
+    addConsoleTab,
+    removeConsoleTab,
+    updateConsoleContent,
+    setActiveConsole,
+  } = useConsoleStore();
 
-  const [consoleTabs, setConsoleTabs] = useState<ConsoleTab[]>([]);
-  const [activeConsoleId, setActiveConsoleId] = useState<string | null>(null);
   const consoleRefs = useRef<Record<string, React.RefObject<ConsoleRef>>>({});
+
+  // Initialize refs for existing console tabs
+  useEffect(() => {
+    consoleTabs.forEach((tab) => {
+      if (!consoleRefs.current[tab.id]) {
+        consoleRefs.current[tab.id] = React.createRef<ConsoleRef>();
+      }
+    });
+  }, [consoleTabs]);
 
   const openNewConsole = (
     initialContent: string = "",
     title: string = "Console"
   ) => {
-    const id = Date.now().toString() + Math.random();
-    const newTab: ConsoleTab = {
-      id,
+    const id = addConsoleTab({
       title,
+      content: initialContent,
       initialContent,
-    };
-    setConsoleTabs((prev) => [...prev, newTab]);
-    setActiveConsoleId(id);
+    });
     // create ref for this console
     consoleRefs.current[id] = React.createRef<ConsoleRef>();
   };
 
   const closeConsole = (id: string) => {
-    setConsoleTabs((prev) => prev.filter((tab) => tab.id !== id));
+    removeConsoleTab(id);
     // Cleanup ref
     delete consoleRefs.current[id];
-
-    if (activeConsoleId === id) {
-      const remaining = consoleTabs.filter((tab) => tab.id !== id);
-      setActiveConsoleId(remaining.length ? remaining[0].id : null);
-    }
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
-    setActiveConsoleId(newValue);
+    setActiveConsole(newValue);
   };
 
   // Attach double click handler to open console prefilled
@@ -394,10 +397,13 @@ function Collections() {
                           >
                             <Console
                               ref={consoleRefs.current[tab.id]}
-                              initialContent={tab.initialContent}
+                              initialContent={tab.content}
                               title={tab.title}
                               onExecute={handleConsoleExecute}
                               isExecuting={isExecuting}
+                              onContentChange={(content) =>
+                                updateConsoleContent(tab.id, content)
+                              }
                             />
                           </Box>
                         ))}
