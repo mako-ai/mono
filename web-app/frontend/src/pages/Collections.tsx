@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -11,6 +11,8 @@ import {
   IconButton,
   Alert,
   Snackbar,
+  Tabs,
+  Tab,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import CollectionExplorer from "../components/CollectionExplorer";
@@ -22,6 +24,7 @@ import ResultsTable from "../components/ResultsTable";
 import { Chat } from "../components/Chat";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import Console, { ConsoleRef } from "../components/Console";
 
 interface CollectionInfo {
   name: string;
@@ -81,12 +84,63 @@ function Collections() {
   >(undefined);
   const collectionEditorRef = useRef<CollectionEditorRef>(null);
 
-  // Update current editor content periodically
+  // New state for console tabs
+  interface ConsoleTab {
+    id: string;
+    title: string;
+    initialContent: string;
+  }
+
+  const [consoleTabs, setConsoleTabs] = useState<ConsoleTab[]>([]);
+  const [activeConsoleId, setActiveConsoleId] = useState<string | null>(null);
+  const consoleRefs = useRef<Record<string, React.RefObject<ConsoleRef>>>({});
+
+  const openNewConsole = (
+    initialContent: string = "",
+    title: string = "Console"
+  ) => {
+    const id = Date.now().toString() + Math.random();
+    const newTab: ConsoleTab = {
+      id,
+      title,
+      initialContent,
+    };
+    setConsoleTabs((prev) => [...prev, newTab]);
+    setActiveConsoleId(id);
+    // create ref for this console
+    consoleRefs.current[id] = React.createRef<ConsoleRef>();
+  };
+
+  const closeConsole = (id: string) => {
+    setConsoleTabs((prev) => prev.filter((tab) => tab.id !== id));
+    // Cleanup ref
+    delete consoleRefs.current[id];
+
+    if (activeConsoleId === id) {
+      const remaining = consoleTabs.filter((tab) => tab.id !== id);
+      setActiveConsoleId(remaining.length ? remaining[0].id : null);
+    }
+  };
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
+    setActiveConsoleId(newValue);
+  };
+
+  // Attach double click handler to open console prefilled
+  const handleCollectionDoubleClick = (collection: CollectionInfo) => {
+    const prefill = `db.getCollection("${collection.name}").find({})`;
+    openNewConsole(prefill, `Console - ${collection.name}`);
+  };
+
+  // Update current editor content periodically for Chat
   useEffect(() => {
     const updateEditorContent = () => {
-      if (collectionEditorRef.current) {
-        const content = collectionEditorRef.current.getCurrentContent();
+      if (activeConsoleId && consoleRefs.current[activeConsoleId]?.current) {
+        const content =
+          consoleRefs.current[activeConsoleId].current!.getCurrentContent();
         setCurrentEditorContent(content);
+      } else {
+        setCurrentEditorContent(undefined);
       }
     };
 
@@ -97,23 +151,10 @@ function Collections() {
     const interval = setInterval(updateEditorContent, 1000);
 
     return () => clearInterval(interval);
-  }, [selectedCollection, collectionInfo]);
+  }, [activeConsoleId, consoleTabs.length]);
 
-  const handleCollectionSelect = (
-    collectionName: string,
-    collection: CollectionInfo
-  ) => {
-    // If we're currently creating a new collection, exit creation mode first
-    if (collectionEditorRef.current) {
-      collectionEditorRef.current.cancelCreation?.();
-    }
-
-    setSelectedCollection(collectionName);
-    setCollectionInfo(collection);
-    setQueryResults(null); // Clear previous results
-  };
-
-  const handleQueryExecute = async (query: string) => {
+  // Replace handleQueryExecute with handleConsoleExecute
+  const handleConsoleExecute = async (query: string) => {
     if (!query.trim()) return;
 
     setIsExecuting(true);
@@ -142,6 +183,20 @@ function Collections() {
     } finally {
       setIsExecuting(false);
     }
+  };
+
+  const handleCollectionSelect = (
+    collectionName: string,
+    collection: CollectionInfo
+  ) => {
+    // If we're currently creating a new collection, exit creation mode first
+    if (collectionEditorRef.current) {
+      collectionEditorRef.current.cancelCreation?.();
+    }
+
+    setSelectedCollection(collectionName);
+    setCollectionInfo(collection);
+    setQueryResults(null); // Clear previous results
   };
 
   const handleCollectionCreate = async (collectionDefinition: any) => {
@@ -265,35 +320,109 @@ function Collections() {
         <Panel defaultSize={15}>
           <Box sx={{ height: "100%", overflow: "hidden" }}>
             <CollectionExplorer
-              onCollectionSelect={handleCollectionSelect}
-              selectedCollection={selectedCollection}
-              key={refreshKey} // Force refresh when key changes
+              onCollectionSelect={(_name: string, _info: CollectionInfo) => {}}
+              // highlight disabled for now
+              selectedCollection={undefined}
+              key={refreshKey}
               onCreateNew={handleCreateNewCollection}
+              onCollectionDoubleClick={handleCollectionDoubleClick}
             />
           </Box>
         </Panel>
 
         <StyledHorizontalResizeHandle />
 
-        {/* Middle Panel - Editor and Results */}
+        {/* Middle Panel - Consoles and Results */}
         <Panel defaultSize={65} minSize={30}>
           <Box sx={{ height: "100%", overflow: "hidden" }}>
             <PanelGroup
               direction="vertical"
               style={{ height: "100%", width: "100%" }}
             >
-              {/* Collection Editor */}
+              {/* Consoles */}
               <Panel defaultSize={50} minSize={1}>
-                <Box sx={{ height: "100%", overflow: "hidden" }}>
-                  <CollectionEditor
-                    collectionInfo={collectionInfo}
-                    selectedCollection={selectedCollection}
-                    onExecute={handleQueryExecute}
-                    onCreate={handleCreateNewCollection}
-                    onDelete={handleCollectionDelete}
-                    isExecuting={isExecuting}
-                    ref={collectionEditorRef}
-                  />
+                <Box
+                  sx={{
+                    height: "100%",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
+                >
+                  {consoleTabs.length > 0 ? (
+                    <>
+                      <Tabs
+                        value={activeConsoleId}
+                        onChange={handleTabChange}
+                        variant="scrollable"
+                        scrollButtons="auto"
+                      >
+                        {consoleTabs.map((tab) => (
+                          <Tab
+                            key={tab.id}
+                            value={tab.id}
+                            label={
+                              <Box
+                                sx={{ display: "flex", alignItems: "center" }}
+                              >
+                                <span>{tab.title}</span>
+                                <IconButton
+                                  size="small"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    closeConsole(tab.id);
+                                  }}
+                                >
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            }
+                          />
+                        ))}
+                      </Tabs>
+
+                      {/* Active Console Editor */}
+                      <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
+                        {consoleTabs.map((tab) => (
+                          <Box
+                            key={tab.id}
+                            sx={{
+                              height: "100%",
+                              display:
+                                activeConsoleId === tab.id ? "block" : "none",
+                            }}
+                          >
+                            <Console
+                              ref={consoleRefs.current[tab.id]}
+                              initialContent={tab.initialContent}
+                              title={tab.title}
+                              onExecute={handleConsoleExecute}
+                              isExecuting={isExecuting}
+                            />
+                          </Box>
+                        ))}
+                      </Box>
+                    </>
+                  ) : (
+                    <Box
+                      sx={{
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 2,
+                      }}
+                    >
+                      <Typography>No console open</Typography>
+                      <Button
+                        variant="contained"
+                        onClick={() => openNewConsole()}
+                      >
+                        Open Console
+                      </Button>
+                    </Box>
+                  )}
                 </Box>
               </Panel>
 

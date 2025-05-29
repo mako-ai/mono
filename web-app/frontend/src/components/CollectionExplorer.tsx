@@ -32,12 +32,14 @@ interface CollectionExplorerProps {
   ) => void;
   selectedCollection?: string;
   onCreateNew?: () => void;
+  onCollectionDoubleClick?: (collection: CollectionInfo) => void;
 }
 
 const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
   onCollectionSelect,
   selectedCollection,
   onCreateNew,
+  onCollectionDoubleClick,
 }) => {
   const [collections, setCollections] = useState<CollectionInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +162,7 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
                 <ListItemButton
                   selected={selectedCollection === collection.name}
                   onClick={() => handleCollectionClick(collection)}
+                  onDoubleClick={() => onCollectionDoubleClick?.(collection)}
                   sx={{ py: 0.5, pl: 1 }}
                 >
                   <ListItemIcon sx={{ minWidth: 32 }}>
