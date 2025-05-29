@@ -68,14 +68,13 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
                 flexDirection: "row-reverse",
                 alignItems: "flex-start",
                 gap: 1,
-                maxWidth: "80%",
               }}
             >
-              <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main" }}>
-                <Person />
-              </Avatar>
               <Paper elevation={1} sx={{ p: 2, color: "text.primary" }}>
-                <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+                <Typography
+                  variant="body2"
+                  sx={{ whiteSpace: "pre-wrap", fontSize: "0.875rem" }}
+                >
                   {message.content}
                 </Typography>
 
@@ -182,28 +181,57 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
             </Box>
           ) : (
             // Assistant message - no bubble, direct content with markdown
-            <Box sx={{ flex: 1 }}>
-              <ReactMarkdown
-                components={{
-                  code({ className, children }) {
-                    const match = /language-(\w+)/.exec(className || "");
-                    const isInline = !match;
-                    return !isInline ? (
-                      <SyntaxHighlighter
-                        style={tomorrow as any}
-                        language={match[1]}
-                        PreTag="div"
-                      >
-                        {String(children).replace(/\n$/, "")}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code className={className}>{children}</code>
-                    );
+            <Box sx={{ flex: 1, overflow: "hidden" }}>
+              <Box
+                sx={{
+                  "& p": { fontSize: "0.875rem" },
+                  "& pre": {
+                    margin: 0,
+                    overflow: "hidden",
                   },
                 }}
               >
-                {message.content}
-              </ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    code({ className, children }) {
+                      const match = /language-(\w+)/.exec(className || "");
+                      const isInline = !match;
+                      return !isInline ? (
+                        <Box
+                          sx={{
+                            overflow: "hidden",
+                            borderRadius: 1,
+                            my: 1,
+                          }}
+                        >
+                          <SyntaxHighlighter
+                            style={tomorrow as any}
+                            language={match[1]}
+                            PreTag="div"
+                            customStyle={{
+                              fontSize: "0.8rem",
+                              margin: 0,
+                              overflow: "auto",
+                              maxWidth: "100%",
+                            }}
+                          >
+                            {String(children).replace(/\n$/, "")}
+                          </SyntaxHighlighter>
+                        </Box>
+                      ) : (
+                        <code
+                          className={className}
+                          style={{ fontSize: "0.8rem" }}
+                        >
+                          {children}
+                        </code>
+                      );
+                    },
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </Box>
 
               <Typography
                 variant="caption"
