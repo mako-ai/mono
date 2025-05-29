@@ -4,15 +4,11 @@ import {
   Typography,
   Button,
   Alert,
-  CircularProgress,
-  Paper,
-  Avatar,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
 } from "@mui/material";
-import { SmartToy } from "@mui/icons-material";
 import OpenAI from "openai";
 import UserInput from "./UserInput";
 import MessageList from "./MessageList";
@@ -458,6 +454,18 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     setError(null);
   };
 
+  // Discrete loading notice shown while assistant is generating a response
+  const LoadingNotice: React.FC = () => (
+    <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-start", mt: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{ fontStyle: "italic", color: "text.secondary" }}
+      >
+        Generating...
+      </Typography>
+    </Box>
+  );
+
   if (!openaiClient) {
     return (
       <Box
@@ -506,84 +514,41 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         </Button>
       </Box>
 
-      {messages.length === 0 ? (
-        <>
-          {error && (
-            <Box sx={{ p: 2 }}>
-              <Alert severity="error" onClose={() => setError(null)}>
-                {error}
-              </Alert>
-            </Box>
-          )}
-
-          <UserInput
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            attachedContext={attachedContext}
-            removeContextItem={removeContextItem}
-            onSend={sendMessage}
-            onAttachClick={handleContextMenuOpen}
-            isLoading={isLoading}
-          />
-
-          {(isLoading || true) && (
-            <Box
-              sx={{
-                flex: 1,
-                display: "flex",
-                justifyContent: "flex-start",
-                mt: 2,
-              }}
-            >
-              <Typography
-                variant="body2"
-                sx={{ fontStyle: "italic", color: "text.secondary" }}
-              >
-                Generating...
-              </Typography>
-            </Box>
-          )}
-        </>
-      ) : (
-        <>
-          <MessageList messages={messages} />
-
-          {(isLoading || true) && (
-            <Box
-              sx={{
-                flex: 1,
-                display: "flex",
-                justifyContent: "flex-start",
-                mt: 2,
-              }}
-            >
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Generating...
-              </Typography>
-            </Box>
-          )}
-
-          <div ref={messagesEndRef} />
-
-          {error && (
-            <Box sx={{ p: 2 }}>
-              <Alert severity="error" onClose={() => setError(null)}>
-                {error}
-              </Alert>
-            </Box>
-          )}
-
-          <UserInput
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            attachedContext={attachedContext}
-            removeContextItem={removeContextItem}
-            onSend={sendMessage}
-            onAttachClick={handleContextMenuOpen}
-            isLoading={isLoading}
-          />
-        </>
+      {/* Error notice (shown above the input) */}
+      {error && (
+        <Box sx={{ p: 2 }}>
+          <Alert severity="error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        </Box>
       )}
+
+      {/* Messages area – grows only after first message so the input stays at bottom */}
+      <Box
+        sx={{
+          flex: messages.length > 0 ? 1 : 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "auto",
+        }}
+      >
+        <MessageList messages={messages} />
+        <div ref={messagesEndRef} />
+      </Box>
+
+      {/* Loading indicator */}
+      {isLoading && <LoadingNotice />}
+
+      {/* Single user input */}
+      <UserInput
+        inputMessage={inputMessage}
+        setInputMessage={setInputMessage}
+        attachedContext={attachedContext}
+        removeContextItem={removeContextItem}
+        onSend={sendMessage}
+        onAttachClick={handleContextMenuOpen}
+        isLoading={isLoading}
+      />
 
       {/* Model selection dropdown */}
       <Box sx={{ mt: 1 }}>
