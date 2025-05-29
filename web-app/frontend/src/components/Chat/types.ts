@@ -24,6 +24,8 @@ export interface Collection {
   name: string;
   description?: string;
   sampleDocument: any;
+  sampleDocuments?: any[];
+  schemaInfo?: any;
   documentCount: number;
 }
 

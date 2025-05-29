@@ -1,56 +1,17 @@
-import { MongoClient, Db } from "mongodb";
-import dotenv from "dotenv";
-import * as path from "path";
-import * as fs from "fs";
-
-dotenv.config({ path: "./.env" });
-
-// Simple configuration loader for the web app
-function loadConfig() {
-  // Use environment variables primarily (which are set in docker-compose)
-  const mongoUrl =
-    process.env.MONGODB_CONNECTION_STRING || "mongodb://mongodb:27017";
-  const database = process.env.MONGODB_DATABASE || "multi_tenant_analytics";
-
-  console.log(`🔌 Connecting to MongoDB: ${mongoUrl}/${database}`);
-
-  return {
-    mongodb: {
-      connection_string: mongoUrl,
-      database: database,
-    },
-  };
-}
+import { Db } from "mongodb";
+import { mongoConnection } from "./mongodb-connection";
 
 export class QueryExecutor {
-  private client: MongoClient;
-  private db!: Db;
-
-  constructor() {
-    const config = loadConfig();
-    this.client = new MongoClient(config.mongodb.connection_string);
-  }
-
-  private async connect(): Promise<void> {
-    await this.client.connect();
-    const config = loadConfig();
-    this.db = this.client.db(config.mongodb.database);
-  }
-
-  private async disconnect(): Promise<void> {
-    await this.client.close();
-  }
-
   async executeQuery(queryContent: string): Promise<any> {
     try {
-      await this.connect();
+      const dbInstance = await mongoConnection.getDb();
 
       console.log(
         `🔍 Executing query content:\n${queryContent.substring(0, 200)}...`
       );
 
       // Create a proxy db object that can access any collection dynamically
-      const db = new Proxy(this.db, {
+      const db = new Proxy(dbInstance, {
         get: (target, prop) => {
           if (typeof prop === "string") {
             console.log(`📋 Accessing collection: ${prop}`);
@@ -106,8 +67,6 @@ export class QueryExecutor {
           error instanceof Error ? error.message : String(error)
         }`
       );
-    } finally {
-      await this.disconnect();
     }
   }
 }
