@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import QueryExplorer from "../components/QueryExplorer";
-import QueryEditor, { QueryEditorRef } from "../components/QueryEditor";
+import Console, { ConsoleRef } from "../components/Console";
 import ResultsTable from "../components/ResultsTable";
 import { Chat } from "../components/Chat";
 // @ts-ignore – types will be available once the package is installed
@@ -60,13 +60,13 @@ function Queries() {
       }
     | undefined
   >(undefined);
-  const queryEditorRef = useRef<QueryEditorRef>(null);
+  const consoleRef = useRef<ConsoleRef>(null);
 
   // Update current editor content periodically
   useEffect(() => {
     const updateEditorContent = () => {
-      if (queryEditorRef.current) {
-        const content = queryEditorRef.current.getCurrentContent();
+      if (consoleRef.current) {
+        const content = consoleRef.current.getCurrentContent();
         setCurrentEditorContent(content);
       }
     };
@@ -156,12 +156,14 @@ function Queries() {
               {/* Query Editor */}
               <Panel defaultSize={50} minSize={1}>
                 <Box sx={{ height: "100%", overflow: "hidden" }}>
-                  <QueryEditor
-                    queryContent={queryContent}
-                    selectedQuery={selectedQuery}
+                  <Console
+                    initialContent={queryContent}
+                    title={
+                      selectedQuery ? `Query: ${selectedQuery}` : "Console"
+                    }
                     onExecute={handleQueryExecute}
                     isExecuting={isExecuting}
-                    ref={queryEditorRef}
+                    ref={consoleRef}
                   />
                 </Box>
               </Panel>

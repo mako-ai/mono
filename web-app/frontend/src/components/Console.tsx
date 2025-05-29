@@ -10,14 +10,14 @@ import { PlayArrow } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
-interface QueryEditorProps {
-  queryContent: string;
-  selectedQuery: string;
+interface ConsoleProps {
+  initialContent: string;
+  title?: string;
   onExecute: (content: string) => void;
   isExecuting: boolean;
 }
 
-export interface QueryEditorRef {
+export interface ConsoleRef {
   getCurrentContent: () => {
     content: string;
     fileName?: string;
@@ -25,18 +25,19 @@ export interface QueryEditorRef {
   };
 }
 
-const QueryEditor = forwardRef<QueryEditorRef, QueryEditorProps>(
-  ({ queryContent, selectedQuery, onExecute, isExecuting }, ref) => {
+const Console = forwardRef<ConsoleRef, ConsoleProps>(
+  ({ initialContent, title, onExecute, isExecuting }, ref) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
-    const [currentContent, setCurrentContent] = useState(queryContent);
+    const [currentContent, setCurrentContent] = useState(initialContent);
 
-    // Update current content when queryContent changes (new query selected)
+    // Update current content when initialContent changes (e.g., new console opened)
     useEffect(() => {
-      setCurrentContent(queryContent);
-    }, [queryContent]);
+      setCurrentContent(initialContent);
+    }, [initialContent]);
 
+    // Resize handling for monaco layout
     useEffect(() => {
       const handleResize = () => {
         if (editorRef.current) {
@@ -54,8 +55,32 @@ const QueryEditor = forwardRef<QueryEditorRef, QueryEditorProps>(
       };
     }, []);
 
-    const handleEditorDidMount = (editor: any) => {
+    // Execute helper
+    const executeContent = (content: string) => {
+      if (content.trim()) {
+        onExecute(content);
+      }
+    };
+
+    const handleEditorDidMount = (editor: any, monaco: any) => {
       editorRef.current = editor;
+
+      // CMD/CTRL + Enter execution support
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+        const model = editor.getModel();
+        if (!model) return;
+
+        const selection = editor.getSelection();
+        let textToExecute = "";
+
+        if (selection && !selection.isEmpty()) {
+          textToExecute = model.getValueInRange(selection);
+        } else {
+          textToExecute = model.getValue();
+        }
+
+        executeContent(textToExecute);
+      });
     };
 
     const handleEditorChange = (value: string | undefined) => {
@@ -63,13 +88,13 @@ const QueryEditor = forwardRef<QueryEditorRef, QueryEditorProps>(
     };
 
     const handleExecute = () => {
-      onExecute(currentContent);
+      executeContent(currentContent);
     };
 
     useImperativeHandle(ref, () => ({
       getCurrentContent: () => ({
         content: currentContent,
-        fileName: selectedQuery ? `${selectedQuery}.js` : "query.js",
+        fileName: title ? `${title}.js` : "console.js",
         language: "javascript",
       }),
     }));
@@ -84,9 +109,7 @@ const QueryEditor = forwardRef<QueryEditorRef, QueryEditorProps>(
             p: 1,
           }}
         >
-          <Typography variant="h6">
-            {selectedQuery ? `Query: ${selectedQuery}` : "No query selected"}
-          </Typography>
+          <Typography variant="h6">{title ? title : "Console"}</Typography>
           <Button
             variant="contained"
             size="small"
@@ -94,47 +117,31 @@ const QueryEditor = forwardRef<QueryEditorRef, QueryEditorProps>(
             onClick={handleExecute}
             disabled={!currentContent.trim() || isExecuting}
           >
-            {isExecuting ? "Executing..." : "Run Query"}
+            {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
           </Button>
         </Box>
 
         <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
-          {selectedQuery ? (
-            <Editor
-              defaultLanguage="javascript"
-              value={currentContent}
-              height="100%"
-              theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
-              onMount={handleEditorDidMount}
-              onChange={handleEditorChange}
-              options={{
-                automaticLayout: true,
-                readOnly: false,
-                minimap: { enabled: false },
-                fontSize: 12,
-                wordWrap: "on",
-                scrollBeyondLastLine: false,
-              }}
-            />
-          ) : (
-            <Box
-              sx={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "text.secondary",
-              }}
-            >
-              <Typography>
-                Select a query from the explorer to view and edit its content
-              </Typography>
-            </Box>
-          )}
+          <Editor
+            defaultLanguage="javascript"
+            value={currentContent}
+            height="100%"
+            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+            onMount={handleEditorDidMount}
+            onChange={handleEditorChange}
+            options={{
+              automaticLayout: true,
+              readOnly: false,
+              minimap: { enabled: false },
+              fontSize: 12,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+            }}
+          />
         </Box>
       </Box>
     );
   }
 );
 
-export default QueryEditor;
+export default Console;
