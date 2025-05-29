@@ -19,7 +19,7 @@ import CollectionEditor, {
 } from "../components/CollectionEditor";
 import CreateCollectionDialog from "../components/CreateCollectionDialog";
 import ResultsTable from "../components/ResultsTable";
-import ChatBot from "../components/ChatBot";
+import { Chat } from "../components/Chat";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -314,7 +314,7 @@ function Collections() {
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={20} minSize={1}>
           <Box sx={{ height: "100%", overflow: "hidden" }}>
-            <ChatBot currentEditorContent={currentEditorContent} />
+            <Chat currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
       </PanelGroup>
