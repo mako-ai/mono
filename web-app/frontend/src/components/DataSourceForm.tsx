@@ -681,7 +681,7 @@ function DataSourceForm({
 
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained">
+        <Button onClick={handleSubmit} variant="contained" disableElevation>
           {dataSource ? "Update" : "Create"}
         </Button>
       </DialogActions>

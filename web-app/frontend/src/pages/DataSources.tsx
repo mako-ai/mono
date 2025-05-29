@@ -261,6 +261,7 @@ function DataSources() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleCreateDataSource}
+          disableElevation
         >
           Add Data Source
         </Button>
@@ -397,6 +398,7 @@ function DataSources() {
             variant="contained"
             startIcon={<AddIcon />}
             onClick={handleCreateDataSource}
+            disableElevation
           >
             Add Data Source
           </Button>
@@ -445,6 +447,7 @@ function DataSources() {
             onClick={handleDeleteConfirm}
             color="error"
             variant="contained"
+            disableElevation
           >
             Delete
           </Button>

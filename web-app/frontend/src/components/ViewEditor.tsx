@@ -338,6 +338,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
                 onClick={handleCreateNew}
                 color="primary"
                 variant="contained"
+                disableElevation
               >
                 New View
               </Button>
@@ -367,6 +368,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
               color="error"
               variant="contained"
               disabled={isDeleting}
+              disableElevation
             >
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>

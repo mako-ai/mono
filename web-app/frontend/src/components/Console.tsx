@@ -116,6 +116,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
             startIcon={<PlayArrow />}
             onClick={handleExecute}
             disabled={!currentContent.trim() || isExecuting}
+            disableElevation
           >
             {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
           </Button>

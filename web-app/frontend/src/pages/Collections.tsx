@@ -417,6 +417,7 @@ function Collections() {
                       <Typography>No console open</Typography>
                       <Button
                         variant="contained"
+                        disableElevation
                         onClick={() => openNewConsole()}
                       >
                         Open Console
@@ -506,7 +507,11 @@ function Collections() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseErrorModal} variant="contained">
+          <Button
+            onClick={handleCloseErrorModal}
+            variant="contained"
+            disableElevation
+          >
             Close
           </Button>
         </DialogActions>
