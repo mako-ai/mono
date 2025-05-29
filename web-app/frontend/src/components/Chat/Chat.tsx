@@ -366,9 +366,11 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     setError(null);
     setIsLoading(true);
 
+    // 1. Add the user message first so it appears in the UI immediately
     addMessage("user", userMessage, currentContext);
 
     try {
+      // Build conversation history for the API call (excluding system prompt)
       const conversationHistory = messages.map((msg) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
@@ -390,7 +392,23 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         selectedModel.toLowerCase().startsWith("o3") ||
         selectedModel.toLowerCase().includes("gpt-4o");
 
-      const completion = await (openaiClient.chat.completions.create as any)({
+      // 2. Prepare an empty assistant message that we will progressively fill as we receive streamed chunks
+      const assistantMessageId = `assistant-${Date.now()}-${Math.random()}`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMessageId,
+          role: "assistant",
+          content: "", // will be filled incrementally
+          timestamp: new Date(),
+          attachedContext: [],
+        },
+      ]);
+
+      // 3. Call the OpenAI chat completion endpoint with streaming enabled
+      const completionStream: AsyncIterable<any> = await (
+        openaiClient.chat.completions.create as any
+      )({
         model: selectedModel,
         messages: [
           {
@@ -401,13 +419,21 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         ],
         ...(isO3 ? { max_completion_tokens: 4000 } : { max_tokens: 4000 }),
         ...(!isO3 ? { temperature: 0.7 } : {}),
+        stream: true,
       });
 
-      const assistantResponse = completion.choices[0]?.message?.content;
-      if (assistantResponse) {
-        addMessage("assistant", assistantResponse);
-      } else {
-        setError("No response received from OpenAI");
+      // 4. Iterate over the streamed chunks and update the assistant message content in real-time
+      for await (const chunk of completionStream) {
+        const delta: string = chunk?.choices?.[0]?.delta?.content || "";
+        if (delta) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMessageId
+                ? { ...m, content: m.content + delta }
+                : m
+            )
+          );
+        }
       }
     } catch (err: any) {
       console.error("OpenAI API error:", err);
@@ -500,7 +526,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
             isLoading={isLoading}
           />
 
-          {isLoading && (
+          {(isLoading || true) && (
             <Box
               sx={{
                 flex: 1,
@@ -509,19 +535,12 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
                 mt: 2,
               }}
             >
-              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                <Avatar
-                  sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
-                >
-                  <SmartToy />
-                </Avatar>
-                <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2" sx={{ ml: 1, display: "inline" }}>
-                    Thinking...
-                  </Typography>
-                </Paper>
-              </Box>
+              <Typography
+                variant="body2"
+                sx={{ fontStyle: "italic", color: "text.secondary" }}
+              >
+                Generating...
+              </Typography>
             </Box>
           )}
         </>
@@ -529,21 +548,18 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         <>
           <MessageList messages={messages} />
 
-          {isLoading && (
-            <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                <Avatar
-                  sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
-                >
-                  <SmartToy />
-                </Avatar>
-                <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2" sx={{ ml: 1, display: "inline" }}>
-                    Thinking...
-                  </Typography>
-                </Paper>
-              </Box>
+          {(isLoading || true) && (
+            <Box
+              sx={{
+                flex: 1,
+                display: "flex",
+                justifyContent: "flex-start",
+                mt: 2,
+              }}
+            >
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Generating...
+              </Typography>
             </Box>
           )}
 
