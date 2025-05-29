@@ -105,10 +105,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     <Box
       sx={{
         flex: 1,
-        overflow: "auto",
         display: "flex",
         flexDirection: "column",
         gap: 1,
+        pb: 12,
       }}
     >
       {messages.map((message) => (
