@@ -16,6 +16,8 @@ import {
   Description,
   TableView,
   Close,
+  Add,
+  AlternateEmailOutlined,
 } from "@mui/icons-material";
 import { AttachedContext } from "./types";
 
@@ -59,16 +61,44 @@ const UserInput: React.FC<UserInputProps> = ({
   };
 
   return (
-    <Box>
-      {/* Attached Context Display */}
-      {attachedContext.length > 0 && (
-        <Box sx={{ mb: 2 }}>
-          <Typography
-            variant="caption"
-            sx={{ fontWeight: 500, mb: 1, display: "block" }}
-          >
-            Attached Context ({attachedContext.length}):
-          </Typography>
+    <Paper
+      elevation={0}
+      sx={{
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 2.5,
+        p: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: 1,
+      }}
+    >
+      <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onAttachClick}
+          disabled={isLoading}
+          startIcon={<AlternateEmailOutlined />}
+          sx={{
+            height: 24,
+            fontSize: "0.8125rem",
+            py: 0,
+            px: 1,
+            minWidth: "auto",
+            "& .MuiButton-startIcon": {
+              marginLeft: -0.5,
+              marginRight: attachedContext.length === 0 ? 0.5 : -0.5,
+            },
+            "& .MuiSvgIcon-root": {
+              fontSize: 16,
+            },
+          }}
+        >
+          {attachedContext.length === 0 && "Add context"}
+        </Button>
+        {/* Attached Context Display - Now inside Paper */}
+        {attachedContext.length > 0 && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
             {attachedContext.map((context) => (
               <Chip
@@ -79,75 +109,76 @@ const UserInput: React.FC<UserInputProps> = ({
                 onDelete={() => removeContextItem(context.id)}
                 deleteIcon={<Close />}
                 variant="outlined"
-                sx={{ maxWidth: 200 }}
+                sx={{
+                  borderRadius: 1,
+                  maxWidth: 200,
+                  backgroundColor: "background.paper",
+                  "&:hover": {
+                    backgroundColor: "action.hover",
+                  },
+                }}
               />
             ))}
           </Box>
-        </Box>
-      )}
-
-      {/* Attach Button above input */}
-      <Box sx={{ mb: 1 }}>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<AttachFile />}
-          onClick={onAttachClick}
-          disabled={isLoading}
-        >
-          Attach Context
-        </Button>
+        )}
       </Box>
+      {/* Text Area */}
+      <TextField
+        fullWidth
+        autoFocus
+        multiline
+        minRows={3}
+        placeholder="Ask me anything..."
+        value={inputMessage}
+        onChange={(e) => setInputMessage(e.target.value)}
+        onKeyPress={handleKeyPress}
+        disabled={isLoading}
+        variant="outlined"
+        sx={{
+          "& .MuiInputBase-input": {
+            fontSize: 14,
+          },
+          "& .MuiInputBase-root": {
+            p: 0,
+            fontSize: 14,
+          },
+          "& .MuiOutlinedInput-notchedOutline": {
+            border: "none",
+          },
+          "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+            border: "none",
+          },
+          "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+            {
+              border: "none",
+            },
+        }}
+      />
 
-      {/* Input Area wrapped in Paper */}
-      <Paper
-        elevation={0}
-        sx={{ border: 1, borderColor: "divider", borderRadius: 2.5 }}
+      {/* Bottom action bar with Attach button and Send button */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
       >
-        {/* Text Area - Full width */}
-        <TextField
-          fullWidth
-          autoFocus
-          multiline
-          minRows={3}
-          placeholder="Ask me anything..."
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyPress={handleKeyPress}
-          disabled={isLoading}
-          variant="outlined"
+        {/* Send Button */}
+        <IconButton
+          onClick={onSend}
+          disabled={!inputMessage.trim() || isLoading}
+          size="small"
           sx={{
-            mb: 2,
-            "& .MuiInputBase-input": {
-              fontSize: 14,
+            color: inputMessage.trim() ? "primary.main" : "text.disabled",
+            "&:hover": {
+              backgroundColor: "action.hover",
             },
-            "& .MuiInputBase-root": {
-              fontSize: 14,
-            },
-            "& .MuiOutlinedInput-notchedOutline": {
-              border: "none",
-            },
-            "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
-              border: "none",
-            },
-            "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
-              {
-                border: "none",
-              },
           }}
-        />
-
-        {/* Send Button - Below text area */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-          <IconButton
-            onClick={onSend}
-            disabled={!inputMessage.trim() || isLoading}
-          >
-            <SendIcon sx={{ fontSize: "18px" }} />
-          </IconButton>
-        </Box>
-      </Paper>
-    </Box>
+        >
+          <SendIcon sx={{ fontSize: 20 }} />
+        </IconButton>
+      </Box>
+    </Paper>
   );
 };
 
