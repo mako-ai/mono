@@ -220,6 +220,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           onClick={handleCreate}
           variant="contained"
           disabled={isCreating || !viewName.trim() || !viewOn}
+          disableElevation
         >
           {isCreating ? "Creating..." : "Create View"}
         </Button>

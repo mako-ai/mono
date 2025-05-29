@@ -33,11 +33,14 @@ const NavButton = styled(IconButton, {
   transition: "all 0.2s ease",
 }));
 
-const navigationItems = [
+const topNavigationItems = [
   { path: "/", icon: FileIcon, label: "Queries" },
   { path: "/views", icon: ViewIcon, label: "Views" },
   { path: "/collections", icon: CollectionIcon, label: "Collections" },
   { path: "/sources", icon: DataSourceIcon, label: "Data Sources" },
+];
+
+const bottomNavigationItems = [
   { path: "/settings", icon: SettingsIcon, label: "Settings" },
 ];
 
@@ -50,23 +53,60 @@ function Sidebar() {
   };
 
   return (
-    <SidebarContainer>
-      {navigationItems.map((item) => {
-        const Icon = item.icon;
-        const isActive = location.pathname === item.path;
+    <Box
+      sx={{
+        height: "100vh",
+        borderRight: "1px solid",
+        borderColor: "divider",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          padding: 0.5,
+          gap: 0.5,
+        }}
+      >
+        {topNavigationItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.path;
 
-        return (
-          <Tooltip key={item.path} title={item.label} placement="right">
-            <NavButton
-              isActive={isActive}
-              onClick={() => handleNavigation(item.path)}
-            >
-              <Icon />
-            </NavButton>
-          </Tooltip>
-        );
-      })}
-    </SidebarContainer>
+          return (
+            <Tooltip key={item.path} title={item.label} placement="right">
+              <NavButton
+                isActive={isActive}
+                onClick={() => handleNavigation(item.path)}
+              >
+                <Icon />
+              </NavButton>
+            </Tooltip>
+          );
+        })}
+      </Box>
+      <Box>
+        {bottomNavigationItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.path;
+
+          return (
+            <Tooltip key={item.path} title={item.label} placement="right">
+              <NavButton
+                isActive={isActive}
+                onClick={() => handleNavigation(item.path)}
+              >
+                <Icon />
+              </NavButton>
+            </Tooltip>
+          );
+        })}
+      </Box>
+    </Box>
   );
 }
 

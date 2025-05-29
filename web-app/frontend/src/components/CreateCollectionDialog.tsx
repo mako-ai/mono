@@ -226,6 +226,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
           onClick={handleCreate}
           variant="contained"
           disabled={isCreating || !collectionName.trim()}
+          disableElevation
         >
           {isCreating ? "Creating..." : "Create Collection"}
         </Button>

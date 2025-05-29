@@ -379,7 +379,11 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseErrorModal} variant="contained">
+          <Button
+            onClick={handleCloseErrorModal}
+            variant="contained"
+            disableElevation
+          >
             Close
           </Button>
         </DialogActions>
