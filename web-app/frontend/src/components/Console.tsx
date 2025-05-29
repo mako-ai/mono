@@ -104,12 +104,12 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             alignItems: "center",
             p: 1,
+            backgroundColor: "background.paper",
           }}
         >
-          <Typography variant="h6">{title ? title : "Console"}</Typography>
           <Button
             variant="contained"
             size="small"
