@@ -12,6 +12,7 @@
     "sync:close:contacts": "ts-node src/sync-close.ts contacts",
     "sync:close:activities": "ts-node src/sync-close.ts activities",
     "sync:close:users": "ts-node src/sync-close.ts users",
+    "sync:close:custom-fields": "ts-node src/sync-close.ts custom-fields",
     "sync:close:all": "ts-node src/sync-close.ts all",
     "sync:close": "pnpm run sync:close:all",
     "query": "ts-node src/query-runner.ts",
