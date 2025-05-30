@@ -7,6 +7,9 @@ import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Message } from "./types";
 import { useTheme } from "../../contexts/ThemeContext";
 import UserMessage from "./UserMessage";
+import { ExpandMore, ExpandLess } from "@mui/icons-material";
+import { IconButton } from "@mui/material";
+import { ContentCopy, Check } from "@mui/icons-material";
 
 interface MessageListProps {
   messages: Message[];
@@ -17,6 +20,26 @@ const CodeBlock = React.memo(
   ({ language, children }: { language: string; children: string }) => {
     const { effectiveMode } = useTheme();
     const syntaxTheme = effectiveMode === "dark" ? tomorrow : prism;
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const [isCopied, setIsCopied] = React.useState(false);
+
+    // Split code into lines
+    const lines = children.split("\n");
+    const needsExpansion = lines.length > 12;
+
+    // Show only first 12 lines if not expanded
+    const displayedCode =
+      needsExpansion && !isExpanded ? lines.slice(0, 12).join("\n") : children;
+
+    const handleCopy = async () => {
+      try {
+        await navigator.clipboard.writeText(children);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy code:", err);
+      }
+    };
 
     return (
       <Box
@@ -24,8 +47,43 @@ const CodeBlock = React.memo(
           overflow: "hidden",
           borderRadius: 1,
           my: 1,
+          position: "relative",
         }}
       >
+        {/* Copy button */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 1,
+          }}
+        >
+          <IconButton
+            size="small"
+            onClick={handleCopy}
+            sx={{
+              backgroundColor:
+                effectiveMode === "dark"
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.1)",
+              "&:hover": {
+                backgroundColor:
+                  effectiveMode === "dark"
+                    ? "rgba(255,255,255,0.2)"
+                    : "rgba(0,0,0,0.2)",
+              },
+              transition: "all 0.2s",
+            }}
+          >
+            {isCopied ? (
+              <Check sx={{ fontSize: 16, color: "success.main" }} />
+            ) : (
+              <ContentCopy sx={{ fontSize: 16 }} />
+            )}
+          </IconButton>
+        </Box>
+
         <SyntaxHighlighter
           style={syntaxTheme as any}
           language={language}
@@ -35,10 +93,50 @@ const CodeBlock = React.memo(
             margin: 0,
             overflow: "auto",
             maxWidth: "100%",
+            paddingBottom: needsExpansion ? "2rem" : undefined,
+            paddingTop: "2rem", // Add padding to prevent copy button overlap
           }}
         >
-          {children}
+          {displayedCode}
         </SyntaxHighlighter>
+
+        {needsExpansion && (
+          <Box
+            sx={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              display: "flex",
+              justifyContent: "center",
+              background:
+                effectiveMode === "dark"
+                  ? "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))"
+                  : "linear-gradient(to bottom, transparent, rgba(255,255,255,0.9))",
+              pt: 1,
+              pb: 0.5,
+            }}
+          >
+            <IconButton
+              size="small"
+              onClick={() => setIsExpanded(!isExpanded)}
+              sx={{
+                backgroundColor:
+                  effectiveMode === "dark"
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(0,0,0,0.1)",
+                "&:hover": {
+                  backgroundColor:
+                    effectiveMode === "dark"
+                      ? "rgba(255,255,255,0.2)"
+                      : "rgba(0,0,0,0.2)",
+                },
+              }}
+            >
+              {isExpanded ? <ExpandLess /> : <ExpandMore />}
+            </IconButton>
+          </Box>
+        )}
       </Box>
     );
   }
