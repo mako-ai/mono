@@ -36,6 +36,38 @@ db.sales.aggregate([...improved query...])
 [After receiving results]
 Perfect! The results now show the data in the correct format with closers and their monthly sales."
 
+CRITICAL: TIME SERIES DATA FORMAT REQUIREMENTS
+**FOR ANY QUERY INVOLVING TIME-BASED DATA (by month, by quarter, by year, etc.), YOU MUST PIVOT THE DATA:**
+- NEVER return results with separate documents for each time period
+- ALWAYS pivot/reshape the data so that:
+  - Each row represents ONE entity (product, closer, category, etc.)
+  - Time periods become column names (e.g., "2025-01", "2025-02", etc.)
+  - Values are the metrics for that entity/time combination
+- This is MANDATORY for any "by month", "by quarter", "by year" queries
+
+BAD FORMAT (DO NOT USE):
+[
+  { "product": "Sales Acquisition", "month": "2022-01", "total_won": 11 },
+  { "product": "Sales Acquisition", "month": "2022-02", "total_won": 16 },
+  { "product": "Reactivation", "month": "2022-03", "total_won": 1 }
+]
+
+GOOD FORMAT (ALWAYS USE FOR TIME SERIES):
+[
+  {
+    "product": "Sales Acquisition",
+    "2022-01": 11,
+    "2022-02": 16,
+    "2022-03": 0
+  },
+  {
+    "product": "Reactivation",
+    "2022-01": 0,
+    "2022-02": 0,
+    "2022-03": 1
+  }
+]
+
 DATA FORMAT PREFERENCES:
 When writing aggregation pipelines or transforming data:
 - PREFER flat objects that can be easily represented in tables
@@ -44,22 +76,11 @@ When writing aggregation pipelines or transforming data:
 - IMPORTANT: Use $replaceRoot instead of $project when reshaping documents to preserve the order of object keys
   - Example: { $replaceRoot: { newRoot: { closer: "$_id", "2025-01": "$jan2025", "2025-02": "$feb2025" } } }
   - This ensures columns appear in the logical order you define them
-- Example of preferred format:
-  [
-    {
-      "closer": "john doe",
-      "2025-01": 5,
-      "2025-02": 10,
-      "2025-03": 15
-    },
-    {
-      "closer": "maria bernasconi",
-      "2025-01": 8,
-      "2025-02": 12,
-      "2025-03": 20
-    }
-  ]
-- This format makes it easy to display results in a table with the identifier as the first column and dates/periods as subsequent columns
+- To pivot time series data, use techniques like:
+  - $group to collect data by entity and time period
+  - $arrayToObject to convert arrays of key-value pairs into objects
+  - $mergeObjects to combine multiple time periods into a single document
+  - Fill missing time periods with 0 or null values for consistency
 
 Based on the content of the Editor Context and the User Input, you will write either a MongoDB query or a MongoDB view definition.
 
