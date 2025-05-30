@@ -55,6 +55,8 @@ const UserInput: React.FC<UserInputProps> = ({
         return <Code />;
       case "view":
         return <TableView />;
+      case "console":
+        return <Code />;
       default:
         return <Description />;
     }

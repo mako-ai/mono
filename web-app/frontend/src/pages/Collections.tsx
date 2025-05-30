@@ -131,7 +131,7 @@ function Collections() {
 
   // Attach double click handler to open console prefilled
   const handleCollectionDoubleClick = (collection: CollectionInfo) => {
-    const prefill = `db.getCollection("${collection.name}").find({})`;
+    const prefill = `db.${collection.name}.find({})`;
     openNewConsole(prefill, `Console - ${collection.name}`);
   };
 

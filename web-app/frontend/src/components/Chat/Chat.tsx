@@ -17,16 +17,10 @@ import OpenAI from "openai";
 import UserInput from "./UserInput";
 import MessageList from "./MessageList";
 import AttachmentSelector from "./AttachmentSelector";
-import {
-  ChatProps,
-  Message,
-  AttachedContext,
-  Collection,
-  View,
-  Definition,
-} from "./types";
+import { ChatProps, Message, AttachedContext, Collection, View } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
 import { useChatStore } from "../../store/chatStore";
+import { useConsoleStore } from "../../store/consoleStore";
 import {
   History as HistoryIcon,
   Add as AddIcon,
@@ -48,11 +42,21 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     attachedContext,
     addContextItem,
     removeContextItem,
+    updateContextItem,
     selectedModel,
     setSelectedModel,
     error,
     setError,
   } = useChatStore();
+
+  // Get console store hooks
+  const {
+    consoleTabs,
+    activeConsoleId,
+    addConsoleTab,
+    updateConsoleContent,
+    setActiveConsole,
+  } = useConsoleStore();
 
   // Get current messages
   const messages = getCurrentMessages();
@@ -67,12 +71,14 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const isAutoScrollingRef = useRef(false);
 
+  // Add state for tracking execution
+  const [isAutoExecuting, setIsAutoExecuting] = useState(false);
+  const [executionResults, setExecutionResults] = useState<any>(null);
+
   // Context attachment state
-  const [contextMenuAnchor, setContextMenuAnchor] =
-    useState<null | HTMLElement>(null);
-  const [collectionsDialogOpen, setCollectionsDialogOpen] = useState(false);
-  const [definitionsDialogOpen, setDefinitionsDialogOpen] = useState(false);
-  const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
+  const [attachmentSelectorOpen, setAttachmentSelectorOpen] = useState(false);
+  const [attachmentButtonRef, setAttachmentButtonRef] =
+    useState<HTMLElement | null>(null);
 
   // History menu state
   const [historyMenuAnchor, setHistoryMenuAnchor] =
@@ -84,26 +90,6 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     Collection[]
   >([]);
   const [availableViews, setAvailableViews] = useState<View[]>([]);
-  const [availableDefinitions] = useState<Definition[]>([
-    {
-      id: "1",
-      name: "calculateRevenue",
-      type: "function",
-      content:
-        "function calculateRevenue(orders: Order[]): number {\n  return orders.reduce((sum, order) => sum + order.amount, 0);\n}",
-      fileName: "revenue.ts",
-      lineNumbers: "15-17",
-    },
-    {
-      id: "2",
-      name: "UserInterface",
-      type: "interface",
-      content:
-        "interface User {\n  id: number;\n  name: string;\n  email: string;\n  role: 'admin' | 'user';\n}",
-      fileName: "types.ts",
-      lineNumbers: "1-6",
-    },
-  ]);
 
   // Initialize OpenAI client
   useEffect(() => {
@@ -258,12 +244,13 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   }, [chatSessions.length, createNewChat]);
 
   // Context management
-  const handleContextMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setContextMenuAnchor(event.currentTarget);
+  const handleAttachClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAttachmentButtonRef(event.currentTarget);
+    setAttachmentSelectorOpen(true);
   };
 
-  const handleContextMenuClose = () => {
-    setContextMenuAnchor(null);
+  const handleAttachmentSelectorClose = () => {
+    setAttachmentSelectorOpen(false);
   };
 
   const addCollectionContext = (collection: Collection) => {
@@ -314,24 +301,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       },
     };
     addContextItem(contextItem);
-    setCollectionsDialogOpen(false);
-    handleContextMenuClose();
-  };
-
-  const addDefinitionContext = (definition: Definition) => {
-    const contextItem: AttachedContext = {
-      id: `definition-${definition.id}-${Date.now()}`,
-      type: "definition",
-      title: `${definition.name} (${definition.type})`,
-      content: definition.content,
-      metadata: {
-        fileName: definition.fileName,
-        lineNumbers: definition.lineNumbers,
-      },
-    };
-    addContextItem(contextItem);
-    setDefinitionsDialogOpen(false);
-    handleContextMenuClose();
   };
 
   const addViewContext = (view: View) => {
@@ -348,31 +317,113 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       },
     };
     addContextItem(contextItem);
-    setViewsDialogOpen(false);
-    handleContextMenuClose();
   };
 
-  const addEditorContext = () => {
-    if (!currentEditorContent || !currentEditorContent.content.trim()) {
-      setError("No editor content available to attach");
-      handleContextMenuClose();
-      return;
-    }
-
+  const addConsoleContext = (
+    consoleId: string,
+    content: string,
+    title: string
+  ) => {
     const contextItem: AttachedContext = {
-      id: `editor-${Date.now()}`,
-      type: "editor",
-      title: currentEditorContent.fileName
-        ? `Editor: ${currentEditorContent.fileName}`
-        : "Current Editor Content",
-      content: currentEditorContent.content,
+      id: `console-${consoleId}-${Date.now()}`,
+      type: "console",
+      title: `${title} (Console)`,
+      content: `Console: ${title}\n\nCurrent Content:\n${content}`,
       metadata: {
-        fileName: currentEditorContent.fileName || "untitled",
-        language: currentEditorContent.language || "text",
+        fileName: `${title}.js`,
+        language: "javascript",
+        consoleId: consoleId,
       },
     };
     addContextItem(contextItem);
-    handleContextMenuClose();
+  };
+
+  const createAndAttachNewConsole = (
+    initialContent: string = "",
+    title: string = "Console"
+  ) => {
+    const consoleId = addConsoleTab({
+      title,
+      content: initialContent,
+      initialContent: initialContent,
+    });
+    addConsoleContext(consoleId, initialContent, title);
+    setActiveConsole(consoleId);
+    return consoleId;
+  };
+
+  // Function to extract code blocks from markdown
+  const extractCodeFromMarkdown = (
+    content: string
+  ): { code: string; language: string } | null => {
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/;
+    const match = content.match(codeBlockRegex);
+    if (match) {
+      return {
+        language: match[1] || "javascript",
+        code: match[2].trim(),
+      };
+    }
+    return null;
+  };
+
+  // Function to update console with code from AI response
+  const updateConsoleFromAIResponse = (response: string) => {
+    // Check if there's an attached console
+    const attachedConsole = attachedContext.find(
+      (ctx) => ctx.type === "console"
+    );
+    if (attachedConsole && attachedConsole.metadata?.consoleId) {
+      const codeBlock = extractCodeFromMarkdown(response);
+      if (codeBlock) {
+        // Update the console content
+        updateConsoleContent(
+          attachedConsole.metadata.consoleId,
+          codeBlock.code
+        );
+        // Update the attached context to reflect new content
+        updateContextItem(attachedConsole.id, {
+          content: `Console: ${attachedConsole.title}\n\nCurrent Content:\n${codeBlock.code}`,
+        });
+      }
+    }
+  };
+
+  // Function to execute console code automatically
+  const executeConsoleCode = async (): Promise<any> => {
+    const attachedConsole = attachedContext.find(
+      (ctx) => ctx.type === "console"
+    );
+    if (!attachedConsole || !attachedConsole.metadata?.consoleId) {
+      return null;
+    }
+
+    const consoleTab = consoleTabs.find(
+      (tab) => tab.id === attachedConsole.metadata!.consoleId
+    );
+    if (!consoleTab || !consoleTab.content.trim()) {
+      return null;
+    }
+
+    setIsAutoExecuting(true);
+    try {
+      const response = await fetch(`/api/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: consoleTab.content }),
+      });
+
+      const data = await response.json();
+      setExecutionResults(data);
+      return data;
+    } catch (error) {
+      console.error("Failed to execute query:", error);
+      return { success: false, error: String(error) };
+    } finally {
+      setIsAutoExecuting(false);
+    }
   };
 
   const sendMessage = async () => {
@@ -449,9 +500,11 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
 
       // 4. Iterate over the streamed chunks and update the assistant message content in real-time
+      let fullResponse = "";
       for await (const chunk of completionStream) {
         const delta: string = chunk?.choices?.[0]?.delta?.content || "";
         if (delta) {
+          fullResponse += delta;
           updateMessage(assistantMessageId, delta);
           // Trigger re-render for auto-scroll during streaming
           setLastMessageUpdateTime(Date.now());
@@ -469,6 +522,65 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
             });
           }
         }
+      }
+
+      // After streaming is complete, check if we should update a console
+      updateConsoleFromAIResponse(fullResponse);
+
+      // Check for execution marker and handle automatic execution
+      if (fullResponse.includes("[[EXECUTE_CONSOLE]]")) {
+        // Execute the console code after a short delay
+        setTimeout(async () => {
+          const result = await executeConsoleCode();
+
+          // Format the results
+          let resultContent = "";
+          if (result?.success) {
+            if (result.data?.results) {
+              resultContent = `✅ Execution successful!\n\nResults (${
+                result.data.resultCount
+              } documents):\n\`\`\`json\n${JSON.stringify(
+                result.data.results,
+                null,
+                2
+              )}\n\`\`\``;
+            } else {
+              resultContent = `✅ Execution successful!\n\nResult:\n\`\`\`json\n${JSON.stringify(
+                result.data,
+                null,
+                2
+              )}\n\`\`\``;
+            }
+          } else {
+            resultContent = `❌ Execution failed:\n\`\`\`\n${
+              result?.error || "Unknown error"
+            }\n\`\`\``;
+          }
+
+          // Add execution results as a new message
+          const executionResultMessage: Message = {
+            id: `exec-result-${Date.now()}-${Math.random()}`,
+            role: "assistant",
+            content: resultContent,
+            timestamp: new Date(),
+            attachedContext: [],
+          };
+          addMessage(executionResultMessage);
+
+          // Add a system message prompting for analysis
+          const analysisPromptMessage: Message = {
+            id: `analysis-prompt-${Date.now()}-${Math.random()}`,
+            role: "user",
+            content:
+              "Please analyze the execution results above. If they don't meet the requirements, feel free to modify the code and add [[EXECUTE_CONSOLE]] to run it again.",
+            timestamp: new Date(),
+            attachedContext: [],
+          };
+          addMessage(analysisPromptMessage);
+
+          // Trigger a new AI response for analysis
+          // This will be handled by the user sending the next message
+        }, 1000);
       }
     } catch (err: any) {
       console.error("OpenAI API error:", err);
@@ -602,6 +714,26 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
     });
   }, [currentChatId]); // Also triggers when switching between chats
+
+  // Keep console attachments in sync with actual console content
+  useEffect(() => {
+    const interval = setInterval(() => {
+      attachedContext.forEach((ctx) => {
+        if (ctx.type === "console" && ctx.metadata?.consoleId) {
+          const console = consoleTabs.find(
+            (tab) => tab.id === ctx.metadata!.consoleId
+          );
+          if (console && console.content !== ctx.content) {
+            updateContextItem(ctx.id, {
+              content: `Console: ${console.title}\n\nCurrent Content:\n${console.content}`,
+            });
+          }
+        }
+      });
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [attachedContext, consoleTabs, updateContextItem]);
 
   if (!openaiClient) {
     return (
@@ -755,7 +887,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         attachedContext={attachedContext}
         removeContextItem={removeContextItem}
         onSend={sendMessage}
-        onAttachClick={handleContextMenuOpen}
+        onAttachClick={handleAttachClick}
         isLoading={isLoading}
       />
 
@@ -783,21 +915,15 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       </Box>
 
       <AttachmentSelector
-        contextMenuAnchor={contextMenuAnchor}
-        onClose={handleContextMenuClose}
-        collectionsDialogOpen={collectionsDialogOpen}
-        setCollectionsDialogOpen={setCollectionsDialogOpen}
-        definitionsDialogOpen={definitionsDialogOpen}
-        setDefinitionsDialogOpen={setDefinitionsDialogOpen}
-        viewsDialogOpen={viewsDialogOpen}
-        setViewsDialogOpen={setViewsDialogOpen}
+        open={attachmentSelectorOpen}
+        anchorEl={attachmentButtonRef}
+        onClose={handleAttachmentSelectorClose}
         availableCollections={availableCollections}
-        availableDefinitions={availableDefinitions}
         availableViews={availableViews}
         onAttachCollection={addCollectionContext}
-        onAttachDefinition={addDefinitionContext}
         onAttachView={addViewContext}
-        onAttachEditorContent={addEditorContext}
+        onAttachConsole={addConsoleContext}
+        onCreateNewConsole={() => createAndAttachNewConsole("", "New Console")}
       />
     </Box>
   );
