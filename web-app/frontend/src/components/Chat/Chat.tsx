@@ -20,6 +20,7 @@ import AttachmentSelector from "./AttachmentSelector";
 import { ChatProps, Message, AttachedContext, Collection, View } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
 import { useChatStore } from "../../store/chatStore";
+import { useConsoleStore } from "../../store/consoleStore";
 import {
   History as HistoryIcon,
   Add as AddIcon,
@@ -41,11 +42,21 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     attachedContext,
     addContextItem,
     removeContextItem,
+    updateContextItem,
     selectedModel,
     setSelectedModel,
     error,
     setError,
   } = useChatStore();
+
+  // Get console store hooks
+  const {
+    consoleTabs,
+    activeConsoleId,
+    addConsoleTab,
+    updateConsoleContent,
+    setActiveConsole,
+  } = useConsoleStore();
 
   // Get current messages
   const messages = getCurrentMessages();
@@ -304,6 +315,76 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     addContextItem(contextItem);
   };
 
+  const addConsoleContext = (
+    consoleId: string,
+    content: string,
+    title: string
+  ) => {
+    const contextItem: AttachedContext = {
+      id: `console-${consoleId}-${Date.now()}`,
+      type: "console",
+      title: `${title} (Console)`,
+      content: `Console: ${title}\n\nCurrent Content:\n${content}`,
+      metadata: {
+        fileName: `${title}.js`,
+        language: "javascript",
+        consoleId: consoleId,
+      },
+    };
+    addContextItem(contextItem);
+  };
+
+  const createAndAttachNewConsole = (
+    initialContent: string = "",
+    title: string = "Console"
+  ) => {
+    const consoleId = addConsoleTab({
+      title,
+      content: initialContent,
+      initialContent: initialContent,
+    });
+    addConsoleContext(consoleId, initialContent, title);
+    setActiveConsole(consoleId);
+    return consoleId;
+  };
+
+  // Function to extract code blocks from markdown
+  const extractCodeFromMarkdown = (
+    content: string
+  ): { code: string; language: string } | null => {
+    const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/;
+    const match = content.match(codeBlockRegex);
+    if (match) {
+      return {
+        language: match[1] || "javascript",
+        code: match[2].trim(),
+      };
+    }
+    return null;
+  };
+
+  // Function to update console with code from AI response
+  const updateConsoleFromAIResponse = (response: string) => {
+    // Check if there's an attached console
+    const attachedConsole = attachedContext.find(
+      (ctx) => ctx.type === "console"
+    );
+    if (attachedConsole && attachedConsole.metadata?.consoleId) {
+      const codeBlock = extractCodeFromMarkdown(response);
+      if (codeBlock) {
+        // Update the console content
+        updateConsoleContent(
+          attachedConsole.metadata.consoleId,
+          codeBlock.code
+        );
+        // Update the attached context to reflect new content
+        updateContextItem(attachedConsole.id, {
+          content: `Console: ${attachedConsole.title}\n\nCurrent Content:\n${codeBlock.code}`,
+        });
+      }
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputMessage.trim() || !openaiClient || isLoading) return;
 
@@ -378,9 +459,11 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
 
       // 4. Iterate over the streamed chunks and update the assistant message content in real-time
+      let fullResponse = "";
       for await (const chunk of completionStream) {
         const delta: string = chunk?.choices?.[0]?.delta?.content || "";
         if (delta) {
+          fullResponse += delta;
           updateMessage(assistantMessageId, delta);
           // Trigger re-render for auto-scroll during streaming
           setLastMessageUpdateTime(Date.now());
@@ -399,6 +482,9 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           }
         }
       }
+
+      // After streaming is complete, check if we should update a console
+      updateConsoleFromAIResponse(fullResponse);
     } catch (err: any) {
       console.error("OpenAI API error:", err);
       if (err.status === 401) {
@@ -531,6 +617,26 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
     });
   }, [currentChatId]); // Also triggers when switching between chats
+
+  // Keep console attachments in sync with actual console content
+  useEffect(() => {
+    const interval = setInterval(() => {
+      attachedContext.forEach((ctx) => {
+        if (ctx.type === "console" && ctx.metadata?.consoleId) {
+          const console = consoleTabs.find(
+            (tab) => tab.id === ctx.metadata!.consoleId
+          );
+          if (console && console.content !== ctx.content) {
+            updateContextItem(ctx.id, {
+              content: `Console: ${console.title}\n\nCurrent Content:\n${console.content}`,
+            });
+          }
+        }
+      });
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [attachedContext, consoleTabs, updateContextItem]);
 
   if (!openaiClient) {
     return (
@@ -719,6 +825,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         availableViews={availableViews}
         onAttachCollection={addCollectionContext}
         onAttachView={addViewContext}
+        onAttachConsole={addConsoleContext}
+        onCreateNewConsole={() => createAndAttachNewConsole("", "New Console")}
       />
     </Box>
   );

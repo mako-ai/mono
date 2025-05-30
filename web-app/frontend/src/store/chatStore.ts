@@ -34,6 +34,7 @@ interface ChatState {
   addContextItem: (item: AttachedContext) => void;
   removeContextItem: (id: string) => void;
   clearAttachedContext: () => void;
+  updateContextItem: (id: string, updates: Partial<AttachedContext>) => void;
 
   // Model selection
   selectedModel: string;
@@ -214,6 +215,12 @@ export const useChatStore = create<ChatState>()(
           ),
         })),
       clearAttachedContext: () => set({ attachedContext: [] }),
+      updateContextItem: (id, updates) =>
+        set((state) => ({
+          attachedContext: state.attachedContext.map((item) =>
+            item.id === id ? { ...item, ...updates } : item
+          ),
+        })),
 
       // Model selection
       selectedModel: "gpt-3.5-turbo",

@@ -8,9 +8,12 @@ import {
   ListItemText,
   Paper,
   Popper,
+  Button,
+  Divider,
 } from "@mui/material";
-import { Storage, TableView } from "@mui/icons-material";
+import { Storage, TableView, Code, Add } from "@mui/icons-material";
 import { Collection, View } from "./types";
+import { useConsoleStore } from "../../store/consoleStore";
 
 interface AttachmentSelectorProps {
   open: boolean;
@@ -20,13 +23,15 @@ interface AttachmentSelectorProps {
   availableViews: View[];
   onAttachCollection: (collection: Collection) => void;
   onAttachView: (view: View) => void;
+  onAttachConsole: (consoleId: string, content: string, title: string) => void;
+  onCreateNewConsole: () => void;
 }
 
 interface AttachmentOption {
   id: string;
   name: string;
-  type: "collection" | "view";
-  data: Collection | View;
+  type: "collection" | "view" | "console";
+  data: Collection | View | { id: string; content: string; title: string };
 }
 
 const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
@@ -37,10 +42,13 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
   availableViews,
   onAttachCollection,
   onAttachView,
+  onAttachConsole,
+  onCreateNewConsole,
 }) => {
   const [inputValue, setInputValue] = useState("");
+  const { consoleTabs } = useConsoleStore();
 
-  // Combine collections and views into a single options array
+  // Combine collections, views, and consoles into a single options array
   const options: AttachmentOption[] = [
     ...availableCollections.map((col) => ({
       id: col.id,
@@ -54,14 +62,27 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
       type: "view" as const,
       data: view,
     })),
+    ...consoleTabs.map((console) => ({
+      id: console.id,
+      name: console.title,
+      type: "console" as const,
+      data: { id: console.id, content: console.content, title: console.title },
+    })),
   ];
 
   const handleSelect = (option: AttachmentOption | null) => {
     if (option) {
       if (option.type === "collection") {
         onAttachCollection(option.data as Collection);
-      } else {
+      } else if (option.type === "view") {
         onAttachView(option.data as View);
+      } else {
+        const consoleData = option.data as {
+          id: string;
+          content: string;
+          title: string;
+        };
+        onAttachConsole(consoleData.id, consoleData.content, consoleData.title);
       }
       setInputValue("");
       onClose();
@@ -83,7 +104,11 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
           size="small"
           options={options}
           groupBy={(option) =>
-            option.type === "collection" ? "Collections" : "Views"
+            option.type === "collection"
+              ? "Collections"
+              : option.type === "view"
+              ? "Views"
+              : "Consoles"
           }
           getOptionLabel={(option) => option.name}
           inputValue={inputValue}
@@ -93,7 +118,7 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
           renderInput={(params) => (
             <TextField
               {...params}
-              placeholder="Search collections and views..."
+              placeholder="Search collections, views, or consoles..."
               variant="outlined"
               size="small"
               autoFocus
@@ -104,8 +129,10 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
               <ListItemIcon sx={{ minWidth: 36 }}>
                 {option.type === "collection" ? (
                   <Storage fontSize="small" color="primary" />
-                ) : (
+                ) : option.type === "view" ? (
                   <TableView fontSize="small" color="secondary" />
+                ) : (
+                  <Code fontSize="small" color="action" />
                 )}
               </ListItemIcon>
               <ListItemText primary={option.name} />
@@ -135,6 +162,20 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
             },
           }}
         />
+        <Divider sx={{ my: 1 }} />
+        <Button
+          fullWidth
+          size="small"
+          startIcon={<Add />}
+          onClick={() => {
+            onCreateNewConsole();
+            setInputValue("");
+            onClose();
+          }}
+          sx={{ justifyContent: "flex-start", textTransform: "none" }}
+        >
+          Create New Console
+        </Button>
       </Paper>
     </Popper>
   );
