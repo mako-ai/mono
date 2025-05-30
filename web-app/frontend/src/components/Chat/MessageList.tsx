@@ -1,29 +1,15 @@
 import React from "react";
-import {
-  Box,
-  Typography,
-  Paper,
-  Avatar,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Chip,
-} from "@mui/material";
-import {
-  SmartToy,
-  Person,
-  ExpandMore,
-  Storage,
-  Code,
-  Description,
-  TableView,
-} from "@mui/icons-material";
+import { Box, Typography } from "@mui/material";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Message } from "./types";
 import { useTheme } from "../../contexts/ThemeContext";
+import UserMessage from "./UserMessage";
+import { ExpandMore, ExpandLess } from "@mui/icons-material";
+import { IconButton } from "@mui/material";
+import { ContentCopy, Check } from "@mui/icons-material";
 
 interface MessageListProps {
   messages: Message[];
@@ -34,6 +20,26 @@ const CodeBlock = React.memo(
   ({ language, children }: { language: string; children: string }) => {
     const { effectiveMode } = useTheme();
     const syntaxTheme = effectiveMode === "dark" ? tomorrow : prism;
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const [isCopied, setIsCopied] = React.useState(false);
+
+    // Split code into lines
+    const lines = children.split("\n");
+    const needsExpansion = lines.length > 12;
+
+    // Show only first 12 lines if not expanded
+    const displayedCode =
+      needsExpansion && !isExpanded ? lines.slice(0, 12).join("\n") : children;
+
+    const handleCopy = async () => {
+      try {
+        await navigator.clipboard.writeText(children);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy code:", err);
+      }
+    };
 
     return (
       <Box
@@ -41,8 +47,43 @@ const CodeBlock = React.memo(
           overflow: "hidden",
           borderRadius: 1,
           my: 1,
+          position: "relative",
         }}
       >
+        {/* Copy button */}
+        <Box
+          sx={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 1,
+          }}
+        >
+          <IconButton
+            size="small"
+            onClick={handleCopy}
+            sx={{
+              backgroundColor:
+                effectiveMode === "dark"
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(0,0,0,0.1)",
+              "&:hover": {
+                backgroundColor:
+                  effectiveMode === "dark"
+                    ? "rgba(255,255,255,0.2)"
+                    : "rgba(0,0,0,0.2)",
+              },
+              transition: "all 0.2s",
+            }}
+          >
+            {isCopied ? (
+              <Check sx={{ fontSize: 16, color: "success.main" }} />
+            ) : (
+              <ContentCopy sx={{ fontSize: 16 }} />
+            )}
+          </IconButton>
+        </Box>
+
         <SyntaxHighlighter
           style={syntaxTheme as any}
           language={language}
@@ -52,10 +93,50 @@ const CodeBlock = React.memo(
             margin: 0,
             overflow: "auto",
             maxWidth: "100%",
+            paddingBottom: needsExpansion ? "2rem" : undefined,
+            paddingTop: "2rem", // Add padding to prevent copy button overlap
           }}
         >
-          {children}
+          {displayedCode}
         </SyntaxHighlighter>
+
+        {needsExpansion && (
+          <Box
+            sx={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              display: "flex",
+              justifyContent: "center",
+              background:
+                effectiveMode === "dark"
+                  ? "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))"
+                  : "linear-gradient(to bottom, transparent, rgba(255,255,255,0.9))",
+              pt: 1,
+              pb: 0.5,
+            }}
+          >
+            <IconButton
+              size="small"
+              onClick={() => setIsExpanded(!isExpanded)}
+              sx={{
+                backgroundColor:
+                  effectiveMode === "dark"
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(0,0,0,0.1)",
+                "&:hover": {
+                  backgroundColor:
+                    effectiveMode === "dark"
+                      ? "rgba(255,255,255,0.2)"
+                      : "rgba(0,0,0,0.2)",
+                },
+              }}
+            >
+              {isExpanded ? <ExpandLess /> : <ExpandMore />}
+            </IconButton>
+          </Box>
+        )}
       </Box>
     );
   }
@@ -65,139 +146,16 @@ CodeBlock.displayName = "CodeBlock";
 
 // Add a memoized message component
 const MessageItem = React.memo(({ message }: { message: Message }) => {
-  const getContextIcon = (type: string) => {
-    switch (type) {
-      case "collection":
-        return <Storage fontSize="small" />;
-      case "definition":
-        return <Code fontSize="small" />;
-      case "view":
-        return <TableView fontSize="small" />;
-      default:
-        return <Description fontSize="small" />;
-    }
-  };
-
   return (
     <Box
       sx={{
         display: "flex",
         justifyContent: message.role === "user" ? "flex-end" : "flex-start",
-        mb: 1,
+        mb: 0.5,
       }}
     >
       {message.role === "user" ? (
-        // User message - keep in bubble
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "row-reverse",
-            alignItems: "flex-start",
-            gap: 1,
-          }}
-        >
-          <Paper elevation={1} sx={{ p: 2, color: "text.primary" }}>
-            <Typography
-              variant="body2"
-              sx={{ whiteSpace: "pre-wrap", fontSize: "0.875rem" }}
-            >
-              {message.content}
-            </Typography>
-
-            {/* Display attached context */}
-            {message.attachedContext && message.attachedContext.length > 0 && (
-              <Box sx={{ mt: 2 }}>
-                <Accordion elevation={0} sx={{ bgcolor: "transparent" }}>
-                  <AccordionSummary
-                    expandIcon={<ExpandMore />}
-                    sx={{
-                      minHeight: 32,
-                      "& .MuiAccordionSummary-content": {
-                        margin: "8px 0",
-                      },
-                    }}
-                  >
-                    <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                      {message.attachedContext.length} attached context item
-                      {message.attachedContext.length > 1 ? "s" : ""}
-                    </Typography>
-                  </AccordionSummary>
-                  <AccordionDetails sx={{ pt: 0 }}>
-                    {message.attachedContext.map((context, index) => (
-                      <Box
-                        key={context.id}
-                        sx={{
-                          mb:
-                            index < message.attachedContext!.length - 1 ? 2 : 0,
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                            mb: 1,
-                          }}
-                        >
-                          {getContextIcon(context.type)}
-                          <Typography
-                            variant="caption"
-                            sx={{ fontWeight: 500 }}
-                          >
-                            {context.title}
-                          </Typography>
-                          {context.metadata?.fileName && (
-                            <Chip
-                              label={context.metadata.fileName}
-                              size="small"
-                              variant="outlined"
-                              sx={{
-                                height: 16,
-                                fontSize: "0.65rem",
-                              }}
-                            />
-                          )}
-                        </Box>
-                        <Paper
-                          variant="outlined"
-                          sx={{
-                            p: 1,
-                            bgcolor: "grey.50",
-                            maxHeight: 150,
-                            overflow: "auto",
-                          }}
-                        >
-                          <Typography
-                            variant="caption"
-                            component="pre"
-                            sx={{
-                              whiteSpace: "pre-wrap",
-                              fontFamily: "monospace",
-                              fontSize: "0.75rem",
-                            }}
-                          >
-                            {context.content}
-                          </Typography>
-                        </Paper>
-                      </Box>
-                    ))}
-                  </AccordionDetails>
-                </Accordion>
-              </Box>
-            )}
-
-            <Typography
-              variant="caption"
-              sx={{
-                display: "block",
-                mt: 1,
-                opacity: 0.7,
-              }}
-            >
-              {message.timestamp.toLocaleTimeString()}
-            </Typography>
-          </Paper>
-        </Box>
+        <UserMessage message={message} />
       ) : (
         // Assistant message - no bubble, direct content with markdown
         <Box sx={{ flex: 1, overflow: "hidden" }}>
@@ -232,17 +190,6 @@ const MessageItem = React.memo(({ message }: { message: Message }) => {
               {message.content}
             </ReactMarkdown>
           </Box>
-
-          <Typography
-            variant="caption"
-            sx={{
-              display: "block",
-              mt: 1,
-              opacity: 0.7,
-            }}
-          >
-            {message.timestamp.toLocaleTimeString()}
-          </Typography>
         </Box>
       )}
     </Box>
@@ -256,10 +203,10 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     <Box
       sx={{
         flex: 1,
-        overflow: "auto",
         display: "flex",
         flexDirection: "column",
-        gap: 2,
+        gap: 1,
+        pb: 12,
       }}
     >
       {messages.map((message) => (

@@ -15,6 +15,7 @@ interface ConsoleProps {
   title?: string;
   onExecute: (content: string) => void;
   isExecuting: boolean;
+  onContentChange?: (content: string) => void;
 }
 
 export interface ConsoleRef {
@@ -26,7 +27,7 @@ export interface ConsoleRef {
 }
 
 const Console = forwardRef<ConsoleRef, ConsoleProps>(
-  ({ initialContent, title, onExecute, isExecuting }, ref) => {
+  ({ initialContent, title, onExecute, isExecuting, onContentChange }, ref) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
@@ -84,7 +85,12 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
     };
 
     const handleEditorChange = (value: string | undefined) => {
-      setCurrentContent(value || "");
+      const newContent = value || "";
+      setCurrentContent(newContent);
+      // Notify parent of content change
+      if (onContentChange) {
+        onContentChange(newContent);
+      }
     };
 
     const handleExecute = () => {
@@ -116,6 +122,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
             startIcon={<PlayArrow />}
             onClick={handleExecute}
             disabled={!currentContent.trim() || isExecuting}
+            disableElevation
           >
             {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
           </Button>

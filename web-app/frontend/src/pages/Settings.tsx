@@ -189,6 +189,7 @@ function Settings() {
             startIcon={<SaveIcon />}
             size="large"
             onClick={handleSaveSettings}
+            disableElevation
           >
             Save Settings
           </Button>

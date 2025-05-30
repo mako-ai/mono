@@ -440,6 +440,7 @@ db.createCollection("new_collection_name", {
                 onClick={handleCreateNew}
                 color="primary"
                 variant="contained"
+                disableElevation
               >
                 New Collection
               </Button>
@@ -470,6 +471,7 @@ db.createCollection("new_collection_name", {
               color="error"
               variant="contained"
               disabled={isDeleting}
+              disableElevation
             >
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>

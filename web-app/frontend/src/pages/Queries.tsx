@@ -14,7 +14,7 @@ import { Close as CloseIcon } from "@mui/icons-material";
 import QueryExplorer from "../components/QueryExplorer";
 import Console, { ConsoleRef } from "../components/Console";
 import ResultsTable from "../components/ResultsTable";
-import { Chat } from "../components/Chat";
+import Chat from "../components/Chat/Chat";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -240,7 +240,11 @@ function Queries() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseErrorModal} variant="contained">
+          <Button
+            onClick={handleCloseErrorModal}
+            variant="contained"
+            disableElevation
+          >
             Close
           </Button>
         </DialogActions>

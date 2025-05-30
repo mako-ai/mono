@@ -4,11 +4,15 @@ import {
   Typography,
   Button,
   Alert,
-  CircularProgress,
-  Paper,
-  Avatar,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
+  Menu,
+  ListItemText,
+  ListItemIcon,
 } from "@mui/material";
-import { SmartToy } from "@mui/icons-material";
 import OpenAI from "openai";
 import UserInput from "./UserInput";
 import MessageList from "./MessageList";
@@ -22,22 +26,58 @@ import {
   Definition,
 } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
+import { useChatStore } from "../../store/chatStore";
+import {
+  History as HistoryIcon,
+  Add as AddIcon,
+  Chat as ChatIcon,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
 
 const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Get state and actions from Zustand store
+  const {
+    chatSessions,
+    currentChatId,
+    createNewChat,
+    setCurrentChat,
+    deleteChat,
+    getCurrentMessages,
+    addMessage,
+    updateMessage,
+    attachedContext,
+    addContextItem,
+    removeContextItem,
+    selectedModel,
+    setSelectedModel,
+    error,
+    setError,
+  } = useChatStore();
+
+  // Get current messages
+  const messages = getCurrentMessages();
+
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [lastMessageUpdateTime, setLastMessageUpdateTime] = useState<number>(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const isAutoScrollingRef = useRef(false);
 
   // Context attachment state
-  const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
   const [contextMenuAnchor, setContextMenuAnchor] =
     useState<null | HTMLElement>(null);
   const [collectionsDialogOpen, setCollectionsDialogOpen] = useState(false);
   const [definitionsDialogOpen, setDefinitionsDialogOpen] = useState(false);
   const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
+
+  // History menu state
+  const [historyMenuAnchor, setHistoryMenuAnchor] =
+    useState<null | HTMLElement>(null);
+  const historyMenuOpen = Boolean(historyMenuAnchor);
 
   // Real data from API
   const [availableCollections, setAvailableCollections] = useState<
@@ -88,9 +128,10 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   }, []);
 
   // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Removed duplicate - now handled by the improved useEffect that tracks streaming updates
+  // useEffect(() => {
+  //   messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // }, [messages]);
 
   // Fetch collections and views
   useEffect(() => {
@@ -181,15 +222,42 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     fetchViews();
   }, []);
 
+  // Fetch available OpenAI models once the client is initialized
+  useEffect(() => {
+    if (!openaiClient) return;
+
+    const fetchModels = async () => {
+      try {
+        // List all models available for the provided API key
+        const response = await openaiClient.models.list();
+        const modelIds = (response.data as any).map(
+          (m: any) => m.id
+        ) as string[];
+
+        // Optionally, prioritise chat-capable models (simple heuristic)
+        const sorted = modelIds.sort((a, b) => a.localeCompare(b));
+        setAvailableModels(sorted);
+
+        // Ensure we have a valid selection
+        if (sorted.length && !sorted.includes(selectedModel)) {
+          setSelectedModel(sorted[0]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch available OpenAI models:", err);
+      }
+    };
+
+    fetchModels();
+  }, [openaiClient]);
+
+  // Initialize first chat if none exists
+  useEffect(() => {
+    if (chatSessions.length === 0) {
+      createNewChat();
+    }
+  }, [chatSessions.length, createNewChat]);
+
   // Context management
-  const addContextItem = (item: AttachedContext) => {
-    setAttachedContext((prev) => [...prev, item]);
-  };
-
-  const removeContextItem = (id: string) => {
-    setAttachedContext((prev) => prev.filter((item) => item.id !== id));
-  };
-
   const handleContextMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setContextMenuAnchor(event.currentTarget);
   };
@@ -307,34 +375,30 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     handleContextMenuClose();
   };
 
-  const addMessage = (
-    role: "user" | "assistant",
-    content: string,
-    context?: AttachedContext[]
-  ) => {
-    const newMessage: Message = {
-      id: Date.now().toString() + Math.random(),
-      role,
-      content,
-      timestamp: new Date(),
-      attachedContext: context,
-    };
-    setMessages((prev) => [...prev, newMessage]);
-  };
-
   const sendMessage = async () => {
     if (!inputMessage.trim() || !openaiClient || isLoading) return;
 
     const userMessage = inputMessage.trim();
     const currentContext = [...attachedContext];
     setInputMessage("");
-    setAttachedContext([]);
     setError(null);
     setIsLoading(true);
 
-    addMessage("user", userMessage, currentContext);
+    // Reset user scroll state when sending a new message
+    setIsUserScrolledUp(false);
+
+    // 1. Add the user message first so it appears in the UI immediately
+    const userMessageObj: Message = {
+      id: Date.now().toString() + Math.random(),
+      role: "user",
+      content: userMessage,
+      timestamp: new Date(),
+      attachedContext: currentContext,
+    };
+    addMessage(userMessageObj);
 
     try {
+      // Build conversation history for the API call (excluding system prompt)
       const conversationHistory = messages.map((msg) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
@@ -352,8 +416,26 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
       conversationHistory.push({ role: "user", content: messageContent });
 
-      const completion = await openaiClient.chat.completions.create({
-        model: "gpt-3.5-turbo",
+      const isO3 =
+        selectedModel.toLowerCase().startsWith("o3") ||
+        selectedModel.toLowerCase().includes("gpt-4o");
+
+      // 2. Prepare an empty assistant message that we will progressively fill as we receive streamed chunks
+      const assistantMessageId = `assistant-${Date.now()}-${Math.random()}`;
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "", // will be filled incrementally
+        timestamp: new Date(),
+        attachedContext: [],
+      };
+      addMessage(assistantMessage);
+
+      // 3. Call the OpenAI chat completion endpoint with streaming enabled
+      const completionStream: AsyncIterable<any> = await (
+        openaiClient.chat.completions.create as any
+      )({
+        model: selectedModel,
         messages: [
           {
             role: "system",
@@ -361,15 +443,32 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           },
           ...conversationHistory,
         ],
-        max_tokens: 4000,
-        temperature: 0.7,
+        ...(isO3 ? { max_completion_tokens: 4000 } : { max_tokens: 4000 }),
+        ...(!isO3 ? { temperature: 0.7 } : {}),
+        stream: true,
       });
 
-      const assistantResponse = completion.choices[0]?.message?.content;
-      if (assistantResponse) {
-        addMessage("assistant", assistantResponse);
-      } else {
-        setError("No response received from OpenAI");
+      // 4. Iterate over the streamed chunks and update the assistant message content in real-time
+      for await (const chunk of completionStream) {
+        const delta: string = chunk?.choices?.[0]?.delta?.content || "";
+        if (delta) {
+          updateMessage(assistantMessageId, delta);
+          // Trigger re-render for auto-scroll during streaming
+          setLastMessageUpdateTime(Date.now());
+          // Force immediate scroll during streaming only if user hasn't scrolled up
+          if (!isUserScrolledUp) {
+            requestAnimationFrame(() => {
+              if (scrollContainerRef.current) {
+                isAutoScrollingRef.current = true;
+                scrollContainerRef.current.scrollTop =
+                  scrollContainerRef.current.scrollHeight;
+                setTimeout(() => {
+                  isAutoScrollingRef.current = false;
+                }, 100);
+              }
+            });
+          }
+        }
       }
     } catch (err: any) {
       console.error("OpenAI API error:", err);
@@ -389,10 +488,120 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     }
   };
 
-  const clearChat = () => {
-    setMessages([]);
+  // History menu handlers
+  const handleHistoryMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setHistoryMenuAnchor(event.currentTarget);
+  };
+
+  const handleHistoryMenuClose = () => {
+    setHistoryMenuAnchor(null);
+  };
+
+  const handleSelectChat = (chatId: string) => {
+    setCurrentChat(chatId);
+    handleHistoryMenuClose();
+  };
+
+  const handleDeleteChat = (chatId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    deleteChat(chatId);
+  };
+
+  const handleNewChat = () => {
+    createNewChat();
     setError(null);
   };
+
+  // Discrete loading notice shown while assistant is generating a response
+  const LoadingNotice: React.FC = () => (
+    <Box sx={{ display: "flex", justifyContent: "flex-start", mt: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{ fontStyle: "italic", color: "text.secondary" }}
+      >
+        Generating...
+      </Typography>
+    </Box>
+  );
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    if (scrollContainerRef.current && !isUserScrolledUp) {
+      const scrollContainer = scrollContainerRef.current;
+      // Use instant scrolling during streaming for better responsiveness
+      const scrollBehavior = isLoading ? "instant" : behavior;
+
+      requestAnimationFrame(() => {
+        isAutoScrollingRef.current = true;
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: scrollBehavior as ScrollBehavior,
+        });
+        setTimeout(() => {
+          isAutoScrollingRef.current = false;
+        }, 100);
+      });
+    }
+  };
+
+  // Detect if user has scrolled up
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      // Skip if we're auto-scrolling
+      if (isAutoScrollingRef.current) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20; // 20px threshold
+
+      setIsUserScrolledUp(!isAtBottom);
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new messages are added (not during streaming)
+  useEffect(() => {
+    // Only auto-scroll for new messages if user hasn't scrolled up
+    if (!isLoading && !isUserScrolledUp && messages.length > 0) {
+      scrollToBottom("smooth");
+    }
+  }, [messages.length]);
+
+  // Auto-scroll during streaming updates
+  useEffect(() => {
+    // Only scroll during streaming if user hasn't scrolled up
+    if (isLoading && !isUserScrolledUp) {
+      scrollToBottom("instant");
+    }
+  }, [lastMessageUpdateTime]);
+
+  // Scroll to bottom instantly when component mounts or chat changes
+  useEffect(() => {
+    // Always scroll to bottom on mount/chat change
+    setIsUserScrolledUp(false);
+
+    // Use instant scroll on mount/chat change for immediate positioning
+    const scrollToBottomInstant = () => {
+      if (scrollContainerRef.current) {
+        isAutoScrollingRef.current = true;
+        scrollContainerRef.current.scrollTop =
+          scrollContainerRef.current.scrollHeight;
+        setTimeout(() => {
+          isAutoScrollingRef.current = false;
+        }, 100);
+      }
+    };
+
+    // Double requestAnimationFrame to ensure DOM is fully painted
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToBottomInstant();
+      });
+    });
+  }, [currentChatId]); // Also triggers when switching between chats
 
   if (!openaiClient) {
     return (
@@ -428,108 +637,150 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         p: 1,
       }}
     >
-      <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-        <Typography variant="h6" gutterBottom>
-          AI Assistant
-        </Typography>
-        <Button
-          size="small"
-          onClick={clearChat}
-          disabled={messages.length === 0}
-          sx={{ alignSelf: "flex-end" }}
-        >
-          Clear Chat
-        </Button>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 1,
+        }}
+      >
+        <Typography variant="h6">AI Assistant</Typography>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <IconButton
+            size="small"
+            onClick={handleHistoryMenuOpen}
+            disabled={chatSessions.length === 0}
+          >
+            <HistoryIcon />
+          </IconButton>
+          <Button size="small" startIcon={<AddIcon />} onClick={handleNewChat}>
+            New Chat
+          </Button>
+        </Box>
       </Box>
 
-      {messages.length === 0 ? (
-        <>
-          {error && (
-            <Box sx={{ p: 2 }}>
-              <Alert severity="error" onClose={() => setError(null)}>
-                {error}
-              </Alert>
-            </Box>
-          )}
-
-          <UserInput
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            attachedContext={attachedContext}
-            removeContextItem={removeContextItem}
-            onSend={sendMessage}
-            onAttachClick={handleContextMenuOpen}
-            isLoading={isLoading}
-          />
-
-          {isLoading && (
-            <Box
-              sx={{
-                flex: 1,
-                display: "flex",
-                justifyContent: "flex-start",
-                mt: 2,
-              }}
+      {/* History Menu */}
+      <Menu
+        anchorEl={historyMenuAnchor}
+        open={historyMenuOpen}
+        onClose={handleHistoryMenuClose}
+        PaperProps={{
+          sx: { maxHeight: 400, width: 300 },
+        }}
+      >
+        {chatSessions
+          .filter(
+            (chat) => chat.messages.length > 0 || chat.id === currentChatId
+          )
+          .map((chat) => (
+            <MenuItem
+              key={chat.id}
+              onClick={() => handleSelectChat(chat.id)}
+              selected={chat.id === currentChatId}
+              sx={{ display: "flex", justifyContent: "space-between" }}
             >
-              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                <Avatar
-                  sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
-                >
-                  <SmartToy />
-                </Avatar>
-                <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2" sx={{ ml: 1, display: "inline" }}>
-                    Thinking...
-                  </Typography>
-                </Paper>
+              <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+                <ListItemIcon>
+                  <ChatIcon fontSize="small" />
+                </ListItemIcon>
+                <Box>
+                  <ListItemText
+                    primary={chat.title}
+                    secondary={
+                      chat.lastMessageAt
+                        ? new Date(chat.lastMessageAt).toLocaleDateString()
+                        : new Date(chat.createdAt).toLocaleDateString()
+                    }
+                    primaryTypographyProps={{
+                      noWrap: true,
+                      sx: { maxWidth: 200 },
+                    }}
+                  />
+                </Box>
               </Box>
-            </Box>
-          )}
-        </>
-      ) : (
-        <>
-          <MessageList messages={messages} />
-
-          {isLoading && (
-            <Box sx={{ display: "flex", justifyContent: "flex-start", mb: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-                <Avatar
-                  sx={{ width: 32, height: 32, bgcolor: "secondary.main" }}
+              {(chat.messages.length > 0 || chat.id !== currentChatId) && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => handleDeleteChat(chat.id, e)}
+                  sx={{ ml: 1 }}
                 >
-                  <SmartToy />
-                </Avatar>
-                <Paper elevation={1} sx={{ p: 2, bgcolor: "grey.100" }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2" sx={{ ml: 1, display: "inline" }}>
-                    Thinking...
-                  </Typography>
-                </Paper>
-              </Box>
-            </Box>
-          )}
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              )}
+            </MenuItem>
+          ))}
+        {chatSessions.filter((chat) => chat.messages.length > 0).length ===
+          0 && (
+          <MenuItem disabled>
+            <Typography variant="body2" color="text.secondary">
+              No chat history yet
+            </Typography>
+          </MenuItem>
+        )}
+      </Menu>
 
-          <div ref={messagesEndRef} />
-
-          {error && (
-            <Box sx={{ p: 2 }}>
-              <Alert severity="error" onClose={() => setError(null)}>
-                {error}
-              </Alert>
-            </Box>
-          )}
-
-          <UserInput
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            attachedContext={attachedContext}
-            removeContextItem={removeContextItem}
-            onSend={sendMessage}
-            onAttachClick={handleContextMenuOpen}
-            isLoading={isLoading}
-          />
-        </>
+      {/* Error notice (shown above the input) */}
+      {error && (
+        <Box sx={{ p: 2 }}>
+          <Alert severity="error" onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        </Box>
       )}
+
+      {/* Messages area – grows only after first message so the input stays at bottom */}
+      <Box
+        ref={scrollContainerRef}
+        sx={{
+          flex: messages.length > 0 ? 1 : 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "auto",
+          pb: 2,
+        }}
+      >
+        <MessageList messages={messages} />
+
+        <div ref={messagesEndRef} />
+      </Box>
+
+      {/* Loading indicator */}
+      {isLoading && <LoadingNotice />}
+
+      {/* Single user input */}
+      <UserInput
+        inputMessage={inputMessage}
+        setInputMessage={setInputMessage}
+        attachedContext={attachedContext}
+        removeContextItem={removeContextItem}
+        onSend={sendMessage}
+        onAttachClick={handleContextMenuOpen}
+        isLoading={isLoading}
+      />
+
+      {/* Model selection dropdown */}
+      <Box sx={{ mt: 1 }}>
+        <FormControl
+          size="small"
+          sx={{ minWidth: 200 }}
+          disabled={availableModels.length === 0}
+        >
+          <InputLabel id="model-select-label">Model</InputLabel>
+          <Select
+            labelId="model-select-label"
+            label="Model"
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value as string)}
+          >
+            {availableModels.map((modelId) => (
+              <MenuItem key={modelId} value={modelId}>
+                {modelId}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      </Box>
 
       <AttachmentSelector
         contextMenuAnchor={contextMenuAnchor}
