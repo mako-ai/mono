@@ -257,6 +257,137 @@ class CloseSyncService {
   async syncUsers(): Promise<SyncStats> {
     return this.syncData("user", "users");
   }
+
+  async syncCustomFieldSchema(objectType: string): Promise<SyncStats> {
+    const stats: SyncStats = {
+      totalRecords: 0,
+      batchesProcessed: 0,
+      errors: 0,
+      startTime: new Date(),
+    };
+
+    try {
+      console.log(`Getting custom field schema for ${objectType}...`);
+
+      const url = `${this.baseUrl}/custom_field_schema/${objectType}/`;
+      const closeConfig = this.tenant.sources.close!;
+      const auth = Buffer.from(`${closeConfig.api_key}:`).toString("base64");
+
+      await this.delay(this.rateLimitDelay);
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const fields = response.data.fields || [];
+      stats.totalRecords = fields.length;
+      stats.batchesProcessed = 1;
+
+      console.log(
+        `Found ${stats.totalRecords} custom fields for ${objectType}`
+      );
+
+      // Return the fields with object type added
+      return {
+        ...stats,
+        endTime: new Date(),
+        // Store fields data in a custom property for processing by syncAllCustomFields
+        fieldsData: fields.map((field: any) => ({
+          ...field,
+          type: objectType,
+          _tenant_id: this.tenant.id,
+          _tenant_name: this.tenant.name,
+          _sync_timestamp: new Date(),
+        })),
+      } as SyncStats & { fieldsData: any[] };
+    } catch (error) {
+      console.error(`Error fetching custom fields for ${objectType}:`, error);
+      stats.errors++;
+      stats.endTime = new Date();
+      return stats;
+    }
+  }
+
+  async syncAllCustomFields(): Promise<SyncStats> {
+    const objectTypes = ["lead", "contact", "opportunity", "activity"];
+    const collectionName = this.getCollectionName("custom_fields");
+    const stats: SyncStats = {
+      totalRecords: 0,
+      batchesProcessed: 0,
+      errors: 0,
+      startTime: new Date(),
+    };
+
+    try {
+      await this.connect();
+
+      // Clear and prepare staging collection
+      const stagingCollectionName = `${collectionName}_staging`;
+      const stagingCollection = this.db.collection(stagingCollectionName);
+      await stagingCollection.deleteMany({});
+      console.log(`Cleared ${stagingCollectionName} collection`);
+
+      // Collect all custom fields from all object types
+      const allFields: any[] = [];
+
+      for (const objectType of objectTypes) {
+        try {
+          console.log(`\nFetching custom fields for ${objectType}...`);
+          const objectStats = (await this.syncCustomFieldSchema(
+            objectType
+          )) as SyncStats & { fieldsData?: any[] };
+
+          if (objectStats.fieldsData) {
+            allFields.push(...objectStats.fieldsData);
+          }
+
+          stats.totalRecords += objectStats.totalRecords;
+          stats.batchesProcessed += objectStats.batchesProcessed;
+          stats.errors += objectStats.errors;
+        } catch (error) {
+          console.error(
+            `Failed to sync custom fields for ${objectType}:`,
+            error
+          );
+          stats.errors++;
+        }
+      }
+
+      // Insert all fields as individual documents
+      if (allFields.length > 0) {
+        // Use bulk replace operations with a unique key per field
+        const bulkOps = allFields.map((field) => ({
+          replaceOne: {
+            filter: {
+              id: field.id,
+              type: field.type,
+            },
+            replacement: field,
+            upsert: true,
+          },
+        }));
+
+        await stagingCollection.bulkWrite(bulkOps);
+        console.log(`\nInserted ${allFields.length} custom field documents`);
+      }
+
+      // Swap collections
+      console.log("Swapping collections...");
+      const mainCollection = this.db.collection(collectionName);
+
+      await mainCollection.drop().catch(() => {});
+      await stagingCollection.rename(collectionName);
+
+      console.log("Collection swap completed");
+    } finally {
+      stats.endTime = new Date();
+      await this.disconnect();
+    }
+
+    return stats;
+  }
 }
 
 // Load tenant configuration
@@ -322,6 +453,9 @@ async function main() {
         case "users":
           stats = await sync.syncUsers();
           break;
+        case "custom-fields":
+          stats = await sync.syncAllCustomFields();
+          break;
         case "all":
           console.log("Syncing all Close.com data...");
           const leadsStats = await sync.syncLeads();
@@ -329,6 +463,7 @@ async function main() {
           const contactsStats = await sync.syncContacts();
           const activitiesStats = await sync.syncActivities();
           const usersStats = await sync.syncUsers();
+          const customFieldsStats = await sync.syncAllCustomFields();
 
           stats = {
             totalRecords:
@@ -336,26 +471,29 @@ async function main() {
               oppsStats.totalRecords +
               contactsStats.totalRecords +
               activitiesStats.totalRecords +
-              usersStats.totalRecords,
+              usersStats.totalRecords +
+              customFieldsStats.totalRecords,
             batchesProcessed:
               leadsStats.batchesProcessed +
               oppsStats.batchesProcessed +
               contactsStats.batchesProcessed +
               activitiesStats.batchesProcessed +
-              usersStats.batchesProcessed,
+              usersStats.batchesProcessed +
+              customFieldsStats.batchesProcessed,
             errors:
               leadsStats.errors +
               oppsStats.errors +
               contactsStats.errors +
               activitiesStats.errors +
-              usersStats.errors,
+              usersStats.errors +
+              customFieldsStats.errors,
             startTime: leadsStats.startTime,
             endTime: new Date(),
           };
           break;
         default:
           console.error(
-            "Unknown sync type. Use: leads, opportunities, contacts, activities, users, all"
+            "Unknown sync type. Use: leads, opportunities, contacts, activities, users, custom-fields, all"
           );
           process.exit(1);
       }
