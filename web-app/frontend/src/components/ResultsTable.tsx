@@ -16,13 +16,13 @@ import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
 interface QueryResult {
-  results: any[];
+  results?: any; // Can be anything: array, object, primitive, etc.
   executedAt: string;
   resultCount: number;
 }
 
 interface ResultsTableProps {
-  results: QueryResult | null;
+  results?: QueryResult | null;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
@@ -37,18 +37,46 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     }
   }, [results?.executedAt]); // Use executedAt as dependency to detect new query executions
 
+  // Helper function to normalize any data into an array format
+  const normalizeToArray = (data: any): any[] => {
+    if (data === null || data === undefined) {
+      return [];
+    }
+
+    if (Array.isArray(data)) {
+      return data;
+    }
+
+    // If it's a primitive value (string, number, boolean), wrap it in an object
+    if (typeof data !== "object") {
+      return [{ value: data }];
+    }
+
+    // If it's a single object, wrap it in an array
+    return [data];
+  };
+
   const { columns, rows } = useMemo(() => {
-    if (!results || !results.results || results.results.length === 0) {
+    if (!results || results.results === null || results.results === undefined) {
+      return { columns: [], rows: [] };
+    }
+
+    // Normalize results to array format
+    const normalizedResults = normalizeToArray(results.results);
+
+    if (normalizedResults.length === 0) {
       return { columns: [], rows: [] };
     }
 
     // Generate columns from the first 10 results (or all if fewer than 10)
-    const sampleResults = results.results.slice(0, 10);
+    const sampleResults = normalizedResults.slice(0, 10);
     const allKeys = new Set<string>();
 
     // Collect all unique keys from the sample results
     sampleResults.forEach((result) => {
-      Object.keys(result).forEach((key) => allKeys.add(key));
+      if (result && typeof result === "object" && !Array.isArray(result)) {
+        Object.keys(result).forEach((key) => allKeys.add(key));
+      }
     });
 
     // Function to check if a key looks like a date (YYYY, YYYY-MM, YYYY-MM-DD, etc.)
@@ -85,11 +113,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
     const cols: GridColDef[] = orderedKeys.map((key) => {
       // Check if this column contains numeric values by sampling the first few rows
-      const sampleValues = results.results.slice(0, 10).map((row) => row[key]);
+      const sampleValues = sampleResults
+        .map((row) => row?.[key])
+        .filter((value) => value !== undefined);
+
       const isNumericColumn = sampleValues.every(
         (value) =>
           value === null ||
-          value === undefined ||
           (typeof value === "number" && !isNaN(value)) ||
           (typeof value === "string" &&
             !isNaN(Number(value)) &&
@@ -121,16 +151,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     });
 
     // Generate rows with unique IDs
-    const rowsData = results.results.map((result, index) => ({
+    const rowsData = normalizedResults.map((result, index) => ({
       id: index,
-      ...result,
+      ...(result && typeof result === "object" && !Array.isArray(result)
+        ? result
+        : { value: result }),
     }));
 
     return { columns: cols, rows: rowsData };
   }, [results]);
 
   const copyToClipboard = useCallback(async () => {
-    if (!results || !results.results || results.results.length === 0) {
+    if (!results || results.results === null || results.results === undefined) {
+      return;
+    }
+
+    const normalizedResults = normalizeToArray(results.results);
+    if (normalizedResults.length === 0) {
       return;
     }
 
@@ -143,10 +180,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         // Header row
         headers.join("\t"),
         // Data rows
-        ...results.results.map((row) =>
+        ...normalizedResults.map((row) =>
           headers
             .map((header) => {
-              const value = row[header];
+              const value =
+                row && typeof row === "object" && !Array.isArray(row)
+                  ? row[header]
+                  : row;
               if (value === null || value === undefined) {
                 return "";
               }
@@ -194,7 +234,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     );
   }
 
-  if (results?.results?.length === 0) {
+  // Check if results are empty using the normalizeToArray helper
+  const normalizedForCheck = normalizeToArray(results.results);
+  if (normalizedForCheck.length === 0) {
     return (
       <Box
         sx={{
