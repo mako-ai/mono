@@ -33,13 +33,16 @@ const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
       }}
     >
       <Paper
-        elevation={1}
+        elevation={0}
         sx={{
-          p: 1.5,
+          p: 1,
           color: "text.primary",
           width: "100%",
           maxWidth: "100%",
           overflowX: "scroll",
+          border: 1,
+          borderColor: "divider",
+          borderRadius: 2.5,
         }}
       >
         {/* Display attached context as chips above the message */}

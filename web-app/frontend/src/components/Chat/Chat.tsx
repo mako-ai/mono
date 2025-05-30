@@ -64,6 +64,8 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [lastMessageUpdateTime, setLastMessageUpdateTime] = useState<number>(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+  const isAutoScrollingRef = useRef(false);
 
   // Context attachment state
   const [contextMenuAnchor, setContextMenuAnchor] =
@@ -382,6 +384,9 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     setError(null);
     setIsLoading(true);
 
+    // Reset user scroll state when sending a new message
+    setIsUserScrolledUp(false);
+
     // 1. Add the user message first so it appears in the UI immediately
     const userMessageObj: Message = {
       id: Date.now().toString() + Math.random(),
@@ -450,13 +455,19 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           updateMessage(assistantMessageId, delta);
           // Trigger re-render for auto-scroll during streaming
           setLastMessageUpdateTime(Date.now());
-          // Force immediate scroll during streaming
-          requestAnimationFrame(() => {
-            if (scrollContainerRef.current) {
-              scrollContainerRef.current.scrollTop =
-                scrollContainerRef.current.scrollHeight;
-            }
-          });
+          // Force immediate scroll during streaming only if user hasn't scrolled up
+          if (!isUserScrolledUp) {
+            requestAnimationFrame(() => {
+              if (scrollContainerRef.current) {
+                isAutoScrollingRef.current = true;
+                scrollContainerRef.current.scrollTop =
+                  scrollContainerRef.current.scrollHeight;
+                setTimeout(() => {
+                  isAutoScrollingRef.current = false;
+                }, 100);
+              }
+            });
+          }
         }
       }
     } catch (err: any) {
@@ -514,32 +525,73 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   );
 
   const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
-    if (scrollContainerRef.current) {
+    if (scrollContainerRef.current && !isUserScrolledUp) {
       const scrollContainer = scrollContainerRef.current;
       // Use instant scrolling during streaming for better responsiveness
       const scrollBehavior = isLoading ? "instant" : behavior;
 
       requestAnimationFrame(() => {
+        isAutoScrollingRef.current = true;
         scrollContainer.scrollTo({
           top: scrollContainer.scrollHeight,
           behavior: scrollBehavior as ScrollBehavior,
         });
+        setTimeout(() => {
+          isAutoScrollingRef.current = false;
+        }, 100);
       });
     }
   };
 
-  // Auto-scroll to bottom when messages change or during streaming updates
+  // Detect if user has scrolled up
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, lastMessageUpdateTime]);
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      // Skip if we're auto-scrolling
+      if (isAutoScrollingRef.current) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20; // 20px threshold
+
+      setIsUserScrolledUp(!isAtBottom);
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom when new messages are added (not during streaming)
+  useEffect(() => {
+    // Only auto-scroll for new messages if user hasn't scrolled up
+    if (!isLoading && !isUserScrolledUp && messages.length > 0) {
+      scrollToBottom("smooth");
+    }
+  }, [messages.length]);
+
+  // Auto-scroll during streaming updates
+  useEffect(() => {
+    // Only scroll during streaming if user hasn't scrolled up
+    if (isLoading && !isUserScrolledUp) {
+      scrollToBottom("instant");
+    }
+  }, [lastMessageUpdateTime]);
 
   // Scroll to bottom instantly when component mounts or chat changes
   useEffect(() => {
+    // Always scroll to bottom on mount/chat change
+    setIsUserScrolledUp(false);
+
     // Use instant scroll on mount/chat change for immediate positioning
     const scrollToBottomInstant = () => {
       if (scrollContainerRef.current) {
+        isAutoScrollingRef.current = true;
         scrollContainerRef.current.scrollTop =
           scrollContainerRef.current.scrollHeight;
+        setTimeout(() => {
+          isAutoScrollingRef.current = false;
+        }, 100);
       }
     };
 
@@ -550,24 +602,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
     });
   }, [currentChatId]); // Also triggers when switching between chats
-
-  // Watch for any DOM mutations in the messages area to ensure scrolling during streaming
-  useEffect(() => {
-    if (!scrollContainerRef.current) return;
-
-    const observer = new MutationObserver(() => {
-      scrollToBottom();
-    });
-
-    observer.observe(scrollContainerRef.current, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      characterDataOldValue: false,
-    });
-
-    return () => observer.disconnect();
-  }, [messages.length]); // Re-create observer when messages are added/removed
 
   if (!openaiClient) {
     return (
