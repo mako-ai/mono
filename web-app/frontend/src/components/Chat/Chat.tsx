@@ -17,14 +17,7 @@ import OpenAI from "openai";
 import UserInput from "./UserInput";
 import MessageList from "./MessageList";
 import AttachmentSelector from "./AttachmentSelector";
-import {
-  ChatProps,
-  Message,
-  AttachedContext,
-  Collection,
-  View,
-  Definition,
-} from "./types";
+import { ChatProps, Message, AttachedContext, Collection, View } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
 import { useChatStore } from "../../store/chatStore";
 import {
@@ -68,11 +61,9 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const isAutoScrollingRef = useRef(false);
 
   // Context attachment state
-  const [contextMenuAnchor, setContextMenuAnchor] =
-    useState<null | HTMLElement>(null);
-  const [collectionsDialogOpen, setCollectionsDialogOpen] = useState(false);
-  const [definitionsDialogOpen, setDefinitionsDialogOpen] = useState(false);
-  const [viewsDialogOpen, setViewsDialogOpen] = useState(false);
+  const [attachmentSelectorOpen, setAttachmentSelectorOpen] = useState(false);
+  const [attachmentButtonRef, setAttachmentButtonRef] =
+    useState<HTMLElement | null>(null);
 
   // History menu state
   const [historyMenuAnchor, setHistoryMenuAnchor] =
@@ -84,26 +75,6 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     Collection[]
   >([]);
   const [availableViews, setAvailableViews] = useState<View[]>([]);
-  const [availableDefinitions] = useState<Definition[]>([
-    {
-      id: "1",
-      name: "calculateRevenue",
-      type: "function",
-      content:
-        "function calculateRevenue(orders: Order[]): number {\n  return orders.reduce((sum, order) => sum + order.amount, 0);\n}",
-      fileName: "revenue.ts",
-      lineNumbers: "15-17",
-    },
-    {
-      id: "2",
-      name: "UserInterface",
-      type: "interface",
-      content:
-        "interface User {\n  id: number;\n  name: string;\n  email: string;\n  role: 'admin' | 'user';\n}",
-      fileName: "types.ts",
-      lineNumbers: "1-6",
-    },
-  ]);
 
   // Initialize OpenAI client
   useEffect(() => {
@@ -258,12 +229,13 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   }, [chatSessions.length, createNewChat]);
 
   // Context management
-  const handleContextMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setContextMenuAnchor(event.currentTarget);
+  const handleAttachClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAttachmentButtonRef(event.currentTarget);
+    setAttachmentSelectorOpen(true);
   };
 
-  const handleContextMenuClose = () => {
-    setContextMenuAnchor(null);
+  const handleAttachmentSelectorClose = () => {
+    setAttachmentSelectorOpen(false);
   };
 
   const addCollectionContext = (collection: Collection) => {
@@ -314,24 +286,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       },
     };
     addContextItem(contextItem);
-    setCollectionsDialogOpen(false);
-    handleContextMenuClose();
-  };
-
-  const addDefinitionContext = (definition: Definition) => {
-    const contextItem: AttachedContext = {
-      id: `definition-${definition.id}-${Date.now()}`,
-      type: "definition",
-      title: `${definition.name} (${definition.type})`,
-      content: definition.content,
-      metadata: {
-        fileName: definition.fileName,
-        lineNumbers: definition.lineNumbers,
-      },
-    };
-    addContextItem(contextItem);
-    setDefinitionsDialogOpen(false);
-    handleContextMenuClose();
   };
 
   const addViewContext = (view: View) => {
@@ -348,31 +302,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       },
     };
     addContextItem(contextItem);
-    setViewsDialogOpen(false);
-    handleContextMenuClose();
-  };
-
-  const addEditorContext = () => {
-    if (!currentEditorContent || !currentEditorContent.content.trim()) {
-      setError("No editor content available to attach");
-      handleContextMenuClose();
-      return;
-    }
-
-    const contextItem: AttachedContext = {
-      id: `editor-${Date.now()}`,
-      type: "editor",
-      title: currentEditorContent.fileName
-        ? `Editor: ${currentEditorContent.fileName}`
-        : "Current Editor Content",
-      content: currentEditorContent.content,
-      metadata: {
-        fileName: currentEditorContent.fileName || "untitled",
-        language: currentEditorContent.language || "text",
-      },
-    };
-    addContextItem(contextItem);
-    handleContextMenuClose();
   };
 
   const sendMessage = async () => {
@@ -755,7 +684,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         attachedContext={attachedContext}
         removeContextItem={removeContextItem}
         onSend={sendMessage}
-        onAttachClick={handleContextMenuOpen}
+        onAttachClick={handleAttachClick}
         isLoading={isLoading}
       />
 
@@ -783,21 +712,13 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       </Box>
 
       <AttachmentSelector
-        contextMenuAnchor={contextMenuAnchor}
-        onClose={handleContextMenuClose}
-        collectionsDialogOpen={collectionsDialogOpen}
-        setCollectionsDialogOpen={setCollectionsDialogOpen}
-        definitionsDialogOpen={definitionsDialogOpen}
-        setDefinitionsDialogOpen={setDefinitionsDialogOpen}
-        viewsDialogOpen={viewsDialogOpen}
-        setViewsDialogOpen={setViewsDialogOpen}
+        open={attachmentSelectorOpen}
+        anchorEl={attachmentButtonRef}
+        onClose={handleAttachmentSelectorClose}
         availableCollections={availableCollections}
-        availableDefinitions={availableDefinitions}
         availableViews={availableViews}
         onAttachCollection={addCollectionContext}
-        onAttachDefinition={addDefinitionContext}
         onAttachView={addViewContext}
-        onAttachEditorContent={addEditorContext}
       />
     </Box>
   );
