@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "dev:core": "ts-node src/index.ts",
+    "dev": "pnpm run mongo:up && concurrently -k \"pnpm --filter api dev\" \"pnpm --filter app dev\"",
     "sync:close:leads": "ts-node src/sync-close.ts leads",
     "sync:close:opportunities": "ts-node src/sync-close.ts opportunities",
     "sync:close:contacts": "ts-node src/sync-close.ts contacts",
@@ -30,7 +31,10 @@
     "config:list": "ts-node scripts/config.ts list",
     "config:show": "ts-node scripts/config.ts show",
     "migrate:tenants": "node scripts/migrate-tenants-to-database.js",
-    "setup": "pnpm install && pnpm run docker:up && echo 'Waiting for MongoDB to start...' && sleep 15"
+    "setup": "pnpm install && pnpm run docker:up && echo 'Waiting for MongoDB to start...' && sleep 15",
+    "mongo:up": "docker compose up -d mongodb",
+    "mongo:down": "docker compose stop mongodb && docker compose rm -f mongodb || true",
+    "clean": "find . -name node_modules -type d -prune -exec rm -rf {} + && rm -f **/pnpm-lock.yaml"
   },
   "dependencies": {
     "axios": "^1.6.2",
@@ -43,7 +47,8 @@
     "@types/js-yaml": "^4.0.8",
     "@types/node": "^20.10.5",
     "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "concurrently": "^8.2.2"
   },
   "keywords": [
     "close.com",

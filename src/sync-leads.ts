@@ -38,7 +38,7 @@ class CloseLeadsSync {
       throw new Error("CLOSE_API_KEY environment variable is required");
     }
 
-    this.client = new MongoClient(process.env.MONGO_CONNECTION_STRING!);
+    this.client = new MongoClient(process.env.MONGODB_CONNECTION_STRING!);
   }
 
   private async delay(ms: number): Promise<void> {
@@ -92,7 +92,7 @@ class CloseLeadsSync {
 
   private async connect(): Promise<void> {
     await this.client.connect();
-    this.db = this.client.db(process.env.MONGO_DATABASE);
+    this.db = this.client.db(process.env.MONGODB_DATABASE);
     console.log("Connected to MongoDB");
   }
 

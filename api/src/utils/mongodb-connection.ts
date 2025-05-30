@@ -1,7 +1,7 @@
 import { MongoClient, Db, MongoClientOptions } from "mongodb";
 import dotenv from "dotenv";
 
-dotenv.config({ path: "./.env" });
+dotenv.config({ path: "../../.env" });
 
 export interface MongoConfig {
   connectionString: string;
@@ -20,7 +20,7 @@ class MongoDBConnection {
   private constructor() {
     this.config = {
       connectionString:
-        process.env.MONGODB_CONNECTION_STRING || "mongodb://mongodb:27017",
+        process.env.MONGODB_CONNECTION_STRING || "mongodb://localhost:27018",
       database: process.env.MONGODB_DATABASE || "multi_tenant_analytics",
       options: {
         maxPoolSize: 10,

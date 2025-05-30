@@ -1,7 +1,7 @@
 import { MongoClient, Db, Collection, ObjectId } from "mongodb";
 import dotenv from "dotenv";
 
-dotenv.config({ path: "./.env" });
+dotenv.config({ path: "../../.env" });
 
 // Data source interface
 export interface DataSource {
@@ -41,7 +41,7 @@ export interface DataSource {
 // Simple configuration loader for the web app
 function loadConfig() {
   const mongoUrl =
-    process.env.MONGODB_CONNECTION_STRING || "mongodb://mongodb:27017";
+    process.env.MONGODB_CONNECTION_STRING || "mongodb://localhost:27018";
   const database = process.env.MONGODB_DATABASE || "multi_tenant_analytics";
 
   return {
