@@ -8,7 +8,7 @@ export interface Message {
 
 export interface AttachedContext {
   id: string;
-  type: "collection" | "definition" | "editor" | "view";
+  type: "collection" | "definition" | "editor" | "view" | "console";
   title: string;
   content: string;
   metadata?: {
@@ -16,6 +16,8 @@ export interface AttachedContext {
     language?: string;
     lineNumbers?: string;
     collectionName?: string;
+    consoleId?: string;
+    consoleRef?: any;
   };
 }
 
@@ -52,4 +54,5 @@ export interface ChatProps {
     fileName?: string;
     language?: string;
   };
+  onSwitchToCollections?: () => void;
 }
