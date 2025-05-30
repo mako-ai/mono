@@ -15,6 +15,11 @@
     "sync:close:custom-fields": "ts-node src/sync-close.ts custom-fields",
     "sync:close:all": "ts-node src/sync-close.ts all",
     "sync:close": "pnpm run sync:close:all",
+    "sync:stripe:subscriptions": "ts-node src/sync-stripe.ts subscriptions",
+    "sync:stripe:customers": "ts-node src/sync-stripe.ts customers",
+    "sync:stripe:invoices": "ts-node src/sync-stripe.ts invoices",
+    "sync:stripe:all": "ts-node src/sync-stripe.ts all",
+    "sync:stripe": "pnpm run sync:stripe:all",
     "query": "ts-node src/query-runner.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
@@ -28,16 +33,17 @@
     "setup": "pnpm install && pnpm run docker:up && echo 'Waiting for MongoDB to start...' && sleep 15"
   },
   "dependencies": {
-    "mongodb": "^6.3.0",
     "axios": "^1.6.2",
     "dotenv": "^16.3.1",
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "mongodb": "^6.3.0",
+    "stripe": "^18.2.0"
   },
   "devDependencies": {
-    "@types/node": "^20.10.5",
     "@types/js-yaml": "^4.0.8",
-    "typescript": "^5.3.3",
-    "ts-node": "^10.9.2"
+    "@types/node": "^20.10.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   },
   "keywords": [
     "close.com",
