@@ -30,6 +30,9 @@ importers:
       '@types/node':
         specifier: ^20.10.5
         version: 20.17.50
+      concurrently:
+        specifier: ^8.2.2
+        version: 8.2.2
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@20.17.50)(typescript@5.8.3)
@@ -37,17 +40,7 @@ importers:
         specifier: ^5.3.3
         version: 5.8.3
 
-  web-app:
-    dependencies:
-      react-resizable-panels:
-        specifier: ^3.0.2
-        version: 3.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-    devDependencies:
-      concurrently:
-        specifier: ^8.2.2
-        version: 8.2.2
-
-  web-app/backend:
+  api:
     dependencies:
       '@hono/node-server':
         specifier: ^1.8.0
@@ -84,7 +77,7 @@ importers:
         specifier: ^5.3.3
         version: 5.8.3
 
-  web-app/frontend:
+  app:
     dependencies:
       '@emotion/react':
         specifier: ^11.11.1
@@ -125,6 +118,9 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@18.3.23)(react@18.3.1)
+      react-resizable-panels:
+        specifier: ^3.0.2
+        version: 3.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-router-dom:
         specifier: ^6.20.1
         version: 6.30.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
