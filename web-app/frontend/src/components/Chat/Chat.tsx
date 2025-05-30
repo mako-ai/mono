@@ -71,6 +71,10 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const isAutoScrollingRef = useRef(false);
 
+  // Add state for tracking execution
+  const [isAutoExecuting, setIsAutoExecuting] = useState(false);
+  const [executionResults, setExecutionResults] = useState<any>(null);
+
   // Context attachment state
   const [attachmentSelectorOpen, setAttachmentSelectorOpen] = useState(false);
   const [attachmentButtonRef, setAttachmentButtonRef] =
@@ -385,6 +389,43 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     }
   };
 
+  // Function to execute console code automatically
+  const executeConsoleCode = async (): Promise<any> => {
+    const attachedConsole = attachedContext.find(
+      (ctx) => ctx.type === "console"
+    );
+    if (!attachedConsole || !attachedConsole.metadata?.consoleId) {
+      return null;
+    }
+
+    const consoleTab = consoleTabs.find(
+      (tab) => tab.id === attachedConsole.metadata!.consoleId
+    );
+    if (!consoleTab || !consoleTab.content.trim()) {
+      return null;
+    }
+
+    setIsAutoExecuting(true);
+    try {
+      const response = await fetch(`/api/execute`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: consoleTab.content }),
+      });
+
+      const data = await response.json();
+      setExecutionResults(data);
+      return data;
+    } catch (error) {
+      console.error("Failed to execute query:", error);
+      return { success: false, error: String(error) };
+    } finally {
+      setIsAutoExecuting(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputMessage.trim() || !openaiClient || isLoading) return;
 
@@ -485,6 +526,62 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
       // After streaming is complete, check if we should update a console
       updateConsoleFromAIResponse(fullResponse);
+
+      // Check for execution marker and handle automatic execution
+      if (fullResponse.includes("[[EXECUTE_CONSOLE]]")) {
+        // Execute the console code after a short delay
+        setTimeout(async () => {
+          const result = await executeConsoleCode();
+
+          // Format the results
+          let resultContent = "";
+          if (result?.success) {
+            if (result.data?.results) {
+              resultContent = `✅ Execution successful!\n\nResults (${
+                result.data.resultCount
+              } documents):\n\`\`\`json\n${JSON.stringify(
+                result.data.results,
+                null,
+                2
+              )}\n\`\`\``;
+            } else {
+              resultContent = `✅ Execution successful!\n\nResult:\n\`\`\`json\n${JSON.stringify(
+                result.data,
+                null,
+                2
+              )}\n\`\`\``;
+            }
+          } else {
+            resultContent = `❌ Execution failed:\n\`\`\`\n${
+              result?.error || "Unknown error"
+            }\n\`\`\``;
+          }
+
+          // Add execution results as a new message
+          const executionResultMessage: Message = {
+            id: `exec-result-${Date.now()}-${Math.random()}`,
+            role: "assistant",
+            content: resultContent,
+            timestamp: new Date(),
+            attachedContext: [],
+          };
+          addMessage(executionResultMessage);
+
+          // Add a system message prompting for analysis
+          const analysisPromptMessage: Message = {
+            id: `analysis-prompt-${Date.now()}-${Math.random()}`,
+            role: "user",
+            content:
+              "Please analyze the execution results above. If they don't meet the requirements, feel free to modify the code and add [[EXECUTE_CONSOLE]] to run it again.",
+            timestamp: new Date(),
+            attachedContext: [],
+          };
+          addMessage(analysisPromptMessage);
+
+          // Trigger a new AI response for analysis
+          // This will be handled by the user sending the next message
+        }, 1000);
+      }
     } catch (err: any) {
       console.error("OpenAI API error:", err);
       if (err.status === 401) {
