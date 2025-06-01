@@ -77,7 +77,55 @@ export class QueryExecutor {
         Array.isArray(finalResult) ? finalResult.length : finalResult
       );
 
-      return finalResult;
+      // 🌐 Ensure the result can be safely serialised to JSON (avoid circular refs)
+      const getCircularReplacer = () => {
+        const seen = new WeakSet();
+        return (key: string, value: any) => {
+          // Handle BigInt explicitly (convert to string)
+          if (typeof value === "bigint") return value.toString();
+
+          if (typeof value === "object" && value !== null) {
+            // Replace common MongoDB driver objects with descriptive strings
+            const ctor = value.constructor?.name;
+            if (
+              ctor === "Collection" ||
+              ctor === "Db" ||
+              ctor === "MongoClient" ||
+              ctor === "Cursor"
+            ) {
+              // Provide minimal useful info instead of the full object
+              if (ctor === "Collection") {
+                return {
+                  _type: "Collection",
+                  name: (value as any).collectionName,
+                };
+              }
+              return `[${ctor}]`;
+            }
+
+            // Handle circular structures
+            if (seen.has(value)) {
+              return "[Circular]";
+            }
+            seen.add(value);
+          }
+          return value;
+        };
+      };
+
+      let serialisableResult: any;
+      try {
+        serialisableResult = JSON.parse(
+          JSON.stringify(finalResult, getCircularReplacer())
+        );
+      } catch (stringifyError) {
+        console.warn(
+          "⚠️ Failed to fully serialise result, falling back to string representation"
+        );
+        serialisableResult = String(finalResult);
+      }
+
+      return serialisableResult;
     } catch (error) {
       console.error(`❌ Query execution error:`, error);
       throw new Error(
