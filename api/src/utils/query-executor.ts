@@ -2,23 +2,41 @@ import { Db } from "mongodb";
 import { mongoConnection } from "./mongodb-connection";
 
 export class QueryExecutor {
-  async executeQuery(queryContent: string): Promise<any> {
+  async executeQuery(queryContent: string, databaseId?: string): Promise<any> {
     try {
-      const dbInstance = await mongoConnection.getDb();
+      console.log(
+        `🔍 QueryExecutor.executeQuery called with databaseId: ${databaseId || "none (will use default)"}`
+      );
+
+      // Get the appropriate database instance
+      const dbInstance = databaseId
+        ? await mongoConnection.getDatabase(databaseId)
+        : await mongoConnection.getDb();
 
       console.log(
-        `🔍 Executing query content:\n${queryContent.substring(0, 200)}...`
+        `🔍 Executing query content${databaseId ? ` on database ${databaseId}` : ""}:\n${queryContent.substring(0, 200)}...`
       );
 
       // Create a proxy db object that can access any collection dynamically
       const db = new Proxy(dbInstance, {
         get: (target, prop) => {
+          // First check if this property exists on the target (database methods)
+          if (prop in target) {
+            const value = (target as any)[prop];
+            // If it's a function, bind it to the target to maintain 'this' context
+            if (typeof value === "function") {
+              return value.bind(target);
+            }
+            return value;
+          }
+
+          // If it's a string and not a database method, treat it as a collection name
           if (typeof prop === "string") {
             console.log(`📋 Accessing collection: ${prop}`);
-            // Return the collection for any property access
             return target.collection(prop);
           }
-          return (target as any)[prop];
+
+          return undefined;
         },
       });
 

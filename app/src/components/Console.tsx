@@ -1,21 +1,31 @@
-import React, {
+import {
   useRef,
   useEffect,
   useState,
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, Select, MenuItem, FormControl } from "@mui/material";
 import { PlayArrow } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
+interface Database {
+  id: string;
+  localId: string;
+  name: string;
+  description: string;
+  database: string;
+  active: boolean;
+}
+
 interface ConsoleProps {
   initialContent: string;
   title?: string;
-  onExecute: (content: string) => void;
+  onExecute: (content: string, databaseId?: string) => void;
   isExecuting: boolean;
   onContentChange?: (content: string) => void;
+  databases?: Database[];
 }
 
 export interface ConsoleRef {
@@ -27,11 +37,36 @@ export interface ConsoleRef {
 }
 
 const Console = forwardRef<ConsoleRef, ConsoleProps>(
-  ({ initialContent, title, onExecute, isExecuting, onContentChange }, ref) => {
+  (
+    {
+      initialContent,
+      title,
+      onExecute,
+      isExecuting,
+      onContentChange,
+      databases = [],
+    },
+    ref
+  ) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
     const [currentContent, setCurrentContent] = useState(initialContent);
+    const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>("");
+    // Keep a ref of the latest selected database so closures (e.g. Monaco keybindings) always see the up-to-date value
+    const selectedDatabaseIdRef = useRef<string>("");
+
+    // Whenever selectedDatabaseId changes, update the ref
+    useEffect(() => {
+      selectedDatabaseIdRef.current = selectedDatabaseId;
+    }, [selectedDatabaseId]);
+
+    // Set default database when databases are loaded
+    useEffect(() => {
+      if (databases.length > 0 && !selectedDatabaseId) {
+        setSelectedDatabaseId(databases[0].id);
+      }
+    }, [databases, selectedDatabaseId]);
 
     // Update current content when initialContent changes (e.g., new console opened)
     useEffect(() => {
@@ -59,7 +94,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
     // Execute helper
     const executeContent = (content: string) => {
       if (content.trim()) {
-        onExecute(content);
+        onExecute(content, selectedDatabaseIdRef.current || undefined);
       }
     };
 
@@ -110,10 +145,11 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
         <Box
           sx={{
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
             alignItems: "center",
             p: 1,
             backgroundColor: "background.paper",
+            gap: 1,
           }}
         >
           <Button
@@ -121,11 +157,34 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
             size="small"
             startIcon={<PlayArrow />}
             onClick={handleExecute}
-            disabled={!currentContent.trim() || isExecuting}
+            disabled={
+              !currentContent.trim() || isExecuting || !selectedDatabaseId
+            }
             disableElevation
           >
             {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
           </Button>
+
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <Select
+              labelId="database-select-label"
+              value={selectedDatabaseId}
+              onChange={(e) => setSelectedDatabaseId(e.target.value)}
+              disabled={databases.length === 0}
+            >
+              {databases.length === 0 ? (
+                <MenuItem value="" disabled>
+                  No databases available
+                </MenuItem>
+              ) : (
+                databases.map((db) => (
+                  <MenuItem key={db.id} value={db.id}>
+                    {db.database}
+                  </MenuItem>
+                ))
+              )}
+            </Select>
+          </FormControl>
         </Box>
 
         <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>

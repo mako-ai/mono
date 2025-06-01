@@ -21,8 +21,11 @@ executeRoutes.post("/", async (c) => {
       );
     }
 
-    // Execute query content directly
-    const results = await queryExecutor.executeQuery(body.content);
+    // Execute query content directly with optional database ID
+    const results = await queryExecutor.executeQuery(
+      body.content,
+      body.databaseId
+    );
 
     return c.json({
       success: true,
