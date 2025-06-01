@@ -33,20 +33,19 @@ export interface DataSource {
     max_retries?: number;
     timeout_ms?: number;
   };
-  tenant?: string; // Optional tenant association
   created_at: Date;
   updated_at: Date;
 }
 
 // Simple configuration loader for the web app
 function loadConfig() {
-  const mongoUrl =
+  const connectionString =
     process.env.MONGODB_CONNECTION_STRING || "mongodb://localhost:27018";
   const database = process.env.MONGODB_DATABASE || "multi_tenant_analytics";
 
   return {
     mongodb: {
-      connection_string: mongoUrl,
+      connection_string: connectionString,
       database: database,
     },
   };

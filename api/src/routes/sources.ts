@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { DataSourceManager } from "../utils/data-source-manager";
+import { DataSourceManager, DataSource } from "../utils/data-source-manager";
+import { ObjectId } from "mongodb";
 
 export const dataSourceRoutes = new Hono();
 const dataSourceManager = new DataSourceManager();
@@ -59,19 +60,19 @@ dataSourceRoutes.post("/", async (c) => {
     }
 
     // Set defaults for optional fields
-    const dataSource = {
+    const dataSource: DataSource = {
+      _id: new ObjectId(),
       name: body.name,
-      description: body.description || "",
+      description: body.description,
       source: body.source,
-      enabled: body.enabled !== undefined ? body.enabled : true,
+      enabled: body.enabled !== false,
       config: body.config || {},
-      settings: {
-        sync_batch_size: body.settings?.sync_batch_size || 100,
-        rate_limit_delay_ms: body.settings?.rate_limit_delay_ms || 200,
-        max_retries: body.settings?.max_retries || 3,
-        timeout_ms: body.settings?.timeout_ms || 30000,
+      settings: body.settings || {
+        sync_batch_size: 100,
+        rate_limit_delay_ms: 200,
       },
-      tenant: body.tenant,
+      created_at: new Date(),
+      updated_at: new Date(),
     };
 
     const created = await dataSourceManager.createDataSource(dataSource);

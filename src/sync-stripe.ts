@@ -1,8 +1,8 @@
 import Stripe from "stripe";
 import { MongoClient, Db, Collection } from "mongodb";
+import { dataSourceManager } from "./data-source-manager";
+import type { DataSourceConfig } from "./data-source-manager";
 import * as dotenv from "dotenv";
-import { tenantManager } from "./tenant-manager";
-import type { TenantConfig } from "./tenant-manager";
 
 dotenv.config();
 
@@ -15,389 +15,400 @@ interface SyncStats {
 }
 
 class StripeSyncService {
-  private client: MongoClient;
-  private db!: Db;
-  private tenant: TenantConfig;
   private stripe: Stripe;
-  private rateLimitDelay: number;
-  private maxRetries: number;
-  private batchSize: number;
+  private mongoConnections: Map<string, { client: MongoClient; db: Db }> =
+    new Map();
+  private dataSource: DataSourceConfig;
+  private settings: {
+    batchSize: number;
+    rateLimitDelay: number;
+    maxRetries: number;
+  };
 
-  constructor(tenant: TenantConfig) {
-    this.tenant = tenant;
+  constructor(dataSource: DataSourceConfig) {
+    this.dataSource = dataSource;
 
-    // Get Stripe configuration for this tenant
-    const stripeConfig = tenant.sources.stripe;
-    if (!stripeConfig?.enabled) {
-      throw new Error(`Stripe is not enabled for tenant ${tenant.id}`);
+    // Get Stripe configuration
+    if (!dataSource.connection.api_key) {
+      throw new Error(
+        `Stripe API key is required for data source ${dataSource.id}`
+      );
     }
 
-    if (!stripeConfig.api_key) {
-      throw new Error(`Stripe API key is required for tenant ${tenant.id}`);
+    this.stripe = new Stripe(dataSource.connection.api_key);
+
+    // Get settings with defaults
+    const globalConfig = dataSourceManager.getGlobalConfig();
+    this.settings = {
+      batchSize: dataSource.settings.sync_batch_size || 50,
+      rateLimitDelay: dataSource.settings.rate_limit_delay_ms || 300,
+      maxRetries:
+        dataSource.settings.max_retries || globalConfig.max_retries || 5,
+    };
+  }
+
+  private async getMongoConnection(
+    targetDbId: string = "analytics_db"
+  ): Promise<{ client: MongoClient; db: Db }> {
+    // Check if connection already exists
+    if (this.mongoConnections.has(targetDbId)) {
+      return this.mongoConnections.get(targetDbId)!;
     }
 
-    // Initialize Stripe client
-    this.stripe = new Stripe(stripeConfig.api_key, {
-      apiVersion: "2025-05-28.basil", // Latest API version
-    });
+    // Get target database configuration
+    const targetDb = dataSourceManager.getDataSource(targetDbId);
+    if (!targetDb || targetDb.type !== "mongodb") {
+      throw new Error(`MongoDB data source '${targetDbId}' not found`);
+    }
 
-    this.rateLimitDelay = tenant.settings.rate_limit_delay_ms || 200;
-    this.maxRetries = tenant.settings.max_retries || 5;
-    this.batchSize = tenant.settings.sync_batch_size || 100;
+    // Create new connection
+    const client = new MongoClient(targetDb.connection.connection_string!);
+    await client.connect();
+    const db = client.db(targetDb.connection.database);
 
-    const globalConfig = tenantManager.getGlobalConfig();
-    this.client = new MongoClient(globalConfig.mongodb.connection_string);
-  }
+    const connection = { client, db };
+    this.mongoConnections.set(targetDbId, connection);
 
-  private async delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  private async connect(): Promise<void> {
-    await this.client.connect();
-    const globalConfig = tenantManager.getGlobalConfig();
-    this.db = this.client.db(globalConfig.mongodb.database);
-    console.log(`Connected to MongoDB for tenant: ${this.tenant.name}`);
+    console.log(
+      `Connected to MongoDB: ${targetDb.name} for Stripe source: ${this.dataSource.name}`
+    );
+    return connection;
   }
 
   private async disconnect(): Promise<void> {
-    await this.client.close();
-    console.log("Disconnected from MongoDB");
+    for (const [dbId, connection] of this.mongoConnections.entries()) {
+      await connection.client.close();
+      console.log(`Disconnected from MongoDB: ${dbId}`);
+    }
+    this.mongoConnections.clear();
   }
 
-  private getCollectionName(baseCollection: string): string {
-    return `${this.tenant.id}_stripe_${baseCollection}`;
-  }
+  private async fetchAllStripeData<T>(
+    listMethod: (params: any) => Stripe.ApiListPromise<T>,
+    params: any = {}
+  ): Promise<T[]> {
+    const results: T[] = [];
+    let hasMore = true;
+    let startingAfter: string | undefined = undefined;
 
-  async syncSubscriptions(): Promise<SyncStats> {
-    const collectionName = this.getCollectionName("subscriptions");
-    const stats: SyncStats = {
-      totalRecords: 0,
-      batchesProcessed: 0,
-      errors: 0,
-      startTime: new Date(),
-    };
+    while (hasMore) {
+      try {
+        const response = await listMethod({
+          ...params,
+          limit: this.settings.batchSize,
+          ...(startingAfter && { starting_after: startingAfter }),
+        });
 
-    try {
-      await this.connect();
+        results.push(...response.data);
+        hasMore = response.has_more;
 
-      // Clear and prepare staging collection
-      const stagingCollectionName = `${collectionName}_staging`;
-      const stagingCollection = this.db.collection(stagingCollectionName);
-      await stagingCollection.deleteMany({});
-      console.log(`Cleared ${stagingCollectionName} collection`);
-
-      console.log("Starting Stripe subscriptions sync...");
-
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let processedCount = 0;
-
-      while (hasMore) {
-        try {
-          await this.delay(this.rateLimitDelay);
-
-          // Fetch subscriptions page
-          const subscriptions = await this.stripe.subscriptions.list({
-            limit: this.batchSize,
-            starting_after: startingAfter,
-            expand: ["data.customer", "data.items.data.price"], // Expand related data (limited to 4 levels)
-          });
-
-          if (subscriptions.data.length > 0) {
-            // Add tenant metadata to each record
-            const recordsWithMetadata = subscriptions.data.map(
-              (subscription) => ({
-                ...subscription,
-                _tenant_id: this.tenant.id,
-                _tenant_name: this.tenant.name,
-                _sync_timestamp: new Date(),
-              })
-            );
-
-            // Use bulk replace operations
-            const bulkOps = recordsWithMetadata.map((record) => ({
-              replaceOne: {
-                filter: { id: record.id },
-                replacement: record,
-                upsert: true,
-              },
-            }));
-
-            await stagingCollection.bulkWrite(bulkOps);
-            processedCount += subscriptions.data.length;
-
-            // Update progress
-            console.log(
-              `Processed ${processedCount} subscriptions (batch ${
-                stats.batchesProcessed + 1
-              })`
-            );
-
-            // Set up for next page
-            startingAfter =
-              subscriptions.data[subscriptions.data.length - 1].id;
-          }
-
-          hasMore = subscriptions.has_more;
-          stats.batchesProcessed++;
-          stats.totalRecords = processedCount;
-        } catch (error) {
-          console.error("Error processing batch:", error);
-          stats.errors++;
-
-          // Continue with next batch on non-critical errors
-          if (stats.errors > 10) {
-            throw new Error("Too many errors, aborting sync");
-          }
-
-          // If we have a starting_after, continue from there
-          if (startingAfter) {
-            hasMore = true;
-          }
+        if (hasMore && response.data.length > 0) {
+          startingAfter = (response.data[response.data.length - 1] as any).id;
+          // Apply rate limiting
+          await this.delay(this.settings.rateLimitDelay);
         }
+      } catch (error) {
+        console.error("Error fetching Stripe data:", error);
+        throw error;
       }
-
-      // Swap collections (atomic operation)
-      console.log("Swapping collections...");
-      const mainCollection = this.db.collection(collectionName);
-
-      // Drop old collection and rename staging to main
-      await mainCollection.drop().catch(() => {}); // Ignore error if collection doesn't exist
-      await stagingCollection.rename(collectionName);
-
-      console.log("Collection swap completed");
-    } finally {
-      stats.endTime = new Date();
-      await this.disconnect();
     }
 
-    return stats;
+    return results;
   }
 
-  async syncCustomers(): Promise<SyncStats> {
-    const collectionName = this.getCollectionName("customers");
-    const stats: SyncStats = {
-      totalRecords: 0,
-      batchesProcessed: 0,
-      errors: 0,
-      startTime: new Date(),
-    };
+  async syncCustomers(targetDbId?: string): Promise<void> {
+    console.log(`Starting customers sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      await this.connect();
+      const customers = await this.fetchAllStripeData((params) =>
+        this.stripe.customers.list(params)
+      );
+      console.log(`Fetched ${customers.length} customers from Stripe`);
 
-      // Clear and prepare staging collection
-      const stagingCollectionName = `${collectionName}_staging`;
-      const stagingCollection = this.db.collection(stagingCollectionName);
-      await stagingCollection.deleteMany({});
-      console.log(`Cleared ${stagingCollectionName} collection`);
+      const collection = db.collection("stripe_customers");
 
-      console.log("Starting Stripe customers sync...");
+      // Process customers with data source reference
+      const processedCustomers = customers.map((customer) => ({
+        ...customer,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
 
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let processedCount = 0;
+      if (processedCustomers.length > 0) {
+        const bulkOps = processedCustomers.map((customer) => ({
+          replaceOne: {
+            filter: { id: customer.id, _dataSourceId: this.dataSource.id },
+            replacement: customer,
+            upsert: true,
+          },
+        }));
 
-      while (hasMore) {
-        try {
-          await this.delay(this.rateLimitDelay);
-
-          // Fetch customers page
-          const customers = await this.stripe.customers.list({
-            limit: this.batchSize,
-            starting_after: startingAfter,
-            expand: ["data.subscriptions"], // Expand subscriptions
-          });
-
-          if (customers.data.length > 0) {
-            // Add tenant metadata to each record
-            const recordsWithMetadata = customers.data.map((customer) => ({
-              ...customer,
-              _tenant_id: this.tenant.id,
-              _tenant_name: this.tenant.name,
-              _sync_timestamp: new Date(),
-            }));
-
-            // Use bulk replace operations
-            const bulkOps = recordsWithMetadata.map((record) => ({
-              replaceOne: {
-                filter: { id: record.id },
-                replacement: record,
-                upsert: true,
-              },
-            }));
-
-            await stagingCollection.bulkWrite(bulkOps);
-            processedCount += customers.data.length;
-
-            // Update progress
-            console.log(
-              `Processed ${processedCount} customers (batch ${
-                stats.batchesProcessed + 1
-              })`
-            );
-
-            // Set up for next page
-            startingAfter = customers.data[customers.data.length - 1].id;
-          }
-
-          hasMore = customers.has_more;
-          stats.batchesProcessed++;
-          stats.totalRecords = processedCount;
-        } catch (error) {
-          console.error("Error processing batch:", error);
-          stats.errors++;
-
-          // Continue with next batch on non-critical errors
-          if (stats.errors > 10) {
-            throw new Error("Too many errors, aborting sync");
-          }
-
-          // If we have a starting_after, continue from there
-          if (startingAfter) {
-            hasMore = true;
-          }
-        }
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} customers`
+        );
       }
-
-      // Swap collections (atomic operation)
-      console.log("Swapping collections...");
-      const mainCollection = this.db.collection(collectionName);
-
-      // Drop old collection and rename staging to main
-      await mainCollection.drop().catch(() => {}); // Ignore error if collection doesn't exist
-      await stagingCollection.rename(collectionName);
-
-      console.log("Collection swap completed");
-    } finally {
-      stats.endTime = new Date();
-      await this.disconnect();
+    } catch (error) {
+      console.error("Customer sync failed:", error);
+      throw error;
     }
-
-    return stats;
   }
 
-  async syncInvoices(): Promise<SyncStats> {
-    const collectionName = this.getCollectionName("invoices");
-    const stats: SyncStats = {
-      totalRecords: 0,
-      batchesProcessed: 0,
-      errors: 0,
-      startTime: new Date(),
-    };
+  async syncSubscriptions(targetDbId?: string): Promise<void> {
+    console.log(`Starting subscriptions sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      await this.connect();
+      const subscriptions = await this.fetchAllStripeData(
+        (params) => this.stripe.subscriptions.list(params),
+        { status: "all" }
+      );
+      console.log(`Fetched ${subscriptions.length} subscriptions from Stripe`);
 
-      // Clear and prepare staging collection
-      const stagingCollectionName = `${collectionName}_staging`;
-      const stagingCollection = this.db.collection(stagingCollectionName);
-      await stagingCollection.deleteMany({});
-      console.log(`Cleared ${stagingCollectionName} collection`);
+      const collection = db.collection("stripe_subscriptions");
 
-      console.log("Starting Stripe invoices sync...");
+      // Process subscriptions with data source reference
+      const processedSubscriptions = subscriptions.map((subscription) => ({
+        ...subscription,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
 
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let processedCount = 0;
+      if (processedSubscriptions.length > 0) {
+        const bulkOps = processedSubscriptions.map((subscription) => ({
+          replaceOne: {
+            filter: { id: subscription.id, _dataSourceId: this.dataSource.id },
+            replacement: subscription,
+            upsert: true,
+          },
+        }));
 
-      while (hasMore) {
-        try {
-          await this.delay(this.rateLimitDelay);
-
-          // Fetch invoices page
-          const invoices = await this.stripe.invoices.list({
-            limit: this.batchSize,
-            starting_after: startingAfter,
-            expand: ["data.customer", "data.subscription"], // Expand related data
-          });
-
-          if (invoices.data.length > 0) {
-            // Add tenant metadata to each record
-            const recordsWithMetadata = invoices.data.map((invoice) => ({
-              ...invoice,
-              _tenant_id: this.tenant.id,
-              _tenant_name: this.tenant.name,
-              _sync_timestamp: new Date(),
-            }));
-
-            // Use bulk replace operations
-            const bulkOps = recordsWithMetadata.map((record) => ({
-              replaceOne: {
-                filter: { id: record.id },
-                replacement: record,
-                upsert: true,
-              },
-            }));
-
-            await stagingCollection.bulkWrite(bulkOps);
-            processedCount += invoices.data.length;
-
-            // Update progress
-            console.log(
-              `Processed ${processedCount} invoices (batch ${
-                stats.batchesProcessed + 1
-              })`
-            );
-
-            // Set up for next page
-            startingAfter = invoices.data[invoices.data.length - 1].id;
-          }
-
-          hasMore = invoices.has_more;
-          stats.batchesProcessed++;
-          stats.totalRecords = processedCount;
-        } catch (error) {
-          console.error("Error processing batch:", error);
-          stats.errors++;
-
-          // Continue with next batch on non-critical errors
-          if (stats.errors > 10) {
-            throw new Error("Too many errors, aborting sync");
-          }
-
-          // If we have a starting_after, continue from there
-          if (startingAfter) {
-            hasMore = true;
-          }
-        }
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${
+            result.upsertedCount + result.modifiedCount
+          } subscriptions`
+        );
       }
+    } catch (error) {
+      console.error("Subscription sync failed:", error);
+      throw error;
+    }
+  }
 
-      // Swap collections (atomic operation)
-      console.log("Swapping collections...");
-      const mainCollection = this.db.collection(collectionName);
+  async syncCharges(targetDbId?: string): Promise<void> {
+    console.log(`Starting charges sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
 
-      // Drop old collection and rename staging to main
-      await mainCollection.drop().catch(() => {}); // Ignore error if collection doesn't exist
-      await stagingCollection.rename(collectionName);
+    try {
+      const charges = await this.fetchAllStripeData((params) =>
+        this.stripe.charges.list(params)
+      );
+      console.log(`Fetched ${charges.length} charges from Stripe`);
 
-      console.log("Collection swap completed");
+      const collection = db.collection("stripe_charges");
+
+      // Process charges with data source reference
+      const processedCharges = charges.map((charge) => ({
+        ...charge,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedCharges.length > 0) {
+        const bulkOps = processedCharges.map((charge) => ({
+          replaceOne: {
+            filter: { id: charge.id, _dataSourceId: this.dataSource.id },
+            replacement: charge,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} charges`
+        );
+      }
+    } catch (error) {
+      console.error("Charge sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncInvoices(targetDbId?: string): Promise<void> {
+    console.log(`Starting invoices sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
+    try {
+      const invoices = await this.fetchAllStripeData((params) =>
+        this.stripe.invoices.list(params)
+      );
+      console.log(`Fetched ${invoices.length} invoices from Stripe`);
+
+      const collection = db.collection("stripe_invoices");
+
+      // Process invoices with data source reference
+      const processedInvoices = invoices.map((invoice) => ({
+        ...invoice,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedInvoices.length > 0) {
+        const bulkOps = processedInvoices.map((invoice) => ({
+          replaceOne: {
+            filter: { id: invoice.id, _dataSourceId: this.dataSource.id },
+            replacement: invoice,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} invoices`
+        );
+      }
+    } catch (error) {
+      console.error("Invoice sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncProducts(targetDbId?: string): Promise<void> {
+    console.log(`Starting products sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
+    try {
+      const products = await this.fetchAllStripeData(
+        (params) => this.stripe.products.list(params),
+        { active: true }
+      );
+      console.log(`Fetched ${products.length} products from Stripe`);
+
+      const collection = db.collection("stripe_products");
+
+      // Process products with data source reference
+      const processedProducts = products.map((product) => ({
+        ...product,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedProducts.length > 0) {
+        const bulkOps = processedProducts.map((product) => ({
+          replaceOne: {
+            filter: { id: product.id, _dataSourceId: this.dataSource.id },
+            replacement: product,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} products`
+        );
+      }
+    } catch (error) {
+      console.error("Product sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncPlans(targetDbId?: string): Promise<void> {
+    console.log(`Starting plans sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
+    try {
+      const plans = await this.fetchAllStripeData((params) =>
+        this.stripe.plans.list(params)
+      );
+      console.log(`Fetched ${plans.length} plans from Stripe`);
+
+      const collection = db.collection("stripe_plans");
+
+      // Process plans with data source reference
+      const processedPlans = plans.map((plan) => ({
+        ...plan,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedPlans.length > 0) {
+        const bulkOps = processedPlans.map((plan) => ({
+          replaceOne: {
+            filter: { id: plan.id, _dataSourceId: this.dataSource.id },
+            replacement: plan,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} plans`
+        );
+      }
+    } catch (error) {
+      console.error("Plan sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncAll(targetDbId?: string): Promise<void> {
+    console.log(
+      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`
+    );
+    console.log(`Target database: ${targetDbId || "analytics_db"}`);
+    const startTime = Date.now();
+
+    try {
+      // Sync all data types
+      await this.syncCustomers(targetDbId);
+      await this.syncSubscriptions(targetDbId);
+      await this.syncCharges(targetDbId);
+      await this.syncInvoices(targetDbId);
+      await this.syncProducts(targetDbId);
+      await this.syncPlans(targetDbId);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(
+        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`
+      );
+    } catch (error) {
+      console.error(`❌ Sync failed for ${this.dataSource.name}:`, error);
+      throw error;
     } finally {
-      stats.endTime = new Date();
       await this.disconnect();
     }
+  }
 
-    return stats;
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
-// Load tenant configuration
-function loadTenantConfig(): TenantConfig[] {
+// Load data source configuration
+function loadDataSourceConfig(): DataSourceConfig[] {
   try {
     // Validate configuration first
-    const validation = tenantManager.validateConfig();
+    const validation = dataSourceManager.validateConfig();
     if (!validation.valid) {
-      console.error("Tenant configuration validation failed:");
+      console.error("Configuration validation failed:");
       validation.errors.forEach((error) => console.error(`  - ${error}`));
       process.exit(1);
     }
 
-    return tenantManager.getTenantsWithSource("stripe");
+    return dataSourceManager.getDataSourcesByType("stripe");
   } catch (error) {
-    console.error("Failed to load tenant configuration:", error);
+    console.error("Failed to load configuration:", error);
     console.error(
-      "Make sure config/tenants.yaml exists and environment variables are set"
+      "Make sure config/config.yaml exists and environment variables are set"
     );
     process.exit(1);
   }
@@ -405,83 +416,51 @@ function loadTenantConfig(): TenantConfig[] {
 
 // Main execution
 async function main() {
-  const args = process.argv.slice(2);
-  const syncType = args[0] || "subscriptions";
-  const tenantId = args[1]; // Optional tenant ID
+  const dataSources = loadDataSourceConfig();
 
-  const tenants = loadTenantConfig();
-  const targetTenants = tenantId
-    ? tenants.filter((t) => t.id === tenantId)
-    : tenants;
-
-  if (targetTenants.length === 0) {
-    console.error(
-      `No tenants found${
-        tenantId ? ` for ID: ${tenantId}` : ""
-      } with Stripe enabled`
-    );
-    process.exit(1);
+  if (dataSources.length === 0) {
+    console.log("No active Stripe data sources found.");
+    process.exit(0);
   }
 
-  for (const tenant of targetTenants) {
-    const sync = new StripeSyncService(tenant);
+  console.log(`Found ${dataSources.length} active Stripe data source(s)`);
 
-    try {
-      let stats: SyncStats;
+  // Check command line arguments
+  const args = process.argv.slice(2);
+  const targetDbId = args.find((arg) => arg.startsWith("--db="))?.split("=")[1];
+  const specificSourceId = args.find((arg) => !arg.startsWith("--"));
 
-      console.log(
-        `\n=== Starting Stripe ${syncType} sync for ${tenant.name} ===`
+  if (specificSourceId) {
+    // Sync specific data source
+    const source = dataSources.find((s) => s.id === specificSourceId);
+    if (!source) {
+      console.error(
+        `Data source '${specificSourceId}' not found or not active`
       );
+      console.log("\nAvailable Stripe data sources:");
+      dataSources.forEach((s) => console.log(`  - ${s.id}: ${s.name}`));
+      process.exit(1);
+    }
 
-      switch (syncType) {
-        case "subscriptions":
-          stats = await sync.syncSubscriptions();
-          break;
-        case "customers":
-          stats = await sync.syncCustomers();
-          break;
-        case "invoices":
-          stats = await sync.syncInvoices();
-          break;
-        case "all":
-          console.log("Syncing all Stripe data...");
-          const subsStats = await sync.syncSubscriptions();
-          const custStats = await sync.syncCustomers();
-          const invStats = await sync.syncInvoices();
-
-          stats = {
-            totalRecords:
-              subsStats.totalRecords +
-              custStats.totalRecords +
-              invStats.totalRecords,
-            batchesProcessed:
-              subsStats.batchesProcessed +
-              custStats.batchesProcessed +
-              invStats.batchesProcessed,
-            errors: subsStats.errors + custStats.errors + invStats.errors,
-            startTime: subsStats.startTime,
-            endTime: new Date(),
-          };
-          break;
-        default:
-          console.error(
-            "Unknown sync type. Use: subscriptions, customers, invoices, all"
-          );
-          process.exit(1);
-      }
-
-      const duration = stats.endTime!.getTime() - stats.startTime.getTime();
-      console.log(`\n=== Sync Completed for ${tenant.name} ===`);
-      console.log(`Total records synced: ${stats.totalRecords}`);
-      console.log(`Batches processed: ${stats.batchesProcessed}`);
-      console.log(`Errors encountered: ${stats.errors}`);
-      console.log(`Duration: ${Math.round(duration / 1000)} seconds`);
-    } catch (error) {
-      console.error(`Sync failed for tenant ${tenant.name}:`, error);
+    const syncService = new StripeSyncService(source);
+    await syncService.syncAll(targetDbId);
+  } else {
+    // Sync all data sources
+    for (const dataSource of dataSources) {
+      const syncService = new StripeSyncService(dataSource);
+      await syncService.syncAll(targetDbId);
     }
   }
+
+  console.log("\n✅ All syncs completed successfully!");
 }
 
+// Execute if run directly
 if (require.main === module) {
-  main();
+  main().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
 }
+
+export { StripeSyncService };

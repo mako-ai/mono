@@ -1,156 +1,211 @@
-# Close.com Analytics
+# Data Analytics Platform
 
-A local analytics tool for Close.com CRM data using MongoDB for complex querying and analysis.
+A flexible data analytics platform that syncs data from multiple sources (Close.com, Stripe, etc.) to MongoDB databases.
 
-## Features
+## Architecture
 
-- Full data sync from Close.com API to local MongoDB
-- Rate limiting and retry logic for API reliability
-- Atomic collection swapping for zero-downtime updates
-- MongoDB aggregation queries for business analytics
-- Local development environment with Docker
-
-## Quick Start
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Node.js 18+ and pnpm
-- Close.com API key
-
-### Setup
-
-1. **Clone and install dependencies:**
-
-   ```bash
-   git clone <your-repo>
-   cd multi-tenant-analytics
-   pnpm install
-   ```
-
-2. **Configure environment:**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your Close.com API key
-   ```
-
-3. **Start MongoDB:**
-
-   ```bash
-   npm run docker:up
-   ```
-
-4. **Sync your first data:**
-
-   ```bash
-   pnpm run sync:leads
-   ```
-
-5. **Access MongoDB UI:**
-   Open http://localhost:8082 to browse your data with Mongo Express
+The platform uses a data source-based architecture where each connection (API or database) is treated as an independent data source with its own configuration.
 
 ## Configuration
 
-### Environment Variables
+All data sources are configured in `config/config.yaml`:
 
-| Variable                  | Description                     | Default                                            |
-| ------------------------- | ------------------------------- | -------------------------------------------------- |
-| `CLOSE_API_KEY`           | Your Close.com API key          | Required                                           |
-| `CLOSE_API_BASE_URL`      | Close.com API base URL          | `https://api.close.com/api/v1`                     |
-| `MONGO_CONNECTION_STRING` | MongoDB connection string       | `mongodb://localhost:27018/multi_tenant_analytics` |
-| `RATE_LIMIT_DELAY_MS`     | Delay between API requests      | `200`                                              |
-| `MAX_RETRIES`             | Max retries for failed requests | `5`                                                |
-| `BATCH_SIZE`              | Records per API request         | `100`                                              |
+```yaml
+data_sources:
+  close_spain:
+    name: "Spain Close CRM"
+    type: "close"
+    active: true
+    connection:
+      api_key: "${CLOSE_API_KEY_SPAIN}"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 200
 
-### Getting Your Close.com API Key
+  stripe_spain:
+    name: "Spain Stripe Payments"
+    type: "stripe"
+    active: true
+    connection:
+      api_key: "${STRIPE_API_KEY_SPAIN}"
+    settings:
+      sync_batch_size: 50
+      rate_limit_delay_ms: 300
 
-1. Log into your Close.com account
-2. Go to Settings → API Keys
-3. Create a new API key with read permissions
-4. Copy the key to your `.env` file
-
-## Usage
-
-### Syncing Data
-
-```bash
-# Sync leads only
-pnpm run sync:leads
-
-# Sync all data types (when implemented)
-pnpm run sync:all
+  analytics_db:
+    name: "Main Analytics Database"
+    type: "mongodb"
+    active: true
+    connection:
+      connection_string: "mongodb://localhost:27018/multi_tenant_analytics"
+      database: "multi_tenant_analytics"
 ```
 
-### Running Queries
+## Sync Commands
 
-Execute pre-built MongoDB queries from the `queries/` directory:
-
-```bash
-# Run a specific query
-pnpm run query leads_by_csm
-
-# List all available queries
-pnpm run query --list
-```
-
-**Query File Format:**
-Create `.js` files in the `queries/` directory with standard MongoDB syntax:
-
-```javascript
-// queries/my_query.js
-db.collection_name.aggregate([
-  { $match: { status: "active" } },
-  { $group: { _id: "$category", count: { $sum: 1 } } },
-  { $sort: { count: -1 } },
-]);
-```
-
-The query runner will:
-
-- Connect to your MongoDB database automatically
-- Execute the query and display formatted results
-- Handle both aggregation pipelines and find operations
-- Show query execution time and result counts
-
-### Docker Commands
+The platform provides a unified sync command that works with any data source defined in your configuration:
 
 ```bash
-# Start MongoDB containers
-pnpm run docker:up
+# Show sync command usage
+pnpm run sync
 
-# Stop containers
-pnpm run docker:down
+# Sync all entities from a data source
+pnpm run sync close_spain
 
-# View logs
-pnpm run docker:logs
+# Sync specific entity from a data source
+pnpm run sync close_spain leads
+pnpm run sync close_spain opportunities
+pnpm run sync stripe_spain customers
 
-# Full reset (removes all data)
-docker compose down -v
+# Sync to a different target database
+pnpm run sync close_spain --db=warehouse_db
+pnpm run sync close_spain leads --db=analytics_db
 ```
 
-### Development
+### Available Entities
+
+**Close.com:**
+
+- leads
+- opportunities
+- contacts
+- activities
+- users
+- custom-fields
+
+**Stripe:**
+
+- customers
+- subscriptions
+- charges
+- invoices
+- products
+- plans
+
+## Management Commands
 
 ```bash
+# Configuration management
+pnpm run config:validate    # Validate configuration
+pnpm run config:list        # List all data sources
+pnpm run config:show <id>   # Show specific data source details
+
+# Docker management
+pnpm run docker:up          # Start MongoDB and other services
+pnpm run docker:down        # Stop all services
+pnpm run docker:logs        # View logs
+```
+
+## Query Runner
+
+Run MongoDB queries across different databases:
+
+```bash
+# Run query on default database
+pnpm run query queries/example.js
+
+# Run query on specific database
+pnpm run query queries/example.js --db=analytics_db
+```
+
+## Setup
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   # or
+   yarn install
+   # or
+   pnpm install
+   ```
+
+2. Configure environment variables in `.env`:
+
+   ```env
+   CLOSE_API_KEY_SPAIN=your_api_key
+   CLOSE_API_KEY_ITALY=your_api_key
+   STRIPE_API_KEY_SPAIN=your_api_key
+   MONGODB_CONNECTION_STRING=mongodb://localhost:27018
+   MONGODB_DATABASE=multi_tenant_analytics
+   ```
+
+3. Start MongoDB:
+
+   ```bash
+   pnpm run docker:up
+   ```
+
+4. Start syncing:
+   ```bash
+   pnpm run sync close_spain
+   pnpm run sync stripe_spain customers
+   ```
+
+## Adding New Data Sources
+
+Simply add the configuration to `config/config.yaml` and start using it immediately:
+
+```yaml
+data_sources:
+  my_new_source:
+    name: "My New Data Source"
+    type: "close" # or "stripe", etc.
+    active: true
+    connection:
+      api_key: "${MY_API_KEY}"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 200
+```
+
+Then sync it:
+
+```bash
+pnpm run sync my_new_source
+```
+
+No additional setup required!
+
+## Data Source Types
+
+- **API Sources**: Close.com, Stripe, REST APIs
+- **Database Sources**: MongoDB (used as sync targets)
+- **Future**: PostgreSQL, MySQL, GraphQL APIs
+
+## Development
+
+```bash
+# Run in development mode
+pnpm run dev
+
 # Build TypeScript
 pnpm run build
 
-# Run in development mode
-pnpm run dev
+# Run tests
+pnpm run test
+
+# Lint code
+pnpm run lint
+
+# Format code
+pnpm run format
 ```
 
 ## Data Structure
 
-The sync process creates these MongoDB collections:
+The sync process creates MongoDB collections for each entity type. Each record includes:
 
-- `leads` - Current lead data
-- `leads_staging` - Temporary collection used during sync
+- Original data from the source
+- `_dataSourceId`: The ID of the source
+- `_dataSourceName`: The name of the source
+- `_syncedAt`: Timestamp of when the data was synced
 
 ### Atomic Updates
 
 The sync process uses a staging approach to ensure data consistency:
 
-1. Downloads all data to `leads_staging`
+1. Downloads all data to a staging collection
 2. Swaps collections atomically
 3. Drops the old collection
 
@@ -160,7 +215,7 @@ This ensures your queries never see partial data.
 
 ### Using Mongo Express
 
-1. Open http://localhost:8082
+1. Open http://localhost:8081
 2. Navigate to `multi_tenant_analytics` database
 3. Browse collections and run queries
 
@@ -172,30 +227,30 @@ Connect to: `mongodb://localhost:27018/multi_tenant_analytics`
 
 ```bash
 # Connect to MongoDB container
-docker exec -it multi-tenant-analytics-mongo mongosh multi_tenant_analytics
+docker exec -it analytics-platform-mongo mongosh multi_tenant_analytics
 
 # Example query
-db.leads.find({status_id: "lead_status_xyz"}).count()
+db.leads.find({_dataSourceId: "close_spain"}).count()
 ```
 
 ## Sample Analytics Queries
 
-Ready-made queries are available in the `queries/` folder. Execute them with `pnpm run query <query_name>`:
+Ready-made queries are available in the `queries/` folder:
+
+```bash
+# Run a specific query
+pnpm run query <query_name>
+
+# List available queries
+pnpm run query --list
+```
+
+Example queries:
 
 - Sales by salesperson by month
 - Average time to close by salesperson
 - Open opportunities by salesperson
 - Stale opportunities analysis
-
-**Example:**
-
-```bash
-# Run the leads by CSM analysis
-pnpm run query leads_by_csm
-
-# See all available queries
-pnpm run query --list
-```
 
 ## Troubleshooting
 
@@ -203,50 +258,56 @@ pnpm run query --list
 
 **API Rate Limiting:**
 
-- Increase `RATE_LIMIT_DELAY_MS` in `.env`
+- Increase `rate_limit_delay_ms` in the data source configuration
 - The sync will automatically retry with exponential backoff
 
 **MongoDB Connection Issues:**
 
-- Ensure Docker containers are running: `npm run docker:up`
-- Check logs: `npm run docker:logs`
+- Ensure Docker containers are running: `pnpm run docker:up`
+- Check logs: `pnpm run docker:logs`
 
 **Large Dataset Sync:**
 
-- The process handles 50k+ records automatically
+- The process handles large datasets automatically
 - Monitor progress in console output
-- Sync typically takes 10-20 minutes for 50k records
+- Adjust `sync_batch_size` for optimal performance
 
 ### Performance Tips
 
 - Run syncs during off-hours to avoid API limits
-- Use `BATCH_SIZE=100` for optimal performance
+- Use appropriate batch sizes (50-100 for most APIs)
 - Monitor memory usage for very large datasets
 
 ## Project Structure
 
 ```
-multi-tenant-analytics/
+data-analytics-platform/
 ├── src/
-│   ├── sync-leads.ts      # Leads sync script
-│   └── index.ts           # Main entry point
+│   ├── sync.ts              # Unified sync command
+│   ├── sync-close.ts        # Close.com sync implementation
+│   ├── sync-stripe.ts       # Stripe sync implementation
+│   ├── data-source-manager.ts # Configuration manager
+│   └── query-runner.ts      # Query execution
+├── config/
+│   └── config.yaml          # Data source configuration
 ├── scripts/
-│   └── init-mongo.js      # MongoDB initialization
-├── queries/               # Ready-made analytics queries
-├── docker-compose.yml     # Docker configuration
-├── .env                   # Environment variables
-└── package.json          # Node.js dependencies
+│   └── config.ts            # Configuration utilities
+├── queries/                 # MongoDB query library
+├── docker-compose.yml       # Docker services
+├── .env                     # Environment variables
+└── package.json            # Dependencies
 ```
 
 ## Next Steps
 
-- [ ] Add opportunities sync
-- [ ] Add contacts sync
-- [ ] Create analytics query library
-- [ ] Add data export utilities
+- [ ] Add more source types (PostgreSQL, MySQL, GraphQL)
+- [ ] Add real-time sync capabilities
+- [ ] Create analytics dashboard
+- [ ] Add data transformation pipelines
 - [ ] Add scheduling with cron jobs
 
 ## Support
 
-For Close.com API documentation: https://developer.close.com/
-For MongoDB queries: https://docs.mongodb.com/manual/tutorial/query-documents/
+- Close.com API: https://developer.close.com/
+- Stripe API: https://stripe.com/docs/api
+- MongoDB: https://docs.mongodb.com/
