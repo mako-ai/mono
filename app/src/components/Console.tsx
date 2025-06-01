@@ -185,8 +185,10 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
             {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
           </Button>
 
-          <FormControl size="small" sx={{ minWidth: 200 }}>
+          <FormControl size="small" variant="standard" sx={{ minWidth: 80 }}>
             <Select
+              variant="standard"
+              disableUnderline
               labelId="database-select-label"
               value={selectedDatabaseId}
               onChange={(e) => setSelectedDatabaseId(e.target.value)}

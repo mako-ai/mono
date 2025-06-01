@@ -167,9 +167,29 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       },
       MuiSelect: {
         styleOverrides: {
-          root: {
+          root: ({ ownerState }) => ({
+            fontSize: "0.9em",
+            "& .MuiSelect-select": {
+              fontSize: "0.9em",
+            },
+            // Remove underline for the "standard" variant only
+            ...(ownerState.variant === "standard" && {
+              "&:before, &:after": {
+                display: "none",
+              },
+            }),
             transition: "background-color 0.2s ease, border-color 0.2s ease",
-          },
+          }),
+        },
+      },
+      MuiInputBase: {
+        styleOverrides: {
+          // Ensure font-size cascades to any InputBase that is part of a small Select
+          root: ({ ownerState }) => ({
+            ...(ownerState.size === "small" && {
+              fontSize: 12,
+            }),
+          }),
         },
       },
       MuiTabs: {
@@ -201,6 +221,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               color: theme.palette.text.primary,
             },
           }),
+        },
+      },
+      MuiMenuItem: {
+        styleOverrides: {
+          root: {
+            fontSize: 12,
+          },
         },
       },
     },
