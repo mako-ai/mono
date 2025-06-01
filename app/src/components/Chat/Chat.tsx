@@ -4,14 +4,11 @@ import {
   Typography,
   Button,
   Alert,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   IconButton,
   Menu,
   ListItemText,
   ListItemIcon,
+  MenuItem,
 } from "@mui/material";
 import OpenAI from "openai";
 import UserInput from "./UserInput";
@@ -889,30 +886,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         onSend={sendMessage}
         onAttachClick={handleAttachClick}
         isLoading={isLoading}
+        availableModels={availableModels}
+        selectedModel={selectedModel}
+        setSelectedModel={setSelectedModel}
       />
-
-      {/* Model selection dropdown */}
-      <Box sx={{ mt: 1 }}>
-        <FormControl
-          size="small"
-          sx={{ minWidth: 200 }}
-          disabled={availableModels.length === 0}
-        >
-          <InputLabel id="model-select-label">Model</InputLabel>
-          <Select
-            labelId="model-select-label"
-            label="Model"
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value as string)}
-          >
-            {availableModels.map((modelId) => (
-              <MenuItem key={modelId} value={modelId}>
-                {modelId}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Box>
 
       <AttachmentSelector
         open={attachmentSelectorOpen}

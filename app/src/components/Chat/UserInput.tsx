@@ -5,18 +5,18 @@ import {
   Button,
   Paper,
   IconButton,
-  Typography,
   Chip,
+  FormControl,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import {
   Send as SendIcon,
-  AttachFile,
   Storage,
   Code,
   Description,
   TableView,
   Close,
-  Add,
   AlternateEmailOutlined,
 } from "@mui/icons-material";
 import { AttachedContext } from "./types";
@@ -29,6 +29,9 @@ interface UserInputProps {
   onSend: () => void;
   onAttachClick: (event: React.MouseEvent<HTMLElement>) => void;
   isLoading: boolean;
+  availableModels: string[];
+  selectedModel: string;
+  setSelectedModel: (modelId: string) => void;
 }
 
 const UserInput: React.FC<UserInputProps> = ({
@@ -39,6 +42,9 @@ const UserInput: React.FC<UserInputProps> = ({
   onSend,
   onAttachClick,
   isLoading,
+  availableModels,
+  selectedModel,
+  setSelectedModel,
 }) => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -129,7 +135,7 @@ const UserInput: React.FC<UserInputProps> = ({
         fullWidth
         autoFocus
         multiline
-        minRows={3}
+        minRows={1}
         placeholder="Ask me anything..."
         value={inputMessage}
         onChange={(e) => setInputMessage(e.target.value)}
@@ -137,6 +143,7 @@ const UserInput: React.FC<UserInputProps> = ({
         disabled={isLoading}
         variant="outlined"
         sx={{
+          mb: 0.5,
           "& .MuiInputBase-input": {
             fontSize: 14,
           },
@@ -157,7 +164,7 @@ const UserInput: React.FC<UserInputProps> = ({
         }}
       />
 
-      {/* Bottom action bar with Attach button and Send button */}
+      {/* Bottom action bar with Model dropdown on left and Send button on right */}
       <Box
         sx={{
           display: "flex",
@@ -165,6 +172,27 @@ const UserInput: React.FC<UserInputProps> = ({
           alignItems: "center",
         }}
       >
+        {/* Model Selection Dropdown */}
+        <FormControl
+          size="small"
+          variant="standard"
+          sx={{ minWidth: 80 }}
+          disabled={availableModels.length === 0 || isLoading}
+        >
+          <Select
+            variant="standard"
+            disableUnderline
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value as string)}
+          >
+            {availableModels.map((modelId) => (
+              <MenuItem key={modelId} value={modelId} sx={{ fontSize: 12 }}>
+                {modelId}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         {/* Send Button */}
         <IconButton
           onClick={onSend}
@@ -172,6 +200,7 @@ const UserInput: React.FC<UserInputProps> = ({
           size="small"
           sx={{
             color: inputMessage.trim() ? "primary.main" : "text.disabled",
+            p: 0,
             "&:hover": {
               backgroundColor: "action.hover",
             },
