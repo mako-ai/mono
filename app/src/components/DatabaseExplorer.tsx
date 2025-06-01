@@ -99,15 +99,26 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
       if (data.success) {
         setServers(data.data);
-        // Auto-expand the first server
+
+        // Clear any previously cached collections/views so we always show fresh data
+        setCollections({});
+        setViews({});
+
+        // Automatically fetch collections/views for every database so that the
+        // data tree is fully up-to-date after a refresh.
+        data.data.forEach((srv: Server) => {
+          srv.databases.forEach((db) => {
+            fetchDatabaseData(db.id);
+          });
+        });
+
+        // Keep the previous behaviour of auto-expanding the first server/database (optional)
         if (data.data.length > 0) {
           const firstServerId = data.data[0].id;
           setExpandedServers(new Set([firstServerId]));
-          // Auto-expand first database if available
           if (data.data[0].databases.length > 0) {
             const firstDbId = data.data[0].databases[0].id;
             setExpandedDatabases(new Set([firstDbId]));
-            fetchDatabaseData(firstDbId);
           }
         }
       } else {
@@ -224,6 +235,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   };
 
   const handleRefresh = () => {
+    // Clear cached data so we don't keep stale information around between refreshes
+    setCollections({});
+    setViews({});
+    setLoadingData(new Set());
+
     fetchServers();
   };
 
