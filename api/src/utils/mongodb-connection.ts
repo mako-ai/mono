@@ -1,5 +1,6 @@
 import { MongoClient, Db, MongoClientOptions } from "mongodb";
 import dotenv from "dotenv";
+import { configLoader, MongoDatabase } from "./config-loader";
 
 dotenv.config({ path: "../../.env" });
 
@@ -11,25 +12,10 @@ export interface MongoConfig {
 
 class MongoDBConnection {
   private static instance: MongoDBConnection;
-  private client: MongoClient | null = null;
-  private db: Db | null = null;
-  private config: MongoConfig;
-  private isConnecting: boolean = false;
-  private reconnectTimer: NodeJS.Timeout | null = null;
+  private connections: Map<string, { client: MongoClient; db: Db }> = new Map();
+  private connectingDatabases: Set<string> = new Set();
 
-  private constructor() {
-    this.config = {
-      connectionString:
-        process.env.MONGODB_CONNECTION_STRING || "mongodb://localhost:27018",
-      database: process.env.MONGODB_DATABASE || "multi_tenant_analytics",
-      options: {
-        maxPoolSize: 10,
-        minPoolSize: 2,
-        maxIdleTimeMS: 30000,
-        serverSelectionTimeoutMS: 5000,
-      },
-    };
-  }
+  private constructor() {}
 
   public static getInstance(): MongoDBConnection {
     if (!MongoDBConnection.instance) {
@@ -38,106 +24,168 @@ class MongoDBConnection {
     return MongoDBConnection.instance;
   }
 
-  public async connect(): Promise<void> {
-    if (this.client && this.db) {
-      // Check if connection is still alive
+  /**
+   * Get a database connection by data source ID
+   */
+  public async getDatabase(dataSourceId: string): Promise<Db> {
+    // Check if we already have a connection
+    const existing = this.connections.get(dataSourceId);
+    if (existing) {
       try {
-        await this.client.db("admin").command({ ping: 1 });
-        return;
+        // Verify connection is still alive
+        await existing.client.db("admin").command({ ping: 1 });
+        return existing.db;
       } catch (error) {
-        console.log("Connection lost, reconnecting...");
-        await this.disconnect();
+        console.log(`Connection lost for ${dataSourceId}, reconnecting...`);
+        this.connections.delete(dataSourceId);
       }
     }
 
-    if (this.isConnecting) {
-      // Wait for ongoing connection
-      while (this.isConnecting) {
+    // Wait if already connecting
+    if (this.connectingDatabases.has(dataSourceId)) {
+      while (this.connectingDatabases.has(dataSourceId)) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
-      return;
+      const connection = this.connections.get(dataSourceId);
+      if (connection) {
+        return connection.db;
+      }
     }
 
-    this.isConnecting = true;
+    // Connect to the database
+    return this.connect(dataSourceId);
+  }
+
+  /**
+   * Connect to a specific database
+   */
+  private async connect(dataSourceId: string): Promise<Db> {
+    this.connectingDatabases.add(dataSourceId);
 
     try {
+      // Get the data source config
+      const dataSource = configLoader.getMongoDBSource(dataSourceId);
+
+      if (!dataSource) {
+        throw new Error(
+          `Data source '${dataSourceId}' not found in configuration`
+        );
+      }
+
+      if (!dataSource.connectionString) {
+        throw new Error(
+          `Data source '${dataSourceId}' is missing connection string`
+        );
+      }
+
+      if (!dataSource.database) {
+        throw new Error(
+          `Data source '${dataSourceId}' is missing database name`
+        );
+      }
+
       console.log(
-        `🔌 Connecting to MongoDB: ${this.config.connectionString}/${this.config.database}`
+        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.database} on ${dataSource.serverName}`
       );
 
-      this.client = new MongoClient(
-        this.config.connectionString,
-        this.config.options
-      );
+      const options: MongoClientOptions = {
+        maxPoolSize: dataSource.settings?.max_pool_size || 10,
+        minPoolSize: dataSource.settings?.min_pool_size || 2,
+        maxIdleTimeMS: 30000,
+        serverSelectionTimeoutMS: 5000,
+      };
 
-      await this.client.connect();
-      this.db = this.client.db(this.config.database);
+      const client = new MongoClient(dataSource.connectionString, options);
+
+      await client.connect();
+      const db = client.db(dataSource.database);
+
+      // Store the connection
+      this.connections.set(dataSourceId, { client, db });
 
       // Set up connection monitoring
-      this.client.on("close", () => {
-        console.log("MongoDB connection closed");
-        this.scheduleReconnect();
+      client.on("close", () => {
+        console.log(`MongoDB connection closed for '${dataSourceId}'`);
+        this.connections.delete(dataSourceId);
       });
 
-      this.client.on("error", (error) => {
-        console.error("MongoDB connection error:", error);
-        this.scheduleReconnect();
+      client.on("error", (error) => {
+        console.error(`MongoDB connection error for '${dataSourceId}':`, error);
+        this.connections.delete(dataSourceId);
       });
 
-      console.log("✅ Connected to MongoDB");
+      console.log(`✅ Connected to MongoDB '${dataSourceId}'`);
+
+      return db;
     } catch (error) {
-      console.error("❌ Failed to connect to MongoDB:", error);
-      this.client = null;
-      this.db = null;
+      console.error(
+        `❌ Failed to connect to MongoDB '${dataSourceId}':`,
+        error
+      );
       throw error;
     } finally {
-      this.isConnecting = false;
+      this.connectingDatabases.delete(dataSourceId);
     }
   }
 
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer) {
-      return;
-    }
-
-    this.reconnectTimer = setTimeout(async () => {
-      this.reconnectTimer = null;
-      try {
-        await this.connect();
-      } catch (error) {
-        console.error("Reconnection failed:", error);
-        this.scheduleReconnect();
-      }
-    }, 5000);
-  }
-
-  public async disconnect(): Promise<void> {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-
-    if (this.client) {
-      await this.client.close();
-      this.client = null;
-      this.db = null;
+  /**
+   * Disconnect from a specific database
+   */
+  public async disconnect(dataSourceId: string): Promise<void> {
+    const connection = this.connections.get(dataSourceId);
+    if (connection) {
+      await connection.client.close();
+      this.connections.delete(dataSourceId);
     }
   }
 
+  /**
+   * Disconnect from all databases
+   */
+  public async disconnectAll(): Promise<void> {
+    const promises = Array.from(this.connections.keys()).map((id) =>
+      this.disconnect(id)
+    );
+    await Promise.all(promises);
+  }
+
+  /**
+   * Legacy method for backward compatibility
+   * Returns the first available MongoDB database
+   */
   public async getDb(): Promise<Db> {
-    await this.connect();
-    if (!this.db) {
-      throw new Error("Database connection not established");
+    const mongoSources = configLoader.getMongoDBSources();
+    if (mongoSources.length === 0) {
+      throw new Error("No MongoDB data sources configured");
     }
-    return this.db;
+
+    // Try to use analytics_db first for backward compatibility
+    const primarySource =
+      mongoSources.find((s) => s.id.endsWith("analytics_db")) ||
+      mongoSources[0];
+    return this.getDatabase(primarySource.id);
   }
 
+  /**
+   * Legacy method for backward compatibility
+   */
   public async getClient(): Promise<MongoClient> {
-    await this.connect();
-    if (!this.client) {
+    const mongoSources = configLoader.getMongoDBSources();
+    if (mongoSources.length === 0) {
+      throw new Error("No MongoDB data sources configured");
+    }
+
+    const primarySource =
+      mongoSources.find((s) => s.id.endsWith("analytics_db")) ||
+      mongoSources[0];
+    await this.getDatabase(primarySource.id); // Ensure connected
+
+    const connection = this.connections.get(primarySource.id);
+    if (!connection) {
       throw new Error("MongoDB client not connected");
     }
-    return this.client;
+
+    return connection.client;
   }
 }
 

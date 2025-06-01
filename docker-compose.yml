@@ -3,7 +3,7 @@ version: "3.8"
 services:
   mongodb:
     image: mongo:7.0
-    container_name: analytics-platform-mongo
+    container_name: mongo
     restart: always
     ports:
       - "27018:27017"
@@ -14,7 +14,7 @@ services:
 
   mongo-express:
     image: mongo-express
-    container_name: analytics-platform-mongo-express
+    container_name: mongo-express
     restart: always
     ports:
       - "8081:8081"

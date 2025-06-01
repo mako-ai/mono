@@ -2,7 +2,7 @@ import { Box } from "@mui/material";
 import { Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Queries from "./pages/Queries";
-import Collections from "./pages/Collections";
+import Databases from "./pages/Databases";
 import Views from "./pages/Views";
 import Settings from "./pages/Settings";
 import DataSources from "./pages/DataSources";
@@ -34,7 +34,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Queries />} />
           <Route path="/sources" element={<DataSources />} />
-          <Route path="/collections" element={<Collections />} />
+          <Route path="/databases" element={<Databases />} />
           <Route path="/views" element={<Views />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>

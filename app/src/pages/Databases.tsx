@@ -15,7 +15,7 @@ import {
   Tab,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
-import CollectionExplorer from "../components/CollectionExplorer";
+import DatabaseExplorer from "../components/DatabaseExplorer";
 import CollectionEditor, {
   CollectionEditorRef,
 } from "../components/CollectionEditor";
@@ -31,6 +31,9 @@ interface CollectionInfo {
   name: string;
   type: string;
   options: any;
+}
+
+interface CollectionInfoWithDetails extends CollectionInfo {
   info: any;
 }
 
@@ -61,11 +64,11 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
   },
 }));
 
-function Collections() {
+function Databases() {
+  const [selectedDatabase, setSelectedDatabase] = useState<string>("");
   const [selectedCollection, setSelectedCollection] = useState<string>("");
-  const [collectionInfo, setCollectionInfo] = useState<CollectionInfo | null>(
-    null
-  );
+  const [collectionInfo, setCollectionInfo] =
+    useState<CollectionInfoWithDetails | null>(null);
   const [queryResults, setQueryResults] = useState<QueryResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -130,7 +133,10 @@ function Collections() {
   };
 
   // Attach double click handler to open console prefilled
-  const handleCollectionDoubleClick = (collection: CollectionInfo) => {
+  const handleCollectionDoubleClick = (
+    databaseId: string,
+    collection: CollectionInfo
+  ) => {
     const prefill = `db.${collection.name}.find({})`;
     openNewConsole(prefill, `Console - ${collection.name}`);
   };
@@ -189,6 +195,7 @@ function Collections() {
   };
 
   const handleCollectionSelect = (
+    databaseId: string,
     collectionName: string,
     collection: CollectionInfo
   ) => {
@@ -197,21 +204,34 @@ function Collections() {
       collectionEditorRef.current.cancelCreation?.();
     }
 
+    setSelectedDatabase(databaseId);
     setSelectedCollection(collectionName);
-    setCollectionInfo(collection);
+    setCollectionInfo({
+      ...collection,
+      info: {}, // Add empty info object for compatibility
+    });
     setQueryResults(null); // Clear previous results
   };
 
   const handleCollectionCreate = async (collectionDefinition: any) => {
+    if (!selectedDatabase) {
+      setErrorMessage("Please select a database first");
+      setErrorModalOpen(true);
+      return;
+    }
+
     setIsCreating(true);
     try {
-      const response = await fetch("/api/database/collections", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(collectionDefinition),
-      });
+      const response = await fetch(
+        `/api/databases/${selectedDatabase}/collections`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(collectionDefinition),
+        }
+      );
 
       const data = await response.json();
 
@@ -221,7 +241,7 @@ function Collections() {
         );
         setSnackbarOpen(true);
         setCreateDialogOpen(false);
-        // Refresh the collection explorer
+        // Refresh the database explorer
         setRefreshKey((prev) => prev + 1);
         // Select the newly created collection
         setSelectedCollection(collectionDefinition.name);
@@ -247,9 +267,13 @@ function Collections() {
   };
 
   const handleCollectionDelete = async (collectionName: string) => {
+    if (!selectedDatabase) return;
+
     try {
       const response = await fetch(
-        `/api/database/collections/${encodeURIComponent(collectionName)}`,
+        `/api/databases/${selectedDatabase}/collections/${encodeURIComponent(
+          collectionName
+        )}`,
         {
           method: "DELETE",
         }
@@ -266,7 +290,7 @@ function Collections() {
         setSelectedCollection("");
         setCollectionInfo(null);
         setQueryResults(null);
-        // Refresh the collection explorer
+        // Refresh the database explorer
         setRefreshKey((prev) => prev + 1);
       } else {
         console.error("Collection delete failed:", data.error);
@@ -290,8 +314,9 @@ function Collections() {
     setSnackbarMessage("");
   };
 
-  const handleCreateNewCollection = () => {
-    // Clear current selection when creating a new collection
+  const handleCreateNewCollection = (databaseId: string) => {
+    // Set the selected database for creation
+    setSelectedDatabase(databaseId);
     setSelectedCollection("");
     setCollectionInfo(null);
     setQueryResults(null);
@@ -319,13 +344,11 @@ function Collections() {
         direction="horizontal"
         style={{ height: "100%", width: "100%" }}
       >
-        {/* Left Panel - Collection Explorer */}
+        {/* Left Panel - Database Explorer */}
         <Panel defaultSize={15}>
           <Box sx={{ height: "100%", overflow: "hidden" }}>
-            <CollectionExplorer
-              onCollectionSelect={(_name: string, _info: CollectionInfo) => {}}
-              // highlight disabled for now
-              selectedCollection={undefined}
+            <DatabaseExplorer
+              onCollectionSelect={handleCollectionSelect}
               key={refreshKey}
               onCreateNew={handleCreateNewCollection}
               onCollectionDoubleClick={handleCollectionDoubleClick}
@@ -542,4 +565,4 @@ function Collections() {
   );
 }
 
-export default Collections;
+export default Databases;
