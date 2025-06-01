@@ -26,6 +26,8 @@ interface ConsoleProps {
   isExecuting: boolean;
   onContentChange?: (content: string) => void;
   databases?: Database[];
+  initialDatabaseId?: string;
+  onDatabaseChange?: (databaseId: string) => void;
 }
 
 export interface ConsoleRef {
@@ -45,6 +47,8 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
       isExecuting,
       onContentChange,
       databases = [],
+      initialDatabaseId,
+      onDatabaseChange,
     },
     ref
   ) => {
@@ -52,7 +56,9 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
     const [currentContent, setCurrentContent] = useState(initialContent);
-    const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>("");
+    const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>(
+      initialDatabaseId || ""
+    );
     // Keep a ref of the latest selected database so closures (e.g. Monaco keybindings) always see the up-to-date value
     const selectedDatabaseIdRef = useRef<string>("");
 
@@ -67,6 +73,20 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
         setSelectedDatabaseId(databases[0].id);
       }
     }, [databases, selectedDatabaseId]);
+
+    // Update internal selected DB if prop changes
+    useEffect(() => {
+      if (initialDatabaseId && initialDatabaseId !== selectedDatabaseId) {
+        setSelectedDatabaseId(initialDatabaseId);
+      }
+    }, [initialDatabaseId]);
+
+    // Notify parent whenever selectedDatabaseId changes
+    useEffect(() => {
+      if (selectedDatabaseId && onDatabaseChange) {
+        onDatabaseChange(selectedDatabaseId);
+      }
+    }, [selectedDatabaseId]);
 
     // Update current content when initialContent changes (e.g., new console opened)
     useEffect(() => {

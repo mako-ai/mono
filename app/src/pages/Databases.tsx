@@ -102,6 +102,7 @@ function Databases() {
     addConsoleTab,
     removeConsoleTab,
     updateConsoleContent,
+    updateConsoleDatabase,
     setActiveConsole,
   } = useConsoleStore();
 
@@ -333,6 +334,10 @@ function Databases() {
                                 updateConsoleContent(tab.id, content)
                               }
                               databases={availableDatabases}
+                              initialDatabaseId={tab.databaseId}
+                              onDatabaseChange={(dbId) =>
+                                updateConsoleDatabase(tab.id, dbId)
+                              }
                             />
                           </Box>
                         ))}
