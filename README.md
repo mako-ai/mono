@@ -227,7 +227,7 @@ Connect to: `mongodb://localhost:27018/multi_tenant_analytics`
 
 ```bash
 # Connect to MongoDB container
-docker exec -it analytics-platform-mongo mongosh multi_tenant_analytics
+docker exec -it mongo mongosh multi_tenant_analytics
 
 # Example query
 db.leads.find({_dataSourceId: "close_spain"}).count()

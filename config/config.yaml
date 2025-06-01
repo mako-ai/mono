@@ -63,31 +63,48 @@ data_sources:
       sync_batch_size: 50
       rate_limit_delay_ms: 300
 
-  # Database Sources
-  analytics_db:
-    name: "Main Analytics Database"
-    description: "Primary MongoDB for analytics data"
+# MongoDB Servers Configuration
+# Group databases by their server instances
+mongodb_servers:
+  local_dev:
+    name: "Local Development Server"
+    description: "Local MongoDB instance for development"
+    connection_string: "mongodb://localhost:27018"
     active: true
-    type: "mongodb"
-    connection:
-      connection_string: "mongodb://localhost:27018/multi_tenant_analytics"
-      database: "multi_tenant_analytics"
-    settings:
-      max_pool_size: 10
-      min_pool_size: 2
+    databases:
+      analytics_db:
+        name: "Main Analytics Database"
+        description: "Primary MongoDB for analytics data"
+        database: "multi_tenant_analytics"
+        active: true
+        settings:
+          max_pool_size: 10
+          min_pool_size: 2
 
-  # Additional database example (commented out)
-  # warehouse_db:
-  #   name: "Data Warehouse"
-  #   description: "Secondary database for historical data"
-  #   active: false
-  #   type: "mongodb"
-  #   connection:
-  #     connection_string: "mongodb://warehouse:27017/historical"
-  #     database: "historical_data"
-  #   settings:
-  #     max_pool_size: 5
-  #     min_pool_size: 1
+      datawarehouse:
+        name: "Data Warehouse Database"
+        description: "Primary MongoDB for data warehouse data"
+        database: "datawarehouse"
+        active: true
+        settings:
+          max_pool_size: 10
+          min_pool_size: 2
+
+  # Example of a production server (commented out)
+  # production:
+  #   name: "Production Cluster"
+  #   description: "Production MongoDB Atlas cluster"
+  #   connection_string: "mongodb+srv://user:pass@cluster.mongodb.net"
+  #   active: true
+  #   databases:
+  #     analytics_prod:
+  #       name: "Production Analytics"
+  #       description: "Production analytics database"
+  #       database: "analytics"
+  #       active: true
+  #       settings:
+  #         max_pool_size: 20
+  #         min_pool_size: 5
 
 # Global settings that apply to all data sources (can be overridden per source)
 global:

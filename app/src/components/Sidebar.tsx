@@ -1,7 +1,7 @@
 import { Box, IconButton, Tooltip, styled } from "@mui/material";
 import {
   ArticleOutlined as FileIcon,
-  FolderOutlined as CollectionIcon,
+  StorageOutlined as DatabaseIcon,
   VisibilityOutlined as ViewIcon,
   SettingsOutlined as SettingsIcon,
   CloudUploadOutlined as DataSourceIcon,
@@ -36,7 +36,7 @@ const NavButton = styled(IconButton, {
 const topNavigationItems = [
   { path: "/", icon: FileIcon, label: "Queries" },
   { path: "/views", icon: ViewIcon, label: "Views" },
-  { path: "/collections", icon: CollectionIcon, label: "Collections" },
+  { path: "/databases", icon: DatabaseIcon, label: "Databases" },
   { path: "/sources", icon: DataSourceIcon, label: "Data Sources" },
 ];
 
