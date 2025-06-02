@@ -204,11 +204,30 @@ export const reducer = (state: GlobalState, action: Action): void => {
         state.consoles.activeTabId =
           Object.keys(state.consoles.tabs)[0] || null;
       }
-      // If no tab remains: clear context in virgin chat
-      if (!state.consoles.activeTabId && state.chat.currentChatId) {
+
+      // Handle chat context for virgin chats
+      if (state.chat.currentChatId) {
         const chat = state.chat.sessions[state.chat.currentChatId];
         if (chat && chat.messages.length === 0) {
-          chat.attachedContext = [];
+          if (state.consoles.activeTabId) {
+            // Another console became active - attach it to virgin chat
+            const newActiveTab =
+              state.consoles.tabs[state.consoles.activeTabId];
+            if (newActiveTab) {
+              chat.attachedContext = [
+                {
+                  id: newActiveTab.id,
+                  type: "console",
+                  title: newActiveTab.title,
+                  content: newActiveTab.content,
+                  metadata: { consoleId: newActiveTab.id },
+                },
+              ];
+            }
+          } else {
+            // No tabs remain - clear context in virgin chat
+            chat.attachedContext = [];
+          }
         }
       }
       break;
