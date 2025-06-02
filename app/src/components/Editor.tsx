@@ -23,7 +23,6 @@ import Settings from "../pages/Settings";
 import DataSources from "../pages/DataSources";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
-import { useChatStore } from "../store";
 
 interface QueryResult {
   results: any[];
@@ -98,22 +97,8 @@ function Editor() {
         const content =
           consoleRefs.current[activeConsoleId].current!.getCurrentContent();
         setActiveEditorContent(content);
-        // Update chat virgin context with this console
-        const tab = consoleTabs.find((t) => t.id === activeConsoleId);
-        if (tab) {
-          const chatCtx = {
-            id: tab.id,
-            type: "console" as const,
-            title: tab.title,
-            content: tab.content,
-            metadata: { consoleId: tab.id },
-          };
-          useChatStore.getState().ensureContextItems([chatCtx]);
-        }
       } else {
         setActiveEditorContent(undefined);
-        // Clear chat context when no console is in focus and chat is still virgin
-        useChatStore.getState().ensureContextItems([]);
       }
     };
 

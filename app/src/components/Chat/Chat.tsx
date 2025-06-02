@@ -39,7 +39,6 @@ const Chat: React.FC<ChatProps> = () => {
     attachedContext,
     addContextItem,
     removeContextItem,
-    updateContextItem,
     selectedModel,
     setSelectedModel,
     error,
@@ -365,10 +364,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           attachedConsole.metadata.consoleId,
           codeBlock.code
         );
-        // Update the attached context to reflect new content
-        updateContextItem(attachedConsole.id, {
-          content: `Console: ${attachedConsole.title}\n\nCurrent Content:\n${codeBlock.code}`,
-        });
       }
     }
   };
@@ -694,26 +689,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
     });
   }, [currentChatId]); // Also triggers when switching between chats
-
-  // Keep console attachments in sync with actual console content
-  useEffect(() => {
-    const interval = setInterval(() => {
-      attachedContext.forEach((ctx) => {
-        if (ctx.type === "console" && ctx.metadata?.consoleId) {
-          const console = consoleTabs.find(
-            (tab) => tab.id === ctx.metadata!.consoleId
-          );
-          if (console && console.content !== ctx.content) {
-            updateContextItem(ctx.id, {
-              content: `Console: ${console.title}\n\nCurrent Content:\n${console.content}`,
-            });
-          }
-        }
-      });
-    }, 1000); // Check every second
-
-    return () => clearInterval(interval);
-  }, [attachedContext, consoleTabs, updateContextItem]);
 
   if (!openaiClient) {
     return (
