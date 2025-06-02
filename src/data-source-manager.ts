@@ -45,8 +45,25 @@ export interface GlobalConfig {
   };
 }
 
+export interface MongoDBDatabase {
+  name: string;
+  description?: string;
+  database: string;
+  active: boolean;
+  settings?: DataSourceSettings;
+}
+
+export interface MongoDBServer {
+  name: string;
+  description?: string;
+  connection_string: string;
+  active: boolean;
+  databases: { [key: string]: MongoDBDatabase };
+}
+
 export interface ConfigFile {
   data_sources: { [key: string]: Omit<DataSourceConfig, "id"> };
+  mongodb_servers?: { [key: string]: MongoDBServer };
   global: GlobalConfig;
 }
 
@@ -133,16 +150,120 @@ class DataSourceManager {
   }
 
   /**
+   * Get MongoDB database by server.database format
+   */
+  getMongoDBDatabase(identifier: string): DataSourceConfig | null {
+    const config = this.loadConfig();
+
+    if (!config.mongodb_servers) {
+      return null;
+    }
+
+    const [serverId, databaseId] = identifier.split(".");
+
+    if (!serverId || !databaseId) {
+      return null;
+    }
+
+    const server = config.mongodb_servers[serverId];
+    if (!server || !server.active) {
+      return null;
+    }
+
+    const database = server.databases[databaseId];
+    if (!database || !database.active) {
+      return null;
+    }
+
+    // Convert to DataSourceConfig format for compatibility
+    return {
+      id: `${serverId}.${databaseId}`,
+      name: database.name,
+      description: database.description,
+      active: true,
+      type: "mongodb",
+      connection: {
+        connection_string: server.connection_string,
+        database: database.database,
+      },
+      settings: {
+        ...this.getDefaultSettings(),
+        ...database.settings,
+      },
+    };
+  }
+
+  /**
+   * List all MongoDB servers
+   */
+  listMongoDBServers(): string[] {
+    const config = this.loadConfig();
+
+    if (!config.mongodb_servers) {
+      return [];
+    }
+
+    return Object.entries(config.mongodb_servers)
+      .filter(([_, server]) => server.active)
+      .map(([id]) => id);
+  }
+
+  /**
+   * List all MongoDB databases in server.database format
+   */
+  listMongoDBDatabases(): string[] {
+    const config = this.loadConfig();
+    const databases: string[] = [];
+
+    if (!config.mongodb_servers) {
+      return databases;
+    }
+
+    Object.entries(config.mongodb_servers).forEach(([serverId, server]) => {
+      if (server.active) {
+        Object.entries(server.databases).forEach(([dbId, db]) => {
+          if (db.active) {
+            databases.push(`${serverId}.${dbId}`);
+          }
+        });
+      }
+    });
+
+    return databases;
+  }
+
+  /**
    * Get all MongoDB data sources
    */
   getMongoDBSources(): DataSourceConfig[] {
-    return this.getDataSourcesByType("mongodb");
+    const sources: DataSourceConfig[] = [];
+
+    // Get legacy mongodb sources from data_sources
+    sources.push(...this.getDataSourcesByType("mongodb"));
+
+    // Get new format mongodb sources
+    const databases = this.listMongoDBDatabases();
+    databases.forEach((dbId) => {
+      const db = this.getMongoDBDatabase(dbId);
+      if (db) {
+        sources.push(db);
+      }
+    });
+
+    return sources;
   }
 
   /**
    * Get the primary analytics database (for backward compatibility)
    */
   getPrimaryDatabase(): DataSourceConfig | null {
+    // Try new format first
+    const analyticsDb = this.getMongoDBDatabase("local_dev.analytics_db");
+    if (analyticsDb) {
+      return analyticsDb;
+    }
+
+    // Fall back to legacy format
     const mongoSources = this.getMongoDBSources();
     return (
       mongoSources.find((source) => source.id === "analytics_db") ||

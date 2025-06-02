@@ -146,3 +146,62 @@ db.spain_close_opportunities.aggregate([
   /* 7. Sort for readability */
   { $sort: { pipeline: 1, product: 1, user: 1 } },
 ]);
+
+// New Console
+db.spain_close_opportunities.aggregate([
+  /* 1️⃣  Group by closer (user_id) and count each status */
+  {
+    $group: {
+      _id: "$user_id",
+      closer: { $first: "$user_name" },
+      activeCount: {
+        $sum: { $cond: [{ $eq: ["$status_type", "active"] }, 1, 0] },
+      },
+      wonCount: { $sum: { $cond: [{ $eq: ["$status_type", "won"] }, 1, 0] } },
+      lostCount: { $sum: { $cond: [{ $eq: ["$status_type", "lost"] }, 1, 0] } },
+      totalCount: { $sum: 1 },
+    },
+  },
+
+  /* 2️⃣  Calculate rates (round to 2 decimals) */
+  {
+    $addFields: {
+      pendingRatePct: {
+        $round: [
+          { $multiply: [{ $divide: ["$activeCount", "$totalCount"] }, 100] },
+          2,
+        ],
+      },
+      winRatePct: {
+        $round: [
+          { $multiply: [{ $divide: ["$wonCount", "$totalCount"] }, 100] },
+          2,
+        ],
+      },
+      lostRatePct: {
+        $round: [
+          { $multiply: [{ $divide: ["$lostCount", "$totalCount"] }, 100] },
+          2,
+        ],
+      },
+    },
+  },
+
+  /* 3️⃣  Shape the final result */
+  {
+    $project: {
+      _id: 0,
+      Closer: "$closer",
+      "Active opportunities": "$activeCount",
+      "Won opportunities": "$wonCount",
+      "Lost opportunities": "$lostCount",
+      "Total opportunities": "$totalCount",
+      "Pending rate %": "$pendingRatePct",
+      "Win rate %": "$winRatePct",
+      "Lost rate %": "$lostRatePct",
+    },
+  },
+
+  /* 4️⃣  Sort by total opportunities, descending */
+  { $sort: { "Total opportunities": -1 } },
+]);
