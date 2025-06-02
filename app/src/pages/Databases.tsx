@@ -119,12 +119,14 @@ function Databases() {
 
   const openNewConsole = (
     initialContent: string = "",
-    title: string = "Console"
+    title: string = "Console",
+    databaseId?: string
   ) => {
     const id = addConsoleTab({
       title,
       content: initialContent,
       initialContent,
+      databaseId,
     });
     // create ref for this console
     consoleRefs.current[id] = React.createRef<ConsoleRef>();
@@ -140,13 +142,13 @@ function Databases() {
     setActiveConsole(newValue);
   };
 
-  // Attach double click handler to open console prefilled
-  const handleCollectionDoubleClick = (
+  // Attach click handler to open console prefilled
+  const handleCollectionClick = (
     databaseId: string,
     collection: CollectionInfo
   ) => {
     const prefill = `db.${collection.name}.find({})`;
-    openNewConsole(prefill, `Console - ${collection.name}`);
+    openNewConsole(prefill, `Console - ${collection.name}`, databaseId);
   };
 
   // Update current editor content periodically for Chat
@@ -256,9 +258,7 @@ function Databases() {
         {/* Left Panel - Database Explorer */}
         <Panel defaultSize={15}>
           <Box sx={{ height: "100%", overflow: "hidden" }}>
-            <DatabaseExplorer
-              onCollectionDoubleClick={handleCollectionDoubleClick}
-            />
+            <DatabaseExplorer onCollectionClick={handleCollectionClick} />
           </Box>
         </Panel>
 

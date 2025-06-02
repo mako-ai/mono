@@ -57,7 +57,7 @@ class CloseSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "analytics_db"
+    targetDbId: string = "local_dev.analytics_db"
   ): Promise<{ client: MongoClient; db: Db }> {
     // Check if connection already exists
     if (this.mongoConnections.has(targetDbId)) {
@@ -65,7 +65,7 @@ class CloseSyncService {
     }
 
     // Get target database configuration
-    const targetDb = dataSourceManager.getDataSource(targetDbId);
+    const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
     if (!targetDb || targetDb.type !== "mongodb") {
       throw new Error(`MongoDB data source '${targetDbId}' not found`);
     }
@@ -143,7 +143,9 @@ class CloseSyncService {
       const leads = await this.fetchCloseData("lead");
       console.log(`Fetched ${leads.length} leads from Close.com`);
 
-      const collection = db.collection("leads");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_leads`;
+      const collection = db.collection(collectionName);
 
       // Process leads with data source reference
       const processedLeads = leads.map((lead) => ({
@@ -165,7 +167,7 @@ class CloseSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} leads`
+          `Upserted ${result.upsertedCount + result.modifiedCount} leads in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -184,7 +186,9 @@ class CloseSyncService {
         `Fetched ${opportunities.length} opportunities from Close.com`
       );
 
-      const collection = db.collection("opportunities");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_opportunities`;
+      const collection = db.collection(collectionName);
 
       // Process opportunities with data source reference
       const processedOpportunities = opportunities.map((opp) => ({
@@ -207,7 +211,7 @@ class CloseSyncService {
         console.log(
           `Upserted ${
             result.upsertedCount + result.modifiedCount
-          } opportunities`
+          } opportunities in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -224,7 +228,9 @@ class CloseSyncService {
       const contacts = await this.fetchCloseData("contact");
       console.log(`Fetched ${contacts.length} contacts from Close.com`);
 
-      const collection = db.collection("contacts");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_contacts`;
+      const collection = db.collection(collectionName);
 
       // Process contacts with data source reference
       const processedContacts = contacts.map((contact) => ({
@@ -245,7 +251,7 @@ class CloseSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} contacts`
+          `Upserted ${result.upsertedCount + result.modifiedCount} contacts in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -262,7 +268,9 @@ class CloseSyncService {
       const users = await this.fetchCloseData("user");
       console.log(`Fetched ${users.length} users from Close.com`);
 
-      const collection = db.collection("users");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_users`;
+      const collection = db.collection(collectionName);
 
       // Process users with data source reference
       const processedUsers = users.map((user) => ({
@@ -283,7 +291,7 @@ class CloseSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} users`
+          `Upserted ${result.upsertedCount + result.modifiedCount} users in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -300,7 +308,9 @@ class CloseSyncService {
       const activities = await this.fetchCloseData("activity");
       console.log(`Fetched ${activities.length} activities from Close.com`);
 
-      const collection = db.collection("activities");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_activities`;
+      const collection = db.collection(collectionName);
 
       // Process activities with data source reference
       const processedActivities = activities.map((activity) => ({
@@ -321,7 +331,7 @@ class CloseSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} activities`
+          `Upserted ${result.upsertedCount + result.modifiedCount} activities in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -366,7 +376,9 @@ class CloseSyncService {
       console.log(`Fetched ${allCustomFields.length} custom fields`);
 
       if (allCustomFields.length > 0) {
-        const collection = db.collection("custom_fields");
+        // Use collection name with source ID prefix
+        const collectionName = `${this.dataSource.id}_custom_fields`;
+        const collection = db.collection(collectionName);
 
         const bulkOps = allCustomFields.map((field) => ({
           replaceOne: {
@@ -384,7 +396,7 @@ class CloseSyncService {
         console.log(
           `Upserted ${
             result.upsertedCount + result.modifiedCount
-          } custom fields`
+          } custom fields in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -394,8 +406,10 @@ class CloseSyncService {
   }
 
   async syncAll(targetDbId?: string): Promise<void> {
-    console.log(`\n🔄 Starting full sync for data source: ${this.dataSource.name}`);
-    console.log(`Target database: ${targetDbId || "analytics_db"}`);
+    console.log(
+      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`
+    );
+    console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
     const startTime = Date.now();
 
     try {
