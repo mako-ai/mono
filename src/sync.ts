@@ -5,6 +5,83 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+// Progress reporter for sync operations
+export class ProgressReporter {
+  private startTime: Date;
+  private totalRecords: number;
+  private currentRecords: number = 0;
+  private entityName: string;
+
+  constructor(entityName: string, totalRecords?: number) {
+    this.entityName = entityName;
+    this.totalRecords = totalRecords || 0;
+    this.startTime = new Date();
+  }
+
+  updateTotal(total: number) {
+    this.totalRecords = total;
+  }
+
+  reportBatch(batchSize: number) {
+    this.currentRecords += batchSize;
+    this.displayProgress();
+  }
+
+  reportComplete() {
+    this.currentRecords = this.totalRecords;
+    this.displayProgress();
+    console.log(); // New line after progress
+  }
+
+  private displayProgress() {
+    const elapsed = Date.now() - this.startTime.getTime();
+    const elapsedStr = this.formatTime(elapsed);
+
+    if (this.totalRecords > 0) {
+      // We know the total, show full progress
+      const percentage = Math.floor(
+        (this.currentRecords / this.totalRecords) * 100
+      );
+      const progressBar = this.createProgressBar(percentage);
+
+      const rate = this.currentRecords / (elapsed / 1000); // records per second
+      const remaining =
+        ((this.totalRecords - this.currentRecords) / rate) * 1000; // milliseconds
+      const remainingStr = this.formatTime(remaining);
+
+      process.stdout.write(
+        `\r🟢 Syncing ${this.entityName}: ${progressBar} ${percentage}% (${this.currentRecords.toLocaleString()}/${this.totalRecords.toLocaleString()}) | ⏱️  ${elapsedStr} elapsed | 🕒 ${remainingStr} left`
+      );
+    } else {
+      // We don't know the total, show records fetched
+      process.stdout.write(
+        `\r🟢 Syncing ${this.entityName}: ${this.currentRecords.toLocaleString()} records fetched | ⏱️  ${elapsedStr} elapsed`
+      );
+    }
+  }
+
+  private createProgressBar(percentage: number): string {
+    const width = 20;
+    const filled = Math.floor((width * percentage) / 100);
+    const empty = width - filled;
+    return "█".repeat(filled) + "░".repeat(empty);
+  }
+
+  private formatTime(milliseconds: number): string {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+
+    if (hours > 0) {
+      return `${hours}h${(minutes % 60).toString().padStart(2, "0")}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m${(seconds % 60).toString().padStart(2, "0")}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  }
+}
+
 // Define available entities for each source type
 const SOURCE_ENTITIES = {
   close: [
@@ -119,31 +196,32 @@ async function syncClose(
 
   // Sync specific entity
   console.log(`\n🔄 Syncing ${entity} for ${dataSource.name}`);
+  const progress = new ProgressReporter(entity);
 
   switch (entity.toLowerCase()) {
     case "leads":
     case "lead":
-      await syncService.syncLeads(targetDbId);
+      await syncService.syncLeads(targetDbId, progress);
       break;
     case "opportunities":
     case "opportunity":
-      await syncService.syncOpportunities(targetDbId);
+      await syncService.syncOpportunities(targetDbId, progress);
       break;
     case "activities":
     case "activity":
-      await syncService.syncActivities(targetDbId);
+      await syncService.syncActivities(targetDbId, progress);
       break;
     case "contacts":
     case "contact":
-      await syncService.syncContacts(targetDbId);
+      await syncService.syncContacts(targetDbId, progress);
       break;
     case "users":
     case "user":
-      await syncService.syncUsers(targetDbId);
+      await syncService.syncUsers(targetDbId, progress);
       break;
     case "custom-fields":
     case "customfields":
-      await syncService.syncCustomFields(targetDbId);
+      await syncService.syncCustomFields(targetDbId, progress);
       break;
     default:
       console.error(`❌ Unknown entity '${entity}' for Close.com`);
@@ -168,31 +246,32 @@ async function syncStripe(
 
   // Sync specific entity
   console.log(`\n🔄 Syncing ${entity} for ${dataSource.name}`);
+  const progress = new ProgressReporter(entity);
 
   switch (entity.toLowerCase()) {
     case "customers":
     case "customer":
-      await syncService.syncCustomers(targetDbId);
+      await syncService.syncCustomers(targetDbId, progress);
       break;
     case "subscriptions":
     case "subscription":
-      await syncService.syncSubscriptions(targetDbId);
+      await syncService.syncSubscriptions(targetDbId, progress);
       break;
     case "charges":
     case "charge":
-      await syncService.syncCharges(targetDbId);
+      await syncService.syncCharges(targetDbId, progress);
       break;
     case "invoices":
     case "invoice":
-      await syncService.syncInvoices(targetDbId);
+      await syncService.syncInvoices(targetDbId, progress);
       break;
     case "products":
     case "product":
-      await syncService.syncProducts(targetDbId);
+      await syncService.syncProducts(targetDbId, progress);
       break;
     case "plans":
     case "plan":
-      await syncService.syncPlans(targetDbId);
+      await syncService.syncPlans(targetDbId, progress);
       break;
     default:
       console.error(`❌ Unknown entity '${entity}' for Stripe`);

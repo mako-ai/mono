@@ -29,10 +29,6 @@ interface CollectionInfo {
   options: any;
 }
 
-interface CollectionInfoWithDetails extends CollectionInfo {
-  info: any;
-}
-
 interface QueryResult {
   results: any[];
   executedAt: string;
