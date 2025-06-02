@@ -58,16 +58,6 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
         const rawText = await response.text();
         // console.log("Raw console tree response text:", rawText); // Kept for potential future debugging
 
-        const testDirJsonString =
-          '{"name":"es","path":"es","isDirectory":true,"content":"","children":[]}';
-        try {
-          const parsedTestDir: ConsoleEntry = JSON.parse(testDirJsonString);
-          // console.log("Hardcoded Test Parse - Entry:", parsedTestDir);
-          // console.log(`Hardcoded Test Parse - isDirectory: ${parsedTestDir.isDirectory}, type: ${typeof parsedTestDir.isDirectory}`);
-        } catch (e) {
-          // console.error("Hardcoded Test Parse - FAILED:", e);
-        }
-
         const data = JSON.parse(rawText);
         // console.log("Full Response Parse - data object:", data);
 
