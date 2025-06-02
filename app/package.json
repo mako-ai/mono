@@ -17,12 +17,12 @@
     "@mui/x-license": "^8.4.0",
     "@types/react-syntax-highlighter": "^15.5.13",
     "axios": "^1.6.2",
+    "immer": "^10.1.1",
     "openai": "^4.103.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.2",
-    "react-router-dom": "^6.20.1",
     "react-syntax-highlighter": "^15.6.1",
     "zustand": "^5.0.5"
   },

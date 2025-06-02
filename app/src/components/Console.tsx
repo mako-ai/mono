@@ -13,11 +13,7 @@ import {
   FormControl,
   Tooltip,
 } from "@mui/material";
-import {
-  PlayArrow,
-  SaveAlt as SaveIcon,
-  SaveOutlined,
-} from "@mui/icons-material";
+import { PlayArrow, SaveOutlined } from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
