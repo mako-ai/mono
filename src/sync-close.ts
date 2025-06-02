@@ -3,6 +3,7 @@ import { MongoClient, Db, Collection } from "mongodb";
 import * as dotenv from "dotenv";
 import { dataSourceManager } from "./data-source-manager";
 import type { DataSourceConfig } from "./data-source-manager";
+import type { ProgressReporter } from "./sync";
 
 dotenv.config();
 
@@ -94,11 +95,43 @@ class CloseSyncService {
 
   private async fetchCloseData(
     endpoint: string,
-    params: any = {}
+    params: any = {},
+    progress?: ProgressReporter
   ): Promise<any[]> {
     const results: any[] = [];
     let hasMore = true;
     let skip = 0;
+
+    // First, try to get total count if progress is provided
+    if (progress) {
+      try {
+        const countResponse = await axios.get(
+          `${this.closeApiUrl}/${endpoint}`,
+          {
+            headers: {
+              Authorization: `Basic ${Buffer.from(
+                this.closeApiKey + ":"
+              ).toString("base64")}`,
+              Accept: "application/json",
+            },
+            params: {
+              ...params,
+              _limit: 0,
+              _fields: "id",
+            },
+          }
+        );
+
+        if (countResponse.data.total_results) {
+          progress.updateTotal(countResponse.data.total_results);
+        }
+      } catch (error) {
+        // If we can't get total, continue without it
+        console.log(
+          "Could not fetch total count, continuing without total progress"
+        );
+      }
+    }
 
     while (hasMore) {
       try {
@@ -119,6 +152,11 @@ class CloseSyncService {
         const data = response.data.data || [];
         results.push(...data);
 
+        // Report batch completion
+        if (progress && data.length > 0) {
+          progress.reportBatch(data.length);
+        }
+
         hasMore = response.data.has_more || false;
         skip += this.settings.batchSize;
 
@@ -132,15 +170,23 @@ class CloseSyncService {
       }
     }
 
+    // Report completion
+    if (progress) {
+      progress.reportComplete();
+    }
+
     return results;
   }
 
-  async syncLeads(targetDbId?: string): Promise<void> {
+  async syncLeads(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting leads sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const leads = await this.fetchCloseData("lead");
+      const leads = await this.fetchCloseData("lead", {}, progress);
       console.log(`Fetched ${leads.length} leads from Close.com`);
 
       // Use collection name with source ID prefix
@@ -176,12 +222,19 @@ class CloseSyncService {
     }
   }
 
-  async syncOpportunities(targetDbId?: string): Promise<void> {
+  async syncOpportunities(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const opportunities = await this.fetchCloseData("opportunity");
+      const opportunities = await this.fetchCloseData(
+        "opportunity",
+        {},
+        progress
+      );
       console.log(
         `Fetched ${opportunities.length} opportunities from Close.com`
       );
@@ -220,12 +273,15 @@ class CloseSyncService {
     }
   }
 
-  async syncContacts(targetDbId?: string): Promise<void> {
+  async syncContacts(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting contacts sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const contacts = await this.fetchCloseData("contact");
+      const contacts = await this.fetchCloseData("contact", {}, progress);
       console.log(`Fetched ${contacts.length} contacts from Close.com`);
 
       // Use collection name with source ID prefix
@@ -260,12 +316,15 @@ class CloseSyncService {
     }
   }
 
-  async syncUsers(targetDbId?: string): Promise<void> {
+  async syncUsers(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting users sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const users = await this.fetchCloseData("user");
+      const users = await this.fetchCloseData("user", {}, progress);
       console.log(`Fetched ${users.length} users from Close.com`);
 
       // Use collection name with source ID prefix
@@ -300,12 +359,15 @@ class CloseSyncService {
     }
   }
 
-  async syncActivities(targetDbId?: string): Promise<void> {
+  async syncActivities(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting activities sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const activities = await this.fetchCloseData("activity");
+      const activities = await this.fetchCloseData("activity", {}, progress);
       console.log(`Fetched ${activities.length} activities from Close.com`);
 
       // Use collection name with source ID prefix
@@ -340,7 +402,10 @@ class CloseSyncService {
     }
   }
 
-  async syncCustomFields(targetDbId?: string): Promise<void> {
+  async syncCustomFields(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
@@ -355,6 +420,10 @@ class CloseSyncService {
 
       const allCustomFields: any[] = [];
 
+      // Create sub-progress if main progress is provided
+      const totalTypes = customFieldTypes.length;
+      let typesCompleted = 0;
+
       for (const fieldType of customFieldTypes) {
         try {
           const fields = await this.fetchCloseData(fieldType);
@@ -367,6 +436,12 @@ class CloseSyncService {
               _syncedAt: new Date(),
             }))
           );
+
+          typesCompleted++;
+          if (progress) {
+            // Report progress for custom fields as a whole
+            progress.reportBatch(Math.floor(fields.length / totalTypes));
+          }
         } catch (error) {
           console.warn(`Failed to fetch ${fieldType}:`, error);
           // Continue with other field types
@@ -413,13 +488,22 @@ class CloseSyncService {
     const startTime = Date.now();
 
     try {
-      // Sync all data types
-      await this.syncLeads(targetDbId);
-      await this.syncOpportunities(targetDbId);
-      await this.syncContacts(targetDbId);
-      await this.syncActivities(targetDbId);
-      await this.syncUsers(targetDbId);
-      await this.syncCustomFields(targetDbId);
+      // Import ProgressReporter for creating individual progress
+      const { ProgressReporter } = await import("./sync");
+
+      // Sync all data types with individual progress
+      await this.syncLeads(targetDbId, new ProgressReporter("leads"));
+      await this.syncOpportunities(
+        targetDbId,
+        new ProgressReporter("opportunities")
+      );
+      await this.syncContacts(targetDbId, new ProgressReporter("contacts"));
+      await this.syncActivities(targetDbId, new ProgressReporter("activities"));
+      await this.syncUsers(targetDbId, new ProgressReporter("users"));
+      await this.syncCustomFields(
+        targetDbId,
+        new ProgressReporter("custom-fields")
+      );
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(

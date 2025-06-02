@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { MongoClient, Db, Collection } from "mongodb";
 import { dataSourceManager } from "./data-source-manager";
 import type { DataSourceConfig } from "./data-source-manager";
+import type { ProgressReporter } from "./sync";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -97,7 +98,8 @@ class StripeSyncService {
 
   private async fetchAllStripeData<T>(
     listMethod: (params: any) => Stripe.ApiListPromise<T>,
-    params: any = {}
+    params: any = {},
+    progress?: ProgressReporter
   ): Promise<T[]> {
     const results: T[] = [];
     let hasMore = true;
@@ -124,6 +126,12 @@ class StripeSyncService {
         console.log(`Page ${page} fetched: ${response.data.length} items`);
 
         results.push(...response.data);
+
+        // Report batch completion
+        if (progress && response.data.length > 0) {
+          progress.reportBatch(response.data.length);
+        }
+
         hasMore = response.has_more;
 
         if (hasMore && response.data.length > 0) {
@@ -157,17 +165,27 @@ class StripeSyncService {
       }
     }
 
+    // Report completion
+    if (progress) {
+      progress.reportComplete();
+    }
+
     console.log(`Finished fetching Stripe data: ${results.length} total items`);
     return results;
   }
 
-  async syncCustomers(targetDbId?: string): Promise<void> {
+  async syncCustomers(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting customers sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const customers = await this.fetchAllStripeData((params) =>
-        this.stripe.customers.list(params)
+      const customers = await this.fetchAllStripeData(
+        (params) => this.stripe.customers.list(params),
+        {},
+        progress
       );
       console.log(`Fetched ${customers.length} customers from Stripe`);
 
@@ -203,14 +221,18 @@ class StripeSyncService {
     }
   }
 
-  async syncSubscriptions(targetDbId?: string): Promise<void> {
+  async syncSubscriptions(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting subscriptions sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const subscriptions = await this.fetchAllStripeData(
         (params) => this.stripe.subscriptions.list(params),
-        { status: "all" }
+        { status: "all" },
+        progress
       );
       console.log(`Fetched ${subscriptions.length} subscriptions from Stripe`);
 
@@ -248,13 +270,18 @@ class StripeSyncService {
     }
   }
 
-  async syncCharges(targetDbId?: string): Promise<void> {
+  async syncCharges(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting charges sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const charges = await this.fetchAllStripeData((params) =>
-        this.stripe.charges.list(params)
+      const charges = await this.fetchAllStripeData(
+        (params) => this.stripe.charges.list(params),
+        {},
+        progress
       );
       console.log(`Fetched ${charges.length} charges from Stripe`);
 
@@ -290,13 +317,18 @@ class StripeSyncService {
     }
   }
 
-  async syncInvoices(targetDbId?: string): Promise<void> {
+  async syncInvoices(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting invoices sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const invoices = await this.fetchAllStripeData((params) =>
-        this.stripe.invoices.list(params)
+      const invoices = await this.fetchAllStripeData(
+        (params) => this.stripe.invoices.list(params),
+        {},
+        progress
       );
       console.log(`Fetched ${invoices.length} invoices from Stripe`);
 
@@ -332,14 +364,18 @@ class StripeSyncService {
     }
   }
 
-  async syncProducts(targetDbId?: string): Promise<void> {
+  async syncProducts(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting products sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const products = await this.fetchAllStripeData(
         (params) => this.stripe.products.list(params),
-        { active: true }
+        { active: true },
+        progress
       );
       console.log(`Fetched ${products.length} products from Stripe`);
 
@@ -375,13 +411,18 @@ class StripeSyncService {
     }
   }
 
-  async syncPlans(targetDbId?: string): Promise<void> {
+  async syncPlans(
+    targetDbId?: string,
+    progress?: ProgressReporter
+  ): Promise<void> {
     console.log(`Starting plans sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      const plans = await this.fetchAllStripeData((params) =>
-        this.stripe.plans.list(params)
+      const plans = await this.fetchAllStripeData(
+        (params) => this.stripe.plans.list(params),
+        {},
+        progress
       );
       console.log(`Fetched ${plans.length} plans from Stripe`);
 
@@ -425,13 +466,19 @@ class StripeSyncService {
     const startTime = Date.now();
 
     try {
-      // Sync all data types
-      await this.syncCustomers(targetDbId);
-      await this.syncSubscriptions(targetDbId);
-      await this.syncCharges(targetDbId);
-      await this.syncInvoices(targetDbId);
-      await this.syncProducts(targetDbId);
-      await this.syncPlans(targetDbId);
+      // Import ProgressReporter for creating individual progress
+      const { ProgressReporter } = await import("./sync");
+
+      // Sync all data types with individual progress
+      await this.syncCustomers(targetDbId, new ProgressReporter("customers"));
+      await this.syncSubscriptions(
+        targetDbId,
+        new ProgressReporter("subscriptions")
+      );
+      await this.syncCharges(targetDbId, new ProgressReporter("charges"));
+      await this.syncInvoices(targetDbId, new ProgressReporter("invoices"));
+      await this.syncProducts(targetDbId, new ProgressReporter("products"));
+      await this.syncPlans(targetDbId, new ProgressReporter("plans"));
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(
