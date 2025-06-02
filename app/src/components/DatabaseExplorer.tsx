@@ -23,6 +23,7 @@ import {
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
 } from "@mui/icons-material";
+import { useDatabaseExplorerStore } from "../store";
 
 interface Database {
   id: string;
@@ -54,29 +55,14 @@ interface DatabaseExplorerProps {
     collectionName: string,
     collectionInfo: CollectionInfo
   ) => void;
-  onCollectionDoubleClick?: (
-    databaseId: string,
-    collection: CollectionInfo
-  ) => void;
+  onCollectionClick?: (databaseId: string, collection: CollectionInfo) => void;
 }
 
 const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   onCollectionSelect,
-  onCollectionDoubleClick,
+  onCollectionClick,
 }) => {
   const [servers, setServers] = useState<Server[]>([]);
-  const [expandedServers, setExpandedServers] = useState<Set<string>>(
-    new Set()
-  );
-  const [expandedDatabases, setExpandedDatabases] = useState<Set<string>>(
-    new Set()
-  );
-  const [expandedCollectionGroups, setExpandedCollectionGroups] = useState<
-    Set<string>
-  >(new Set());
-  const [expandedViewGroups, setExpandedViewGroups] = useState<Set<string>>(
-    new Set()
-  );
   const [collections, setCollections] = useState<
     Record<string, CollectionInfo[]>
   >({});
@@ -84,6 +70,24 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+
+  // Use the store for expanded states
+  const {
+    expandedServers,
+    expandedDatabases,
+    expandedCollectionGroups,
+    expandedViewGroups,
+    toggleServer,
+    toggleDatabase,
+    toggleCollectionGroup,
+    toggleViewGroup,
+    expandServer,
+    expandDatabase,
+    isServerExpanded,
+    isDatabaseExpanded,
+    isCollectionGroupExpanded,
+    isViewGroupExpanded,
+  } = useDatabaseExplorerStore();
 
   useEffect(() => {
     fetchServers();
@@ -112,13 +116,13 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
           });
         });
 
-        // Keep the previous behaviour of auto-expanding the first server/database (optional)
-        if (data.data.length > 0) {
+        // Only auto-expand the first server/database if nothing is expanded yet
+        if (data.data.length > 0 && expandedServers.size === 0) {
           const firstServerId = data.data[0].id;
-          setExpandedServers(new Set([firstServerId]));
+          expandServer(firstServerId);
           if (data.data[0].databases.length > 0) {
             const firstDbId = data.data[0].databases[0].id;
-            setExpandedDatabases(new Set([firstDbId]));
+            expandDatabase(firstDbId);
           }
         }
       } else {
@@ -176,55 +180,27 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   };
 
   const handleServerToggle = (serverId: string) => {
-    setExpandedServers((prev) => {
-      const next = new Set(prev);
-      if (next.has(serverId)) {
-        next.delete(serverId);
-      } else {
-        next.add(serverId);
-      }
-      return next;
-    });
+    toggleServer(serverId);
   };
 
   const handleDatabaseToggle = (databaseId: string) => {
-    setExpandedDatabases((prev) => {
-      const next = new Set(prev);
-      if (next.has(databaseId)) {
-        next.delete(databaseId);
-      } else {
-        next.add(databaseId);
-        // Fetch data if not already loaded
-        if (!collections[databaseId] && !views[databaseId]) {
-          fetchDatabaseData(databaseId);
-        }
-      }
-      return next;
-    });
+    toggleDatabase(databaseId);
+    // Fetch data if not already loaded and we're expanding
+    if (
+      !isDatabaseExpanded(databaseId) &&
+      !collections[databaseId] &&
+      !views[databaseId]
+    ) {
+      fetchDatabaseData(databaseId);
+    }
   };
 
   const handleCollectionGroupToggle = (databaseId: string) => {
-    setExpandedCollectionGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(databaseId)) {
-        next.delete(databaseId);
-      } else {
-        next.add(databaseId);
-      }
-      return next;
-    });
+    toggleCollectionGroup(databaseId);
   };
 
   const handleViewGroupToggle = (databaseId: string) => {
-    setExpandedViewGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(databaseId)) {
-        next.delete(databaseId);
-      } else {
-        next.add(databaseId);
-      }
-      return next;
-    });
+    toggleViewGroup(databaseId);
   };
 
   const handleCollectionClick = (
@@ -232,6 +208,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     collection: CollectionInfo
   ) => {
     onCollectionSelect?.(databaseId, collection.name, collection);
+    onCollectionClick?.(databaseId, collection);
   };
 
   const handleRefresh = () => {
@@ -509,12 +486,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                             <ListItemButton
                                               onClick={() =>
                                                 handleCollectionClick(
-                                                  database.id,
-                                                  collection
-                                                )
-                                              }
-                                              onDoubleClick={() =>
-                                                onCollectionDoubleClick?.(
                                                   database.id,
                                                   collection
                                                 )

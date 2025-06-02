@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import { Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
-import Queries from "./pages/Queries";
+import Consoles from "./pages/Consoles";
 import Databases from "./pages/Databases";
 import Views from "./pages/Views";
 import Settings from "./pages/Settings";
@@ -32,7 +32,7 @@ function App() {
         }}
       >
         <Routes>
-          <Route path="/" element={<Queries />} />
+          <Route path="/" element={<Consoles />} />
           <Route path="/sources" element={<DataSources />} />
           <Route path="/databases" element={<Databases />} />
           <Route path="/views" element={<Views />} />

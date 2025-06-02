@@ -5,8 +5,19 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Box, Button, Select, MenuItem, FormControl } from "@mui/material";
-import { PlayArrow } from "@mui/icons-material";
+import {
+  Box,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  Tooltip,
+} from "@mui/material";
+import {
+  PlayArrow,
+  SaveAlt as SaveIcon,
+  SaveOutlined,
+} from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -23,11 +34,14 @@ interface ConsoleProps {
   initialContent: string;
   title?: string;
   onExecute: (content: string, databaseId?: string) => void;
+  onSave?: (content: string, currentPath?: string) => Promise<boolean>;
   isExecuting: boolean;
+  isSaving?: boolean;
   onContentChange?: (content: string) => void;
   databases?: Database[];
   initialDatabaseId?: string;
   onDatabaseChange?: (databaseId: string) => void;
+  filePath?: string;
 }
 
 export interface ConsoleRef {
@@ -44,11 +58,14 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
       initialContent,
       title,
       onExecute,
+      onSave,
       isExecuting,
+      isSaving,
       onContentChange,
       databases = [],
       initialDatabaseId,
       onDatabaseChange,
+      filePath,
     },
     ref
   ) => {
@@ -118,6 +135,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
       }
     };
 
+    const handleSave = async () => {
+      if (onSave) {
+        await onSave(currentContent, filePath);
+        // Parent component is responsible for feedback (e.g., snackbar, error modal)
+      }
+    };
+
     const handleEditorDidMount = (editor: any, monaco: any) => {
       editorRef.current = editor;
 
@@ -137,6 +161,15 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
 
         executeContent(textToExecute);
       });
+
+      // CMD/CTRL + S save support (if onSave is provided)
+      if (onSave) {
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+          // Prevent browser default save action
+          // event.preventDefault(); // This is usually handled by monaco itself or not needed for this keybinding action
+          handleSave();
+        });
+      }
     };
 
     const handleEditorChange = (value: string | undefined) => {
@@ -172,20 +205,49 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
             gap: 1,
           }}
         >
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<PlayArrow />}
-            onClick={handleExecute}
-            disabled={
-              !currentContent.trim() || isExecuting || !selectedDatabaseId
-            }
-            disableElevation
-          >
-            {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
-          </Button>
+          <Box>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PlayArrow />}
+              onClick={handleExecute}
+              disabled={
+                !currentContent.trim() || isExecuting || !selectedDatabaseId
+              }
+              disableElevation
+            >
+              {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
+            </Button>
 
-          <FormControl size="small" variant="standard" sx={{ minWidth: 80 }}>
+            {onSave && (
+              <Tooltip
+                title={filePath ? "Save (⌘/Ctrl+S)" : "Save As... (⌘/Ctrl+S)"}
+              >
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={handleSave}
+                  disabled={!currentContent.trim() || isSaving || isExecuting}
+                  disableElevation
+                  sx={{
+                    ml: 1,
+                    minWidth: "32px",
+                    width: "32px",
+                    height: "32px",
+                    p: 0,
+                  }}
+                >
+                  <SaveOutlined />
+                </Button>
+              </Tooltip>
+            )}
+          </Box>
+
+          <FormControl
+            size="small"
+            variant="standard"
+            sx={{ minWidth: 80, ml: onSave ? 1 : 0 }}
+          >
             <Select
               variant="standard"
               disableUnderline
