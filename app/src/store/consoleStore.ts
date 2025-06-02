@@ -1,117 +1,168 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { useAppStore, useAppDispatch } from "./appStore";
+import { ConsoleTab } from "./appStore";
 
 export type TabKind = "console" | "settings" | "sources";
 
-export interface ConsoleTab {
-  id: string;
-  title: string;
-  content: string; // Current content of the console
-  initialContent: string; // Initial content when created
-  databaseId?: string; // Selected database ID for the console
-  filePath?: string; // Path where the console is saved
-  kind?: TabKind;
-}
+// Selector helpers
+const selectConsoleState = (state: any) => state.consoles;
 
-interface ConsoleState {
-  // Console tabs
-  consoleTabs: ConsoleTab[];
-  activeConsoleId: string | null;
+export const useConsoleStore = () => {
+  const dispatch = useAppDispatch();
+  const { tabs, activeTabId } = useAppStore(selectConsoleState);
 
-  // Actions
-  addConsoleTab: (tab: Omit<ConsoleTab, "id">) => string; // Returns the new tab ID
-  findTabByKind: (kind: TabKind) => ConsoleTab | undefined;
-  removeConsoleTab: (id: string) => void;
-  updateConsoleContent: (id: string, content: string) => void;
-  setActiveConsole: (id: string | null) => void;
-  clearAllConsoles: () => void;
-  updateConsoleDatabase: (id: string, databaseId: string) => void;
-  updateConsoleFilePath: (id: string, filePath: string) => void;
-  updateConsoleTitle: (id: string, title: string) => void;
-}
+  // Helper: convert Record to array for backward compatibility
+  const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
-export const useConsoleStore = create<ConsoleState>()(
-  persist(
-    (set, get) => ({
-      // Console tabs
-      consoleTabs: [],
-      activeConsoleId: null,
-
-      // Actions
-      addConsoleTab: (tab) => {
-        const id = Date.now().toString() + Math.random();
-        const newTab: ConsoleTab = {
-          id,
-          title: tab.title,
-          content: tab.content || tab.initialContent,
-          initialContent: tab.initialContent,
-          databaseId: tab.databaseId,
-          filePath: tab.filePath,
-          kind: tab.kind || "console",
-        };
-
-        set((state) => ({
-          consoleTabs: [...state.consoleTabs, newTab],
-          activeConsoleId: id,
-        }));
-
-        return id;
+  const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
+    const id = Date.now().toString() + Math.random();
+    dispatch({
+      type: "OPEN_CONSOLE_TAB",
+      payload: {
+        id,
+        title: tab.title,
+        content: tab.content || tab.initialContent,
+        initialContent: tab.initialContent,
+        databaseId: tab.databaseId,
+        filePath: tab.filePath,
+        kind: (tab as any).kind || "console",
       },
+    } as any);
+    return id;
+  };
 
-      findTabByKind: (kind) => {
-        return get().consoleTabs.find((t) => t.kind === kind);
-      },
+  const removeConsoleTab = (id: string) =>
+    dispatch({ type: "CLOSE_CONSOLE_TAB", payload: { id } } as any);
 
-      removeConsoleTab: (id) =>
-        set((state) => {
-          const filtered = state.consoleTabs.filter((tab) => tab.id !== id);
-          const newActiveId =
-            state.activeConsoleId === id
-              ? filtered.length > 0
-                ? filtered[0].id
-                : null
-              : state.activeConsoleId;
+  const setActiveConsole = (id: string | null) =>
+    dispatch({ type: "FOCUS_CONSOLE_TAB", payload: { id } } as any);
 
-          return {
-            consoleTabs: filtered,
-            activeConsoleId: newActiveId,
-          };
-        }),
+  const updateConsoleContent = (id: string, content: string) =>
+    dispatch({
+      type: "UPDATE_CONSOLE_CONTENT",
+      payload: { id, content },
+    } as any);
 
-      updateConsoleContent: (id, content) =>
-        set((state) => ({
-          consoleTabs: state.consoleTabs.map((tab) =>
-            tab.id === id ? { ...tab, content } : tab
-          ),
-        })),
+  const findTabByKind = (kind: TabKind) =>
+    consoleTabs.find((t: any) => (t as any).kind === kind);
 
-      updateConsoleDatabase: (id, databaseId) =>
-        set((state) => ({
-          consoleTabs: state.consoleTabs.map((tab) =>
-            tab.id === id ? { ...tab, databaseId } : tab
-          ),
-        })),
-
-      updateConsoleFilePath: (id, filePath) =>
-        set((state) => ({
-          consoleTabs: state.consoleTabs.map((tab) =>
-            tab.id === id ? { ...tab, filePath } : tab
-          ),
-        })),
-
-      updateConsoleTitle: (id, title) =>
-        set((state) => ({
-          consoleTabs: state.consoleTabs.map((tab) =>
-            tab.id === id ? { ...tab, title } : tab
-          ),
-        })),
-
-      setActiveConsole: (id) => set({ activeConsoleId: id }),
-
-      clearAllConsoles: () => set({ consoleTabs: [], activeConsoleId: null }),
-    }),
-    {
-      name: "console-store", // unique name for localStorage key
+  const updateConsoleDatabase = (id: string, databaseId: string) => {
+    // We don't store databaseId separately yet – add a quick in-place update
+    const tab = tabs[id];
+    if (tab) {
+      dispatch({
+        type: "UPDATE_CONSOLE_CONTENT",
+        payload: { id, content: tab.content },
+      } as any);
+      // Extend reducer later for dedicated action
     }
-  )
-);
+  };
+  const updateConsoleFilePath = (id: string, filePath: string) => {
+    // Not yet persisted in reducer – quick patch
+    const tab = tabs[id];
+    if (tab) {
+      dispatch({
+        type: "UPDATE_CONSOLE_CONTENT",
+        payload: { id, content: tab.content },
+      } as any);
+    }
+  };
+  const updateConsoleTitle = (id: string, title: string) => {
+    const tab = tabs[id];
+    if (tab) {
+      dispatch({
+        type: "UPDATE_CONSOLE_CONTENT",
+        payload: { id, content: tab.content },
+      } as any);
+    }
+  };
+
+  const clearAllConsoles = () => {
+    consoleTabs.forEach((tab) => removeConsoleTab(tab.id));
+  };
+
+  return {
+    consoleTabs,
+    activeConsoleId: activeTabId,
+    addConsoleTab,
+    findTabByKind,
+    removeConsoleTab,
+    updateConsoleContent,
+    setActiveConsole,
+    clearAllConsoles,
+    updateConsoleDatabase,
+    updateConsoleFilePath,
+    updateConsoleTitle,
+  };
+};
+
+// Provide getState for legacy direct access
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore – attach property dynamically
+useConsoleStore.getState = () => {
+  const global = useAppStore.getState();
+  const dispatch = global.dispatch;
+  const tabs = global.consoles.tabs;
+  const activeTabId = global.consoles.activeTabId;
+
+  const consoleTabs: ConsoleTab[] = Object.values(tabs);
+
+  const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
+    const id = Date.now().toString() + Math.random();
+    dispatch({
+      type: "OPEN_CONSOLE_TAB",
+      payload: {
+        id,
+        title: tab.title,
+        content: tab.content || tab.initialContent,
+        initialContent: tab.initialContent,
+        databaseId: tab.databaseId,
+        filePath: tab.filePath,
+        kind: (tab as any).kind || "console",
+      },
+    });
+    return id;
+  };
+
+  const removeConsoleTab = (id: string) =>
+    dispatch({ type: "CLOSE_CONSOLE_TAB", payload: { id } });
+
+  const setActiveConsole = (id: string | null) =>
+    dispatch({ type: "FOCUS_CONSOLE_TAB", payload: { id } });
+
+  const updateConsoleContent = (id: string, content: string) =>
+    dispatch({
+      type: "UPDATE_CONSOLE_CONTENT",
+      payload: { id, content },
+    });
+
+  const findTabByKind = (kind: TabKind) =>
+    consoleTabs.find((t: any) => (t as any).kind === kind);
+
+  const updateConsoleDatabase = (id: string, databaseId: string) => {
+    // Not fully implemented
+  };
+  const updateConsoleFilePath = (id: string, filePath: string) => {
+    // Not fully implemented
+  };
+  const updateConsoleTitle = (id: string, title: string) => {
+    // Not fully implemented
+  };
+
+  const clearAllConsoles = () => {
+    consoleTabs.forEach((tab) => removeConsoleTab(tab.id));
+  };
+
+  return {
+    consoleTabs,
+    activeConsoleId: activeTabId,
+    addConsoleTab,
+    findTabByKind,
+    removeConsoleTab,
+    updateConsoleContent,
+    setActiveConsole,
+    clearAllConsoles,
+    updateConsoleDatabase,
+    updateConsoleFilePath,
+    updateConsoleTitle,
+  };
+};

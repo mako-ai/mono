@@ -1,4 +1,4 @@
-db.switzerland_close_leads.aggregatee([
+db.switzerland_close_leads.aggregate([
   // 1) count per owner+status
   {
     $group: {
