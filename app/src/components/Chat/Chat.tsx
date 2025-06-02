@@ -35,7 +35,6 @@ const Chat: React.FC<ChatProps> = () => {
     deleteChat,
     getCurrentMessages,
     addMessage,
-    updateMessage,
     attachedContext,
     addContextItem,
     removeContextItem,
@@ -54,8 +53,18 @@ const Chat: React.FC<ChatProps> = () => {
     setActiveConsole,
   } = useConsoleStore();
 
-  // Get current messages
-  const messages = getCurrentMessages();
+  // Get current messages from store
+  const storedMessages = getCurrentMessages();
+
+  // Local state for streaming message (to avoid global state updates during streaming)
+  const [streamingMessage, setStreamingMessage] = useState<Message | null>(
+    null
+  );
+
+  // Combine stored messages with streaming message for display
+  const messages = streamingMessage
+    ? [...storedMessages, streamingMessage]
+    : storedMessages;
 
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -225,6 +234,11 @@ const Chat: React.FC<ChatProps> = () => {
       createNewChat();
     }
   }, [chatSessions.length, createNewChat]);
+
+  // Clear streaming message when chat changes
+  useEffect(() => {
+    setStreamingMessage(null);
+  }, [currentChatId]);
 
   // Context management
   const handleAttachClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -413,6 +427,9 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     // Reset user scroll state when sending a new message
     setIsUserScrolledUp(false);
 
+    // Clear any existing streaming message
+    setStreamingMessage(null);
+
     // 1. Add the user message first so it appears in the UI immediately
     const userMessageObj: Message = {
       id: Date.now().toString() + Math.random(),
@@ -425,7 +442,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
     try {
       // Build conversation history for the API call (excluding system prompt)
-      const conversationHistory = messages.map((msg) => ({
+      const conversationHistory = storedMessages.map((msg) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
       }));
@@ -446,16 +463,16 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         selectedModel.toLowerCase().startsWith("o3") ||
         selectedModel.toLowerCase().includes("gpt-4o");
 
-      // 2. Prepare an empty assistant message that we will progressively fill as we receive streamed chunks
+      // 2. Prepare an empty assistant message for local streaming state
       const assistantMessageId = `assistant-${Date.now()}-${Math.random()}`;
-      const assistantMessage: Message = {
+      const initialStreamingMessage: Message = {
         id: assistantMessageId,
         role: "assistant",
         content: "", // will be filled incrementally
         timestamp: new Date(),
         attachedContext: [],
       };
-      addMessage(assistantMessage);
+      setStreamingMessage(initialStreamingMessage);
 
       // 3. Call the OpenAI chat completion endpoint with streaming enabled
       const completionStream: AsyncIterable<any> = await (
@@ -474,13 +491,21 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         stream: true,
       });
 
-      // 4. Iterate over the streamed chunks and update the assistant message content in real-time
+      // 4. Iterate over the streamed chunks and update local streaming message
       let fullResponse = "";
       for await (const chunk of completionStream) {
         const delta: string = chunk?.choices?.[0]?.delta?.content || "";
         if (delta) {
           fullResponse += delta;
-          updateMessage(assistantMessageId, delta);
+          // Update local streaming message instead of global state
+          setStreamingMessage((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  content: prev.content + delta,
+                }
+              : null
+          );
           // Trigger re-render for auto-scroll during streaming
           setLastMessageUpdateTime(Date.now());
           // Force immediate scroll during streaming only if user hasn't scrolled up
@@ -498,6 +523,19 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           }
         }
       }
+
+      // 5. After streaming is complete, save the final message to global state
+      const finalMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: fullResponse,
+        timestamp: new Date(),
+        attachedContext: [],
+      };
+      addMessage(finalMessage);
+
+      // Clear the streaming message since it's now in the store
+      setStreamingMessage(null);
 
       // After streaming is complete, check if we should update a console
       updateConsoleFromAIResponse(fullResponse);
@@ -559,6 +597,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       }
     } catch (err: any) {
       console.error("OpenAI API error:", err);
+      // Clear streaming message on error
+      setStreamingMessage(null);
       if (err.status === 401) {
         setError(
           "Invalid API key. Please check your OpenAI API key in Settings."
