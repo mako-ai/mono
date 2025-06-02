@@ -30,6 +30,28 @@ export class QueryExecutor {
             return value;
           }
 
+          // Mongo-shell helper for db.getCollectionInfos([filter], [options])
+          if (prop === "getCollectionInfos") {
+            return (filter?: any, options?: any) => {
+              return (target as Db).listCollections(filter, options).toArray();
+            };
+          }
+
+          // Mongo-shell helper for db.getCollectionNames([filter])
+          if (prop === "getCollectionNames") {
+            return (filter?: any) => {
+              return (target as Db)
+                .listCollections(filter, { nameOnly: true })
+                .toArray()
+                .then((infos) => infos.map((info) => info.name));
+            };
+          }
+
+          // Provide backwards-compatibility for Mongo-shell style helper db.getCollection(<name>)
+          if (prop === "getCollection") {
+            return (name: string) => (target as Db).collection(name);
+          }
+
           // If it's a string and not a database method, treat it as a collection name
           if (typeof prop === "string") {
             console.log(`📋 Accessing collection: ${prop}`);
