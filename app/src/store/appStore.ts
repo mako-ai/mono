@@ -215,11 +215,54 @@ export const reducer = (state: GlobalState, action: Action): void => {
     }
     case "FOCUS_CONSOLE_TAB": {
       state.consoles.activeTabId = action.payload.id;
+
+      // Handle chat context attachment for virgin chats
+      if (state.chat.currentChatId) {
+        const chat = state.chat.sessions[state.chat.currentChatId];
+        if (chat && chat.messages.length === 0) {
+          if (action.payload.id) {
+            // Console focused - attach it to virgin chat
+            const tab = state.consoles.tabs[action.payload.id];
+            if (tab) {
+              chat.attachedContext = [
+                {
+                  id: tab.id,
+                  type: "console",
+                  title: tab.title,
+                  content: tab.content,
+                  metadata: { consoleId: tab.id },
+                },
+              ];
+            }
+          } else {
+            // No console focused - clear virgin chat context
+            chat.attachedContext = [];
+          }
+        }
+      }
       break;
     }
     case "UPDATE_CONSOLE_CONTENT": {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.content = action.payload.content;
+
+      // Update any attached console context in current chat
+      if (state.chat.currentChatId) {
+        const chat = state.chat.sessions[state.chat.currentChatId];
+        if (chat && tab) {
+          const contextIndex = chat.attachedContext.findIndex(
+            (ctx) =>
+              ctx.type === "console" &&
+              ctx.metadata?.consoleId === action.payload.id
+          );
+          if (contextIndex !== -1) {
+            chat.attachedContext[contextIndex] = {
+              ...chat.attachedContext[contextIndex],
+              content: `Console: ${tab.title}\n\nCurrent Content:\n${tab.content}`,
+            };
+          }
+        }
+      }
       break;
     }
     case "CREATE_CHAT": {
