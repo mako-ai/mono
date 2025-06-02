@@ -87,14 +87,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     // Separate keys that start with numbers from those that don't
     const allKeysArray = Array.from(allKeys);
     const numericKeys = allKeysArray.filter(startsWithNumber);
+    const sortedNumericKeys = numericKeys.sort();
     const alphabeticKeys = allKeysArray.filter((key) => !startsWithNumber(key));
 
-    // Sort both groups alphabetically
-    const sortedAlphabeticKeys = alphabeticKeys.sort();
-    const sortedNumericKeys = numericKeys.sort();
-
     // Combine alphabetic keys first, then numeric keys
-    const orderedKeys = [...sortedAlphabeticKeys, ...sortedNumericKeys];
+    const orderedKeys = [...alphabeticKeys, ...sortedNumericKeys];
 
     const cols: GridColDef[] = orderedKeys.map((key) => {
       // Check if this column contains numeric values by sampling the first few rows
