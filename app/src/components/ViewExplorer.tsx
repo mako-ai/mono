@@ -20,6 +20,7 @@ import {
   ExpandLess,
   ExpandMore,
 } from "@mui/icons-material";
+import { useAppStore } from "../store/appStore";
 
 interface ViewInfo {
   name: string;
@@ -45,9 +46,11 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   const [views, setViews] = useState<ViewInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCollections, setExpandedCollections] = useState<Set<string>>(
-    new Set()
+  const dispatch = useAppStore((s) => s.dispatch);
+  const expandedCollectionsArray = useAppStore(
+    (s) => s.explorers.view.expandedCollections
   );
+  const expandedCollections = new Set(expandedCollectionsArray);
 
   const fetchViews = useCallback(async () => {
     try {
@@ -62,7 +65,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
         setViews(data.data);
 
         // Keep all collections collapsed by default
-        setExpandedCollections(new Set());
+        // The global state will handle the default collapsed state
       } else {
         setError(data.error || "Failed to fetch views");
       }
@@ -83,9 +86,10 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
 
     // Ensure the parent collection is expanded
     const collection = view.options.viewOn || "Unknown Collection";
-    const newExpanded = new Set(expandedCollections);
-    newExpanded.add(collection);
-    setExpandedCollections(newExpanded);
+    dispatch({
+      type: "EXPAND_VIEW_COLLECTION",
+      payload: { collectionName: collection },
+    } as any);
 
     const viewDefinition = {
       name: view.name,
@@ -102,13 +106,10 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   };
 
   const handleCollectionToggle = (collectionName: string) => {
-    const newExpanded = new Set(expandedCollections);
-    if (newExpanded.has(collectionName)) {
-      newExpanded.delete(collectionName);
-    } else {
-      newExpanded.add(collectionName);
-    }
-    setExpandedCollections(newExpanded);
+    dispatch({
+      type: "TOGGLE_VIEW_COLLECTION",
+      payload: { collectionName },
+    } as any);
   };
 
   const groupViewsByCollection = () => {

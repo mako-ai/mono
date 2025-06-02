@@ -17,6 +17,7 @@ import {
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
+import { useAppStore } from "../store/appStore";
 
 interface ConsoleEntry {
   name: string;
@@ -39,9 +40,11 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const { onConsoleSelect } = props;
     const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
     const [loading, setLoading] = useState(true);
-    const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-      new Set()
+    const dispatch = useAppStore((s) => s.dispatch);
+    const expandedFoldersArray = useAppStore(
+      (s) => s.explorers.console.expandedFolders
     );
+    const expandedFolders = new Set(expandedFoldersArray);
     const [error, setError] = useState<string | null>(null);
 
     const fetchConsoleEntries = async () => {
@@ -97,15 +100,10 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     }));
 
     const handleFolderToggle = (folderPath: string) => {
-      setExpandedFolders((prevExpanded) => {
-        const newExpanded = new Set(prevExpanded);
-        if (newExpanded.has(folderPath)) {
-          newExpanded.delete(folderPath);
-        } else {
-          newExpanded.add(folderPath);
-        }
-        return newExpanded;
-      });
+      dispatch({
+        type: "TOGGLE_CONSOLE_FOLDER",
+        payload: { folderPath },
+      } as any);
     };
 
     const handleFileClick = async (filePath: string) => {

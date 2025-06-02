@@ -79,37 +79,22 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       }
     });
 
-    // Function to check if a key looks like a date (YYYY, YYYY-MM, YYYY-MM-DD, etc.)
-    const isDateLikeKey = (key: string): boolean => {
-      // Match patterns like: YYYY, YYYY-MM, YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, etc.
-      const datePattern = /^\d{4}(-\d{2})?(-\d{2})?(\s\d{2}:\d{2}(:\d{2})?)?$/;
-      return datePattern.test(key.trim());
+    // Function to check if a key starts with a number
+    const startsWithNumber = (key: string): boolean => {
+      return /^\d/.test(key.trim());
     };
 
-    // Separate date columns from non-date columns
+    // Separate keys that start with numbers from those that don't
     const allKeysArray = Array.from(allKeys);
-    const dateKeys = allKeysArray.filter(isDateLikeKey);
-    const nonDateKeys = allKeysArray.filter((key) => !isDateLikeKey(key));
+    const numericKeys = allKeysArray.filter(startsWithNumber);
+    const alphabeticKeys = allKeysArray.filter((key) => !startsWithNumber(key));
 
-    // Sort date keys chronologically
-    const sortedDateKeys = dateKeys.sort((a, b) => {
-      // Convert to comparable date strings by padding if needed
-      const normalizeDate = (dateStr: string) => {
-        const parts = dateStr.trim().split(/[\s-:]/);
-        return (
-          parts[0] +
-          (parts[1] || "01").padStart(2, "0") +
-          (parts[2] || "01").padStart(2, "0") +
-          (parts[3] || "00").padStart(2, "0") +
-          (parts[4] || "00").padStart(2, "0") +
-          (parts[5] || "00").padStart(2, "0")
-        );
-      };
-      return normalizeDate(a).localeCompare(normalizeDate(b));
-    });
+    // Sort both groups alphabetically
+    const sortedAlphabeticKeys = alphabeticKeys.sort();
+    const sortedNumericKeys = numericKeys.sort();
 
-    // Combine non-date keys first, then sorted date keys
-    const orderedKeys = [...nonDateKeys, ...sortedDateKeys];
+    // Combine alphabetic keys first, then numeric keys
+    const orderedKeys = [...sortedAlphabeticKeys, ...sortedNumericKeys];
 
     const cols: GridColDef[] = orderedKeys.map((key) => {
       // Check if this column contains numeric values by sampling the first few rows
