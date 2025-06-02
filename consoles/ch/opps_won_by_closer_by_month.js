@@ -53,3 +53,76 @@ db.switzerland_close_opportunities.aggregate([
     $sort: { "total (all months)": -1 },
   },
 ]);
+
+// --- Won opportunities count by closer & quarter (pivoted) ---
+db.switzerland_close_opportunities.aggregate([
+  /* 0) keep only “won” opportunities that have a date_won */
+  {
+    $match: {
+      status_type: "won",
+      date_won: { $exists: true, $ne: null },
+    },
+  },
+
+  /* 1) compute helper fields: closer, year, month number, quarter label */
+  {
+    $addFields: {
+      closer: { $ifNull: ["$user_name", "Unknown Closer"] },
+      year: { $substr: ["$date_won", 0, 4] },
+      monthNumber: { $toInt: { $substr: ["$date_won", 5, 2] } },
+    },
+  },
+  {
+    $addFields: {
+      quarter: {
+        $concat: [
+          "$year",
+          "-Q",
+          {
+            $toString: {
+              $ceil: { $divide: ["$monthNumber", 3] }, // 1-4
+            },
+          },
+        ],
+      },
+    },
+  },
+
+  /* 2) count opportunities per closer + quarter */
+  {
+    $group: {
+      _id: { closer: "$closer", quarter: "$quarter" },
+      count: { $sum: 1 },
+    },
+  },
+
+  /* 3) pivot: one document per closer, quarters become dynamic fields */
+  {
+    $group: {
+      _id: "$_id.closer",
+      quarters: {
+        $push: {
+          k: "$_id.quarter",
+          v: "$count",
+        },
+      },
+      total: { $sum: "$count" },
+    },
+  },
+
+  /* 4) merge into flat row: { closer, <YYYY-Qn>: <cnt>, total (all quarters) } */
+  {
+    $replaceRoot: {
+      newRoot: {
+        $mergeObjects: [
+          { closer: "$_id" },
+          { $arrayToObject: "$quarters" },
+          { "total (all quarters)": "$total" },
+        ],
+      },
+    },
+  },
+
+  /* 5) sort by the grand total, highest first */
+  { $sort: { "total (all quarters)": -1 } },
+]);

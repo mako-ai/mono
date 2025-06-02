@@ -1,123 +1,87 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { useAppStore } from "./appStore";
+import { useMemo } from "react";
 
-interface DatabaseExplorerState {
-  // Expanded states
-  expandedServers: Set<string>;
-  expandedDatabases: Set<string>;
-  expandedCollectionGroups: Set<string>;
-  expandedViewGroups: Set<string>;
+export const useDatabaseExplorerStore = () => {
+  const dispatch = useAppStore((s) => s.dispatch);
+  const expandedServersArray = useAppStore(
+    (s) => s.explorers.database.expandedServers
+  );
+  const expandedDatabasesArray = useAppStore(
+    (s) => s.explorers.database.expandedDatabases
+  );
+  const expandedCollectionGroupsArray = useAppStore(
+    (s) => s.explorers.database.expandedCollectionGroups
+  );
+  const expandedViewGroupsArray = useAppStore(
+    (s) => s.explorers.database.expandedViewGroups
+  );
 
-  // Actions
-  toggleServer: (serverId: string) => void;
-  toggleDatabase: (databaseId: string) => void;
-  toggleCollectionGroup: (databaseId: string) => void;
-  toggleViewGroup: (databaseId: string) => void;
-  expandServer: (serverId: string) => void;
-  expandDatabase: (databaseId: string) => void;
-  isServerExpanded: (serverId: string) => boolean;
-  isDatabaseExpanded: (databaseId: string) => boolean;
-  isCollectionGroupExpanded: (databaseId: string) => boolean;
-  isViewGroupExpanded: (databaseId: string) => boolean;
-}
+  const value = useMemo(() => {
+    // Convert arrays to Sets for backward compatibility
+    const expandedServers = new Set(expandedServersArray);
+    const expandedDatabases = new Set(expandedDatabasesArray);
+    const expandedCollectionGroups = new Set(expandedCollectionGroupsArray);
+    const expandedViewGroups = new Set(expandedViewGroupsArray);
 
-export const useDatabaseExplorerStore = create<DatabaseExplorerState>()(
-  persist(
-    (set, get) => ({
-      // Initial states - using Sets for efficient lookup
-      expandedServers: new Set<string>(),
-      expandedDatabases: new Set<string>(),
-      expandedCollectionGroups: new Set<string>(),
-      expandedViewGroups: new Set<string>(),
+    return {
+      expandedServers,
+      expandedDatabases,
+      expandedCollectionGroups,
+      expandedViewGroups,
 
       // Actions
-      toggleServer: (serverId) =>
-        set((state) => {
-          const newSet = new Set(state.expandedServers);
-          if (newSet.has(serverId)) {
-            newSet.delete(serverId);
-          } else {
-            newSet.add(serverId);
-          }
-          return { expandedServers: newSet };
-        }),
+      toggleServer: (serverId: string) =>
+        dispatch({
+          type: "TOGGLE_DATABASE_SERVER",
+          payload: { serverId },
+        } as any),
 
-      toggleDatabase: (databaseId) =>
-        set((state) => {
-          const newSet = new Set(state.expandedDatabases);
-          if (newSet.has(databaseId)) {
-            newSet.delete(databaseId);
-          } else {
-            newSet.add(databaseId);
-          }
-          return { expandedDatabases: newSet };
-        }),
+      toggleDatabase: (databaseId: string) =>
+        dispatch({
+          type: "TOGGLE_DATABASE_DATABASE",
+          payload: { databaseId },
+        } as any),
 
-      toggleCollectionGroup: (databaseId) =>
-        set((state) => {
-          const newSet = new Set(state.expandedCollectionGroups);
-          if (newSet.has(databaseId)) {
-            newSet.delete(databaseId);
-          } else {
-            newSet.add(databaseId);
-          }
-          return { expandedCollectionGroups: newSet };
-        }),
+      toggleCollectionGroup: (databaseId: string) =>
+        dispatch({
+          type: "TOGGLE_DATABASE_COLLECTION_GROUP",
+          payload: { databaseId },
+        } as any),
 
-      toggleViewGroup: (databaseId) =>
-        set((state) => {
-          const newSet = new Set(state.expandedViewGroups);
-          if (newSet.has(databaseId)) {
-            newSet.delete(databaseId);
-          } else {
-            newSet.add(databaseId);
-          }
-          return { expandedViewGroups: newSet };
-        }),
+      toggleViewGroup: (databaseId: string) =>
+        dispatch({
+          type: "TOGGLE_DATABASE_VIEW_GROUP",
+          payload: { databaseId },
+        } as any),
 
-      expandServer: (serverId) =>
-        set((state) => {
-          const newSet = new Set(state.expandedServers);
-          newSet.add(serverId);
-          return { expandedServers: newSet };
-        }),
+      expandServer: (serverId: string) =>
+        dispatch({
+          type: "EXPAND_DATABASE_SERVER",
+          payload: { serverId },
+        } as any),
 
-      expandDatabase: (databaseId) =>
-        set((state) => {
-          const newSet = new Set(state.expandedDatabases);
-          newSet.add(databaseId);
-          return { expandedDatabases: newSet };
-        }),
+      expandDatabase: (databaseId: string) =>
+        dispatch({
+          type: "EXPAND_DATABASE_DATABASE",
+          payload: { databaseId },
+        } as any),
 
       // Helper methods to check expanded state
-      isServerExpanded: (serverId) => get().expandedServers.has(serverId),
-      isDatabaseExpanded: (databaseId) =>
-        get().expandedDatabases.has(databaseId),
-      isCollectionGroupExpanded: (databaseId) =>
-        get().expandedCollectionGroups.has(databaseId),
-      isViewGroupExpanded: (databaseId) =>
-        get().expandedViewGroups.has(databaseId),
-    }),
-    {
-      name: "database-explorer-store", // unique name for localStorage key
-      // Custom serialization for Sets
-      partialize: (state) => ({
-        expandedServers: Array.from(state.expandedServers),
-        expandedDatabases: Array.from(state.expandedDatabases),
-        expandedCollectionGroups: Array.from(state.expandedCollectionGroups),
-        expandedViewGroups: Array.from(state.expandedViewGroups),
-      }),
-      // Custom deserialization for Sets
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          state.expandedServers = new Set(state.expandedServers as any);
-          state.expandedDatabases = new Set(state.expandedDatabases as any);
-          state.expandedCollectionGroups = new Set(
-            state.expandedCollectionGroups as any
-          );
-          state.expandedViewGroups = new Set(state.expandedViewGroups as any);
-        }
-      },
-    }
-  )
-);
+      isServerExpanded: (serverId: string) => expandedServers.has(serverId),
+      isDatabaseExpanded: (databaseId: string) =>
+        expandedDatabases.has(databaseId),
+      isCollectionGroupExpanded: (databaseId: string) =>
+        expandedCollectionGroups.has(databaseId),
+      isViewGroupExpanded: (databaseId: string) =>
+        expandedViewGroups.has(databaseId),
+    };
+  }, [
+    dispatch,
+    expandedServersArray,
+    expandedDatabasesArray,
+    expandedCollectionGroupsArray,
+    expandedViewGroupsArray,
+  ]);
+
+  return value;
+};
