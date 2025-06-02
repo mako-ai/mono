@@ -6,7 +6,8 @@ import {
   SettingsOutlined as SettingsIcon,
   CloudUploadOutlined as DataSourceIcon,
 } from "@mui/icons-material";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useAppStore, AppView } from "../store";
+import { useConsoleStore } from "../store/consoleStore";
 
 const NavButton = styled(IconButton, {
   shouldForwardProp: (prop) => prop !== "isActive",
@@ -23,23 +24,46 @@ const NavButton = styled(IconButton, {
   transition: "all 0.2s ease",
 }));
 
-const topNavigationItems = [
-  { path: "/databases", icon: DatabaseIcon, label: "Databases" },
-  { path: "/", icon: FileIcon, label: "Consoles" },
-  { path: "/views", icon: ViewIcon, label: "Views" },
-  { path: "/sources", icon: DataSourceIcon, label: "Data Sources" },
+const topNavigationItems: { view: AppView; icon: any; label: string }[] = [
+  { view: "databases", icon: DatabaseIcon, label: "Databases" },
+  { view: "consoles", icon: FileIcon, label: "Consoles" },
+  { view: "views", icon: ViewIcon, label: "Views" },
+  { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
 ];
 
-const bottomNavigationItems = [
-  { path: "/settings", icon: SettingsIcon, label: "Settings" },
+const bottomNavigationItems: { view: AppView; icon: any; label: string }[] = [
+  { view: "settings", icon: SettingsIcon, label: "Settings" },
 ];
 
 function Sidebar() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { activeView, setActiveView } = useAppStore();
 
-  const handleNavigation = (path: string) => {
-    navigate(path);
+  const handleNavigation = (view: AppView) => {
+    // For views that control the left pane, update activeView
+    if (view !== "settings") {
+      setActiveView(view);
+    }
+
+    // Views that should open (or focus) a tab in the editor
+    if (view === "settings" || view === "sources") {
+      const { findTabByKind, addConsoleTab, setActiveConsole } =
+        useConsoleStore.getState();
+
+      const existing = findTabByKind(
+        view === "settings" ? "settings" : "sources"
+      );
+      if (existing) {
+        setActiveConsole(existing.id);
+      } else {
+        const id = addConsoleTab({
+          title: view === "settings" ? "Settings" : "Data Sources",
+          content: "", // Will be replaced with actual forms later
+          initialContent: "",
+          kind: view === "settings" ? "settings" : "sources",
+        });
+        setActiveConsole(id);
+      }
+    }
   };
 
   return (
@@ -65,13 +89,13 @@ function Sidebar() {
       >
         {topNavigationItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const isActive = activeView === item.view;
 
           return (
-            <Tooltip key={item.path} title={item.label} placement="right">
+            <Tooltip key={item.view} title={item.label} placement="right">
               <NavButton
                 isActive={isActive}
-                onClick={() => handleNavigation(item.path)}
+                onClick={() => handleNavigation(item.view)}
               >
                 <Icon />
               </NavButton>
@@ -82,13 +106,13 @@ function Sidebar() {
       <Box>
         {bottomNavigationItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const isActive = activeView === item.view;
 
           return (
-            <Tooltip key={item.path} title={item.label} placement="right">
+            <Tooltip key={item.view} title={item.label} placement="right">
               <NavButton
                 isActive={isActive}
-                onClick={() => handleNavigation(item.path)}
+                onClick={() => handleNavigation(item.view)}
               >
                 <Icon />
               </NavButton>

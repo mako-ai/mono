@@ -1,12 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+export type TabKind = "console" | "settings" | "sources";
+
 export interface ConsoleTab {
   id: string;
   title: string;
   content: string; // Current content of the console
   initialContent: string; // Initial content when created
   databaseId?: string; // Selected database ID for the console
+  kind?: TabKind;
 }
 
 interface ConsoleState {
@@ -16,6 +19,7 @@ interface ConsoleState {
 
   // Actions
   addConsoleTab: (tab: Omit<ConsoleTab, "id">) => string; // Returns the new tab ID
+  findTabByKind: (kind: TabKind) => ConsoleTab | undefined;
   removeConsoleTab: (id: string) => void;
   updateConsoleContent: (id: string, content: string) => void;
   setActiveConsole: (id: string | null) => void;
@@ -39,6 +43,7 @@ export const useConsoleStore = create<ConsoleState>()(
           content: tab.content || tab.initialContent,
           initialContent: tab.initialContent,
           databaseId: tab.databaseId,
+          kind: tab.kind || "console",
         };
 
         set((state) => ({
@@ -47,6 +52,10 @@ export const useConsoleStore = create<ConsoleState>()(
         }));
 
         return id;
+      },
+
+      findTabByKind: (kind) => {
+        return get().consoleTabs.find((t) => t.kind === kind);
       },
 
       removeConsoleTab: (id) =>
