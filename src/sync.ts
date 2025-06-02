@@ -178,6 +178,7 @@ async function main() {
   }
 
   console.log("\n✅ Sync completed successfully!");
+  process.exit(0);
 }
 
 async function syncClose(
