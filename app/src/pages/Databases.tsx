@@ -77,6 +77,7 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 function Databases() {
   const [queryResults, setQueryResults] = useState<QueryResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -226,6 +227,63 @@ function Databases() {
     }
   };
 
+  const handleConsoleSaveInDatabasePage = async (
+    contentToSave: string,
+    _currentPath?: string
+  ): Promise<boolean> => {
+    // In Databases page, save is always "Save As" to the main consoles directory
+    setIsSaving(true);
+    let success = false;
+    try {
+      const fileName = prompt(
+        "Enter a file name to save this console (e.g., myFolder/myQuery). Existing .js extension will be appended if not present."
+      );
+      if (!fileName) {
+        setIsSaving(false);
+        return false; // User cancelled
+      }
+      // API expects path without .js, remove if user added it
+      const savePath = fileName.endsWith(".js")
+        ? fileName.substring(0, fileName.length - 3)
+        : fileName;
+
+      const response = await fetch(`/api/consoles`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ path: savePath, content: contentToSave }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // alert("Console saved successfully as " + savePath + ".js!"); // Simple feedback
+        // Optionally, we could switch to the Consoles page and open this newly saved console.
+        // For now, just confirm save and stay on Databases page.
+        // We might also want to update the console tab title if it was a temporary one.
+        setSnackbarMessage(`Console saved as '${savePath}.js'`);
+        setSnackbarOpen(true);
+        success = true;
+      } else {
+        console.error("Console save failed:", data.error);
+        setErrorMessage(JSON.stringify(data.error, null, 2));
+        setErrorModalOpen(true);
+        success = false;
+      }
+    } catch (error) {
+      console.error("Failed to save console:", error);
+      setErrorMessage(JSON.stringify(error, null, 2));
+      setErrorModalOpen(true);
+      success = false;
+    } finally {
+      setIsSaving(false);
+    }
+    // Returning true here indicates a new path was created (which is always the case for this function)
+    // This might be used by the Console component to reset its filePath if that feature is built out.
+    return success;
+  };
+
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
     setErrorMessage("");
@@ -326,6 +384,8 @@ function Databases() {
                               title={tab.title}
                               onExecute={handleConsoleExecute}
                               isExecuting={isExecuting}
+                              onSave={handleConsoleSaveInDatabasePage}
+                              isSaving={isSaving}
                               onContentChange={(content) =>
                                 updateConsoleContent(tab.id, content)
                               }

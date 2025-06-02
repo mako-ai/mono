@@ -25,7 +25,7 @@ const NavButton = styled(IconButton, {
 
 const topNavigationItems = [
   { path: "/databases", icon: DatabaseIcon, label: "Databases" },
-  { path: "/", icon: FileIcon, label: "Queries" },
+  { path: "/", icon: FileIcon, label: "Consoles" },
   { path: "/views", icon: ViewIcon, label: "Views" },
   { path: "/sources", icon: DataSourceIcon, label: "Data Sources" },
 ];

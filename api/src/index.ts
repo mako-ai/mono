@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import dotenv from "dotenv";
-import { queryRoutes } from "./routes/queries";
+import { consoleRoutes } from "./routes/consoles";
 import { executeRoutes } from "./routes/execute";
 import { databaseRoutes } from "./routes/database";
 import { dataSourceRoutes } from "./routes/sources";
@@ -29,7 +29,7 @@ app.get("/health", (c) => {
 });
 
 // API routes
-app.route("/api/queries", queryRoutes);
+app.route("/api/consoles", consoleRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
