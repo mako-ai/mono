@@ -36,6 +36,9 @@ interface ChatState {
   clearAttachedContext: () => void;
   updateContextItem: (id: string, updates: Partial<AttachedContext>) => void;
 
+  // Conditional context attach
+  ensureContextItems: (items: AttachedContext[]) => void;
+
   // Model selection
   selectedModel: string;
   setSelectedModel: (model: string) => void;
@@ -68,8 +71,12 @@ export const useChatStore = create<ChatState>()(
         const state = get();
         const currentChat = state.getCurrentChat();
 
-        // If current chat is empty, just reuse it and clear context
-        if (currentChat && currentChat.messages.length === 0) {
+        // If current chat is empty and no context, just reuse it and clear context
+        if (
+          currentChat &&
+          currentChat.messages.length === 0 &&
+          state.attachedContext.length === 0
+        ) {
           // Reset any error state and clear attached context
           set({
             error: null,
@@ -221,6 +228,16 @@ export const useChatStore = create<ChatState>()(
             item.id === id ? { ...item, ...updates } : item
           ),
         })),
+
+      // Conditional context attach
+      ensureContextItems: (items) => {
+        const state = get();
+        const isVirgin = state.getCurrentMessages().length === 0;
+        if (!isVirgin) return; // preserve existing context once chat has messages
+
+        // Replace context entirely with the provided items
+        set({ attachedContext: items });
+      },
 
       // Model selection
       selectedModel: "gpt-3.5-turbo",
