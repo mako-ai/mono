@@ -449,7 +449,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                       onClick={() =>
                                         handleCollectionGroupToggle(database.id)
                                       }
-                                      sx={{ py: 0.5, pl: 4 }}
+                                      sx={{ py: 0.5, pl: 3 }}
                                     >
                                       <ListItemIcon sx={{ minWidth: 32 }}>
                                         {expandedCollectionGroups.has(
@@ -519,7 +519,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                   collection
                                                 )
                                               }
-                                              sx={{ py: 0.25, pl: 8.5 }}
+                                              sx={{ py: 0.25, pl: 7.5 }}
                                             >
                                               <ListItemIcon
                                                 sx={{ minWidth: 28 }}

@@ -13,16 +13,56 @@ export class QueryManager {
   private queriesDir: string;
 
   constructor() {
-    // In Docker, queries are mounted to /app/queries
-    this.queriesDir = path.join(process.cwd(), "queries");
-    console.log(`📁 Queries directory: ${this.queriesDir}`);
+    // Allow overriding via environment variable
+    const envDir = process.env.QUERIES_DIR;
+
+    const cwdDir = path.join(process.cwd(), "queries");
+
+    // Secondary candidate – parent directory (useful when the server is started from a sub-folder like /api)
+    const parentDir = path.join(process.cwd(), "..", "queries");
+
+    // Determine which directory actually exists AND contains at least one entry
+    let resolvedDir: string | undefined = undefined;
+
+    const candidates = [envDir, parentDir, cwdDir].filter(Boolean) as string[];
+
+    for (const dir of candidates) {
+      if (fs.existsSync(dir)) {
+        try {
+          // Treat directory as valid only if it has files / sub-directories
+          const items = fs.readdirSync(dir);
+          if (items.length > 0) {
+            resolvedDir = dir;
+            break;
+          }
+        } catch (err) {
+          // Ignore permission errors etc.
+        }
+      }
+    }
+
+    // Fallback to first existing directory (even if empty) or cwdDir
+    if (!resolvedDir) {
+      for (const dir of candidates) {
+        if (fs.existsSync(dir)) {
+          resolvedDir = dir;
+          break;
+        }
+      }
+    }
+
+    this.queriesDir = resolvedDir || cwdDir;
+
+    console.log(`📁 Queries directory resolved to: ${this.queriesDir}`);
   }
 
   /**
    * Get all queries in a tree structure
    */
   async listQueries(): Promise<QueryFile[]> {
-    return this.scanDirectory("");
+    const results = this.scanDirectory("");
+    console.log(`🔍 listQueries found ${results.length} top-level items`);
+    return results;
   }
 
   /**
