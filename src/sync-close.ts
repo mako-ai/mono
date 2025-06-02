@@ -1,8 +1,8 @@
 import axios, { AxiosError } from "axios";
 import { MongoClient, Db, Collection } from "mongodb";
 import * as dotenv from "dotenv";
-import { tenantManager } from "./tenant-manager";
-import type { TenantConfig } from "./tenant-manager";
+import { dataSourceManager } from "./data-source-manager";
+import type { DataSourceConfig } from "./data-source-manager";
 
 dotenv.config();
 
@@ -21,391 +21,425 @@ interface SyncStats {
 }
 
 class CloseSyncService {
-  private client: MongoClient;
-  private db!: Db;
-  private tenant: TenantConfig;
-  private baseUrl: string;
-  private rateLimitDelay: number;
-  private maxRetries: number;
-  private batchSize: number;
+  private mongoConnections: Map<string, { client: MongoClient; db: Db }> =
+    new Map();
+  private dataSource: DataSourceConfig;
+  private closeApiKey: string;
+  private closeApiUrl: string;
+  private settings: {
+    batchSize: number;
+    rateLimitDelay: number;
+    maxRetries: number;
+  };
 
-  constructor(tenant: TenantConfig) {
-    this.tenant = tenant;
+  constructor(dataSource: DataSourceConfig) {
+    this.dataSource = dataSource;
 
-    // Get Close.com configuration for this tenant
-    const closeConfig = tenant.sources.close;
-    if (!closeConfig?.enabled) {
-      throw new Error(`Close.com is not enabled for tenant ${tenant.id}`);
+    // Get Close configuration
+    if (!dataSource.connection.api_key) {
+      throw new Error(
+        `Close API key is required for data source ${dataSource.id}`
+      );
     }
 
-    this.baseUrl = closeConfig.api_base_url || "https://api.close.com/api/v1";
-    this.rateLimitDelay = tenant.settings.rate_limit_delay_ms || 200;
-    this.maxRetries = tenant.settings.max_retries || 5;
-    this.batchSize = tenant.settings.sync_batch_size || 100;
+    this.closeApiKey = dataSource.connection.api_key;
+    this.closeApiUrl =
+      dataSource.connection.api_base_url || "https://api.close.com/api/v1";
 
-    if (!closeConfig.api_key) {
-      throw new Error(`Close API key is required for tenant ${tenant.id}`);
+    // Get settings with defaults
+    const globalConfig = dataSourceManager.getGlobalConfig();
+    this.settings = {
+      batchSize: dataSource.settings.sync_batch_size || 100,
+      rateLimitDelay: dataSource.settings.rate_limit_delay_ms || 200,
+      maxRetries:
+        dataSource.settings.max_retries || globalConfig.max_retries || 5,
+    };
+  }
+
+  private async getMongoConnection(
+    targetDbId: string = "analytics_db"
+  ): Promise<{ client: MongoClient; db: Db }> {
+    // Check if connection already exists
+    if (this.mongoConnections.has(targetDbId)) {
+      return this.mongoConnections.get(targetDbId)!;
     }
 
-    const globalConfig = tenantManager.getGlobalConfig();
-    this.client = new MongoClient(globalConfig.mongodb.connection_string);
+    // Get target database configuration
+    const targetDb = dataSourceManager.getDataSource(targetDbId);
+    if (!targetDb || targetDb.type !== "mongodb") {
+      throw new Error(`MongoDB data source '${targetDbId}' not found`);
+    }
+
+    // Create new connection
+    const client = new MongoClient(targetDb.connection.connection_string!);
+    await client.connect();
+    const db = client.db(targetDb.connection.database);
+
+    const connection = { client, db };
+    this.mongoConnections.set(targetDbId, connection);
+
+    console.log(
+      `Connected to MongoDB: ${targetDb.name} for Close source: ${this.dataSource.name}`
+    );
+    return connection;
   }
 
-  private async delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private async disconnect(): Promise<void> {
+    for (const [dbId, connection] of this.mongoConnections.entries()) {
+      await connection.client.close();
+      console.log(`Disconnected from MongoDB: ${dbId}`);
+    }
+    this.mongoConnections.clear();
   }
 
-  private async makeApiRequest(
-    url: string,
-    retryCount = 0
-  ): Promise<CloseApiResponse> {
+  private async fetchCloseData(
+    endpoint: string,
+    params: any = {}
+  ): Promise<any[]> {
+    const results: any[] = [];
+    let hasMore = true;
+    let skip = 0;
+
+    while (hasMore) {
+      try {
+        const response = await axios.get(`${this.closeApiUrl}/${endpoint}`, {
+          headers: {
+            Authorization: `Basic ${Buffer.from(
+              this.closeApiKey + ":"
+            ).toString("base64")}`,
+            Accept: "application/json",
+          },
+          params: {
+            ...params,
+            _skip: skip,
+            _limit: this.settings.batchSize,
+          },
+        });
+
+        const data = response.data.data || [];
+        results.push(...data);
+
+        hasMore = response.data.has_more || false;
+        skip += this.settings.batchSize;
+
+        if (hasMore) {
+          // Apply rate limiting
+          await this.delay(this.settings.rateLimitDelay);
+        }
+      } catch (error) {
+        console.error(`Error fetching from ${endpoint}:`, error);
+        throw error;
+      }
+    }
+
+    return results;
+  }
+
+  async syncLeads(targetDbId?: string): Promise<void> {
+    console.log(`Starting leads sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
     try {
-      await this.delay(this.rateLimitDelay);
+      const leads = await this.fetchCloseData("lead");
+      console.log(`Fetched ${leads.length} leads from Close.com`);
 
-      // Close.com uses HTTP Basic Auth with API key as username and empty password
-      const closeConfig = this.tenant.sources.close!;
-      const auth = Buffer.from(`${closeConfig.api_key}:`).toString("base64");
+      const collection = db.collection("leads");
 
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // Process leads with data source reference
+      const processedLeads = leads.map((lead) => ({
+        ...lead,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
 
-      return response.data;
+      if (processedLeads.length > 0) {
+        // Use bulk operations for efficiency
+        const bulkOps = processedLeads.map((lead) => ({
+          replaceOne: {
+            filter: { id: lead.id, _dataSourceId: this.dataSource.id },
+            replacement: lead,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} leads`
+        );
+      }
     } catch (error) {
-      const axiosError = error as AxiosError;
-
-      if (axiosError.response?.status === 429 && retryCount < this.maxRetries) {
-        const retryAfter = axiosError.response.headers["retry-after"] || 60;
-        console.log(
-          `Rate limited. Waiting ${retryAfter} seconds before retry ${
-            retryCount + 1
-          }/${this.maxRetries}`
-        );
-        await this.delay(parseInt(retryAfter) * 1000);
-        return this.makeApiRequest(url, retryCount + 1);
-      }
-
-      if (retryCount < this.maxRetries && axiosError.response?.status !== 404) {
-        console.log(
-          `Request failed, retrying ${retryCount + 1}/${this.maxRetries}:`,
-          axiosError.message
-        );
-        await this.delay(2000 * (retryCount + 1)); // Exponential backoff
-        return this.makeApiRequest(url, retryCount + 1);
-      }
-
+      console.error("Lead sync failed:", error);
       throw error;
     }
   }
 
-  private async connect(): Promise<void> {
-    await this.client.connect();
-    const globalConfig = tenantManager.getGlobalConfig();
-    this.db = this.client.db(globalConfig.mongodb.database);
-    console.log(`Connected to MongoDB for tenant: ${this.tenant.name}`);
-  }
-
-  private async disconnect(): Promise<void> {
-    await this.client.close();
-    console.log("Disconnected from MongoDB");
-  }
-
-  private getCollectionName(baseCollection: string): string {
-    return `${this.tenant.id}_close_${baseCollection}`;
-  }
-
-  async syncData(
-    endpoint: string,
-    baseCollectionName: string
-  ): Promise<SyncStats> {
-    const collectionName = this.getCollectionName(baseCollectionName);
-    const stats: SyncStats = {
-      totalRecords: 0,
-      batchesProcessed: 0,
-      errors: 0,
-      startTime: new Date(),
-    };
+  async syncOpportunities(targetDbId?: string): Promise<void> {
+    console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      await this.connect();
-
-      // Clear and prepare staging collection
-      const stagingCollectionName = `${collectionName}_staging`;
-      const stagingCollection = this.db.collection(stagingCollectionName);
-      await stagingCollection.deleteMany({});
-      console.log(`Cleared ${stagingCollectionName} collection`);
-
-      // Get total count from first API call
-      console.log(`Getting total count of ${baseCollectionName}...`);
-      const firstResponse = await this.makeApiRequest(
-        `${this.baseUrl}/${endpoint}/?_limit=${this.batchSize}&_skip=0`
-      );
-      const totalResults = firstResponse.total_results || 0;
-      console.log(`Found ${totalResults} total ${baseCollectionName} to sync`);
-
-      let skip = 0;
-      let hasMore = true;
-      let processedCount = 0;
-
-      while (hasMore) {
-        try {
-          const url = `${this.baseUrl}/${endpoint}/?_limit=${this.batchSize}&_skip=${skip}`;
-
-          // Use first response for first batch to avoid duplicate API call
-          const response =
-            skip === 0 ? firstResponse : await this.makeApiRequest(url);
-
-          if (response.data && response.data.length > 0) {
-            // Add tenant metadata to each record
-            const recordsWithMetadata = response.data.map((record) => ({
-              ...record,
-              _tenant_id: this.tenant.id,
-              _tenant_name: this.tenant.name,
-              _sync_timestamp: new Date(),
-            }));
-
-            // Use bulk replace operations to handle complex nested objects
-            const bulkOps = recordsWithMetadata.map((record) => ({
-              replaceOne: {
-                filter: { id: record.id },
-                replacement: record,
-                upsert: true,
-              },
-            }));
-
-            await stagingCollection.bulkWrite(bulkOps);
-            processedCount += response.data.length;
-
-            // Calculate progress and ETA
-            const elapsed =
-              (new Date().getTime() - stats.startTime.getTime()) / 1000; // seconds
-            const percentage =
-              totalResults > 0
-                ? Math.round((processedCount / totalResults) * 100)
-                : 0;
-            const recordsPerSecond = processedCount / elapsed;
-            const remainingRecords = totalResults - processedCount;
-            const etaSeconds =
-              remainingRecords > 0 && recordsPerSecond > 0
-                ? Math.round(remainingRecords / recordsPerSecond)
-                : 0;
-            const etaMinutes = Math.floor(etaSeconds / 60);
-            const etaSecondsRemainder = etaSeconds % 60;
-            const etaFormatted = `${etaMinutes}m${etaSecondsRemainder
-              .toString()
-              .padStart(2, "0")}s`;
-
-            console.log(
-              `Processed ${processedCount}/${totalResults} (${percentage}%) - ETA ${etaFormatted}`
-            );
-          }
-
-          hasMore = response.has_more;
-          skip += this.batchSize;
-          stats.batchesProcessed++;
-          stats.totalRecords = processedCount;
-        } catch (error) {
-          console.error("Error processing batch:", error);
-          stats.errors++;
-
-          // Continue with next batch on non-critical errors
-          if (stats.errors > 10) {
-            throw new Error("Too many errors, aborting sync");
-          }
-
-          // Move to next batch even on errors
-          skip += this.batchSize;
-        }
-      }
-
-      // Swap collections (atomic operation)
-      console.log("Swapping collections...");
-      const mainCollection = this.db.collection(collectionName);
-
-      // Drop old collection and rename staging to main
-      await mainCollection.drop().catch(() => {}); // Ignore error if collection doesn't exist
-      await stagingCollection.rename(collectionName);
-
-      console.log("Collection swap completed");
-    } finally {
-      stats.endTime = new Date();
-      await this.disconnect();
-    }
-
-    return stats;
-  }
-
-  async syncLeads(): Promise<SyncStats> {
-    return this.syncData("lead", "leads");
-  }
-
-  async syncOpportunities(): Promise<SyncStats> {
-    return this.syncData("opportunity", "opportunities");
-  }
-
-  async syncContacts(): Promise<SyncStats> {
-    return this.syncData("contact", "contacts");
-  }
-
-  async syncActivities(): Promise<SyncStats> {
-    return this.syncData("activity", "activities");
-  }
-
-  async syncUsers(): Promise<SyncStats> {
-    return this.syncData("user", "users");
-  }
-
-  async syncCustomFieldSchema(objectType: string): Promise<SyncStats> {
-    const stats: SyncStats = {
-      totalRecords: 0,
-      batchesProcessed: 0,
-      errors: 0,
-      startTime: new Date(),
-    };
-
-    try {
-      console.log(`Getting custom field schema for ${objectType}...`);
-
-      const url = `${this.baseUrl}/custom_field_schema/${objectType}/`;
-      const closeConfig = this.tenant.sources.close!;
-      const auth = Buffer.from(`${closeConfig.api_key}:`).toString("base64");
-
-      await this.delay(this.rateLimitDelay);
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Basic ${auth}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      const fields = response.data.fields || [];
-      stats.totalRecords = fields.length;
-      stats.batchesProcessed = 1;
-
+      const opportunities = await this.fetchCloseData("opportunity");
       console.log(
-        `Found ${stats.totalRecords} custom fields for ${objectType}`
+        `Fetched ${opportunities.length} opportunities from Close.com`
       );
 
-      // Return the fields with object type added
-      return {
-        ...stats,
-        endTime: new Date(),
-        // Store fields data in a custom property for processing by syncAllCustomFields
-        fieldsData: fields.map((field: any) => ({
-          ...field,
-          type: objectType,
-          _tenant_id: this.tenant.id,
-          _tenant_name: this.tenant.name,
-          _sync_timestamp: new Date(),
-        })),
-      } as SyncStats & { fieldsData: any[] };
+      const collection = db.collection("opportunities");
+
+      // Process opportunities with data source reference
+      const processedOpportunities = opportunities.map((opp) => ({
+        ...opp,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedOpportunities.length > 0) {
+        const bulkOps = processedOpportunities.map((opp) => ({
+          replaceOne: {
+            filter: { id: opp.id, _dataSourceId: this.dataSource.id },
+            replacement: opp,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${
+            result.upsertedCount + result.modifiedCount
+          } opportunities`
+        );
+      }
     } catch (error) {
-      console.error(`Error fetching custom fields for ${objectType}:`, error);
-      stats.errors++;
-      stats.endTime = new Date();
-      return stats;
+      console.error("Opportunity sync failed:", error);
+      throw error;
     }
   }
 
-  async syncAllCustomFields(): Promise<SyncStats> {
-    const objectTypes = ["lead", "contact", "opportunity", "activity"];
-    const collectionName = this.getCollectionName("custom_fields");
-    const stats: SyncStats = {
-      totalRecords: 0,
-      batchesProcessed: 0,
-      errors: 0,
-      startTime: new Date(),
-    };
+  async syncContacts(targetDbId?: string): Promise<void> {
+    console.log(`Starting contacts sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
 
     try {
-      await this.connect();
+      const contacts = await this.fetchCloseData("contact");
+      console.log(`Fetched ${contacts.length} contacts from Close.com`);
 
-      // Clear and prepare staging collection
-      const stagingCollectionName = `${collectionName}_staging`;
-      const stagingCollection = this.db.collection(stagingCollectionName);
-      await stagingCollection.deleteMany({});
-      console.log(`Cleared ${stagingCollectionName} collection`);
+      const collection = db.collection("contacts");
 
-      // Collect all custom fields from all object types
-      const allFields: any[] = [];
+      // Process contacts with data source reference
+      const processedContacts = contacts.map((contact) => ({
+        ...contact,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
 
-      for (const objectType of objectTypes) {
+      if (processedContacts.length > 0) {
+        const bulkOps = processedContacts.map((contact) => ({
+          replaceOne: {
+            filter: { id: contact.id, _dataSourceId: this.dataSource.id },
+            replacement: contact,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} contacts`
+        );
+      }
+    } catch (error) {
+      console.error("Contact sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncUsers(targetDbId?: string): Promise<void> {
+    console.log(`Starting users sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
+    try {
+      const users = await this.fetchCloseData("user");
+      console.log(`Fetched ${users.length} users from Close.com`);
+
+      const collection = db.collection("users");
+
+      // Process users with data source reference
+      const processedUsers = users.map((user) => ({
+        ...user,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedUsers.length > 0) {
+        const bulkOps = processedUsers.map((user) => ({
+          replaceOne: {
+            filter: { id: user.id, _dataSourceId: this.dataSource.id },
+            replacement: user,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} users`
+        );
+      }
+    } catch (error) {
+      console.error("User sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncActivities(targetDbId?: string): Promise<void> {
+    console.log(`Starting activities sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
+    try {
+      const activities = await this.fetchCloseData("activity");
+      console.log(`Fetched ${activities.length} activities from Close.com`);
+
+      const collection = db.collection("activities");
+
+      // Process activities with data source reference
+      const processedActivities = activities.map((activity) => ({
+        ...activity,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      if (processedActivities.length > 0) {
+        const bulkOps = processedActivities.map((activity) => ({
+          replaceOne: {
+            filter: { id: activity.id, _dataSourceId: this.dataSource.id },
+            replacement: activity,
+            upsert: true,
+          },
+        }));
+
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${result.upsertedCount + result.modifiedCount} activities`
+        );
+      }
+    } catch (error) {
+      console.error("Activity sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncCustomFields(targetDbId?: string): Promise<void> {
+    console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDbId);
+
+    try {
+      // Fetch all custom field types
+      const customFieldTypes = [
+        "custom_fields/lead",
+        "custom_fields/contact",
+        "custom_fields/opportunity",
+        "custom_fields/activity",
+      ];
+
+      const allCustomFields: any[] = [];
+
+      for (const fieldType of customFieldTypes) {
         try {
-          console.log(`\nFetching custom fields for ${objectType}...`);
-          const objectStats = (await this.syncCustomFieldSchema(
-            objectType
-          )) as SyncStats & { fieldsData?: any[] };
-
-          if (objectStats.fieldsData) {
-            allFields.push(...objectStats.fieldsData);
-          }
-
-          stats.totalRecords += objectStats.totalRecords;
-          stats.batchesProcessed += objectStats.batchesProcessed;
-          stats.errors += objectStats.errors;
-        } catch (error) {
-          console.error(
-            `Failed to sync custom fields for ${objectType}:`,
-            error
+          const fields = await this.fetchCloseData(fieldType);
+          allCustomFields.push(
+            ...fields.map((field: any) => ({
+              ...field,
+              field_type: fieldType.replace("custom_fields/", ""),
+              _dataSourceId: this.dataSource.id,
+              _dataSourceName: this.dataSource.name,
+              _syncedAt: new Date(),
+            }))
           );
-          stats.errors++;
+        } catch (error) {
+          console.warn(`Failed to fetch ${fieldType}:`, error);
+          // Continue with other field types
         }
       }
 
-      // Insert all fields as individual documents
-      if (allFields.length > 0) {
-        // Use bulk replace operations with a unique key per field
-        const bulkOps = allFields.map((field) => ({
+      console.log(`Fetched ${allCustomFields.length} custom fields`);
+
+      if (allCustomFields.length > 0) {
+        const collection = db.collection("custom_fields");
+
+        const bulkOps = allCustomFields.map((field) => ({
           replaceOne: {
             filter: {
               id: field.id,
-              type: field.type,
+              field_type: field.field_type,
+              _dataSourceId: this.dataSource.id,
             },
             replacement: field,
             upsert: true,
           },
         }));
 
-        await stagingCollection.bulkWrite(bulkOps);
-        console.log(`\nInserted ${allFields.length} custom field documents`);
+        const result = await collection.bulkWrite(bulkOps);
+        console.log(
+          `Upserted ${
+            result.upsertedCount + result.modifiedCount
+          } custom fields`
+        );
       }
+    } catch (error) {
+      console.error("Custom fields sync failed:", error);
+      throw error;
+    }
+  }
 
-      // Swap collections
-      console.log("Swapping collections...");
-      const mainCollection = this.db.collection(collectionName);
+  async syncAll(targetDbId?: string): Promise<void> {
+    console.log(`\n🔄 Starting full sync for data source: ${this.dataSource.name}`);
+    console.log(`Target database: ${targetDbId || "analytics_db"}`);
+    const startTime = Date.now();
 
-      await mainCollection.drop().catch(() => {});
-      await stagingCollection.rename(collectionName);
+    try {
+      // Sync all data types
+      await this.syncLeads(targetDbId);
+      await this.syncOpportunities(targetDbId);
+      await this.syncContacts(targetDbId);
+      await this.syncActivities(targetDbId);
+      await this.syncUsers(targetDbId);
+      await this.syncCustomFields(targetDbId);
 
-      console.log("Collection swap completed");
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(
+        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`
+      );
+    } catch (error) {
+      console.error(`❌ Sync failed for ${this.dataSource.name}:`, error);
+      throw error;
     } finally {
-      stats.endTime = new Date();
       await this.disconnect();
     }
+  }
 
-    return stats;
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
-// Load tenant configuration
-function loadTenantConfig(): TenantConfig[] {
+// Load data source configuration
+function loadDataSourceConfig(): DataSourceConfig[] {
   try {
     // Validate configuration first
-    const validation = tenantManager.validateConfig();
+    const validation = dataSourceManager.validateConfig();
     if (!validation.valid) {
-      console.error("Tenant configuration validation failed:");
+      console.error("Configuration validation failed:");
       validation.errors.forEach((error) => console.error(`  - ${error}`));
       process.exit(1);
     }
 
-    return tenantManager.getTenantsWithSource("close");
+    return dataSourceManager.getDataSourcesByType("close");
   } catch (error) {
-    console.error("Failed to load tenant configuration:", error);
+    console.error("Failed to load configuration:", error);
     console.error(
-      "Make sure config/tenants.yaml exists and environment variables are set"
+      "Make sure config/config.yaml exists and environment variables are set"
     );
     process.exit(1);
   }
@@ -413,103 +447,51 @@ function loadTenantConfig(): TenantConfig[] {
 
 // Main execution
 async function main() {
-  const args = process.argv.slice(2);
-  const syncType = args[0] || "leads";
-  const tenantId = args[1]; // Optional tenant ID
+  const dataSources = loadDataSourceConfig();
 
-  const tenants = loadTenantConfig();
-  const targetTenants = tenantId
-    ? tenants.filter((t) => t.id === tenantId)
-    : tenants;
-
-  if (targetTenants.length === 0) {
-    console.error(`No tenants found${tenantId ? ` for ID: ${tenantId}` : ""}`);
-    process.exit(1);
+  if (dataSources.length === 0) {
+    console.log("No active Close.com data sources found.");
+    process.exit(0);
   }
 
-  for (const tenant of targetTenants) {
-    const sync = new CloseSyncService(tenant);
+  console.log(`Found ${dataSources.length} active Close.com data source(s)`);
 
-    try {
-      let stats: SyncStats;
+  // Check command line arguments
+  const args = process.argv.slice(2);
+  const targetDbId = args.find((arg) => arg.startsWith("--db="))?.split("=")[1];
+  const specificSourceId = args.find((arg) => !arg.startsWith("--"));
 
-      console.log(
-        `\n=== Starting Close.com ${syncType} sync for ${tenant.name} ===`
+  if (specificSourceId) {
+    // Sync specific data source
+    const source = dataSources.find((s) => s.id === specificSourceId);
+    if (!source) {
+      console.error(
+        `Data source '${specificSourceId}' not found or not active`
       );
+      console.log("\nAvailable Close.com data sources:");
+      dataSources.forEach((s) => console.log(`  - ${s.id}: ${s.name}`));
+      process.exit(1);
+    }
 
-      switch (syncType) {
-        case "leads":
-          stats = await sync.syncLeads();
-          break;
-        case "opportunities":
-          stats = await sync.syncOpportunities();
-          break;
-        case "contacts":
-          stats = await sync.syncContacts();
-          break;
-        case "activities":
-          stats = await sync.syncActivities();
-          break;
-        case "users":
-          stats = await sync.syncUsers();
-          break;
-        case "custom-fields":
-          stats = await sync.syncAllCustomFields();
-          break;
-        case "all":
-          console.log("Syncing all Close.com data...");
-          const leadsStats = await sync.syncLeads();
-          const oppsStats = await sync.syncOpportunities();
-          const contactsStats = await sync.syncContacts();
-          const activitiesStats = await sync.syncActivities();
-          const usersStats = await sync.syncUsers();
-          const customFieldsStats = await sync.syncAllCustomFields();
-
-          stats = {
-            totalRecords:
-              leadsStats.totalRecords +
-              oppsStats.totalRecords +
-              contactsStats.totalRecords +
-              activitiesStats.totalRecords +
-              usersStats.totalRecords +
-              customFieldsStats.totalRecords,
-            batchesProcessed:
-              leadsStats.batchesProcessed +
-              oppsStats.batchesProcessed +
-              contactsStats.batchesProcessed +
-              activitiesStats.batchesProcessed +
-              usersStats.batchesProcessed +
-              customFieldsStats.batchesProcessed,
-            errors:
-              leadsStats.errors +
-              oppsStats.errors +
-              contactsStats.errors +
-              activitiesStats.errors +
-              usersStats.errors +
-              customFieldsStats.errors,
-            startTime: leadsStats.startTime,
-            endTime: new Date(),
-          };
-          break;
-        default:
-          console.error(
-            "Unknown sync type. Use: leads, opportunities, contacts, activities, users, custom-fields, all"
-          );
-          process.exit(1);
-      }
-
-      const duration = stats.endTime!.getTime() - stats.startTime.getTime();
-      console.log(`\n=== Sync Completed for ${tenant.name} ===`);
-      console.log(`Total records synced: ${stats.totalRecords}`);
-      console.log(`Batches processed: ${stats.batchesProcessed}`);
-      console.log(`Errors encountered: ${stats.errors}`);
-      console.log(`Duration: ${Math.round(duration / 1000)} seconds`);
-    } catch (error) {
-      console.error(`Sync failed for tenant ${tenant.name}:`, error);
+    const syncService = new CloseSyncService(source);
+    await syncService.syncAll(targetDbId);
+  } else {
+    // Sync all data sources
+    for (const dataSource of dataSources) {
+      const syncService = new CloseSyncService(dataSource);
+      await syncService.syncAll(targetDbId);
     }
   }
+
+  console.log("\n✅ All syncs completed successfully!");
 }
 
+// Execute if run directly
 if (require.main === module) {
-  main();
+  main().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
 }
+
+export { CloseSyncService };
