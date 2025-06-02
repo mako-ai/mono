@@ -112,6 +112,8 @@ function Editor() {
         }
       } else {
         setActiveEditorContent(undefined);
+        // Clear chat context when no console is in focus and chat is still virgin
+        useChatStore.getState().ensureContextItems([]);
       }
     };
 

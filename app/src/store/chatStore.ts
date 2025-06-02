@@ -235,8 +235,33 @@ export const useChatStore = create<ChatState>()(
         const isVirgin = state.getCurrentMessages().length === 0;
         if (!isVirgin) return; // preserve existing context once chat has messages
 
-        // Replace context entirely with the provided items
-        set({ attachedContext: items });
+        // If no items provided (e.g., no console in focus) clear context entirely
+        if (items.length === 0) {
+          set({ attachedContext: [] });
+          return;
+        }
+
+        const existing = state.attachedContext;
+
+        // Keep existing items that are NOT console type, or whose consoleId matches one of the incoming items
+        const keepExisting = existing.filter((ex) => {
+          if (ex.type !== "console") return true;
+          // console item – retain only if the same console is still in focus
+          return items.some(
+            (it) =>
+              it.type === "console" &&
+              it.metadata?.consoleId &&
+              it.metadata.consoleId === ex.metadata?.consoleId
+          );
+        });
+
+        // Add new items that are not already kept (by id)
+        const merged = [
+          ...keepExisting,
+          ...items.filter((it) => !keepExisting.some((ke) => ke.id === it.id)),
+        ];
+
+        set({ attachedContext: merged });
       },
 
       // Model selection
