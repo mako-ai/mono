@@ -578,7 +578,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                       onClick={() =>
                                         handleViewGroupToggle(database.id)
                                       }
-                                      sx={{ py: 0.5, pl: 4 }}
+                                      sx={{ py: 0.5, pl: 3 }}
                                     >
                                       <ListItemIcon sx={{ minWidth: 32 }}>
                                         {expandedViewGroups.has(database.id) ? (
@@ -632,7 +632,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                             disablePadding
                                           >
                                             <ListItemButton
-                                              sx={{ py: 0.25, pl: 8.5 }}
+                                              sx={{ py: 0.25, pl: 7.5 }}
                                             >
                                               <ListItemIcon
                                                 sx={{ minWidth: 28 }}
