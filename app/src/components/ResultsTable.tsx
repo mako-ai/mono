@@ -69,7 +69,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     }
 
     // Generate columns from the first 10 results (or all if fewer than 10)
-    const sampleResults = normalizedResults.slice(0, 10);
+    const sampleResults = normalizedResults.slice(0, 100);
     const allKeys = new Set<string>();
 
     // Collect all unique keys from the sample results

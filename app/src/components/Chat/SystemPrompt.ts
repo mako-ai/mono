@@ -81,6 +81,7 @@ When writing aggregation pipelines or transforming data:
   - $arrayToObject to convert arrays of key-value pairs into objects
   - $mergeObjects to combine multiple time periods into a single document
   - Fill missing time periods with 0 or null values for consistency
+  - When a field name itself contains dots (e.g., "custom.cf_M2IFcDmkpaKL6mIK90Cr7AzGL6i8AvAspixN3AeS1IV"), dot-notation will not work. You MUST use $getField to access such fields, e.g., { $getField: { field: "custom.cf_M2IFcDmkpaKL6mIK90Cr7AzGL6i8AvAspixN3AeS1IV", input: "$$ROOT" } }
 
 Based on the content of the Editor Context and the User Input, you will write either a MongoDB query or a MongoDB view definition.
 
