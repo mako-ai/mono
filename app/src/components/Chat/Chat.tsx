@@ -25,7 +25,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 
-const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
+const Chat: React.FC<ChatProps> = () => {
   // Get state and actions from Zustand store
   const {
     chatSessions,
@@ -67,10 +67,6 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
   const isAutoScrollingRef = useRef(false);
-
-  // Add state for tracking execution
-  const [isAutoExecuting, setIsAutoExecuting] = useState(false);
-  const [executionResults, setExecutionResults] = useState<any>(null);
 
   // Context attachment state
   const [attachmentSelectorOpen, setAttachmentSelectorOpen] = useState(false);
@@ -120,27 +116,18 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
   useEffect(() => {
     const fetchCollections = async () => {
       try {
-        const response = await fetch("/api/collections");
+        // Updated to new API endpoint that lists collections on the default database
+        const response = await fetch("/api/database/collections");
         const data = await response.json();
         if (data.success) {
           const collectionsWithSamples = await Promise.all(
             data.data.map(async (col: any) => {
               try {
-                // Fetch collection info
+                // Fetch collection info (includes stats and sample documents)
                 const infoResponse = await fetch(
-                  `/api/collections/${encodeURIComponent(col.name)}`
+                  `/api/database/collections/${encodeURIComponent(col.name)}/info`
                 );
                 const infoData = await infoResponse.json();
-                console.log(`Info for ${col.name}:`, infoData);
-
-                // Fetch sample documents with schema analysis
-                const sampleResponse = await fetch(
-                  `/api/collections/${encodeURIComponent(
-                    col.name
-                  )}/sample?size=5`
-                );
-                const sampleData = await sampleResponse.json();
-                console.log(`Sample data for ${col.name}:`, sampleData);
 
                 const documentCount = infoData.success
                   ? infoData.data?.stats?.count || 0
@@ -150,13 +137,13 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
                   id: col.name,
                   name: col.name,
                   description: `MongoDB collection with ${documentCount} documents`,
-                  sampleDocument: sampleData.data?.documents?.[0] || {},
-                  sampleDocuments: sampleData.data?.documents || [],
-                  schemaInfo: sampleData.data?.schema || {},
+                  sampleDocument: infoData.data?.sampleDocuments?.[0] || {},
+                  sampleDocuments: infoData.data?.sampleDocuments || [],
+                  // The new /info endpoint does not yet provide schema analysis – placeholder for now
+                  schemaInfo: {},
                   documentCount,
                 };
 
-                console.log(`Collection info for ${col.name}:`, collectionInfo);
                 return collectionInfo;
               } catch (error) {
                 console.error(
@@ -231,7 +218,7 @@ const Chat: React.FC<ChatProps> = ({ currentEditorContent }) => {
     };
 
     fetchModels();
-  }, [openaiClient]);
+  }, [openaiClient, selectedModel, setSelectedModel]);
 
   // Initialize first chat if none exists
   useEffect(() => {
@@ -402,7 +389,6 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       return null;
     }
 
-    setIsAutoExecuting(true);
     try {
       const response = await fetch(`/api/execute`, {
         method: "POST",
@@ -413,13 +399,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       });
 
       const data = await response.json();
-      setExecutionResults(data);
       return data;
     } catch (error) {
       console.error("Failed to execute query:", error);
       return { success: false, error: String(error) };
-    } finally {
-      setIsAutoExecuting(false);
     }
   };
 
@@ -677,7 +660,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     if (!isLoading && !isUserScrolledUp && messages.length > 0) {
       scrollToBottom("smooth");
     }
-  }, [messages.length]);
+  }, [messages.length, isLoading, isUserScrolledUp]);
 
   // Auto-scroll during streaming updates
   useEffect(() => {
@@ -685,7 +668,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     if (isLoading && !isUserScrolledUp) {
       scrollToBottom("instant");
     }
-  }, [lastMessageUpdateTime]);
+  }, [lastMessageUpdateTime, isLoading, isUserScrolledUp]);
 
   // Scroll to bottom instantly when component mounts or chat changes
   useEffect(() => {

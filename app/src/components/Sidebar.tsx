@@ -8,16 +8,6 @@ import {
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 
-const SidebarContainer = styled(Box)(({ theme }) => ({
-  height: "100vh",
-  borderRight: `1px solid ${theme.palette.divider}`,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  padding: theme.spacing(0.5),
-  gap: theme.spacing(0.5),
-}));
-
 const NavButton = styled(IconButton, {
   shouldForwardProp: (prop) => prop !== "isActive",
 })<{ isActive?: boolean }>(({ theme, isActive }) => ({
@@ -34,9 +24,9 @@ const NavButton = styled(IconButton, {
 }));
 
 const topNavigationItems = [
+  { path: "/databases", icon: DatabaseIcon, label: "Databases" },
   { path: "/", icon: FileIcon, label: "Queries" },
   { path: "/views", icon: ViewIcon, label: "Views" },
-  { path: "/databases", icon: DatabaseIcon, label: "Databases" },
   { path: "/sources", icon: DataSourceIcon, label: "Data Sources" },
 ];
 
