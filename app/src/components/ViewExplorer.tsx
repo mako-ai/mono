@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -49,11 +49,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
     new Set()
   );
 
-  useEffect(() => {
-    fetchViews();
-  }, []);
-
-  const fetchViews = async () => {
+  const fetchViews = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -62,7 +58,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
       const data = await response.json();
 
       if (data.success) {
-        console.log("Raw views data from API:", data.data); // Debug log
+        // Debug: raw views data can be inspected here if needed
         setViews(data.data);
 
         // Keep all collections collapsed by default
@@ -76,10 +72,14 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchViews();
+  }, [fetchViews]);
 
   const handleViewClick = (view: ViewInfo) => {
-    console.log("Selected view:", view); // Debug log
+    // Debug: view selected
 
     // Ensure the parent collection is expanded
     const collection = view.options.viewOn || "Unknown Collection";
@@ -93,7 +93,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
       pipeline: view.options.pipeline || [],
     };
 
-    console.log("Parsed view definition:", viewDefinition); // Debug log
+    // Debug: view definition parsed
     onViewSelect(view.name, viewDefinition);
   };
 

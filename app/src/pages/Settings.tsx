@@ -25,8 +25,7 @@ function Settings() {
     // Save OpenAI API key to localStorage
     localStorage.setItem("openai_api_key", openaiApiKey);
 
-    // Here you could also show a success notification
-    console.log("Settings saved successfully");
+    // TODO: show success notification to user here, e.g., snackbar
   };
 
   return (

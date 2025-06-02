@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -45,11 +45,7 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  const fetchCollections = async () => {
+  const fetchCollections = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -58,7 +54,7 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
       const data = await response.json();
 
       if (data.success) {
-        console.log("Raw collections data from API:", data.data); // Debug log
+        // Debug: raw collections data can be inspected here if needed
         // Sort collections alphabetically by name
         const sortedCollections = data.data.sort(
           (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name)
@@ -73,10 +69,14 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchCollections();
+  }, [fetchCollections]);
 
   const handleCollectionClick = (collection: CollectionInfo) => {
-    console.log("Selected collection:", collection); // Debug log
+    // Debug: collection selected
     onCollectionSelect(collection.name, collection);
   };
 
