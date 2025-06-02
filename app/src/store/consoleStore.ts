@@ -9,6 +9,7 @@ export interface ConsoleTab {
   content: string; // Current content of the console
   initialContent: string; // Initial content when created
   databaseId?: string; // Selected database ID for the console
+  filePath?: string; // Path where the console is saved
   kind?: TabKind;
 }
 
@@ -25,6 +26,8 @@ interface ConsoleState {
   setActiveConsole: (id: string | null) => void;
   clearAllConsoles: () => void;
   updateConsoleDatabase: (id: string, databaseId: string) => void;
+  updateConsoleFilePath: (id: string, filePath: string) => void;
+  updateConsoleTitle: (id: string, title: string) => void;
 }
 
 export const useConsoleStore = create<ConsoleState>()(
@@ -43,6 +46,7 @@ export const useConsoleStore = create<ConsoleState>()(
           content: tab.content || tab.initialContent,
           initialContent: tab.initialContent,
           databaseId: tab.databaseId,
+          filePath: tab.filePath,
           kind: tab.kind || "console",
         };
 
@@ -85,6 +89,20 @@ export const useConsoleStore = create<ConsoleState>()(
         set((state) => ({
           consoleTabs: state.consoleTabs.map((tab) =>
             tab.id === id ? { ...tab, databaseId } : tab
+          ),
+        })),
+
+      updateConsoleFilePath: (id, filePath) =>
+        set((state) => ({
+          consoleTabs: state.consoleTabs.map((tab) =>
+            tab.id === id ? { ...tab, filePath } : tab
+          ),
+        })),
+
+      updateConsoleTitle: (id, title) =>
+        set((state) => ({
+          consoleTabs: state.consoleTabs.map((tab) =>
+            tab.id === id ? { ...tab, title } : tab
           ),
         })),
 

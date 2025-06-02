@@ -70,6 +70,8 @@ function Editor() {
     removeConsoleTab,
     updateConsoleContent,
     updateConsoleDatabase,
+    updateConsoleFilePath,
+    updateConsoleTitle,
     setActiveConsole,
   } = useConsoleStore();
 
@@ -179,6 +181,7 @@ function Editor() {
   };
 
   const handleConsoleSave = async (
+    tabId: string,
     contentToSave: string,
     currentPath?: string
   ): Promise<boolean> => {
@@ -212,6 +215,11 @@ function Editor() {
       );
       const data = await response.json();
       if (data.success) {
+        // Update file path in tab if we just created a new file (POST)
+        if (method === "POST" && savePath) {
+          updateConsoleFilePath(tabId, savePath);
+          updateConsoleTitle(tabId, `Console: ${savePath}`);
+        }
         setSnackbarMessage(
           `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`
         );
@@ -312,7 +320,9 @@ function Editor() {
                             onExecute={(content, db) =>
                               handleConsoleExecute(tab.id, content, db)
                             }
-                            onSave={handleConsoleSave}
+                            onSave={(content, currentPath) =>
+                              handleConsoleSave(tab.id, content, currentPath)
+                            }
                             isExecuting={isExecuting}
                             isSaving={isSaving}
                             onContentChange={(content) =>
@@ -323,6 +333,7 @@ function Editor() {
                             onDatabaseChange={(dbId) =>
                               updateConsoleDatabase(tab.id, dbId)
                             }
+                            filePath={tab.filePath}
                           />
                         </Box>
                       ))}

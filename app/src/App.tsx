@@ -33,10 +33,13 @@ function App() {
     title: string,
     content: string,
     databaseId?: string,
-    extraContextItems: any[] = []
+    extraContextItems: any[] = [],
+    filePath?: string
   ) => {
     // Try to find existing tab with same title and initial content path maybe; for simplicity match title.
-    const existing = consoleTabs.find((t) => t.title === title);
+    const existing = consoleTabs.find((t) =>
+      filePath ? t.filePath === filePath : t.title === title
+    );
     if (existing) {
       setActiveConsole(existing.id);
       useChatStore.getState().ensureContextItems([
@@ -45,7 +48,7 @@ function App() {
           type: "console",
           title,
           content,
-          metadata: { consoleId: existing.id },
+          metadata: { consoleId: existing.id, filePath },
         },
         ...extraContextItems,
       ]);
@@ -56,15 +59,20 @@ function App() {
       content,
       initialContent: content,
       databaseId,
+      filePath,
     });
     setActiveConsole(id);
 
-    useChatStore
-      .getState()
-      .ensureContextItems([
-        { id, type: "console", title, content, metadata: { consoleId: id } },
-        ...extraContextItems,
-      ]);
+    useChatStore.getState().ensureContextItems([
+      {
+        id,
+        type: "console",
+        title,
+        content,
+        metadata: { consoleId: id, filePath },
+      },
+      ...extraContextItems,
+    ]);
   };
 
   // Left pane content renderer
@@ -95,7 +103,13 @@ function App() {
         return (
           <ConsoleExplorer
             onConsoleSelect={(path, content) => {
-              openOrFocusConsoleTab(`Console: ${path}`, content);
+              openOrFocusConsoleTab(
+                `Console: ${path}`,
+                content,
+                undefined,
+                [],
+                path
+              );
             }}
           />
         );
