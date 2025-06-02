@@ -65,3 +65,84 @@ db.spain_close_opportunities.aggregate([
     $sort: { "total (all months)": -1 },
   },
 ]);
+
+// spain_close_opportunities – won count by month (columns)
+//                       & by pipeline / product / user (rows)
+db.spain_close_opportunities.aggregate([
+  /* 1. Only WON opportunities that have a won date */
+  {
+    $match: {
+      status_type: "won",
+      date_won: { $ne: null },
+    },
+  },
+
+  /* 2. Derive helper columns */
+  {
+    $addFields: {
+      /* product is a TOP-LEVEL key that contains a dot, so use $getField */
+      product: {
+        $ifNull: [
+          {
+            $getField: {
+              field: "custom.cf_M2IFcDmkpaKL6mIK90Cr7AzGL6i8AvAspixN3AeS1IV",
+              input: "$$ROOT",
+            },
+          },
+          "Unspecified",
+        ],
+      },
+      /* YYYY-MM bucket from the string date */
+      month: { $substrBytes: ["$date_won", 0, 7] },
+    },
+  },
+
+  /* 3. Count wins for each pipeline / product / user / month */
+  {
+    $group: {
+      _id: {
+        pipeline: "$pipeline_name",
+        product: "$product",
+        user: "$user_name",
+        month: "$month",
+      },
+      wins: { $sum: 1 },
+    },
+  },
+
+  /* 4. Pivot months → k/v pairs */
+  {
+    $group: {
+      _id: {
+        pipeline: "$_id.pipeline",
+        product: "$_id.product",
+        user: "$_id.user",
+      },
+      monthPairs: {
+        $push: { k: "$_id.month", v: "$wins" },
+      },
+    },
+  },
+
+  /* 5. k/v array → object */
+  { $addFields: { months: { $arrayToObject: "$monthPairs" } } },
+
+  /* 6. Flatten row */
+  {
+    $replaceRoot: {
+      newRoot: {
+        $mergeObjects: [
+          {
+            pipeline: "$_id.pipeline",
+            product: "$_id.product",
+            user: "$_id.user",
+          },
+          "$months",
+        ],
+      },
+    },
+  },
+
+  /* 7. Sort for readability */
+  { $sort: { pipeline: 1, product: 1, user: 1 } },
+]);

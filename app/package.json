@@ -1,0 +1,36 @@
+{
+  "name": "app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@monaco-editor/react": "^4.6.0",
+    "@mui/icons-material": "^7.1.0",
+    "@mui/material": "^7.1.0",
+    "@mui/x-data-grid-premium": "^8.4.0",
+    "@mui/x-license": "^8.4.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "axios": "^1.6.2",
+    "openai": "^4.103.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^3.0.2",
+    "react-router-dom": "^6.20.1",
+    "react-syntax-highlighter": "^15.6.1",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  }
+}

@@ -2,150 +2,170 @@ import { MongoClient, Db } from "mongodb";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
-import { tenantManager } from "./tenant-manager";
+import { dataSourceManager } from "./data-source-manager";
 
 dotenv.config();
 
 class QueryRunner {
-  private client: MongoClient;
-  private db!: Db;
+  private connections: Map<string, { client: MongoClient; db: Db }> = new Map();
+  private currentDataSource: string = "analytics_db";
 
   constructor() {
-    const globalConfig = tenantManager.getGlobalConfig();
-    this.client = new MongoClient(globalConfig.mongodb.connection_string);
+    // Initialize with primary database
+    const primaryDb = dataSourceManager.getPrimaryDatabase();
+    if (primaryDb) {
+      this.currentDataSource = primaryDb.id;
+    }
   }
 
-  private async connect(): Promise<void> {
-    await this.client.connect();
-    const globalConfig = tenantManager.getGlobalConfig();
-    this.db = this.client.db(globalConfig.mongodb.database);
-    console.log("Connected to MongoDB");
-  }
+  private async getConnection(
+    dataSourceId?: string
+  ): Promise<{ client: MongoClient; db: Db }> {
+    const sourceId = dataSourceId || this.currentDataSource;
 
-  private async disconnect(): Promise<void> {
-    await this.client.close();
-    console.log("Disconnected from MongoDB");
-  }
-
-  private loadQueryFile(queryName: string): string {
-    const queryPath = path.join(process.cwd(), "queries", `${queryName}.js`);
-
-    if (!fs.existsSync(queryPath)) {
-      throw new Error(`Query file not found: ${queryPath}`);
+    // Check if connection already exists
+    if (this.connections.has(sourceId)) {
+      return this.connections.get(sourceId)!;
     }
 
-    return fs.readFileSync(queryPath, "utf8");
+    // Get data source configuration
+    const dataSource = dataSourceManager.getDataSource(sourceId);
+    if (!dataSource || dataSource.type !== "mongodb") {
+      throw new Error(`MongoDB data source '${sourceId}' not found`);
+    }
+
+    // Create new connection
+    const client = new MongoClient(dataSource.connection.connection_string!);
+    await client.connect();
+    const db = client.db(dataSource.connection.database);
+
+    const connection = { client, db };
+    this.connections.set(sourceId, connection);
+
+    console.log(`Connected to MongoDB: ${dataSource.name}`);
+    return connection;
   }
 
-  async executeQuery(queryName: string): Promise<void> {
+  async executeQuery(
+    queryFilePath: string,
+    dataSourceId?: string
+  ): Promise<any[]> {
     try {
-      await this.connect();
+      const { db } = await this.getConnection(dataSourceId);
 
-      console.log(`\n=== Executing query: ${queryName} ===`);
+      // Read the query file
+      const absolutePath = path.isAbsolute(queryFilePath)
+        ? queryFilePath
+        : path.join(process.cwd(), queryFilePath);
 
-      const queryContent = this.loadQueryFile(queryName);
-      console.log("Query content:");
-      console.log(queryContent);
-      console.log("\n" + "=".repeat(50));
-
-      // Create a proxy db object that can access any collection dynamically
-      const db = new Proxy(this.db, {
-        get: (target, prop) => {
-          if (typeof prop === "string") {
-            // Return the collection for any property access
-            return target.collection(prop);
-          }
-          return (target as any)[prop];
-        },
-      });
-
-      // Execute the query file content directly
-      const result = eval(queryContent);
-
-      // Handle MongoDB cursors and promises
-      let finalResult;
-      if (result && typeof result.then === "function") {
-        // It's a promise, await it
-        finalResult = await result;
-      } else if (result && typeof result.toArray === "function") {
-        // It's a MongoDB cursor, convert to array
-        finalResult = await result.toArray();
-      } else {
-        // It's a direct result
-        finalResult = result;
+      if (!fs.existsSync(absolutePath)) {
+        throw new Error(`Query file not found: ${absolutePath}`);
       }
 
-      console.log("\nQuery Results:");
-      console.log("=".repeat(50));
+      const queryContent = fs.readFileSync(absolutePath, "utf8");
 
-      if (Array.isArray(finalResult)) {
-        if (finalResult.length === 0) {
-          console.log("No results found.");
-        } else {
-          console.log(`Found ${finalResult.length} result(s):\n`);
-          finalResult.forEach((doc, index) => {
-            console.log(`${index + 1}.`, JSON.stringify(doc, null, 2));
-            if (index < finalResult.length - 1) console.log();
-          });
-        }
-      } else {
-        console.log(JSON.stringify(finalResult, null, 2));
+      // Parse the MongoDB aggregation pipeline
+      let pipeline;
+      try {
+        // Remove any JavaScript comments and parse
+        const cleanedQuery = queryContent.replace(/\/\/.*$/gm, "").trim();
+        pipeline = JSON.parse(cleanedQuery);
+      } catch (parseError) {
+        throw new Error(`Failed to parse query JSON: ${parseError}`);
       }
+
+      // Ensure pipeline is an array
+      if (!Array.isArray(pipeline)) {
+        pipeline = [pipeline];
+      }
+
+      // Extract collection name from the first stage if it's a $from stage
+      let collectionName = "leads"; // default collection
+      if (
+        pipeline.length > 0 &&
+        pipeline[0].$from &&
+        typeof pipeline[0].$from === "string"
+      ) {
+        collectionName = pipeline[0].$from;
+        pipeline.shift(); // Remove the $from stage
+      }
+
+      console.log(`Executing query on collection: ${collectionName}`);
+      console.log(
+        `Using data source: ${dataSourceId || this.currentDataSource}`
+      );
+
+      // Execute the aggregation pipeline
+      const collection = db.collection(collectionName);
+      const results = await collection.aggregate(pipeline).toArray();
+
+      console.log(`Query returned ${results.length} results`);
+      return results;
     } catch (error) {
       console.error("Query execution failed:", error);
-      process.exit(1);
-    } finally {
-      await this.disconnect();
+      throw error;
     }
   }
 
-  listAvailableQueries(): void {
-    const queriesDir = path.join(process.cwd(), "queries");
-
-    if (!fs.existsSync(queriesDir)) {
-      console.log("No queries directory found.");
-      return;
+  async listCollections(dataSourceId?: string): Promise<string[]> {
+    try {
+      const { db } = await this.getConnection(dataSourceId);
+      const collections = await db.listCollections().toArray();
+      return collections.map((col) => col.name);
+    } catch (error) {
+      console.error("Failed to list collections:", error);
+      throw error;
     }
+  }
 
-    const queryFiles = fs
-      .readdirSync(queriesDir)
-      .filter((file) => file.endsWith(".js"))
-      .map((file) => file.replace(".js", ""));
-
-    if (queryFiles.length === 0) {
-      console.log("No query files found in the queries directory.");
-      return;
+  async getCollectionStats(
+    collectionName: string,
+    dataSourceId?: string
+  ): Promise<any> {
+    try {
+      const { db } = await this.getConnection(dataSourceId);
+      const stats = await db.command({ collStats: collectionName });
+      return stats;
+    } catch (error) {
+      console.error("Failed to get collection stats:", error);
+      throw error;
     }
+  }
 
-    console.log("Available queries:");
-    queryFiles.forEach((query) => {
-      console.log(`  - ${query}`);
-    });
+  async disconnect(): Promise<void> {
+    for (const [sourceId, connection] of this.connections.entries()) {
+      await connection.client.close();
+      console.log(`Disconnected from MongoDB: ${sourceId}`);
+    }
+    this.connections.clear();
+  }
+
+  /**
+   * List all available MongoDB data sources
+   */
+  listAvailableDataSources(): {
+    id: string;
+    name: string;
+    description?: string;
+  }[] {
+    return dataSourceManager.getMongoDBSources().map((source) => ({
+      id: source.id,
+      name: source.name,
+      description: source.description,
+    }));
+  }
+
+  /**
+   * Switch the default data source for queries
+   */
+  setDefaultDataSource(dataSourceId: string): void {
+    const source = dataSourceManager.getDataSource(dataSourceId);
+    if (!source || source.type !== "mongodb") {
+      throw new Error(`MongoDB data source '${dataSourceId}' not found`);
+    }
+    this.currentDataSource = dataSourceId;
+    console.log(`Default data source set to: ${source.name}`);
   }
 }
 
-// Main execution
-async function main() {
-  const args = process.argv.slice(2);
-
-  if (args.length === 0) {
-    console.log("Usage: pnpm run query <query_name>");
-    console.log("       pnpm run query --list");
-    console.log("\nExample: pnpm run query leads_by_csm");
-    process.exit(1);
-  }
-
-  const queryRunner = new QueryRunner();
-
-  if (args[0] === "--list" || args[0] === "-l") {
-    queryRunner.listAvailableQueries();
-    return;
-  }
-
-  const queryName = args[0];
-  await queryRunner.executeQuery(queryName);
-}
-
-if (require.main === module) {
-  main();
-}
+export default QueryRunner;

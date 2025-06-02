@@ -1,0 +1,115 @@
+# Data Source Configuration
+# Each data source represents a connection to external services or databases
+
+data_sources:
+  # Close.com Sources
+  close_switzerland:
+    name: "Switzerland Close CRM"
+    description: "Close.com data for Swiss market operations"
+    active: true
+    type: "close"
+    connection:
+      api_key: "${CLOSE_API_KEY_SWITZERLAND}"
+      api_base_url: "https://api.close.com/api/v1"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 200
+
+  close_italy:
+    name: "Italy Close CRM"
+    description: "Close.com data for Italian market operations"
+    active: true
+    type: "close"
+    connection:
+      api_key: "${CLOSE_API_KEY_ITALY}"
+      api_base_url: "https://api.close.com/api/v1"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 200
+
+  close_france:
+    name: "France Close CRM"
+    description: "Close.com data for French market operations"
+    active: true
+    type: "close"
+    connection:
+      api_key: "${CLOSE_API_KEY_FRANCE}"
+      api_base_url: "https://api.close.com/api/v1"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 200
+
+  close_spain:
+    name: "Spain Close CRM"
+    description: "Close.com data for Spanish market operations"
+    active: true
+    type: "close"
+    connection:
+      api_key: "${CLOSE_API_KEY_SPAIN}"
+      api_base_url: "https://api.close.com/api/v1"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 250
+
+  # Stripe Sources
+  stripe_spain:
+    name: "Spain Stripe Payments"
+    description: "Stripe payment data for Spanish operations"
+    active: true
+    type: "stripe"
+    connection:
+      api_key: "${STRIPE_API_KEY_SPAIN}"
+    settings:
+      sync_batch_size: 50
+      rate_limit_delay_ms: 300
+
+# MongoDB Servers Configuration
+# Group databases by their server instances
+mongodb_servers:
+  local_dev:
+    name: "Local Development Server"
+    description: "Local MongoDB instance for development"
+    connection_string: "mongodb://localhost:27018"
+    active: true
+    databases:
+      analytics_db:
+        name: "Main Analytics Database"
+        description: "Primary MongoDB for analytics data"
+        database: "multi_tenant_analytics"
+        active: true
+        settings:
+          max_pool_size: 10
+          min_pool_size: 2
+
+      datawarehouse:
+        name: "Data Warehouse Database"
+        description: "Primary MongoDB for data warehouse data"
+        database: "datawarehouse"
+        active: true
+        settings:
+          max_pool_size: 10
+          min_pool_size: 2
+
+  # Example of a production server (commented out)
+  # production:
+  #   name: "Production Cluster"
+  #   description: "Production MongoDB Atlas cluster"
+  #   connection_string: "mongodb+srv://user:pass@cluster.mongodb.net"
+  #   active: true
+  #   databases:
+  #     analytics_prod:
+  #       name: "Production Analytics"
+  #       description: "Production analytics database"
+  #       database: "analytics"
+  #       active: true
+  #       settings:
+  #         max_pool_size: 20
+  #         min_pool_size: 5
+
+# Global settings that apply to all data sources (can be overridden per source)
+global:
+  max_retries: 5
+  default_timezone: "UTC"
+  logging:
+    level: "info"
+    include_api_responses: false
