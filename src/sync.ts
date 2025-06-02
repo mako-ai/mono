@@ -7,23 +7,43 @@ dotenv.config();
 
 // Define available entities for each source type
 const SOURCE_ENTITIES = {
-  close: ["leads", "opportunities", "activities", "contacts", "users", "custom-fields"],
-  stripe: ["customers", "subscriptions", "charges", "invoices", "products", "plans"],
-  mongodb: [] // MongoDB sources don't have entities to sync
+  close: [
+    "leads",
+    "opportunities",
+    "activities",
+    "contacts",
+    "users",
+    "custom-fields",
+  ],
+  stripe: [
+    "customers",
+    "subscriptions",
+    "charges",
+    "invoices",
+    "products",
+    "plans",
+  ],
+  mongodb: [], // MongoDB sources don't have entities to sync
 };
 
 async function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length === 0) {
     showUsage();
     process.exit(1);
   }
 
-  // Parse arguments
+  // Parse arguments: source_id destination [entity]
   const dataSourceId = args[0];
-  const entity = args[1]; // optional
-  const targetDbId = args.find(arg => arg.startsWith('--db='))?.split('=')[1];
+  const destination = args[1];
+  const entity = args[2]; // optional
+
+  if (!destination) {
+    console.error("❌ Destination database is required");
+    showUsage();
+    process.exit(1);
+  }
 
   // Validate configuration
   const validation = dataSourceManager.validateConfig();
@@ -39,7 +59,9 @@ async function main() {
     console.error(`❌ Data source '${dataSourceId}' not found`);
     console.log("\nAvailable data sources:");
     const allSources = dataSourceManager.getActiveDataSources();
-    allSources.forEach(s => console.log(`  - ${s.id}: ${s.name} (${s.type})`));
+    allSources.forEach((s) =>
+      console.log(`  - ${s.id}: ${s.name} (${s.type})`)
+    );
     process.exit(1);
   }
 
@@ -48,28 +70,46 @@ async function main() {
     process.exit(1);
   }
 
+  // Validate destination database
+  const destinationDb = dataSourceManager.getMongoDBDatabase(destination);
+  if (!destinationDb) {
+    console.error(`❌ Destination database '${destination}' not found`);
+    console.log("\nAvailable MongoDB destinations:");
+    const databases = dataSourceManager.listMongoDBDatabases();
+    databases.forEach((db) => console.log(`  - ${db}`));
+    process.exit(1);
+  }
+
   // Handle different source types
   switch (dataSource.type) {
     case "close":
-      await syncClose(dataSource, entity, targetDbId);
+      await syncClose(dataSource, entity, destination);
       break;
     case "stripe":
-      await syncStripe(dataSource, entity, targetDbId);
+      await syncStripe(dataSource, entity, destination);
       break;
     case "mongodb":
-      console.error(`❌ MongoDB data sources cannot be synced (they are sync targets)`);
+      console.error(
+        `❌ MongoDB data sources cannot be synced (they are sync targets)`
+      );
       process.exit(1);
     default:
-      console.error(`❌ Sync not implemented for source type: ${dataSource.type}`);
+      console.error(
+        `❌ Sync not implemented for source type: ${dataSource.type}`
+      );
       process.exit(1);
   }
 
   console.log("\n✅ Sync completed successfully!");
 }
 
-async function syncClose(dataSource: any, entity?: string, targetDbId?: string) {
+async function syncClose(
+  dataSource: any,
+  entity?: string,
+  targetDbId?: string
+) {
   const syncService = new CloseSyncService(dataSource);
-  
+
   if (!entity) {
     // Sync all entities
     console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
@@ -79,7 +119,7 @@ async function syncClose(dataSource: any, entity?: string, targetDbId?: string) 
 
   // Sync specific entity
   console.log(`\n🔄 Syncing ${entity} for ${dataSource.name}`);
-  
+
   switch (entity.toLowerCase()) {
     case "leads":
     case "lead":
@@ -112,9 +152,13 @@ async function syncClose(dataSource: any, entity?: string, targetDbId?: string) 
   }
 }
 
-async function syncStripe(dataSource: any, entity?: string, targetDbId?: string) {
+async function syncStripe(
+  dataSource: any,
+  entity?: string,
+  targetDbId?: string
+) {
   const syncService = new StripeSyncService(dataSource);
-  
+
   if (!entity) {
     // Sync all entities
     console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
@@ -124,7 +168,7 @@ async function syncStripe(dataSource: any, entity?: string, targetDbId?: string)
 
   // Sync specific entity
   console.log(`\n🔄 Syncing ${entity} for ${dataSource.name}`);
-  
+
   switch (entity.toLowerCase()) {
     case "customers":
     case "customer":
@@ -159,20 +203,27 @@ async function syncStripe(dataSource: any, entity?: string, targetDbId?: string)
 
 function showUsage() {
   console.log(`
-Usage: pnpm run sync <data_source_id> [entity] [options]
+Usage: pnpm run sync <source_id> <destination> [entity]
+
+Arguments:
+  source_id     The ID of the data source to sync from (e.g., close_spain, stripe_spain)
+  destination   The destination database in format: server.database (e.g., local_dev.datawarehouse)
+  entity        (Optional) Specific entity to sync. If omitted, syncs all entities.
 
 Examples:
-  pnpm run sync close_spain                    # Sync all entities from close_spain
-  pnpm run sync close_spain leads              # Sync only leads from close_spain
-  pnpm run sync stripe_spain customers         # Sync only customers from stripe_spain
-  pnpm run sync close_italy --db=warehouse_db  # Sync to a different database
+  pnpm run sync close_spain local_dev.analytics_db                    # Sync all entities from close_spain
+  pnpm run sync close_spain local_dev.datawarehouse leads             # Sync only leads to datawarehouse
+  pnpm run sync stripe_spain local_dev.datawarehouse customers        # Sync only customers from stripe_spain
 
 Available entities by source type:
   Close.com: ${SOURCE_ENTITIES.close.join(", ")}
   Stripe: ${SOURCE_ENTITIES.stripe.join(", ")}
 
-Options:
-  --db=<database_id>  Target database to sync to (default: analytics_db)
+Available MongoDB destinations:
+${dataSourceManager
+  .listMongoDBDatabases()
+  .map((db) => `  - ${db}`)
+  .join("\n")}
 `);
 }
 
@@ -184,4 +235,4 @@ if (require.main === module) {
   });
 }
 
-export { main as sync }; 
+export { main as sync };

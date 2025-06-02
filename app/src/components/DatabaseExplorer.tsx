@@ -54,15 +54,12 @@ interface DatabaseExplorerProps {
     collectionName: string,
     collectionInfo: CollectionInfo
   ) => void;
-  onCollectionDoubleClick?: (
-    databaseId: string,
-    collection: CollectionInfo
-  ) => void;
+  onCollectionClick?: (databaseId: string, collection: CollectionInfo) => void;
 }
 
 const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   onCollectionSelect,
-  onCollectionDoubleClick,
+  onCollectionClick,
 }) => {
   const [servers, setServers] = useState<Server[]>([]);
   const [expandedServers, setExpandedServers] = useState<Set<string>>(
@@ -232,6 +229,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     collection: CollectionInfo
   ) => {
     onCollectionSelect?.(databaseId, collection.name, collection);
+    onCollectionClick?.(databaseId, collection);
   };
 
   const handleRefresh = () => {
@@ -509,12 +507,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                             <ListItemButton
                                               onClick={() =>
                                                 handleCollectionClick(
-                                                  database.id,
-                                                  collection
-                                                )
-                                              }
-                                              onDoubleClick={() =>
-                                                onCollectionDoubleClick?.(
                                                   database.id,
                                                   collection
                                                 )

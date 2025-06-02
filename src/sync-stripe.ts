@@ -35,7 +35,19 @@ class StripeSyncService {
       );
     }
 
-    this.stripe = new Stripe(dataSource.connection.api_key);
+    console.log(`Initializing Stripe client for ${dataSource.name}`);
+    console.log(
+      `API key loaded: ${dataSource.connection.api_key ? "Yes" : "No"}`
+    );
+    console.log(
+      `API key prefix: ${dataSource.connection.api_key?.substring(0, 10)}...`
+    );
+
+    this.stripe = new Stripe(dataSource.connection.api_key, {
+      // Add timeout to prevent hanging
+      timeout: 60000, // 60 seconds
+      maxNetworkRetries: 2,
+    });
 
     // Get settings with defaults
     const globalConfig = dataSourceManager.getGlobalConfig();
@@ -48,7 +60,7 @@ class StripeSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "analytics_db"
+    targetDbId: string = "local_dev.analytics_db"
   ): Promise<{ client: MongoClient; db: Db }> {
     // Check if connection already exists
     if (this.mongoConnections.has(targetDbId)) {
@@ -56,7 +68,7 @@ class StripeSyncService {
     }
 
     // Get target database configuration
-    const targetDb = dataSourceManager.getDataSource(targetDbId);
+    const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
     if (!targetDb || targetDb.type !== "mongodb") {
       throw new Error(`MongoDB data source '${targetDbId}' not found`);
     }
@@ -90,29 +102,62 @@ class StripeSyncService {
     const results: T[] = [];
     let hasMore = true;
     let startingAfter: string | undefined = undefined;
+    let page = 0;
+
+    console.log(`Starting to fetch Stripe data with params:`, params);
 
     while (hasMore) {
       try {
-        const response = await listMethod({
+        page++;
+        console.log(`Fetching page ${page}...`);
+
+        const requestParams = {
           ...params,
           limit: this.settings.batchSize,
           ...(startingAfter && { starting_after: startingAfter }),
-        });
+        };
+
+        console.log(`Request params:`, requestParams);
+
+        const response = await listMethod(requestParams);
+
+        console.log(`Page ${page} fetched: ${response.data.length} items`);
 
         results.push(...response.data);
         hasMore = response.has_more;
 
         if (hasMore && response.data.length > 0) {
           startingAfter = (response.data[response.data.length - 1] as any).id;
+          console.log(
+            `More data available, waiting ${this.settings.rateLimitDelay}ms before next request...`
+          );
           // Apply rate limiting
           await this.delay(this.settings.rateLimitDelay);
         }
       } catch (error) {
-        console.error("Error fetching Stripe data:", error);
+        console.error(`Error fetching Stripe data on page ${page}:`, error);
+
+        // Check if it's a Stripe error
+        if (error instanceof Stripe.errors.StripeError) {
+          console.error(`Stripe API Error: ${error.type} - ${error.message}`);
+          console.error(`Error code: ${error.code}`);
+
+          // Check for specific error types
+          if (error.type === "StripeAuthenticationError") {
+            console.error(
+              `Authentication failed. Please check your Stripe API key.`
+            );
+            console.error(
+              `Current API key starts with: ${this.dataSource.connection.api_key?.substring(0, 10)}...`
+            );
+          }
+        }
+
         throw error;
       }
     }
 
+    console.log(`Finished fetching Stripe data: ${results.length} total items`);
     return results;
   }
 
@@ -126,7 +171,9 @@ class StripeSyncService {
       );
       console.log(`Fetched ${customers.length} customers from Stripe`);
 
-      const collection = db.collection("stripe_customers");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_customers`;
+      const collection = db.collection(collectionName);
 
       // Process customers with data source reference
       const processedCustomers = customers.map((customer) => ({
@@ -147,7 +194,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} customers`
+          `Upserted ${result.upsertedCount + result.modifiedCount} customers in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -167,7 +214,9 @@ class StripeSyncService {
       );
       console.log(`Fetched ${subscriptions.length} subscriptions from Stripe`);
 
-      const collection = db.collection("stripe_subscriptions");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_subscriptions`;
+      const collection = db.collection(collectionName);
 
       // Process subscriptions with data source reference
       const processedSubscriptions = subscriptions.map((subscription) => ({
@@ -190,7 +239,7 @@ class StripeSyncService {
         console.log(
           `Upserted ${
             result.upsertedCount + result.modifiedCount
-          } subscriptions`
+          } subscriptions in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -209,7 +258,9 @@ class StripeSyncService {
       );
       console.log(`Fetched ${charges.length} charges from Stripe`);
 
-      const collection = db.collection("stripe_charges");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_charges`;
+      const collection = db.collection(collectionName);
 
       // Process charges with data source reference
       const processedCharges = charges.map((charge) => ({
@@ -230,7 +281,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} charges`
+          `Upserted ${result.upsertedCount + result.modifiedCount} charges in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -249,7 +300,9 @@ class StripeSyncService {
       );
       console.log(`Fetched ${invoices.length} invoices from Stripe`);
 
-      const collection = db.collection("stripe_invoices");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_invoices`;
+      const collection = db.collection(collectionName);
 
       // Process invoices with data source reference
       const processedInvoices = invoices.map((invoice) => ({
@@ -270,7 +323,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} invoices`
+          `Upserted ${result.upsertedCount + result.modifiedCount} invoices in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -290,7 +343,9 @@ class StripeSyncService {
       );
       console.log(`Fetched ${products.length} products from Stripe`);
 
-      const collection = db.collection("stripe_products");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_products`;
+      const collection = db.collection(collectionName);
 
       // Process products with data source reference
       const processedProducts = products.map((product) => ({
@@ -311,7 +366,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} products`
+          `Upserted ${result.upsertedCount + result.modifiedCount} products in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -330,7 +385,9 @@ class StripeSyncService {
       );
       console.log(`Fetched ${plans.length} plans from Stripe`);
 
-      const collection = db.collection("stripe_plans");
+      // Use collection name with source ID prefix
+      const collectionName = `${this.dataSource.id}_plans`;
+      const collection = db.collection(collectionName);
 
       // Process plans with data source reference
       const processedPlans = plans.map((plan) => ({
@@ -351,7 +408,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} plans`
+          `Upserted ${result.upsertedCount + result.modifiedCount} plans in collection ${collectionName}`
         );
       }
     } catch (error) {
@@ -364,7 +421,7 @@ class StripeSyncService {
     console.log(
       `\n🔄 Starting full sync for data source: ${this.dataSource.name}`
     );
-    console.log(`Target database: ${targetDbId || "analytics_db"}`);
+    console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
     const startTime = Date.now();
 
     try {
