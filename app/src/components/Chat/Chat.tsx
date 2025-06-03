@@ -24,6 +24,7 @@ import {
   Chat as ChatIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
+import { useCustomPrompt } from "./CustomPrompt";
 
 const Chat: React.FC<ChatProps> = () => {
   // Get state and actions from Zustand store
@@ -91,6 +92,9 @@ const Chat: React.FC<ChatProps> = () => {
     Collection[]
   >([]);
   const [availableViews, setAvailableViews] = useState<View[]>([]);
+
+  // Get custom prompt content
+  const { content: customPromptContent } = useCustomPrompt();
 
   // Initialize OpenAI client
   useEffect(() => {
@@ -474,6 +478,11 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       };
       setStreamingMessage(initialStreamingMessage);
 
+      // Combine system prompt with custom prompt
+      const combinedSystemPrompt = customPromptContent.trim()
+        ? `${systemPromptContent}\n\n--- Custom Context ---\n${customPromptContent}`
+        : systemPromptContent;
+
       // 3. Call the OpenAI chat completion endpoint with streaming enabled
       const completionStream: AsyncIterable<any> = await (
         openaiClient.chat.completions.create as any
@@ -482,7 +491,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         messages: [
           {
             role: "system",
-            content: systemPromptContent,
+            content: combinedSystemPrompt,
           },
           ...conversationHistory,
         ],

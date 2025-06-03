@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Box,
   Typography,
@@ -11,21 +12,80 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Alert,
+  Snackbar,
 } from "@mui/material";
-import { Save as SaveIcon } from "@mui/icons-material";
-import { useState } from "react";
+import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import { useState, useEffect } from "react";
 import ThemeSelector from "../components/ThemeSelector";
+import { useCustomPrompt } from "../components/Chat/CustomPrompt";
 
 function Settings() {
   const [openaiApiKey, setOpenaiApiKey] = useState(
     localStorage.getItem("openai_api_key") || ""
   );
 
+  // Custom prompt state
+  const {
+    content: customPromptContent,
+    isLoading: customPromptLoading,
+    error: customPromptError,
+    updateCustomPrompt,
+    fetchCustomPrompt,
+  } = useCustomPrompt();
+
+  const [localCustomPrompt, setLocalCustomPrompt] = useState("");
+  const [customPromptModified, setCustomPromptModified] = useState(false);
+  const [showSnackbar, setShowSnackbar] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+
+  // Update local state when custom prompt content changes
+  useEffect(() => {
+    setLocalCustomPrompt(customPromptContent);
+    setCustomPromptModified(false);
+  }, [customPromptContent]);
+
   const handleSaveSettings = () => {
     // Save OpenAI API key to localStorage
     localStorage.setItem("openai_api_key", openaiApiKey);
 
-    // TODO: show success notification to user here, e.g., snackbar
+    setSnackbarMessage("Settings saved successfully!");
+    setShowSnackbar(true);
+  };
+
+  const handleCustomPromptChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setLocalCustomPrompt(event.target.value);
+    setCustomPromptModified(event.target.value !== customPromptContent);
+  };
+
+  const handleSaveCustomPrompt = async () => {
+    const success = await updateCustomPrompt(localCustomPrompt);
+    if (success) {
+      setCustomPromptModified(false);
+      setSnackbarMessage("Custom prompt saved successfully!");
+      setShowSnackbar(true);
+    }
+  };
+
+  const handleResetCustomPrompt = async () => {
+    try {
+      const response = await fetch("/api/custom-prompt/reset", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          await fetchCustomPrompt(); // Refresh the content
+          setSnackbarMessage("Custom prompt reset to default!");
+          setShowSnackbar(true);
+        }
+      }
+    } catch (error) {
+      console.error("Error resetting custom prompt:", error);
+    }
   };
 
   return (
@@ -35,7 +95,7 @@ function Settings() {
       </Typography>
 
       <Box
-        sx={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 600 }}
+        sx={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 800 }}
       >
         {/* OpenAI Configuration */}
         <Card>
@@ -61,6 +121,57 @@ function Settings() {
                 disabled={!openaiApiKey.trim()}
               >
                 Test API Key
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Custom Prompt Configuration */}
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Custom Prompt Configuration
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Customize the AI assistant's behavior by adding context about your
+              business, data relationships, and common query patterns.
+            </Typography>
+
+            {customPromptError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {customPromptError}
+              </Alert>
+            )}
+
+            <TextField
+              fullWidth
+              multiline
+              rows={12}
+              value={localCustomPrompt}
+              onChange={handleCustomPromptChange}
+              placeholder="Enter your custom prompt content here..."
+              disabled={customPromptLoading}
+              sx={{ mb: 2 }}
+            />
+
+            <Box sx={{ display: "flex", gap: 1 }}>
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<SaveIcon />}
+                onClick={handleSaveCustomPrompt}
+                disabled={!customPromptModified || customPromptLoading}
+              >
+                Save Custom Prompt
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<RefreshIcon />}
+                onClick={handleResetCustomPrompt}
+                disabled={customPromptLoading}
+              >
+                Reset to Default
               </Button>
             </Box>
           </CardContent>
@@ -194,6 +305,16 @@ function Settings() {
           </Button>
         </Box>
       </Box>
+
+      <Snackbar
+        open={showSnackbar}
+        autoHideDuration={6000}
+        onClose={() => setShowSnackbar(false)}
+      >
+        <Alert onClose={() => setShowSnackbar(false)} severity="success">
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
