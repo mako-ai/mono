@@ -178,6 +178,25 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
     };
 
     const handleExecute = () => {
+      // Prefer executing the currently selected text, if any, otherwise run the entire editor content
+      if (editorRef.current) {
+        const model = editorRef.current.getModel();
+        if (model) {
+          const selection = editorRef.current.getSelection();
+          let textToExecute = "";
+
+          if (selection && !selection.isEmpty()) {
+            textToExecute = model.getValueInRange(selection);
+          } else {
+            textToExecute = model.getValue();
+          }
+
+          executeContent(textToExecute);
+          return;
+        }
+      }
+
+      // Fallback: execute the currentContent state
       executeContent(currentContent);
     };
 
