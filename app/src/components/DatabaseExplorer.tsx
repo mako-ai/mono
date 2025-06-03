@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
-  StorageOutlined as DefaultDatabaseIcon,
+  StorageOutlined as DatabaseIcon,
   TableChartOutlined as CollectionIcon,
   VisibilityOutlined as ViewIcon,
   Refresh as RefreshIcon,
@@ -24,7 +24,7 @@ import {
   FolderOutlined as FolderIcon,
 } from "@mui/icons-material";
 import { useDatabaseExplorerStore } from "../store";
-import Mongodb from "./Icons/mongodb";
+import MongoDB from "./Icons/MongoDB";
 
 interface Database {
   id: string;
@@ -319,7 +319,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                         )}
                       </ListItemIcon>
                       <ListItemIcon sx={{ minWidth: 32 }}>
-                        <ServerIcon />
+                        {server.connectionString.includes("mongodb") ? (
+                          <MongoDB />
+                        ) : (
+                          <ServerIcon />
+                        )}
                       </ListItemIcon>
                       <ListItemText
                         primary={
@@ -376,11 +380,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   )}
                                 </ListItemIcon>
                                 <ListItemIcon sx={{ minWidth: 32 }}>
-                                  {database.database === "mongodb" || true ? (
-                                    <Mongodb />
-                                  ) : (
-                                    <DefaultDatabaseIcon />
-                                  )}
+                                  <DatabaseIcon />
                                 </ListItemIcon>
                                 <ListItemText
                                   primary={
