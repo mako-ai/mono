@@ -103,13 +103,7 @@ function App() {
         return (
           <ConsoleExplorer
             onConsoleSelect={(path, content) => {
-              openOrFocusConsoleTab(
-                `Console: ${path}`,
-                content,
-                undefined,
-                [],
-                path
-              );
+              openOrFocusConsoleTab(path, content, undefined, [], path);
             }}
           />
         );

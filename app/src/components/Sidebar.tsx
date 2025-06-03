@@ -1,11 +1,13 @@
 import { Box, IconButton, Tooltip, styled } from "@mui/material";
 import {
-  ArticleOutlined as FileIcon,
-  StorageOutlined as DatabaseIcon,
   VisibilityOutlined as ViewIcon,
   SettingsOutlined as SettingsIcon,
   CloudUploadOutlined as DataSourceIcon,
 } from "@mui/icons-material";
+import {
+  SquareChevronRight as ConsoleIcon,
+  Database as DatabaseIcon,
+} from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
 
@@ -24,23 +26,31 @@ const NavButton = styled(IconButton, {
   transition: "all 0.2s ease",
 }));
 
-const topNavigationItems: { view: AppView; icon: any; label: string }[] = [
-  { view: "databases", icon: DatabaseIcon, label: "Databases" },
-  { view: "consoles", icon: FileIcon, label: "Consoles" },
-  { view: "views", icon: ViewIcon, label: "Views" },
-  { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
-];
+// Views that can appear in the sidebar navigation. Extends the core AppView
+// union with additional sidebar-specific entries that don't directly map to
+// a left-pane view managed by the app store.
+type NavigationView = AppView | "views" | "settings";
 
-const bottomNavigationItems: { view: AppView; icon: any; label: string }[] = [
-  { view: "settings", icon: SettingsIcon, label: "Settings" },
-];
+const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
+  [
+    { view: "databases", icon: DatabaseIcon, label: "Databases" },
+    { view: "consoles", icon: ConsoleIcon, label: "Consoles" },
+    { view: "views", icon: ViewIcon, label: "Views" },
+    { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
+  ];
+
+const bottomNavigationItems: {
+  view: NavigationView;
+  icon: any;
+  label: string;
+}[] = [{ view: "settings", icon: SettingsIcon, label: "Settings" }];
 
 function Sidebar() {
   const { activeView, setActiveView } = useAppStore();
 
-  const handleNavigation = (view: AppView) => {
-    // For views that control the left pane, update activeView
-    if (view !== "settings") {
+  const handleNavigation = (view: NavigationView) => {
+    // Update the left pane only for views that the store recognises.
+    if (view === "databases" || view === "consoles" || view === "sources") {
       setActiveView(view);
     }
 
@@ -95,7 +105,7 @@ function Sidebar() {
             <Tooltip key={item.view} title={item.label} placement="right">
               <NavButton
                 isActive={isActive}
-                onClick={() => handleNavigation(item.view)}
+                onClick={() => handleNavigation(item.view as NavigationView)}
               >
                 <Icon />
               </NavButton>
@@ -112,7 +122,7 @@ function Sidebar() {
             <Tooltip key={item.view} title={item.label} placement="right">
               <NavButton
                 isActive={isActive}
-                onClick={() => handleNavigation(item.view)}
+                onClick={() => handleNavigation(item.view as NavigationView)}
               >
                 <Icon />
               </NavButton>

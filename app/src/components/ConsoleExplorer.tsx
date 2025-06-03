@@ -12,11 +12,11 @@ import {
 } from "@mui/material";
 import {
   FolderOutlined as FolderIcon,
-  Article as ArticleIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
+import { SquareTerminal as ConsoleIcon } from "lucide-react";
 import { useAppStore } from "../store/appStore";
 
 interface ConsoleEntry {
@@ -153,7 +153,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           >
             <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
             <ListItemIcon sx={{ minWidth: 28 }}>
-              <ArticleIcon fontSize="small" />
+              <ConsoleIcon size={20} />
             </ListItemIcon>
             <ListItemText
               primary={node.name}

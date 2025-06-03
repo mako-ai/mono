@@ -15,6 +15,7 @@ import {
   Snackbar,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
+import { SquareTerminal as ConsoleIcon } from "lucide-react";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
@@ -205,7 +206,7 @@ function Editor() {
         // Update file path in tab if we just created a new file (POST)
         if (method === "POST" && savePath) {
           updateConsoleFilePath(tabId, savePath);
-          updateConsoleTitle(tabId, `Console: ${savePath}`);
+          updateConsoleTitle(tabId, savePath);
         }
         setSnackbarMessage(
           `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`
@@ -258,7 +259,10 @@ function Editor() {
                 key={tab.id}
                 value={tab.id}
                 label={
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
+                  <Box
+                    sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
+                  >
+                    <ConsoleIcon size={20} />
                     <span>{tab.title}</span>
                     <IconButton
                       size="small"

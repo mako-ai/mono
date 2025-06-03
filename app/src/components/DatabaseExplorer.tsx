@@ -15,7 +15,6 @@ import {
 } from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
-  StorageOutlined as DatabaseIcon,
   TableChartOutlined as CollectionIcon,
   VisibilityOutlined as ViewIcon,
   Refresh as RefreshIcon,
@@ -23,6 +22,7 @@ import {
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
 } from "@mui/icons-material";
+import { Database as DatabaseIcon } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
 import MongoDB from "./Icons/MongoDB";
 
@@ -380,7 +380,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   )}
                                 </ListItemIcon>
                                 <ListItemIcon sx={{ minWidth: 32 }}>
-                                  <DatabaseIcon />
+                                  <DatabaseIcon size={24} />
                                 </ListItemIcon>
                                 <ListItemText
                                   primary={
