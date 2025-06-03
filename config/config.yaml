@@ -66,6 +66,21 @@ data_sources:
 # MongoDB Servers Configuration
 # Group databases by their server instances
 mongodb_servers:
+  atlas:
+    name: "MongoDB Atlas"
+    description: "MongoDB Atlas cluster"
+    connection_string: "mongodb+srv://joan:${MONGO_ATLAS_PASSWORD}@revops.fmeraxd.mongodb.net/?retryWrites=true&w=majority&appName=RevOps"
+    active: true
+    databases:
+      revops:
+        name: "Main Analytics Database"
+        description: "Main analytics database"
+        database: "revops"
+        active: true
+        settings:
+          max_pool_size: 10
+          min_pool_size: 2
+
   local_dev:
     name: "Local Development Server"
     description: "Local MongoDB instance for development"
