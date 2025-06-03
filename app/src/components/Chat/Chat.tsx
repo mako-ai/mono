@@ -18,6 +18,7 @@ import { ChatProps, Message, AttachedContext, Collection, View } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
 import { useChatStore } from "../../store/chatStore";
 import { useConsoleStore } from "../../store/consoleStore";
+import { useAppStore } from "../../store/appStore";
 import {
   History as HistoryIcon,
   Add as AddIcon,
@@ -54,6 +55,10 @@ const Chat: React.FC<ChatProps> = () => {
     setActiveConsole,
   } = useConsoleStore();
 
+  // Get loading state and dispatch from app store
+  const { dispatch } = useAppStore();
+  const isLoading = useAppStore((s) => s.ui.loading.chatGeneration || false);
+
   // Get current messages from store
   const storedMessages = getCurrentMessages();
 
@@ -68,7 +73,6 @@ const Chat: React.FC<ChatProps> = () => {
     : storedMessages;
 
   const [inputMessage, setInputMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -482,7 +486,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     const currentContext = [...attachedContext];
     setInputMessage("");
     setError(null);
-    setIsLoading(true);
+    dispatch({
+      type: "SET_LOADING",
+      payload: { key: "chatGeneration", value: true },
+    });
 
     // Reset user scroll state when sending a new message
     setIsUserScrolledUp(false);
@@ -554,8 +561,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         ],
         ...(selectedModel.toLowerCase().startsWith("o3") ||
         selectedModel.toLowerCase().includes("gpt-4o")
-          ? { max_completion_tokens: 4000 }
-          : { max_tokens: 4000 }),
+          ? { max_completion_tokens: 10000 }
+          : { max_tokens: 10000 }),
         ...(!selectedModel.toLowerCase().startsWith("o3") &&
         !selectedModel.toLowerCase().includes("gpt-4o")
           ? { temperature: 0.7 }
@@ -683,7 +690,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         );
       }
     } finally {
-      setIsLoading(false);
+      dispatch({
+        type: "SET_LOADING",
+        payload: { key: "chatGeneration", value: false },
+      });
     }
   };
 
@@ -713,11 +723,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   // Discrete loading notice shown while assistant is generating a response
   const LoadingNotice: React.FC = () => (
-    <Box sx={{ display: "flex", justifyContent: "flex-start", mt: 2 }}>
-      <Typography
-        variant="body2"
-        sx={{ fontStyle: "italic", color: "text.secondary" }}
-      >
+    <Box sx={{ display: "flex", justifyContent: "flex-start", m: 0.5 }}>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
         Generating...
       </Typography>
     </Box>
