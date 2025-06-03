@@ -47,13 +47,8 @@ const Chat: React.FC<ChatProps> = () => {
   } = useChatStore();
 
   // Get console store hooks
-  const {
-    consoleTabs,
-    activeConsoleId,
-    addConsoleTab,
-    updateConsoleContent,
-    setActiveConsole,
-  } = useConsoleStore();
+  const { consoleTabs, addConsoleTab, updateConsoleContent, setActiveConsole } =
+    useConsoleStore();
 
   // Get loading state and dispatch from app store
   const { dispatch } = useAppStore();
