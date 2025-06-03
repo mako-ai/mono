@@ -24,6 +24,7 @@ import {
   Chat as ChatIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
+import { useCustomPrompt } from "./CustomPrompt";
 
 const Chat: React.FC<ChatProps> = () => {
   // Get state and actions from Zustand store
@@ -92,6 +93,9 @@ const Chat: React.FC<ChatProps> = () => {
   >([]);
   const [availableViews, setAvailableViews] = useState<View[]>([]);
 
+  // Get custom prompt content
+  const { content: customPromptContent } = useCustomPrompt();
+
   // Initialize OpenAI client
   useEffect(() => {
     const apiKey = localStorage.getItem("openai_api_key");
@@ -122,56 +126,85 @@ const Chat: React.FC<ChatProps> = () => {
 
   // Fetch collections and views
   useEffect(() => {
+    // --- New multi-database implementation ---
     const fetchCollections = async () => {
       try {
-        // Updated to new API endpoint that lists collections on the default database
-        const response = await fetch("/api/database/collections");
-        const data = await response.json();
-        if (data.success) {
-          const collectionsWithSamples = await Promise.all(
-            data.data.map(async (col: any) => {
+        // 1) Get list of databases defined in the backend configuration
+        const dbRes = await fetch("/api/databases");
+        const dbData = await dbRes.json();
+        if (!dbData.success) return;
+
+        const allCollections: Collection[] = [];
+
+        // Loop over each database and gather its collections + extra info
+        for (const db of dbData.data as any[]) {
+          const dbId = db.id;
+          const dbName = db.name || dbId;
+
+          try {
+            const colRes = await fetch(
+              `/api/databases/${encodeURIComponent(dbId)}/collections`
+            );
+            const colData = await colRes.json();
+            if (!colData.success) continue;
+
+            for (const col of colData.data as any[]) {
+              let documentCount = 0;
+              let sampleDocuments: any[] = [];
+              let schemaInfo: any = {};
+
               try {
-                // Fetch collection info (includes stats and sample documents)
-                const infoResponse = await fetch(
-                  `/api/database/collections/${encodeURIComponent(col.name)}/info`
+                // Get stats (count)
+                const infoRes = await fetch(
+                  `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`
                 );
-                const infoData = await infoResponse.json();
-
-                const documentCount = infoData.success
-                  ? infoData.data?.stats?.count || 0
-                  : 0;
-
-                const collectionInfo = {
-                  id: col.name,
-                  name: col.name,
-                  description: `MongoDB collection with ${documentCount} documents`,
-                  sampleDocument: infoData.data?.sampleDocuments?.[0] || {},
-                  sampleDocuments: infoData.data?.sampleDocuments || [],
-                  // The new /info endpoint does not yet provide schema analysis – placeholder for now
-                  schemaInfo: {},
-                  documentCount,
-                };
-
-                return collectionInfo;
-              } catch (error) {
+                const infoData = await infoRes.json();
+                if (infoData.success) {
+                  documentCount = infoData.data?.stats?.count || 0;
+                }
+              } catch (e) {
                 console.error(
-                  `Failed to fetch details for collection ${col.name}:`,
-                  error
+                  `Failed to fetch info for ${dbId}.${col.name}:`,
+                  e
                 );
-                return {
-                  id: col.name,
-                  name: col.name,
-                  description: "MongoDB collection",
-                  sampleDocument: {},
-                  sampleDocuments: [],
-                  schemaInfo: {},
-                  documentCount: 0,
-                };
               }
-            })
-          );
-          setAvailableCollections(collectionsWithSamples);
+
+              try {
+                // Get sample docs + schema
+                const sampleRes = await fetch(
+                  `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`
+                );
+                const sampleData = await sampleRes.json();
+                if (sampleData.success) {
+                  sampleDocuments = sampleData.data.documents || [];
+                  schemaInfo = sampleData.data.schema || {};
+                }
+              } catch (e) {
+                console.error(
+                  `Failed to fetch samples for ${dbId}.${col.name}:`,
+                  e
+                );
+              }
+
+              allCollections.push({
+                id: `${dbId}.${col.name}`,
+                name: `${col.name} (${dbName})`,
+                description: `MongoDB collection '${col.name}' in database '${dbName}' with ${documentCount} documents`,
+                sampleDocument: sampleDocuments[0] || {},
+                sampleDocuments,
+                schemaInfo,
+                documentCount,
+              } as unknown as Collection);
+            }
+          } catch (e) {
+            console.error(
+              `Failed to list collections for database ${dbId}:`,
+              e
+            );
+          }
         }
+
+        setAvailableCollections(allCollections);
       } catch (error) {
         console.error("Failed to fetch collections:", error);
       }
@@ -179,18 +212,40 @@ const Chat: React.FC<ChatProps> = () => {
 
     const fetchViews = async () => {
       try {
-        const response = await fetch("/api/database/views");
-        const data = await response.json();
-        if (data.success) {
-          const views = data.data.map((view: any) => ({
-            id: view.name,
-            name: view.name,
-            viewOn: view.viewOn,
-            pipeline: view.pipeline || [],
-            description: `View on ${view.viewOn} collection`,
-          }));
-          setAvailableViews(views);
+        const dbRes = await fetch("/api/databases");
+        const dbData = await dbRes.json();
+        if (!dbData.success) return;
+
+        const allViews: View[] = [];
+
+        for (const db of dbData.data as any[]) {
+          const dbId = db.id;
+          const dbName = db.name || dbId;
+          try {
+            const viewRes = await fetch(
+              `/api/databases/${encodeURIComponent(dbId)}/views`
+            );
+            const viewData = await viewRes.json();
+            if (!viewData.success) continue;
+
+            for (const view of viewData.data as any[]) {
+              const viewOn = (view.options && view.options.viewOn) || "";
+              const pipeline = (view.options && view.options.pipeline) || [];
+
+              allViews.push({
+                id: `${dbId}.${view.name}`,
+                name: `${view.name} (${dbName})`,
+                viewOn,
+                pipeline,
+                description: `View '${view.name}' on '${viewOn}' (DB: ${dbName})`,
+              } as unknown as View);
+            }
+          } catch (e) {
+            console.error(`Failed to list views for database ${dbId}:`, e);
+          }
         }
+
+        setAvailableViews(allViews);
       } catch (error) {
         console.error("Failed to fetch views:", error);
       }
@@ -430,7 +485,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     // Clear any existing streaming message
     setStreamingMessage(null);
 
-    // 1. Add the user message first so it appears in the UI immediately
+    // 0️⃣  Persist the user's message locally so it appears immediately in the UI
     const userMessageObj: Message = {
       id: Date.now().toString() + Math.random(),
       role: "user",
@@ -440,41 +495,47 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     };
     addMessage(userMessageObj);
 
+    // 1️⃣  Previous chat history (excluding system prompt)
+    const priorMessages = storedMessages.map((msg) => ({
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+    }));
+
+    // 2️⃣  Convert each attached context item into its own system message so it is
+    //     clearly separated and always included in the prompt.
+    const contextSystemMessages = currentContext.map((ctx, idx) => ({
+      role: "system" as const,
+      content: `Attached Context #${idx + 1}: ${ctx.title}\n\n${ctx.content}`,
+    }));
+
+    // 3️⃣  The actual user question (without the context embedded)
+    const userPromptMessage = { role: "user" as const, content: userMessage };
+
+    // Combine everything for the OpenAI request
+    const conversationHistory = [
+      ...contextSystemMessages,
+      ...priorMessages,
+      userPromptMessage,
+    ];
+
+    // Prepare an empty assistant message used during streaming so the UI can update live
+    const assistantStreamingId = `assistant-${Date.now()}-${Math.random()}`;
+    const initialStreamingMessage: Message = {
+      id: assistantStreamingId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      attachedContext: [],
+    };
+    setStreamingMessage(initialStreamingMessage);
+
     try {
-      // Build conversation history for the API call (excluding system prompt)
-      const conversationHistory = storedMessages.map((msg) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-      }));
+      // Combine system prompt with custom prompt
+      const combinedSystemPrompt = customPromptContent.trim()
+        ? `${systemPromptContent}\n\n--- Custom Context ---\n${customPromptContent}`
+        : systemPromptContent;
 
-      let messageContent = userMessage;
-      if (currentContext.length > 0) {
-        messageContent += "\n\n--- Attached Context ---\n";
-        currentContext.forEach((context, index) => {
-          messageContent += `\n${index + 1}. ${context.title}:\n${
-            context.content
-          }\n`;
-        });
-      }
-
-      conversationHistory.push({ role: "user", content: messageContent });
-
-      const isO3 =
-        selectedModel.toLowerCase().startsWith("o3") ||
-        selectedModel.toLowerCase().includes("gpt-4o");
-
-      // 2. Prepare an empty assistant message for local streaming state
-      const assistantMessageId = `assistant-${Date.now()}-${Math.random()}`;
-      const initialStreamingMessage: Message = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "", // will be filled incrementally
-        timestamp: new Date(),
-        attachedContext: [],
-      };
-      setStreamingMessage(initialStreamingMessage);
-
-      // 3. Call the OpenAI chat completion endpoint with streaming enabled
+      // 4. Call the OpenAI chat completion endpoint with streaming enabled
       const completionStream: AsyncIterable<any> = await (
         openaiClient.chat.completions.create as any
       )({
@@ -482,16 +543,22 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         messages: [
           {
             role: "system",
-            content: systemPromptContent,
+            content: combinedSystemPrompt,
           },
           ...conversationHistory,
         ],
-        ...(isO3 ? { max_completion_tokens: 4000 } : { max_tokens: 4000 }),
-        ...(!isO3 ? { temperature: 0.7 } : {}),
+        ...(selectedModel.toLowerCase().startsWith("o3") ||
+        selectedModel.toLowerCase().includes("gpt-4o")
+          ? { max_completion_tokens: 4000 }
+          : { max_tokens: 4000 }),
+        ...(!selectedModel.toLowerCase().startsWith("o3") &&
+        !selectedModel.toLowerCase().includes("gpt-4o")
+          ? { temperature: 0.7 }
+          : {}),
         stream: true,
       });
 
-      // 4. Iterate over the streamed chunks and update local streaming message
+      // 5. Iterate over the streamed chunks and update the local streaming message
       let fullResponse = "";
       for await (const chunk of completionStream) {
         const delta: string = chunk?.choices?.[0]?.delta?.content || "";
@@ -524,18 +591,15 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         }
       }
 
-      // 5. After streaming is complete, save the final message to global state
+      // 6. After streaming is complete, save the final message to global state
       const finalMessage: Message = {
-        id: assistantMessageId,
+        id: assistantStreamingId,
         role: "assistant",
         content: fullResponse,
         timestamp: new Date(),
         attachedContext: [],
       };
       addMessage(finalMessage);
-
-      // Clear the streaming message since it's now in the store
-      setStreamingMessage(null);
 
       // After streaming is complete, check if we should update a console
       updateConsoleFromAIResponse(fullResponse);
@@ -595,6 +659,9 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           // This will be handled by the user sending the next message
         }, 1000);
       }
+
+      // Clear the temporary streaming message
+      setStreamingMessage(null);
     } catch (err: any) {
       console.error("OpenAI API error:", err);
       // Clear streaming message on error

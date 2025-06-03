@@ -7,6 +7,7 @@ import { executeRoutes } from "./routes/execute";
 import { databaseRoutes } from "./routes/database";
 import { dataSourceRoutes } from "./routes/sources";
 import { databasesRoutes } from "./routes/databases";
+import { customPromptRoutes } from "./routes/custom-prompt";
 
 // Load environment variables from the root project
 dotenv.config({ path: "../../.env" });
@@ -35,6 +36,7 @@ app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
 app.route("/api/sources", dataSourceRoutes);
 app.route("/api/databases", databasesRoutes);
+app.route("/api/custom-prompt", customPromptRoutes);
 
 const port = parseInt(process.env.WEB_API_PORT || "3001");
 
