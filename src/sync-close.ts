@@ -1,5 +1,5 @@
 import axios, { AxiosError } from "axios";
-import { MongoClient, Db, Collection } from "mongodb";
+import { MongoClient, Db } from "mongodb";
 import * as dotenv from "dotenv";
 import { dataSourceManager } from "./data-source-manager";
 import type { DataSourceConfig } from "./data-source-manager";
@@ -96,7 +96,8 @@ class CloseSyncService {
   private async fetchCloseData(
     endpoint: string,
     params: any = {},
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
+    onBatch?: (records: any[]) => Promise<void>
   ): Promise<any[]> {
     const results: any[] = [];
     let hasMore = true;
@@ -134,39 +135,88 @@ class CloseSyncService {
     }
 
     while (hasMore) {
-      try {
-        const response = await axios.get(`${this.closeApiUrl}/${endpoint}`, {
-          headers: {
-            Authorization: `Basic ${Buffer.from(
-              this.closeApiKey + ":"
-            ).toString("base64")}`,
-            Accept: "application/json",
-          },
-          params: {
-            ...params,
-            _skip: skip,
-            _limit: this.settings.batchSize,
-          },
-        });
+      let attempts = 0;
 
-        const data = response.data.data || [];
-        results.push(...data);
+      // Retry loop for the current batch
+      while (attempts <= this.settings.maxRetries) {
+        try {
+          const response = await axios.get(`${this.closeApiUrl}/${endpoint}`, {
+            headers: {
+              Authorization: `Basic ${Buffer.from(
+                this.closeApiKey + ":"
+              ).toString("base64")}`,
+              Accept: "application/json",
+            },
+            params: {
+              ...params,
+              _skip: skip,
+              _limit: this.settings.batchSize,
+            },
+          });
 
-        // Report batch completion
-        if (progress && data.length > 0) {
-          progress.reportBatch(data.length);
+          const data = response.data.data || [];
+          // If a batch callback is provided, process it immediately; otherwise accumulate
+          if (onBatch) {
+            await onBatch(data);
+          } else {
+            results.push(...data);
+          }
+
+          // Report batch completion
+          if (progress && data.length > 0) {
+            progress.reportBatch(data.length);
+          }
+
+          hasMore = response.data.has_more || false;
+          skip += this.settings.batchSize;
+
+          // Respect rate-limit between successful requests
+          if (hasMore) {
+            await this.delay(this.settings.rateLimitDelay);
+          }
+
+          // Successful fetch, break out of retry loop
+          break;
+        } catch (error: any) {
+          // AxiosError typing
+          const axiosError: AxiosError | any = error;
+
+          // Handle HTTP 429 specifically (rate limiting)
+          if (axiosError.response?.status === 429) {
+            const retryAfterHeader =
+              axiosError.response.headers?.["retry-after"];
+            const retryAfterSeconds = retryAfterHeader
+              ? parseInt(retryAfterHeader, 10)
+              : NaN;
+            const delayMs = !isNaN(retryAfterSeconds)
+              ? retryAfterSeconds * 1000
+              : 1000 * Math.pow(2, attempts);
+
+            console.warn(
+              `⏳ Received 429 Too Many Requests from Close API. Waiting ${delayMs}ms before retrying (attempt ${attempts + 1}/${this.settings.maxRetries}).`
+            );
+            await this.delay(delayMs);
+            attempts++;
+            continue;
+          }
+
+          const isRetryable = this.isRetryableAxiosError(error);
+          attempts++;
+
+          if (!isRetryable || attempts > this.settings.maxRetries) {
+            console.error(
+              `❌ Failed to fetch from ${endpoint} after ${attempts} attempt(s).`,
+              error
+            );
+            throw error;
+          }
+
+          const backoff = 500 * Math.pow(2, attempts); // exponential backoff starting at 0.5s
+          console.warn(
+            `⚠️  Error fetching from ${endpoint} (attempt ${attempts}/${this.settings.maxRetries}). Retrying in ${backoff}ms …`
+          );
+          await this.delay(backoff);
         }
-
-        hasMore = response.data.has_more || false;
-        skip += this.settings.batchSize;
-
-        if (hasMore) {
-          // Apply rate limiting
-          await this.delay(this.settings.rateLimitDelay);
-        }
-      } catch (error) {
-        console.error(`Error fetching from ${endpoint}:`, error);
-        throw error;
       }
     }
 
@@ -178,6 +228,31 @@ class CloseSyncService {
     return results;
   }
 
+  /**
+   * Determines whether an Axios error is transient/retryable.
+   */
+  private isRetryableAxiosError(error: any): boolean {
+    if (!error || !error.code) return false;
+
+    // Network level errors
+    const retryableNetworkErrors = [
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "EAI_AGAIN",
+      "ENOTFOUND",
+      "ECONNABORTED",
+    ];
+    if (retryableNetworkErrors.includes(error.code)) return true;
+
+    // HTTP status based retry – only if response exists
+    const status = error.response?.status;
+    if (status && [500, 502, 503, 504, 429].includes(status)) {
+      return true;
+    }
+
+    return false;
+  }
+
   async syncLeads(
     targetDbId?: string,
     progress?: ProgressReporter
@@ -185,24 +260,26 @@ class CloseSyncService {
     console.log(`Starting leads sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
+    const mainCollectionName = `${this.dataSource.id}_leads`;
+    const stagingCollectionName = `${mainCollectionName}_staging`;
+
+    // Prepare staging collection (drop if exists to ensure fresh start)
+    if (await db.listCollections({ name: stagingCollectionName }).hasNext()) {
+      await db.collection(stagingCollectionName).drop();
+    }
+    const stagingCollection = db.collection(stagingCollectionName);
+
     try {
-      const leads = await this.fetchCloseData("lead", {}, progress);
-      console.log(`Fetched ${leads.length} leads from Close.com`);
+      // Fetch Close data in batches and write each batch directly to staging.
+      await this.fetchCloseData("lead", {}, progress, async (batch) => {
+        if (batch.length === 0) return;
+        const processedLeads = batch.map((lead) => ({
+          ...lead,
+          _dataSourceId: this.dataSource.id,
+          _dataSourceName: this.dataSource.name,
+          _syncedAt: new Date(),
+        }));
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_leads`;
-      const collection = db.collection(collectionName);
-
-      // Process leads with data source reference
-      const processedLeads = leads.map((lead) => ({
-        ...lead,
-        _dataSourceId: this.dataSource.id,
-        _dataSourceName: this.dataSource.name,
-        _syncedAt: new Date(),
-      }));
-
-      if (processedLeads.length > 0) {
-        // Use bulk operations for efficiency
         const bulkOps = processedLeads.map((lead) => ({
           replaceOne: {
             filter: { id: lead.id, _dataSourceId: this.dataSource.id },
@@ -211,13 +288,22 @@ class CloseSyncService {
           },
         }));
 
-        const result = await collection.bulkWrite(bulkOps);
-        console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} leads in collection ${collectionName}`
-        );
+        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+      });
+
+      // Completed successfully – atomically swap staging into main.
+      // Drop main (if exists) & rename staging to main.
+      if (await db.listCollections({ name: mainCollectionName }).hasNext()) {
+        await db.collection(mainCollectionName).drop();
       }
+      await stagingCollection.rename(mainCollectionName, { dropTarget: true });
+
+      console.log(
+        `✅ Leads synced and collection swapped successfully (${mainCollectionName})`
+      );
     } catch (error) {
       console.error("Lead sync failed:", error);
+      // Keep partially populated staging collection for inspection/resume.
       throw error;
     }
   }
@@ -229,30 +315,26 @@ class CloseSyncService {
     console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
+    const mainName = `${this.dataSource.id}_opportunities`;
+    const stagingName = `${mainName}_staging`;
+
+    if (await db.listCollections({ name: stagingName }).hasNext()) {
+      await db.collection(stagingName).drop();
+    }
+
+    const stagingCollection = db.collection(stagingName);
+
     try {
-      const opportunities = await this.fetchCloseData(
-        "opportunity",
-        {},
-        progress
-      );
-      console.log(
-        `Fetched ${opportunities.length} opportunities from Close.com`
-      );
+      await this.fetchCloseData("opportunity", {}, progress, async (batch) => {
+        if (batch.length === 0) return;
+        const processed = batch.map((opp) => ({
+          ...opp,
+          _dataSourceId: this.dataSource.id,
+          _dataSourceName: this.dataSource.name,
+          _syncedAt: new Date(),
+        }));
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_opportunities`;
-      const collection = db.collection(collectionName);
-
-      // Process opportunities with data source reference
-      const processedOpportunities = opportunities.map((opp) => ({
-        ...opp,
-        _dataSourceId: this.dataSource.id,
-        _dataSourceName: this.dataSource.name,
-        _syncedAt: new Date(),
-      }));
-
-      if (processedOpportunities.length > 0) {
-        const bulkOps = processedOpportunities.map((opp) => ({
+        const bulkOps = processed.map((opp) => ({
           replaceOne: {
             filter: { id: opp.id, _dataSourceId: this.dataSource.id },
             replacement: opp,
@@ -260,13 +342,17 @@ class CloseSyncService {
           },
         }));
 
-        const result = await collection.bulkWrite(bulkOps);
-        console.log(
-          `Upserted ${
-            result.upsertedCount + result.modifiedCount
-          } opportunities in collection ${collectionName}`
-        );
+        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+      });
+
+      if (await db.listCollections({ name: mainName }).hasNext()) {
+        await db.collection(mainName).drop();
       }
+      await stagingCollection.rename(mainName, { dropTarget: true });
+
+      console.log(
+        `✅ Opportunities synced and collection swapped successfully (${mainName})`
+      );
     } catch (error) {
       console.error("Opportunity sync failed:", error);
       throw error;
@@ -280,24 +366,25 @@ class CloseSyncService {
     console.log(`Starting contacts sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
+    const mainName = `${this.dataSource.id}_contacts`;
+    const stagingName = `${mainName}_staging`;
+
+    if (await db.listCollections({ name: stagingName }).hasNext()) {
+      await db.collection(stagingName).drop();
+    }
+    const stagingCollection = db.collection(stagingName);
+
     try {
-      const contacts = await this.fetchCloseData("contact", {}, progress);
-      console.log(`Fetched ${contacts.length} contacts from Close.com`);
+      await this.fetchCloseData("contact", {}, progress, async (batch) => {
+        if (batch.length === 0) return;
+        const processed = batch.map((contact) => ({
+          ...contact,
+          _dataSourceId: this.dataSource.id,
+          _dataSourceName: this.dataSource.name,
+          _syncedAt: new Date(),
+        }));
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_contacts`;
-      const collection = db.collection(collectionName);
-
-      // Process contacts with data source reference
-      const processedContacts = contacts.map((contact) => ({
-        ...contact,
-        _dataSourceId: this.dataSource.id,
-        _dataSourceName: this.dataSource.name,
-        _syncedAt: new Date(),
-      }));
-
-      if (processedContacts.length > 0) {
-        const bulkOps = processedContacts.map((contact) => ({
+        const bulkOps = processed.map((contact) => ({
           replaceOne: {
             filter: { id: contact.id, _dataSourceId: this.dataSource.id },
             replacement: contact,
@@ -305,11 +392,17 @@ class CloseSyncService {
           },
         }));
 
-        const result = await collection.bulkWrite(bulkOps);
-        console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} contacts in collection ${collectionName}`
-        );
+        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+      });
+
+      if (await db.listCollections({ name: mainName }).hasNext()) {
+        await db.collection(mainName).drop();
       }
+      await stagingCollection.rename(mainName, { dropTarget: true });
+
+      console.log(
+        `✅ Contacts synced and collection swapped successfully (${mainName})`
+      );
     } catch (error) {
       console.error("Contact sync failed:", error);
       throw error;
@@ -323,24 +416,25 @@ class CloseSyncService {
     console.log(`Starting users sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
+    const mainName = `${this.dataSource.id}_users`;
+    const stagingName = `${mainName}_staging`;
+
+    if (await db.listCollections({ name: stagingName }).hasNext()) {
+      await db.collection(stagingName).drop();
+    }
+    const stagingCollection = db.collection(stagingName);
+
     try {
-      const users = await this.fetchCloseData("user", {}, progress);
-      console.log(`Fetched ${users.length} users from Close.com`);
+      await this.fetchCloseData("user", {}, progress, async (batch) => {
+        if (batch.length === 0) return;
+        const processed = batch.map((user) => ({
+          ...user,
+          _dataSourceId: this.dataSource.id,
+          _dataSourceName: this.dataSource.name,
+          _syncedAt: new Date(),
+        }));
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_users`;
-      const collection = db.collection(collectionName);
-
-      // Process users with data source reference
-      const processedUsers = users.map((user) => ({
-        ...user,
-        _dataSourceId: this.dataSource.id,
-        _dataSourceName: this.dataSource.name,
-        _syncedAt: new Date(),
-      }));
-
-      if (processedUsers.length > 0) {
-        const bulkOps = processedUsers.map((user) => ({
+        const bulkOps = processed.map((user) => ({
           replaceOne: {
             filter: { id: user.id, _dataSourceId: this.dataSource.id },
             replacement: user,
@@ -348,11 +442,17 @@ class CloseSyncService {
           },
         }));
 
-        const result = await collection.bulkWrite(bulkOps);
-        console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} users in collection ${collectionName}`
-        );
+        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+      });
+
+      if (await db.listCollections({ name: mainName }).hasNext()) {
+        await db.collection(mainName).drop();
       }
+      await stagingCollection.rename(mainName, { dropTarget: true });
+
+      console.log(
+        `✅ Users synced and collection swapped successfully (${mainName})`
+      );
     } catch (error) {
       console.error("User sync failed:", error);
       throw error;
@@ -366,24 +466,25 @@ class CloseSyncService {
     console.log(`Starting activities sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
+    const mainName = `${this.dataSource.id}_activities`;
+    const stagingName = `${mainName}_staging`;
+
+    if (await db.listCollections({ name: stagingName }).hasNext()) {
+      await db.collection(stagingName).drop();
+    }
+    const stagingCollection = db.collection(stagingName);
+
     try {
-      const activities = await this.fetchCloseData("activity", {}, progress);
-      console.log(`Fetched ${activities.length} activities from Close.com`);
+      await this.fetchCloseData("activity", {}, progress, async (batch) => {
+        if (batch.length === 0) return;
+        const processed = batch.map((activity) => ({
+          ...activity,
+          _dataSourceId: this.dataSource.id,
+          _dataSourceName: this.dataSource.name,
+          _syncedAt: new Date(),
+        }));
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_activities`;
-      const collection = db.collection(collectionName);
-
-      // Process activities with data source reference
-      const processedActivities = activities.map((activity) => ({
-        ...activity,
-        _dataSourceId: this.dataSource.id,
-        _dataSourceName: this.dataSource.name,
-        _syncedAt: new Date(),
-      }));
-
-      if (processedActivities.length > 0) {
-        const bulkOps = processedActivities.map((activity) => ({
+        const bulkOps = processed.map((activity) => ({
           replaceOne: {
             filter: { id: activity.id, _dataSourceId: this.dataSource.id },
             replacement: activity,
@@ -391,11 +492,17 @@ class CloseSyncService {
           },
         }));
 
-        const result = await collection.bulkWrite(bulkOps);
-        console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} activities in collection ${collectionName}`
-        );
+        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+      });
+
+      if (await db.listCollections({ name: mainName }).hasNext()) {
+        await db.collection(mainName).drop();
       }
+      await stagingCollection.rename(mainName, { dropTarget: true });
+
+      console.log(
+        `✅ Activities synced and collection swapped successfully (${mainName})`
+      );
     } catch (error) {
       console.error("Activity sync failed:", error);
       throw error;
@@ -409,8 +516,15 @@ class CloseSyncService {
     console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
+    const mainName = `${this.dataSource.id}_custom_fields`;
+    const stagingName = `${mainName}_staging`;
+
+    if (await db.listCollections({ name: stagingName }).hasNext()) {
+      await db.collection(stagingName).drop();
+    }
+    const stagingCollection = db.collection(stagingName);
+
     try {
-      // Fetch all custom field types
       const customFieldTypes = [
         "custom_fields/lead",
         "custom_fields/contact",
@@ -418,61 +532,53 @@ class CloseSyncService {
         "custom_fields/activity",
       ];
 
-      const allCustomFields: any[] = [];
-
-      // Create sub-progress if main progress is provided
-      const totalTypes = customFieldTypes.length;
-      let typesCompleted = 0;
-
       for (const fieldType of customFieldTypes) {
         try {
-          const fields = await this.fetchCloseData(fieldType);
-          allCustomFields.push(
-            ...fields.map((field: any) => ({
+          await this.fetchCloseData(fieldType, {}, progress, async (batch) => {
+            if (batch.length === 0) return;
+            const processed = batch.map((field: any) => ({
               ...field,
               field_type: fieldType.replace("custom_fields/", ""),
               _dataSourceId: this.dataSource.id,
               _dataSourceName: this.dataSource.name,
               _syncedAt: new Date(),
-            }))
-          );
+            }));
 
-          typesCompleted++;
-          if (progress) {
-            // Report progress for custom fields as a whole
-            progress.reportBatch(Math.floor(fields.length / totalTypes));
-          }
+            if (progress) {
+              progress.reportBatch(batch.length);
+            }
+
+            const bulkOps = processed.map((field) => ({
+              replaceOne: {
+                filter: {
+                  id: field.id,
+                  field_type: field.field_type,
+                  _dataSourceId: this.dataSource.id,
+                },
+                replacement: field,
+                upsert: true,
+              },
+            }));
+
+            await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+          });
         } catch (error) {
           console.warn(`Failed to fetch ${fieldType}:`, error);
-          // Continue with other field types
         }
       }
 
-      console.log(`Fetched ${allCustomFields.length} custom fields`);
+      // After all types processed successfully, swap collections
+      if (await db.listCollections({ name: mainName }).hasNext()) {
+        await db.collection(mainName).drop();
+      }
+      await stagingCollection.rename(mainName, { dropTarget: true });
 
-      if (allCustomFields.length > 0) {
-        // Use collection name with source ID prefix
-        const collectionName = `${this.dataSource.id}_custom_fields`;
-        const collection = db.collection(collectionName);
+      console.log(
+        `✅ Custom fields synced and collection swapped successfully (${mainName})`
+      );
 
-        const bulkOps = allCustomFields.map((field) => ({
-          replaceOne: {
-            filter: {
-              id: field.id,
-              field_type: field.field_type,
-              _dataSourceId: this.dataSource.id,
-            },
-            replacement: field,
-            upsert: true,
-          },
-        }));
-
-        const result = await collection.bulkWrite(bulkOps);
-        console.log(
-          `Upserted ${
-            result.upsertedCount + result.modifiedCount
-          } custom fields in collection ${collectionName}`
-        );
+      if (progress) {
+        progress.reportComplete();
       }
     } catch (error) {
       console.error("Custom fields sync failed:", error);
@@ -487,31 +593,46 @@ class CloseSyncService {
     console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
     const startTime = Date.now();
 
-    try {
-      // Import ProgressReporter for creating individual progress
-      const { ProgressReporter } = await import("./sync");
+    const failedEntities: string[] = [];
 
-      // Sync all data types with individual progress
-      await this.syncLeads(targetDbId, new ProgressReporter("leads"));
-      await this.syncOpportunities(
-        targetDbId,
-        new ProgressReporter("opportunities")
-      );
-      await this.syncContacts(targetDbId, new ProgressReporter("contacts"));
-      await this.syncActivities(targetDbId, new ProgressReporter("activities"));
-      await this.syncUsers(targetDbId, new ProgressReporter("users"));
-      await this.syncCustomFields(
-        targetDbId,
-        new ProgressReporter("custom-fields")
-      );
+    // Import ProgressReporter for creating individual progress
+    const { ProgressReporter } = await import("./sync");
+
+    const entityOperations: Array<{
+      name: string;
+      fn: (
+        dbId: string | undefined,
+        progress: ProgressReporter
+      ) => Promise<void>;
+    }> = [
+      { name: "leads", fn: this.syncLeads.bind(this) },
+      { name: "opportunities", fn: this.syncOpportunities.bind(this) },
+      { name: "contacts", fn: this.syncContacts.bind(this) },
+      { name: "activities", fn: this.syncActivities.bind(this) },
+      { name: "users", fn: this.syncUsers.bind(this) },
+      { name: "custom-fields", fn: this.syncCustomFields.bind(this) },
+    ];
+
+    try {
+      for (const entity of entityOperations) {
+        try {
+          await entity.fn(targetDbId, new ProgressReporter(entity.name));
+        } catch (err) {
+          failedEntities.push(entity.name);
+          console.error(`❌ Failed to sync ${entity.name}:`, err);
+        }
+      }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(
-        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`
-      );
-    } catch (error) {
-      console.error(`❌ Sync failed for ${this.dataSource.name}:`, error);
-      throw error;
+      if (failedEntities.length === 0) {
+        console.log(
+          `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`
+        );
+      } else {
+        console.warn(
+          `⚠️  Completed sync for ${this.dataSource.name} with failures in: ${failedEntities.join(", ")}. Duration: ${duration}s`
+        );
+      }
     } finally {
       await this.disconnect();
     }
