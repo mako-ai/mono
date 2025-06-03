@@ -8,6 +8,7 @@ import React, {
 import {
   ThemeProvider as MuiThemeProvider,
   createTheme,
+  alpha,
 } from "@mui/material/styles";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -228,6 +229,46 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           root: {
             fontSize: 12,
           },
+        },
+      },
+      MuiCssBaseline: {
+        styleOverrides: (theme: any) => {
+          const thumbColor = alpha(theme.palette.text.primary, 0.1);
+          const thumbHoverColor = alpha(theme.palette.text.primary, 0.2);
+
+          return {
+            // Default (not hovered) state: thumb invisible but space reserved to avoid layout shift
+            "*": {
+              scrollbarColor: `transparent transparent`,
+              scrollbarWidth: "thin", // Keep width constant so layout doesn't move (Firefox)
+            },
+            // When the element itself is hovered, show colored thumb (Firefox uses same width)
+            "*:hover": {
+              scrollbarColor: `${thumbColor} transparent`,
+            },
+            "*::-webkit-scrollbar": {
+              width: 8,
+              height: 8,
+            },
+            "*::-webkit-scrollbar-track": {
+              background: "transparent",
+            },
+            // Thumb hidden by default
+            "*::-webkit-scrollbar-thumb": {
+              borderRadius: 0,
+              backgroundColor: "transparent",
+              minHeight: 24,
+            },
+            // Thumb when container is hovered
+            "*:hover::-webkit-scrollbar-thumb": {
+              backgroundColor: thumbColor,
+            },
+            // Thumb when actively hovered/dragged
+            "*:hover::-webkit-scrollbar-thumb:hover, *:hover::-webkit-scrollbar-thumb:active":
+              {
+                backgroundColor: thumbHoverColor,
+              },
+          };
         },
       },
     },
