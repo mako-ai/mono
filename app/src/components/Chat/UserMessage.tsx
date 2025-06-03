@@ -2,12 +2,29 @@ import React from "react";
 import { Box, Typography, Paper, Chip } from "@mui/material";
 import { Storage, Code, Description, TableView } from "@mui/icons-material";
 import { Message } from "./types";
+import { useAppStore } from "../../store/appStore";
+import { useChatStore } from "../../store/chatStore";
 
 interface UserMessageProps {
   message: Message;
 }
 
 const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
+  // Get loading state from app store and messages from chat store
+  const isLoading = useAppStore((s) => s.ui.loading.chatGeneration || false);
+  const { getCurrentMessages } = useChatStore();
+
+  // Check if this is the last user message
+  const isLastUserMessage = React.useMemo(() => {
+    const currentMessages = getCurrentMessages();
+    const lastUserMessage = [...currentMessages]
+      .reverse()
+      .find((msg) => msg.role === "user");
+    return lastUserMessage?.id === message.id;
+  }, [message.id, getCurrentMessages]);
+
+  const shouldShowGenerating = isLoading && isLastUserMessage;
+
   const getContextIcon = (type: string) => {
     switch (type) {
       case "collection":
@@ -75,6 +92,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
         >
           {message.content}
         </Typography>
+
+        {/* Show generating indicator inside the paper when AI is responding */}
+        {shouldShowGenerating && (
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
+            Generating...
+          </Typography>
+        )}
       </Paper>
     </Box>
   );
