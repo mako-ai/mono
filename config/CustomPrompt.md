@@ -11,6 +11,7 @@ We are a RevOps platform that helps sales teams track and analyze their performa
 - Activities (calls, emails, meetings) are linked to both Opportunities and Contacts
 - Each Opportunity has a closer (sales rep) assigned
 - Each Opportunity has a product assigned through a custom field
+- An opportunity is won if and only if it has status_type = won AND a won_date
 - Each lead has a closer and a customer success manager assigned through a custom field
 
 ## Common Queries
