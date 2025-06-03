@@ -9,18 +9,19 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "hono": "^3.12.0",
     "@hono/node-server": "^1.8.0",
-    "mongodb": "^6.3.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "hono": "^3.12.0",
     "js-yaml": "^4.1.0",
-    "cors": "^2.8.5"
+    "mongodb": "^6.3.0",
+    "openai": "^4.103.0"
   },
   "devDependencies": {
-    "@types/node": "^20.10.5",
-    "@types/js-yaml": "^4.0.8",
     "@types/cors": "^2.8.17",
-    "typescript": "^5.3.3",
-    "tsx": "^4.7.0"
+    "@types/js-yaml": "^4.0.8",
+    "@types/node": "^20.10.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
   }
 }
