@@ -7,6 +7,7 @@ import { useChatStore } from "./store";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Chat from "./components/Chat/Chat";
+import Chat2 from "./components/Chat2";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
 // @ts-ignore file exists
@@ -145,6 +146,21 @@ function App() {
           <Editor />
         </Panel>
 
+        {/* <StyledHorizontalResizeHandle />
+
+        <Panel defaultSize={0} minSize={0}>
+          <Box
+            sx={{
+              height: "100%",
+              overflow: "hidden",
+              borderLeft: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Chat currentEditorContent={activeEditorContent} />
+          </Box>
+        </Panel> */}
+
         <StyledHorizontalResizeHandle />
 
         <Panel defaultSize={20} minSize={10}>
@@ -156,7 +172,7 @@ function App() {
               borderColor: "divider",
             }}
           >
-            <Chat currentEditorContent={activeEditorContent} />
+            <Chat2 />
           </Box>
         </Panel>
       </PanelGroup>
