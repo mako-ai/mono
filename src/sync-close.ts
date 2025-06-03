@@ -526,10 +526,10 @@ class CloseSyncService {
 
     try {
       const customFieldTypes = [
-        "custom_fields/lead",
-        "custom_fields/contact",
-        "custom_fields/opportunity",
-        "custom_fields/activity",
+        "custom_field/lead",
+        "custom_field/contact",
+        "custom_field/opportunity",
+        "custom_field/activity",
       ];
 
       for (const fieldType of customFieldTypes) {
@@ -538,7 +538,7 @@ class CloseSyncService {
             if (batch.length === 0) return;
             const processed = batch.map((field: any) => ({
               ...field,
-              field_type: fieldType.replace("custom_fields/", ""),
+              field_type: fieldType.replace("custom_field/", ""),
               _dataSourceId: this.dataSource.id,
               _dataSourceName: this.dataSource.name,
               _syncedAt: new Date(),
@@ -610,7 +610,7 @@ class CloseSyncService {
       { name: "contacts", fn: this.syncContacts.bind(this) },
       { name: "activities", fn: this.syncActivities.bind(this) },
       { name: "users", fn: this.syncUsers.bind(this) },
-      { name: "custom-fields", fn: this.syncCustomFields.bind(this) },
+      { name: "custom_fields", fn: this.syncCustomFields.bind(this) },
     ];
 
     try {
