@@ -14,6 +14,7 @@ import ConsoleExplorer from "./components/ConsoleExplorer";
 import DataSourceExplorer from "./components/DataSourceExplorer";
 // @ts-ignore file exists
 import Editor from "./components/Editor";
+import Chat2 from "./components/Chat2";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -142,7 +143,7 @@ function App() {
         <StyledHorizontalResizeHandle />
 
         {/* Editor + Results vertical layout inside Editor component */}
-        <Panel defaultSize={65} minSize={30}>
+        <Panel defaultSize={30} minSize={30}>
           <Editor />
         </Panel>
 
@@ -163,7 +164,22 @@ function App() {
 
         <StyledHorizontalResizeHandle />
 
-        <Panel defaultSize={20} minSize={10}>
+        <Panel defaultSize={30} minSize={10}>
+          <Box
+            sx={{
+              height: "100%",
+              overflow: "hidden",
+              borderLeft: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Chat2 />
+          </Box>
+        </Panel>
+
+        <StyledHorizontalResizeHandle />
+
+        <Panel defaultSize={30} minSize={10}>
           <Box
             sx={{
               height: "100%",

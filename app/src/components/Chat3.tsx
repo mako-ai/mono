@@ -15,6 +15,7 @@ import {
   TextField,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
+import BuildIcon from "@mui/icons-material/Build";
 
 interface Message {
   role: "user" | "assistant";
@@ -34,6 +35,7 @@ const Chat3: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
   const [sessionId, setSessionId] = useState<string | "">("");
+  const [steps, setSteps] = useState<string[]>([]);
 
   // ---------------------------------------------------------------------------
   // Session management (identical to Chat2)
@@ -154,6 +156,8 @@ const Chat3: React.FC = () => {
                 }
                 return updated;
               });
+            } else if (parsed.type === "step" && parsed.name) {
+              setSteps((prev) => [...prev, parsed.name]);
             } else if (
               parsed.type === "session" &&
               parsed.sessionId &&
@@ -167,6 +171,7 @@ const Chat3: React.FC = () => {
         }
       }
     }
+    setSteps([]);
   };
 
   const sendMessage = async () => {
@@ -176,6 +181,7 @@ const Chat3: React.FC = () => {
 
     // Optimistically add user message
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setSteps([]);
     setInput("");
     setLoading(true);
 
@@ -239,7 +245,20 @@ const Chat3: React.FC = () => {
           ))}
           {loading && (
             <ListItem>
-              <Chip label="Assistant is thinking…" size="small" />
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                {steps.map((s, idx) => (
+                  <Chip
+                    key={`${s}-${idx}`}
+                    icon={<BuildIcon fontSize="small" />}
+                    label={s}
+                    size="small"
+                    variant="outlined"
+                  />
+                ))}
+                {steps.length === 0 && (
+                  <Chip label="Assistant is thinking…" size="small" />
+                )}
+              </Box>
             </ListItem>
           )}
         </List>
