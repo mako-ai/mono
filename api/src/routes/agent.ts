@@ -215,6 +215,15 @@ const dbAgent = new Agent({
     - list_collections: List all collections for the provided database identifier.
     - execute_query: Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.
     - inspect_collection: Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.
+
+    | Requirement                      | Do ✓                                                                                                    | Don't ✗                                          |
+    | -------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+    | **Pivot all period-based data**  | Return **one document per entity**, with each period as a **field name** (\`"2025-01"\`, \`"2025-02"\`, …). | Never send separate docs per month/quarter/year. |
+    | **Flat, table-friendly objects** | Use clear identifier fields (\`product\`, \`closer\`, …).                                                   | Avoid nested arrays/objects for final output.    |
+    | **Column order**                 | Use \`$replaceRoot\` to build the final object so keys stay in logical order.                             | Don't rely on \`$project\` for re-shaping.         |
+    | **Missing periods**              | Fill with \`0\` or \`null\`.                                                                                | Leave gaps.                                      |
+    | **Fields with dots**             | Access via \`$getField\`.                                                                                 | Dot-notation on such fields.                     |
+
     `,
   tools: [
     listDatabasesTool,

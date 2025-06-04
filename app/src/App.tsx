@@ -173,21 +173,6 @@ function App() {
               borderColor: "divider",
             }}
           >
-            <Chat2 />
-          </Box>
-        </Panel>
-
-        <StyledHorizontalResizeHandle />
-
-        <Panel defaultSize={30} minSize={10}>
-          <Box
-            sx={{
-              height: "100%",
-              overflow: "hidden",
-              borderLeft: "1px solid",
-              borderColor: "divider",
-            }}
-          >
             <Chat3 />
           </Box>
         </Panel>
