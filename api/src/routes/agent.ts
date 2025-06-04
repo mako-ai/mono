@@ -248,88 +248,7 @@ const persistChatSession = async (sessionId: string, messages: any[]) => {
 // ------------------------------------------------------------------------------------
 // POST /   (mounted at /api/agent) – Run the agent once and return the assistant reply
 // ------------------------------------------------------------------------------------
-agentRoutes.post("/", async (c) => {
-  let body: any = {};
-  try {
-    body = await c.req.json();
-  } catch (_) {}
-
-  const { message, sessionId } = body as {
-    message?: string;
-    sessionId?: string;
-  };
-
-  if (!message || typeof message !== "string" || message.trim().length === 0) {
-    return c.json({ error: "'message' is required" }, 400);
-  }
-
-  // 1) Load existing chat messages (if a session id was provided)
-  let existingMessages: { role: "user" | "assistant"; content: string }[] = [];
-  if (sessionId) {
-    try {
-      const coll = await getChatsCollection();
-      const chat = await coll.findOne({ _id: new ObjectId(sessionId) });
-      if (chat && Array.isArray(chat.messages)) {
-        existingMessages = chat.messages as any[];
-      }
-    } catch (_) {
-      /* ignore invalid id */
-    }
-  }
-
-  // 2) Compose the conversation into a single text blob. The Agents SDK will use this
-  //    as context. Keeping the formatting extremely simple for now.
-  const conversationLines: string[] = existingMessages.map(
-    (m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`
-  );
-  conversationLines.push(`User: ${message.trim()}`);
-  const agentInput = conversationLines.join("\n\n");
-
-  try {
-    // 3) Run the agent
-    const result = await runAgent(dbAgent, agentInput);
-
-    const assistantReply = result.finalOutput || "";
-
-    // 4) Build the new messages array and persist it
-    const updatedMessages = [
-      ...existingMessages,
-      { role: "user", content: message.trim() },
-      { role: "assistant", content: assistantReply },
-    ];
-
-    let finalSessionId = sessionId;
-
-    const coll = await getChatsCollection();
-    const now = new Date();
-
-    if (!sessionId) {
-      // Create a new chat session document
-      const insertResult = await coll.insertOne({
-        title: "Agent Chat",
-        messages: updatedMessages,
-        createdAt: now,
-        updatedAt: now,
-      });
-      finalSessionId = insertResult.insertedId.toString();
-    } else {
-      // Update existing session
-      await persistChatSession(sessionId, updatedMessages);
-    }
-
-    return c.json({
-      sessionId: finalSessionId,
-      messages: updatedMessages,
-    });
-  } catch (err: any) {
-    console.error("/api/agent error", err);
-    return c.json({ error: err.message || "Unexpected error" }, 500);
-  }
-});
-
-// ------------------------------------------------------------------------------------
-// POST /stream   (mounted at /api/agent/stream) – Run the agent with streaming
-// ------------------------------------------------------------------------------------
+// Debug version - Add this temporarily to see what events are coming through
 agentRoutes.post("/stream", async (c) => {
   let body: any = {};
   try {
@@ -345,7 +264,7 @@ agentRoutes.post("/stream", async (c) => {
     return c.json({ error: "'message' is required" }, 400);
   }
 
-  // 1) Load existing chat messages (if a session id was provided)
+  // Load existing messages...
   let existingMessages: { role: "user" | "assistant"; content: string }[] = [];
   if (sessionId) {
     try {
@@ -354,13 +273,9 @@ agentRoutes.post("/stream", async (c) => {
       if (chat && Array.isArray(chat.messages)) {
         existingMessages = chat.messages as any[];
       }
-    } catch (_) {
-      /* ignore invalid id */
-    }
+    } catch (_) {}
   }
 
-  // 2) Compose the conversation into a single text blob. The Agents SDK will use this
-  //    as context.
   const conversationLines: string[] = existingMessages.map(
     (m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`
   );
@@ -369,7 +284,6 @@ agentRoutes.post("/stream", async (c) => {
 
   const encoder = new TextEncoder();
 
-  // Construct a ReadableStream to push SSE events
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (data: any) => {
@@ -377,65 +291,142 @@ agentRoutes.post("/stream", async (c) => {
       };
 
       try {
-        // Run agent in streaming mode
-        // @ts-ignore – the Agents SDK supports { stream: true }
         const runStream: any = await runAgent(dbAgent, agentInput, {
           stream: true,
         });
 
         let assistantReply = "";
+        let eventCount = 0;
+        let textDeltaCount = 0;
 
-        // Helper to process a single text chunk
-        const handleTextChunk = (chunk: string) => {
-          assistantReply += chunk;
-          sendEvent({ type: "text", content: chunk });
-        };
+        // Debug: Log first 10 events to understand structure
+        for await (const event of runStream as AsyncIterable<any>) {
+          eventCount++;
 
-        // First, try the toTextStream helper if available (simpler)
-        if (typeof runStream?.toTextStream === "function") {
-          const textReadable: any = runStream.toTextStream({
-            compatibleWithNodeStreams: true,
-          });
-
-          await new Promise<void>((resolve, reject) => {
-            textReadable.on("data", (chunk: Buffer | string) => {
-              handleTextChunk(chunk.toString());
+          // Debug logging for first 20 events
+          if (eventCount <= 20) {
+            console.log(`Event #${eventCount}:`, {
+              type: event?.type,
+              dataType: event?.data?.type,
+              hasData: !!event?.data,
+              hasDelta: !!event?.data?.delta,
+              deltaType: typeof event?.data?.delta,
+              // Log a sample of the delta if it exists
+              deltaSample: event?.data?.delta
+                ? typeof event?.data?.delta === "string"
+                  ? event?.data?.delta.substring(0, 50)
+                  : "non-string"
+                : "no-delta",
             });
-            textReadable.on("end", resolve);
-            textReadable.on("error", reject);
-          });
-        } else {
-          // Fallback: iterate over raw events and look for text deltas
-          for await (const event of runStream as AsyncIterable<any>) {
-            // Raw model stream events carry token deltas
-            if (event?.type === "raw_model_stream_event") {
-              const data = event.data;
-              // For OpenAI Responses API text delta events
-              if (
-                data?.type === "response.output_text.delta" &&
-                typeof data.delta === "string"
-              ) {
-                handleTextChunk(data.delta);
-              }
+          }
+
+          // Check all possible text delta patterns
+          if (event?.type === "raw_model_stream_event") {
+            const data = event.data;
+
+            // Try different field names that might contain text
+            let textDelta = null;
+            if (data?.type === "output_text_delta") {
+              textDelta = data.delta;
+            } else if (data?.type === "response.output_text.delta") {
+              textDelta = data.delta;
+            } else if (data?.type === "text_delta") {
+              textDelta = data.delta;
+            } else if (data?.type === "content.delta") {
+              textDelta = data.text || data.delta;
             }
-            // run_item_stream_event with message_output_item provides full chunks – ignore here
+
+            if (textDelta && typeof textDelta === "string") {
+              textDeltaCount++;
+              assistantReply += textDelta;
+              sendEvent({ type: "text", content: textDelta });
+            }
+          }
+
+          // Process other events as before...
+          if (event?.type === "run_item_stream_event") {
+            const itemEvent = event;
+            const item = itemEvent.item;
+
+            // Tool call started - debug the structure
+            if (
+              item?.type === "tool_call_item" &&
+              itemEvent.name === "tool_called"
+            ) {
+              console.log("Tool call item structure:", {
+                itemType: item.type,
+                itemName: item.name,
+                hasFunction: !!item.function,
+                functionName: item.function?.name,
+                functionType: item.function?.type,
+                itemKeys: Object.keys(item),
+              });
+
+              // Try different paths to find the tool name
+              const toolName =
+                item.function?.name ||
+                item.tool?.name ||
+                item.name ||
+                item.call?.function?.name ||
+                "unknown_tool";
+
+              sendEvent({
+                type: "step",
+                name: `tool_called:${toolName}`,
+                status: "started",
+              });
+            }
+
+            // Tool call completed
+            if (
+              item?.type === "tool_call_output_item" &&
+              itemEvent.name === "output_added"
+            ) {
+              // For output, we might need to look at the related tool call
+              console.log("Tool output item structure:", {
+                itemType: item.type,
+                itemName: item.name,
+                toolCallId: item.tool_call_id,
+                itemKeys: Object.keys(item),
+              });
+
+              const toolName =
+                item.function?.name ||
+                item.tool?.name ||
+                item.name ||
+                "unknown_tool";
+
+              sendEvent({
+                type: "step",
+                name: `tool_output:${toolName}`,
+                status: "completed",
+              });
+            }
+
+            if (itemEvent.name === "message_output_created") {
+              sendEvent({
+                type: "step",
+                name: "message_generation",
+                status: "started",
+              });
+            }
           }
         }
 
-        // Wait for completion promise if present to ensure final output captured
-        try {
-          if (runStream?.completed) {
-            await runStream.completed;
-            // Prefer finalOutput if available
-            if (typeof runStream.finalOutput === "string") {
-              assistantReply = runStream.finalOutput;
-            }
-          }
-        } catch (_) {
-          // ignore
+        console.log(
+          `Total events processed: ${eventCount}, Text deltas found: ${textDeltaCount}`
+        );
+
+        // Wait for completion
+        await runStream.completed;
+
+        if (!assistantReply && runStream.finalOutput) {
+          console.log("No streamed text, using finalOutput");
+          assistantReply = runStream.finalOutput;
+          sendEvent({ type: "text", content: assistantReply });
         }
 
-        // 3) Persist chat messages
+        // Persist messages...
         const updatedMessages = [
           ...existingMessages,
           { role: "user", content: message.trim() },
@@ -443,7 +434,6 @@ agentRoutes.post("/stream", async (c) => {
         ];
 
         let finalSessionId = sessionId;
-
         const coll = await getChatsCollection();
         const now = new Date();
 
@@ -459,13 +449,7 @@ agentRoutes.post("/stream", async (c) => {
           await persistChatSession(sessionId, updatedMessages);
         }
 
-        // Send a special event so the client can update session id if needed
-        sendEvent({
-          type: "session",
-          sessionId: finalSessionId,
-        });
-
-        // All done
+        sendEvent({ type: "session", sessionId: finalSessionId });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (err: any) {
