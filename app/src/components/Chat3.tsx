@@ -36,6 +36,7 @@ const Chat3: React.FC = () => {
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
   const [sessionId, setSessionId] = useState<string | "">("");
   const [steps, setSteps] = useState<string[]>([]);
+  const [streamingContent, setStreamingContent] = useState<string>("");
 
   // ---------------------------------------------------------------------------
   // Session management (identical to Chat2)
@@ -122,8 +123,8 @@ const Chat3: React.FC = () => {
     let assistantContent = "";
     let done = false;
 
-    // Optimistically append empty assistant message
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    // Don't add optimistic message while loading, handle streaming separately
+    setStreamingContent("");
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
@@ -145,17 +146,7 @@ const Chat3: React.FC = () => {
             // Handle different event types (only text and session for now)
             if (parsed.type === "text") {
               assistantContent += parsed.content;
-              setMessages((prev) => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last && last.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: assistantContent,
-                  };
-                }
-                return updated;
-              });
+              setStreamingContent(assistantContent);
             } else if (parsed.type === "step" && parsed.name) {
               setSteps((prev) => [...prev, parsed.name]);
             } else if (
@@ -171,7 +162,17 @@ const Chat3: React.FC = () => {
         }
       }
     }
+
+    // After streaming is complete, add the final message to the messages array
+    if (assistantContent) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: assistantContent },
+      ]);
+    }
+
     setSteps([]);
+    setStreamingContent("");
   };
 
   const sendMessage = async () => {
@@ -244,22 +245,38 @@ const Chat3: React.FC = () => {
             </ListItem>
           ))}
           {loading && (
-            <ListItem>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                {steps.map((s, idx) => (
-                  <Chip
-                    key={`${s}-${idx}`}
-                    icon={<BuildIcon fontSize="small" />}
-                    label={s}
-                    size="small"
-                    variant="outlined"
+            <>
+              {/* Show step chips first when loading */}
+              <ListItem>
+                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                  {steps.map((s, idx) => (
+                    <Chip
+                      key={`${s}-${idx}`}
+                      icon={<BuildIcon fontSize="small" />}
+                      label={s}
+                      size="small"
+                      variant="outlined"
+                    />
+                  ))}
+                  {steps.length === 0 && (
+                    <Chip label="Assistant is thinking…" size="small" />
+                  )}
+                </Box>
+              </ListItem>
+              {/* Show streaming assistant response below the chips */}
+              {streamingContent && (
+                <ListItem>
+                  <ListItemText
+                    primary={streamingContent}
+                    primaryTypographyProps={{
+                      variant: "body2",
+                      color: "text.secondary",
+                      sx: { whiteSpace: "pre-wrap" },
+                    }}
                   />
-                ))}
-                {steps.length === 0 && (
-                  <Chip label="Assistant is thinking…" size="small" />
-                )}
-              </Box>
-            </ListItem>
+                </ListItem>
+              )}
+            </>
           )}
         </List>
       </Paper>
