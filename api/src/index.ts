@@ -11,6 +11,7 @@ import { dataSourceRoutes } from "./routes/sources";
 import { databasesRoutes } from "./routes/databases";
 import { customPromptRoutes } from "./routes/custom-prompt";
 import { aiRoutes } from "./routes/ai";
+import { chatsRoutes } from "./routes/chats";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -50,6 +51,7 @@ app.route("/api/sources", dataSourceRoutes);
 app.route("/api/databases", databasesRoutes);
 app.route("/api/custom-prompt", customPromptRoutes);
 app.route("/api/ai", aiRoutes);
+app.route("/api/chats", chatsRoutes);
 
 const port = parseInt(process.env.WEB_API_PORT || "3001");
 
