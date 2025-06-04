@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   TextField,
@@ -10,6 +10,11 @@ import {
   LinearProgress,
   Chip,
   Typography,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
+  Button,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import BuildIcon from "@mui/icons-material/Build";
@@ -25,6 +30,13 @@ interface ToolStatus {
   message?: string;
 }
 
+interface ChatSessionMeta {
+  _id: string;
+  title: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 const Chat2: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -33,11 +45,76 @@ const Chat2: React.FC = () => {
     isExecuting: false,
   });
 
+  const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
+  const [sessionId, setSessionId] = useState<string | "">("");
+
+  // Fetch sessions list on mount
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const res = await fetch("/api/chats");
+        if (res.ok) {
+          const data = await res.json();
+          setSessions(data);
+          // Auto-select first session if exists
+          if (data.length > 0 && !sessionId) {
+            setSessionId(data[0]._id);
+          }
+        }
+      } catch (_) {
+        // ignore
+      }
+    };
+    fetchSessions();
+  }, []);
+
+  // Load messages when sessionId changes
+  useEffect(() => {
+    const loadSession = async () => {
+      if (!sessionId) {
+        setMessages([]);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/chats/${sessionId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMessages(data.messages || []);
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    };
+    loadSession();
+  }, [sessionId]);
+
+  const createNewSession = async () => {
+    try {
+      const res = await fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "New Chat" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const newId = data.chatId as string;
+        // Refresh sessions list
+        const sessionsRes = await fetch("/api/chats");
+        if (sessionsRes.ok) {
+          const sessionsData = await sessionsRes.json();
+          setSessions(sessionsData);
+        }
+        setSessionId(newId);
+        setMessages([]);
+      }
+    } catch (_) {}
+  };
+
   const streamResponse = async (msgs: Message[]) => {
     const response = await fetch("/api/ai/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: msgs }),
+      body: JSON.stringify({ sessionId, messages: msgs }),
     });
 
     if (!response.ok || !response.body) {
@@ -157,6 +234,27 @@ const Chat2: React.FC = () => {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <Box sx={{ p: 1, display: "flex", alignItems: "center", gap: 1 }}>
+        <FormControl size="small" sx={{ flex: 1 }}>
+          <InputLabel id="session-select-label">Session</InputLabel>
+          <Select
+            labelId="session-select-label"
+            value={sessionId}
+            label="Session"
+            onChange={(e) => setSessionId(e.target.value as string)}
+          >
+            {sessions.map((s) => (
+              <MenuItem key={s._id} value={s._id}>
+                {s.title || s._id.substring(0, 6)}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <Button variant="outlined" size="small" onClick={createNewSession}>
+          New Chat
+        </Button>
+      </Box>
+
       <Paper sx={{ flex: 1, overflow: "auto", p: 1 }}>
         <List dense>
           {messages.map((m, idx) => (
@@ -230,7 +328,7 @@ const Chat2: React.FC = () => {
         <IconButton
           color="primary"
           onClick={sendMessage}
-          disabled={loading || !input.trim()}
+          disabled={loading || !input.trim() || !sessionId}
         >
           <SendIcon />
         </IconButton>

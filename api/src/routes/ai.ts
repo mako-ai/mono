@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { configLoader } from "../utils/config-loader";
 import { mongoConnection } from "../utils/mongodb-connection";
 import { QueryExecutor } from "../utils/query-executor";
+import { ObjectId } from "mongodb";
 
 export const aiRoutes = new Hono();
 
@@ -146,11 +147,31 @@ const executeToolCall = async (fc: any) => {
   return result;
 };
 
+// Helper to update chat session with new messages
+const updateChatSession = async (
+  sessionId: string,
+  messages: { role: string; content: string }[]
+) => {
+  try {
+    const db = await mongoConnection.getDb();
+    await db.collection("chats").updateOne(
+      { _id: new ObjectId(sessionId) },
+      {
+        $set: { messages, updatedAt: new Date() },
+      },
+      { upsert: false }
+    );
+  } catch (err) {
+    console.error("Failed to update chat session", err);
+  }
+};
+
 // Streaming SSE endpoint - properly handling tool calls
 aiRoutes.post("/chat/stream", async (c) => {
   try {
     const body = await c.req.json();
     const messages = body.messages as { role: string; content: string }[];
+    const sessionId = body.sessionId as string | undefined;
     if (!messages || !Array.isArray(messages)) {
       return c.json({ success: false, error: "Invalid messages array" }, 400);
     }
@@ -176,6 +197,7 @@ aiRoutes.post("/chat/stream", async (c) => {
         try {
           let currentInput: any[] = conversation;
           let prevResponseId: string | undefined;
+          let latestAssistantMessage = "";
 
           while (true) {
             // Create a streaming response
@@ -240,6 +262,15 @@ aiRoutes.post("/chat/stream", async (c) => {
 
             // If there are no function calls, we're done
             if (functionCalls.length === 0) {
+              latestAssistantMessage = textAccumulator;
+              // Persist chat session if sessionId provided
+              if (sessionId) {
+                await updateChatSession(sessionId, [
+                  ...messages,
+                  { role: "assistant", content: latestAssistantMessage },
+                ]);
+              }
+
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
               controller.close();
               break;
