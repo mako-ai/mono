@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import OpenAI from "openai";
 import { configLoader } from "../utils/config-loader";
 import { mongoConnection } from "../utils/mongodb-connection";
+import { QueryExecutor } from "../utils/query-executor";
 
 export const aiRoutes = new Hono();
 
@@ -17,6 +18,9 @@ const getOpenAI = (): OpenAI => {
   }
   return openai;
 };
+
+// Initialize QueryExecutor for query execution tool
+const queryExecutor = new QueryExecutor();
 
 // Tool definitions for OpenAI function calling
 const chatTools: any[] = [
@@ -46,6 +50,28 @@ const chatTools: any[] = [
         },
       },
       required: ["databaseId"],
+    },
+  },
+  {
+    type: "function",
+    name: "execute_query",
+    description:
+      "Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax (e.g., db.collection_name.find({}).limit(10)).",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "The MongoDB query to execute in JavaScript syntax. Use 'db' to reference the database and access collections (e.g., 'db.users.find({})', 'db.orders.aggregate([{$group: {_id: \"$status\", count: {$sum: 1}}}])')",
+        },
+        databaseId: {
+          type: "string",
+          description:
+            "The database identifier to execute the query against (e.g. server1.analytics_db)",
+        },
+      },
+      required: ["query", "databaseId"],
     },
   },
 ];
@@ -95,6 +121,20 @@ const executeToolCall = async (fc: any) => {
           throw new Error("'databaseId' is required");
         }
         result = await listCollections(parsedArgs.databaseId);
+        break;
+      case "execute_query":
+        if (!parsedArgs.query) {
+          throw new Error("'query' is required");
+        }
+        if (!parsedArgs.databaseId) {
+          throw new Error("'databaseId' is required");
+        }
+        result = await queryExecutor.executeQuery(
+          parsedArgs.query,
+          parsedArgs.databaseId
+        );
+        console.log("PARSED ARGS", parsedArgs);
+        console.log("RESULT", result);
         break;
       default:
         result = { error: `Unknown function: ${fc.name}` };
