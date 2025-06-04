@@ -7,7 +7,7 @@ import { useChatStore } from "./store";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Chat from "./components/Chat/Chat";
-import Chat2 from "./components/Chat2";
+import Chat3 from "./components/Chat3";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
 // @ts-ignore file exists
@@ -172,7 +172,7 @@ function App() {
               borderColor: "divider",
             }}
           >
-            <Chat2 />
+            <Chat3 />
           </Box>
         </Panel>
       </PanelGroup>
