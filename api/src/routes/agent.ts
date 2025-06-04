@@ -353,21 +353,20 @@ agentRoutes.post("/stream", async (c) => {
               item?.type === "tool_call_item" &&
               itemEvent.name === "tool_called"
             ) {
-              console.log("Tool call item structure:", {
+              console.log("Tool call item full structure:", {
                 itemType: item.type,
-                itemName: item.name,
-                hasFunction: !!item.function,
-                functionName: item.function?.name,
-                functionType: item.function?.type,
-                itemKeys: Object.keys(item),
+                hasRawItem: !!item.rawItem,
+                rawItemType: item.rawItem?.type,
+                rawItemFunction: item.rawItem?.function,
+                rawItemFunctionName: item.rawItem?.function?.name,
+                rawItemName: item.rawItem?.name,
+                agentName: item.agent?.name,
               });
 
-              // Try different paths to find the tool name
+              // The tool name is in rawItem.function.name
               const toolName =
-                item.function?.name ||
-                item.tool?.name ||
-                item.name ||
-                item.call?.function?.name ||
+                item.rawItem?.function?.name ||
+                item.rawItem?.name ||
                 "unknown_tool";
 
               sendEvent({
@@ -382,19 +381,13 @@ agentRoutes.post("/stream", async (c) => {
               item?.type === "tool_call_output_item" &&
               itemEvent.name === "output_added"
             ) {
-              // For output, we might need to look at the related tool call
-              console.log("Tool output item structure:", {
-                itemType: item.type,
-                itemName: item.name,
-                toolCallId: item.tool_call_id,
-                itemKeys: Object.keys(item),
-              });
-
+              // For output items, we need to track which tool was called
+              // This might require correlating with the tool_call_id
               const toolName =
-                item.function?.name ||
-                item.tool?.name ||
-                item.name ||
-                "unknown_tool";
+                item.rawItem?.function?.name ||
+                item.rawItem?.name ||
+                item.tool_call_name ||
+                "completed_tool";
 
               sendEvent({
                 type: "step",
