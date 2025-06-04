@@ -104,45 +104,90 @@ const Chat3: React.FC = () => {
   // Messaging helpers
   // ---------------------------------------------------------------------------
 
+  const streamResponse = async (latestMessage: string) => {
+    const response = await fetch("/api/agent/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId, message: latestMessage }),
+    });
+
+    if (!response.ok || !response.body) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let assistantContent = "";
+    let done = false;
+
+    // Optimistically append empty assistant message
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    while (!done) {
+      const { value, done: doneReading } = await reader.read();
+      done = doneReading;
+      const chunkValue = decoder.decode(value || new Uint8Array());
+
+      const lines = chunkValue.split("\n\n").filter(Boolean);
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.replace("data: ", "");
+          if (data === "[DONE]") {
+            done = true;
+            break;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+
+            // Handle different event types (only text and session for now)
+            if (parsed.type === "text") {
+              assistantContent += parsed.content;
+              setMessages((prev) => {
+                const updated = [...prev];
+                const last = updated[updated.length - 1];
+                if (last && last.role === "assistant") {
+                  updated[updated.length - 1] = {
+                    ...last,
+                    content: assistantContent,
+                  };
+                }
+                return updated;
+              });
+            } else if (
+              parsed.type === "session" &&
+              parsed.sessionId &&
+              !sessionId
+            ) {
+              setSessionId(parsed.sessionId);
+            }
+          } catch (_) {
+            /* ignore */
+          }
+        }
+      }
+    }
+  };
+
   const sendMessage = async () => {
     if (!input.trim()) return;
 
     const userMessage = input.trim();
+
+    // Optimistically add user message
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setInput("");
     setLoading(true);
 
-    // Optimistically show the user message
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
-
     try {
-      const res = await fetch("/api/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, message: userMessage }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`Request failed (${res.status})`);
-      }
-
-      const data = await res.json();
-
-      if (data.sessionId && !sessionId) {
-        setSessionId(data.sessionId);
-      }
-
-      if (Array.isArray(data.messages)) {
-        setMessages(data.messages);
-      } else if (data.assistant) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: data.assistant },
-        ]);
-      }
+      await streamResponse(userMessage);
     } catch (err: any) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: `Error: ${err.message}` },
+        {
+          role: "assistant",
+          content: `Error: ${err.message}`,
+        },
       ]);
     } finally {
       setLoading(false);

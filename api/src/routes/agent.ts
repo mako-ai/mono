@@ -326,3 +326,166 @@ agentRoutes.post("/", async (c) => {
     return c.json({ error: err.message || "Unexpected error" }, 500);
   }
 });
+
+// ------------------------------------------------------------------------------------
+// POST /stream   (mounted at /api/agent/stream) – Run the agent with streaming
+// ------------------------------------------------------------------------------------
+agentRoutes.post("/stream", async (c) => {
+  let body: any = {};
+  try {
+    body = await c.req.json();
+  } catch (_) {}
+
+  const { message, sessionId } = body as {
+    message?: string;
+    sessionId?: string;
+  };
+
+  if (!message || typeof message !== "string" || message.trim().length === 0) {
+    return c.json({ error: "'message' is required" }, 400);
+  }
+
+  // 1) Load existing chat messages (if a session id was provided)
+  let existingMessages: { role: "user" | "assistant"; content: string }[] = [];
+  if (sessionId) {
+    try {
+      const coll = await getChatsCollection();
+      const chat = await coll.findOne({ _id: new ObjectId(sessionId) });
+      if (chat && Array.isArray(chat.messages)) {
+        existingMessages = chat.messages as any[];
+      }
+    } catch (_) {
+      /* ignore invalid id */
+    }
+  }
+
+  // 2) Compose the conversation into a single text blob. The Agents SDK will use this
+  //    as context.
+  const conversationLines: string[] = existingMessages.map(
+    (m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`
+  );
+  conversationLines.push(`User: ${message.trim()}`);
+  const agentInput = conversationLines.join("\n\n");
+
+  const encoder = new TextEncoder();
+
+  // Construct a ReadableStream to push SSE events
+  const stream = new ReadableStream({
+    async start(controller) {
+      const sendEvent = (data: any) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+      };
+
+      try {
+        // Run agent in streaming mode
+        // @ts-ignore – the Agents SDK supports { stream: true }
+        const runStream: any = await runAgent(dbAgent, agentInput, {
+          stream: true,
+        });
+
+        let assistantReply = "";
+
+        // Helper to process a single text chunk
+        const handleTextChunk = (chunk: string) => {
+          assistantReply += chunk;
+          sendEvent({ type: "text", content: chunk });
+        };
+
+        // First, try the toTextStream helper if available (simpler)
+        if (typeof runStream?.toTextStream === "function") {
+          const textReadable: any = runStream.toTextStream({
+            compatibleWithNodeStreams: true,
+          });
+
+          await new Promise<void>((resolve, reject) => {
+            textReadable.on("data", (chunk: Buffer | string) => {
+              handleTextChunk(chunk.toString());
+            });
+            textReadable.on("end", resolve);
+            textReadable.on("error", reject);
+          });
+        } else {
+          // Fallback: iterate over raw events and look for text deltas
+          for await (const event of runStream as AsyncIterable<any>) {
+            // Raw model stream events carry token deltas
+            if (event?.type === "raw_model_stream_event") {
+              const data = event.data;
+              // For OpenAI Responses API text delta events
+              if (
+                data?.type === "response.output_text.delta" &&
+                typeof data.delta === "string"
+              ) {
+                handleTextChunk(data.delta);
+              }
+            }
+            // run_item_stream_event with message_output_item provides full chunks – ignore here
+          }
+        }
+
+        // Wait for completion promise if present to ensure final output captured
+        try {
+          if (runStream?.completed) {
+            await runStream.completed;
+            // Prefer finalOutput if available
+            if (typeof runStream.finalOutput === "string") {
+              assistantReply = runStream.finalOutput;
+            }
+          }
+        } catch (_) {
+          // ignore
+        }
+
+        // 3) Persist chat messages
+        const updatedMessages = [
+          ...existingMessages,
+          { role: "user", content: message.trim() },
+          { role: "assistant", content: assistantReply },
+        ];
+
+        let finalSessionId = sessionId;
+
+        const coll = await getChatsCollection();
+        const now = new Date();
+
+        if (!sessionId) {
+          const insertResult = await coll.insertOne({
+            title: "Agent Chat",
+            messages: updatedMessages,
+            createdAt: now,
+            updatedAt: now,
+          });
+          finalSessionId = insertResult.insertedId.toString();
+        } else {
+          await persistChatSession(sessionId, updatedMessages);
+        }
+
+        // Send a special event so the client can update session id if needed
+        sendEvent({
+          type: "session",
+          sessionId: finalSessionId,
+        });
+
+        // All done
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      } catch (err: any) {
+        console.error("/api/agent/stream error", err);
+        sendEvent({
+          type: "error",
+          message: err.message || "Unexpected error",
+        });
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+});
