@@ -110,11 +110,11 @@ const Chat2: React.FC = () => {
     } catch (_) {}
   };
 
-  const streamResponse = async (msgs: Message[]) => {
+  const streamResponse = async (latestMessage: string) => {
     const response = await fetch("/api/ai/chat/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, messages: msgs }),
+      body: JSON.stringify({ sessionId, message: latestMessage }),
     });
 
     if (!response.ok || !response.body) {
@@ -127,7 +127,10 @@ const Chat2: React.FC = () => {
     let done = false;
 
     // optimistically append empty assistant message
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    setMessages(
+      (prev) =>
+        [...prev, { role: "assistant", content: "" } as Message] as Message[]
+    );
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
@@ -210,9 +213,10 @@ const Chat2: React.FC = () => {
   const sendMessage = async () => {
     if (!input.trim()) return;
 
-    const newMessages = [
+    const userMessage = input.trim();
+    const newMessages: Message[] = [
       ...messages,
-      { role: "user", content: input.trim() } as Message,
+      { role: "user", content: userMessage } as Message,
     ];
     setMessages(newMessages);
     setInput("");
@@ -220,12 +224,15 @@ const Chat2: React.FC = () => {
     setToolStatus({ isExecuting: false });
 
     try {
-      await streamResponse(newMessages);
+      await streamResponse(userMessage);
     } catch (err: any) {
       setMessages([
         ...newMessages,
-        { role: "assistant", content: `Error: ${err.message}` },
-      ]);
+        {
+          role: "assistant",
+          content: `Error: ${err.message}`,
+        } as Message,
+      ] as Message[]);
     } finally {
       setLoading(false);
       setToolStatus({ isExecuting: false });

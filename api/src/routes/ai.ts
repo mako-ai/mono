@@ -166,14 +166,72 @@ const updateChatSession = async (
   }
 };
 
+// NEW: Persist the full OpenAI invocation (request + response + tools) for auditing/debugging
+const logChatInvocation = async (params: {
+  sessionId?: string;
+  openaiRequest: any;
+  openaiResponseEvents: any[];
+  functionCalls: any[];
+  toolOutputs: any[];
+}) => {
+  try {
+    const db = await mongoConnection.getDb();
+    await db.collection("chat_logs").insertOne({
+      chatId: params.sessionId ? params.sessionId : null,
+      timestamp: new Date(),
+      openaiRequest: params.openaiRequest,
+      openaiResponseEvents: params.openaiResponseEvents,
+      functionCalls: params.functionCalls,
+      toolOutputs: params.toolOutputs,
+    });
+  } catch (err) {
+    console.error("Failed to persist chat invocation", err);
+  }
+};
+
 // Streaming SSE endpoint - properly handling tool calls
 aiRoutes.post("/chat/stream", async (c) => {
   try {
     const body = await c.req.json();
-    const messages = body.messages as { role: string; content: string }[];
+
+    console.log("/chat/stream body", JSON.stringify(body, null, 2));
+
     const sessionId = body.sessionId as string | undefined;
-    if (!messages || !Array.isArray(messages)) {
-      return c.json({ success: false, error: "Invalid messages array" }, 400);
+
+    // 1. Build the base messages array (existing chat history if any)
+    let messages: { role: string; content: string }[] = [];
+
+    if (Array.isArray(body.messages)) {
+      // Legacy behaviour: caller sends the entire history
+      messages = body.messages;
+    } else if (sessionId) {
+      // Fetch existing history from DB
+      try {
+        const db = await mongoConnection.getDb();
+        const chat = await db
+          .collection("chats")
+          .findOne({ _id: new ObjectId(sessionId) });
+        if (chat && Array.isArray(chat.messages)) {
+          messages = chat.messages as any[];
+        }
+      } catch (err) {
+        console.error("Failed to fetch chat history", err);
+      }
+    }
+
+    // 2. Append the latest user message (preferred new contract: body.message)
+    if (typeof body.message === "string" && body.message.trim().length > 0) {
+      messages = [...messages, { role: "user", content: body.message.trim() }];
+    }
+
+    if (!messages || messages.length === 0) {
+      return c.json(
+        {
+          success: false,
+          error: "No messages provided and no existing chat history found.",
+        },
+        400
+      );
     }
 
     const conversation = messages.map((m) => ({
@@ -201,7 +259,7 @@ aiRoutes.post("/chat/stream", async (c) => {
 
           while (true) {
             // Create a streaming response
-            const responseStream = await getOpenAI().responses.create({
+            const openaiRequestPayload: any = {
               model,
               input: currentInput,
               tools: chatTools,
@@ -209,8 +267,15 @@ aiRoutes.post("/chat/stream", async (c) => {
               ...(prevResponseId
                 ? { previous_response_id: prevResponseId }
                 : {}),
-              stream: true,
-            });
+            };
+
+            console.log(JSON.stringify(openaiRequestPayload, null, 2));
+
+            const responseStream: AsyncIterable<any> =
+              (await getOpenAI().responses.create({
+                ...openaiRequestPayload,
+                stream: true,
+              } as any)) as any;
 
             let responseId: string | undefined;
             const functionCalls: any[] = [];
@@ -219,7 +284,9 @@ aiRoutes.post("/chat/stream", async (c) => {
             let hasSentText = false;
 
             // Process the stream
+            const openaiEvents: any[] = []; // Collect every event for full auditing
             for await (const event of responseStream) {
+              openaiEvents.push(event);
               // Get response ID from response.completed event
               if (event.type === "response.completed") {
                 responseId = event.response.id;
@@ -260,6 +327,15 @@ aiRoutes.post("/chat/stream", async (c) => {
               }
             }
 
+            // Persist the entire invocation data (request, response, tools) before any further processing
+            await logChatInvocation({
+              sessionId,
+              openaiRequest: openaiRequestPayload,
+              openaiResponseEvents: openaiEvents,
+              functionCalls,
+              toolOutputs: [], // Will be populated later if tools execute
+            });
+
             // If there are no function calls, we're done
             if (functionCalls.length === 0) {
               latestAssistantMessage = textAccumulator;
@@ -299,6 +375,15 @@ aiRoutes.post("/chat/stream", async (c) => {
                   output: JSON.stringify(result),
                 });
               }
+
+              // Persist tool outputs along with the previously stored invocation record
+              await logChatInvocation({
+                sessionId,
+                openaiRequest: openaiRequestPayload,
+                openaiResponseEvents: openaiEvents,
+                functionCalls,
+                toolOutputs,
+              });
 
               console.log("Tool outputs being sent:", toolOutputs);
               sendEvent({ type: "tool_complete", message: "Continuing..." });
