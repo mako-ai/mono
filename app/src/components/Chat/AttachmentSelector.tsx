@@ -34,6 +34,10 @@ interface AttachmentOption {
   data: Collection | View | { id: string; content: string; title: string };
 }
 
+// Helper to escape regex special characters when building the dynamic pattern
+const escapeRegExp = (str: string): string =>
+  str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
   open,
   anchorEl,
@@ -103,12 +107,26 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
           autoFocus
           size="small"
           options={options}
+          filterOptions={(opts, { inputValue }) => {
+            // Allow users to separate search terms by spaces – each term can appear anywhere in the string
+            if (!inputValue?.trim()) return opts;
+
+            // Build a dynamic, case-insensitive regex where every whitespace becomes a ".*" wildcard
+            const pattern = inputValue
+              .trim()
+              .split(/\s+/)
+              .map(escapeRegExp)
+              .join(".*");
+
+            const regex = new RegExp(pattern, "i");
+            return opts.filter((opt) => regex.test(opt.name));
+          }}
           groupBy={(option) =>
             option.type === "collection"
               ? "Collections"
               : option.type === "view"
-              ? "Views"
-              : "Consoles"
+                ? "Views"
+                : "Consoles"
           }
           getOptionLabel={(option) => option.name}
           inputValue={inputValue}

@@ -90,7 +90,7 @@ const SOURCE_ENTITIES = {
     "activities",
     "contacts",
     "users",
-    "custom-fields",
+    "custom_fields",
   ],
   stripe: [
     "customers",
@@ -220,7 +220,7 @@ async function syncClose(
     case "user":
       await syncService.syncUsers(targetDbId, progress);
       break;
-    case "custom-fields":
+    case "custom_fields":
     case "customfields":
       await syncService.syncCustomFields(targetDbId, progress);
       break;

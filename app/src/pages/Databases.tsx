@@ -116,7 +116,7 @@ function Databases() {
 
   const openNewConsole = (
     initialContent: string = "",
-    title: string = "Console",
+    title: string = "New Console",
     databaseId?: string
   ) => {
     const id = addConsoleTab({
@@ -145,7 +145,7 @@ function Databases() {
     collection: CollectionInfo
   ) => {
     const prefill = `db.${collection.name}.find({})`;
-    openNewConsole(prefill, `Console - ${collection.name}`, databaseId);
+    openNewConsole(prefill, collection.name, databaseId);
   };
 
   // Update current editor content periodically for Chat

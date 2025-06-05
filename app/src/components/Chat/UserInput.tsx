@@ -144,6 +144,8 @@ const UserInput: React.FC<UserInputProps> = ({
         variant="outlined"
         sx={{
           mb: 0.5,
+          maxHeight: "50vh",
+          overflowY: "auto",
           "& .MuiInputBase-input": {
             fontSize: 14,
           },

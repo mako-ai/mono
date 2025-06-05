@@ -3,7 +3,7 @@
 
 data_sources:
   # Close.com Sources
-  close_switzerland:
+  ch_close:
     name: "Switzerland Close CRM"
     description: "Close.com data for Swiss market operations"
     active: true
@@ -15,7 +15,7 @@ data_sources:
       sync_batch_size: 100
       rate_limit_delay_ms: 200
 
-  close_italy:
+  it_close:
     name: "Italy Close CRM"
     description: "Close.com data for Italian market operations"
     active: true
@@ -27,7 +27,7 @@ data_sources:
       sync_batch_size: 100
       rate_limit_delay_ms: 200
 
-  close_france:
+  fr_close:
     name: "France Close CRM"
     description: "Close.com data for French market operations"
     active: true
@@ -39,7 +39,7 @@ data_sources:
       sync_batch_size: 100
       rate_limit_delay_ms: 200
 
-  close_spain:
+  es_close:
     name: "Spain Close CRM"
     description: "Close.com data for Spanish market operations"
     active: true
@@ -52,7 +52,7 @@ data_sources:
       rate_limit_delay_ms: 250
 
   # Stripe Sources
-  stripe_spain:
+  es_stripe:
     name: "Spain Stripe Payments"
     description: "Stripe payment data for Spanish operations"
     active: true
@@ -66,6 +66,21 @@ data_sources:
 # MongoDB Servers Configuration
 # Group databases by their server instances
 mongodb_servers:
+  atlas:
+    name: "MongoDB Atlas"
+    description: "MongoDB Atlas cluster"
+    connection_string: "mongodb+srv://joan:${MONGO_ATLAS_PASSWORD}@revops.fmeraxd.mongodb.net/?retryWrites=true&w=majority&appName=RevOps"
+    active: true
+    databases:
+      revops:
+        name: "Main Analytics Database"
+        description: "Main analytics database"
+        database: "revops"
+        active: true
+        settings:
+          max_pool_size: 10
+          min_pool_size: 2
+
   local_dev:
     name: "Local Development Server"
     description: "Local MongoDB instance for development"

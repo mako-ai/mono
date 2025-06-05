@@ -57,23 +57,20 @@ export const useConsoleStore = () => {
     }
   };
   const updateConsoleFilePath = (id: string, filePath: string) => {
-    // Not yet persisted in reducer – quick patch
-    const tab = tabs[id];
-    if (tab) {
-      dispatch({
-        type: "UPDATE_CONSOLE_CONTENT",
-        payload: { id, content: tab.content },
-      } as any);
-    }
+    // Not fully implemented
   };
   const updateConsoleTitle = (id: string, title: string) => {
-    const tab = tabs[id];
-    if (tab) {
-      dispatch({
-        type: "UPDATE_CONSOLE_CONTENT",
-        payload: { id, content: tab.content },
-      } as any);
-    }
+    dispatch({
+      type: "UPDATE_CONSOLE_TITLE",
+      payload: { id, title },
+    });
+  };
+
+  const updateConsoleDirty = (id: string, isDirty: boolean) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_DIRTY",
+      payload: { id, isDirty },
+    });
   };
 
   const clearAllConsoles = () => {
@@ -92,6 +89,7 @@ export const useConsoleStore = () => {
     updateConsoleDatabase,
     updateConsoleFilePath,
     updateConsoleTitle,
+    updateConsoleDirty,
   };
 };
 
@@ -145,7 +143,17 @@ useConsoleStore.getState = () => {
     // Not fully implemented
   };
   const updateConsoleTitle = (id: string, title: string) => {
-    // Not fully implemented
+    dispatch({
+      type: "UPDATE_CONSOLE_TITLE",
+      payload: { id, title },
+    });
+  };
+
+  const updateConsoleDirty = (id: string, isDirty: boolean) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_DIRTY",
+      payload: { id, isDirty },
+    });
   };
 
   const clearAllConsoles = () => {
@@ -164,5 +172,6 @@ useConsoleStore.getState = () => {
     updateConsoleDatabase,
     updateConsoleFilePath,
     updateConsoleTitle,
+    updateConsoleDirty,
   };
 };

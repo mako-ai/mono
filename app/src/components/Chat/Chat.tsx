@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -18,6 +18,7 @@ import { ChatProps, Message, AttachedContext, Collection, View } from "./types";
 import { systemPromptContent } from "./SystemPrompt";
 import { useChatStore } from "../../store/chatStore";
 import { useConsoleStore } from "../../store/consoleStore";
+import { useAppStore } from "../../store/appStore";
 import {
   History as HistoryIcon,
   Add as AddIcon,
@@ -46,13 +47,12 @@ const Chat: React.FC<ChatProps> = () => {
   } = useChatStore();
 
   // Get console store hooks
-  const {
-    consoleTabs,
-    activeConsoleId,
-    addConsoleTab,
-    updateConsoleContent,
-    setActiveConsole,
-  } = useConsoleStore();
+  const { consoleTabs, addConsoleTab, updateConsoleContent, setActiveConsole } =
+    useConsoleStore();
+
+  // Get loading state and dispatch from app store
+  const { dispatch } = useAppStore();
+  const isLoading = useAppStore((s) => s.ui.loading.chatGeneration || false);
 
   // Get current messages from store
   const storedMessages = getCurrentMessages();
@@ -68,7 +68,6 @@ const Chat: React.FC<ChatProps> = () => {
     : storedMessages;
 
   const [inputMessage, setInputMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -125,135 +124,137 @@ const Chat: React.FC<ChatProps> = () => {
   // }, [messages]);
 
   // Fetch collections and views
+  const fetchCollections = useCallback(async () => {
+    try {
+      // 1) Get list of databases defined in the backend configuration
+      const dbRes = await fetch("/api/databases");
+      const dbData = await dbRes.json();
+      if (!dbData.success) return;
+
+      const allCollections: Collection[] = [];
+
+      // Loop over each database and gather its collections + extra info
+      for (const db of dbData.data as any[]) {
+        const dbId = db.id;
+        const dbName = db.name || dbId;
+
+        try {
+          const colRes = await fetch(
+            `/api/databases/${encodeURIComponent(dbId)}/collections`
+          );
+          const colData = await colRes.json();
+          if (!colData.success) continue;
+
+          for (const col of colData.data as any[]) {
+            let documentCount = 0;
+            let sampleDocuments: any[] = [];
+            let schemaInfo: any = {};
+
+            try {
+              // Get stats (count)
+              const infoRes = await fetch(
+                `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`
+              );
+              const infoData = await infoRes.json();
+              if (infoData.success) {
+                documentCount = infoData.data?.stats?.count || 0;
+              }
+            } catch (e) {
+              console.error(`Failed to fetch info for ${dbId}.${col.name}:`, e);
+            }
+
+            try {
+              // Get sample docs + schema
+              const sampleRes = await fetch(
+                `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`
+              );
+              const sampleData = await sampleRes.json();
+              if (sampleData.success) {
+                sampleDocuments = sampleData.data.documents || [];
+                schemaInfo = sampleData.data.schema || {};
+              }
+            } catch (e) {
+              console.error(
+                `Failed to fetch samples for ${dbId}.${col.name}:`,
+                e
+              );
+            }
+
+            allCollections.push({
+              id: `${dbId}.${col.name}`,
+              name: `${col.name} (${dbName})`,
+              description: `MongoDB collection '${col.name}' in database '${dbName}' with ${documentCount} documents`,
+              sampleDocument: sampleDocuments[0] || {},
+              sampleDocuments,
+              schemaInfo,
+              documentCount,
+            } as unknown as Collection);
+          }
+        } catch (e) {
+          console.error(`Failed to list collections for database ${dbId}:`, e);
+        }
+      }
+
+      setAvailableCollections(allCollections);
+    } catch (error) {
+      console.error("Failed to fetch collections:", error);
+    }
+  }, []);
+
+  const fetchViews = useCallback(async () => {
+    try {
+      const dbRes = await fetch("/api/databases");
+      const dbData = await dbRes.json();
+      if (!dbData.success) return;
+
+      const allViews: View[] = [];
+
+      for (const db of dbData.data as any[]) {
+        const dbId = db.id;
+        const dbName = db.name || dbId;
+        try {
+          const viewRes = await fetch(
+            `/api/databases/${encodeURIComponent(dbId)}/views`
+          );
+          const viewData = await viewRes.json();
+          if (!viewData.success) continue;
+
+          for (const view of viewData.data as any[]) {
+            const viewOn = (view.options && view.options.viewOn) || "";
+            const pipeline = (view.options && view.options.pipeline) || [];
+
+            allViews.push({
+              id: `${dbId}.${view.name}`,
+              name: `${view.name} (${dbName})`,
+              viewOn,
+              pipeline,
+              description: `View '${view.name}' on '${viewOn}' (DB: ${dbName})`,
+            } as unknown as View);
+          }
+        } catch (e) {
+          console.error(`Failed to list views for database ${dbId}:`, e);
+        }
+      }
+
+      setAvailableViews(allViews);
+    } catch (error) {
+      console.error("Failed to fetch views:", error);
+    }
+  }, []);
+
+  // Initial fetch on mount
   useEffect(() => {
-    // --- New multi-database implementation ---
-    const fetchCollections = async () => {
-      try {
-        // 1) Get list of databases defined in the backend configuration
-        const dbRes = await fetch("/api/databases");
-        const dbData = await dbRes.json();
-        if (!dbData.success) return;
-
-        const allCollections: Collection[] = [];
-
-        // Loop over each database and gather its collections + extra info
-        for (const db of dbData.data as any[]) {
-          const dbId = db.id;
-          const dbName = db.name || dbId;
-
-          try {
-            const colRes = await fetch(
-              `/api/databases/${encodeURIComponent(dbId)}/collections`
-            );
-            const colData = await colRes.json();
-            if (!colData.success) continue;
-
-            for (const col of colData.data as any[]) {
-              let documentCount = 0;
-              let sampleDocuments: any[] = [];
-              let schemaInfo: any = {};
-
-              try {
-                // Get stats (count)
-                const infoRes = await fetch(
-                  `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`
-                );
-                const infoData = await infoRes.json();
-                if (infoData.success) {
-                  documentCount = infoData.data?.stats?.count || 0;
-                }
-              } catch (e) {
-                console.error(
-                  `Failed to fetch info for ${dbId}.${col.name}:`,
-                  e
-                );
-              }
-
-              try {
-                // Get sample docs + schema
-                const sampleRes = await fetch(
-                  `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`
-                );
-                const sampleData = await sampleRes.json();
-                if (sampleData.success) {
-                  sampleDocuments = sampleData.data.documents || [];
-                  schemaInfo = sampleData.data.schema || {};
-                }
-              } catch (e) {
-                console.error(
-                  `Failed to fetch samples for ${dbId}.${col.name}:`,
-                  e
-                );
-              }
-
-              allCollections.push({
-                id: `${dbId}.${col.name}`,
-                name: `${col.name} (${dbName})`,
-                description: `MongoDB collection '${col.name}' in database '${dbName}' with ${documentCount} documents`,
-                sampleDocument: sampleDocuments[0] || {},
-                sampleDocuments,
-                schemaInfo,
-                documentCount,
-              } as unknown as Collection);
-            }
-          } catch (e) {
-            console.error(
-              `Failed to list collections for database ${dbId}:`,
-              e
-            );
-          }
-        }
-
-        setAvailableCollections(allCollections);
-      } catch (error) {
-        console.error("Failed to fetch collections:", error);
-      }
-    };
-
-    const fetchViews = async () => {
-      try {
-        const dbRes = await fetch("/api/databases");
-        const dbData = await dbRes.json();
-        if (!dbData.success) return;
-
-        const allViews: View[] = [];
-
-        for (const db of dbData.data as any[]) {
-          const dbId = db.id;
-          const dbName = db.name || dbId;
-          try {
-            const viewRes = await fetch(
-              `/api/databases/${encodeURIComponent(dbId)}/views`
-            );
-            const viewData = await viewRes.json();
-            if (!viewData.success) continue;
-
-            for (const view of viewData.data as any[]) {
-              const viewOn = (view.options && view.options.viewOn) || "";
-              const pipeline = (view.options && view.options.pipeline) || [];
-
-              allViews.push({
-                id: `${dbId}.${view.name}`,
-                name: `${view.name} (${dbName})`,
-                viewOn,
-                pipeline,
-                description: `View '${view.name}' on '${viewOn}' (DB: ${dbName})`,
-              } as unknown as View);
-            }
-          } catch (e) {
-            console.error(`Failed to list views for database ${dbId}:`, e);
-          }
-        }
-
-        setAvailableViews(allViews);
-      } catch (error) {
-        console.error("Failed to fetch views:", error);
-      }
-    };
-
     fetchCollections();
     fetchViews();
-  }, []);
+  }, [fetchCollections, fetchViews]);
+
+  // Refresh lists each time the AttachmentSelector is opened
+  useEffect(() => {
+    if (attachmentSelectorOpen) {
+      fetchCollections();
+      fetchViews();
+    }
+  }, [attachmentSelectorOpen, fetchCollections, fetchViews]);
 
   // Fetch available OpenAI models once the client is initialized
   useEffect(() => {
@@ -298,6 +299,9 @@ const Chat: React.FC<ChatProps> = () => {
   // Context management
   const handleAttachClick = (event: React.MouseEvent<HTMLElement>) => {
     setAttachmentButtonRef(event.currentTarget);
+    // Trigger a refresh before opening to ensure latest data
+    fetchCollections();
+    fetchViews();
     setAttachmentSelectorOpen(true);
   };
 
@@ -392,7 +396,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   const createAndAttachNewConsole = (
     initialContent: string = "",
-    title: string = "Console"
+    title: string = "New Console"
   ) => {
     const consoleId = addConsoleTab({
       title,
@@ -477,7 +481,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     const currentContext = [...attachedContext];
     setInputMessage("");
     setError(null);
-    setIsLoading(true);
+    dispatch({
+      type: "SET_LOADING",
+      payload: { key: "chatGeneration", value: true },
+    });
 
     // Reset user scroll state when sending a new message
     setIsUserScrolledUp(false);
@@ -549,8 +556,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         ],
         ...(selectedModel.toLowerCase().startsWith("o3") ||
         selectedModel.toLowerCase().includes("gpt-4o")
-          ? { max_completion_tokens: 4000 }
-          : { max_tokens: 4000 }),
+          ? { max_completion_tokens: 10000 }
+          : { max_tokens: 10000 }),
         ...(!selectedModel.toLowerCase().startsWith("o3") &&
         !selectedModel.toLowerCase().includes("gpt-4o")
           ? { temperature: 0.7 }
@@ -678,7 +685,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         );
       }
     } finally {
-      setIsLoading(false);
+      dispatch({
+        type: "SET_LOADING",
+        payload: { key: "chatGeneration", value: false },
+      });
     }
   };
 
@@ -708,11 +718,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   // Discrete loading notice shown while assistant is generating a response
   const LoadingNotice: React.FC = () => (
-    <Box sx={{ display: "flex", justifyContent: "flex-start", mt: 2 }}>
-      <Typography
-        variant="body2"
-        sx={{ fontStyle: "italic", color: "text.secondary" }}
-      >
+    <Box sx={{ display: "flex", justifyContent: "flex-start", m: 0.5 }}>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
         Generating...
       </Typography>
     </Box>
