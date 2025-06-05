@@ -6,7 +6,6 @@ import { useConsoleStore } from "./store/consoleStore";
 import { useChatStore } from "./store";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import Chat from "./components/Chat/Chat";
 import Chat3 from "./components/Chat3";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
@@ -14,7 +13,6 @@ import ConsoleExplorer from "./components/ConsoleExplorer";
 import DataSourceExplorer from "./components/DataSourceExplorer";
 // @ts-ignore file exists
 import Editor from "./components/Editor";
-import Chat2 from "./components/Chat2";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -28,7 +26,7 @@ const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 }));
 
 function App() {
-  const { activeView, activeEditorContent } = useAppStore();
+  const { activeView } = useAppStore();
   const { addConsoleTab, setActiveConsole, consoleTabs } = useConsoleStore();
 
   const openOrFocusConsoleTab = (

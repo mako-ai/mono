@@ -391,8 +391,8 @@ function Databases() {
                               }
                               databases={availableDatabases}
                               initialDatabaseId={tab.databaseId}
-                              onDatabaseChange={(dbId) =>
-                                updateConsoleDatabase(tab.id, dbId)
+                              onDatabaseChange={() =>
+                                updateConsoleDatabase(tab.id)
                               }
                             />
                           </Box>
