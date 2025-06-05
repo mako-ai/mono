@@ -160,32 +160,29 @@ const CodeBlock = React.memo(
               right: 0,
               display: "flex",
               justifyContent: "center",
-              background:
-                effectiveMode === "dark"
-                  ? "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))"
-                  : "linear-gradient(to bottom, transparent, rgba(255,255,255,0.9))",
-              pt: 1,
-              pb: 0.5,
             }}
           >
-            <IconButton
+            <Button
               size="small"
               onClick={() => setIsExpanded(!isExpanded)}
               sx={{
+                borderRadius: 0,
+                flexGrow: 1,
+                color: "text.primary",
                 backgroundColor:
                   effectiveMode === "dark"
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.1)",
+                    ? "rgba(0, 0, 0, 0.3)"
+                    : "rgba(255, 255, 255, 0.3)",
                 "&:hover": {
                   backgroundColor:
                     effectiveMode === "dark"
-                      ? "rgba(255,255,255,0.2)"
-                      : "rgba(0,0,0,0.2)",
+                      ? "rgba(0, 0, 0, 0.1)"
+                      : "rgba(255, 255, 255, 0.1)",
                 },
               }}
             >
               {isExpanded ? <ExpandLess /> : <ExpandMore />}
-            </IconButton>
+            </Button>
           </Box>
         )}
       </Box>
