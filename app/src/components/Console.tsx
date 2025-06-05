@@ -166,6 +166,20 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
           handleSave();
         });
       }
+
+      // Auto-focus the editor when it mounts
+      editor.focus();
+
+      // Position cursor at the end of the content
+      const model = editor.getModel();
+      if (model) {
+        const lineCount = model.getLineCount();
+        const lastLineLength = model.getLineLength(lineCount);
+        editor.setPosition({
+          lineNumber: lineCount,
+          column: lastLineLength + 1,
+        });
+      }
     };
 
     const handleEditorChange = (value: string | undefined) => {

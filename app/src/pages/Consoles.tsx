@@ -240,7 +240,7 @@ function Consoles() {
                 <Box sx={{ height: "100%", overflow: "hidden" }}>
                   <Console
                     initialContent={consoleContent}
-                    title={selectedConsole ? selectedConsole : "Console"}
+                    title={selectedConsole ? selectedConsole : "New Console"}
                     onExecute={handleConsoleExecute}
                     onSave={handleConsoleSave}
                     isExecuting={isExecuting}
