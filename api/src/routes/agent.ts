@@ -94,7 +94,7 @@ const inspectCollection = async (
 
   return {
     schema,
-    sampleDocuments,
+    sampleDocuments: sampleDocuments.slice(0, 25),
     totalSampled: sampleDocuments.length,
   };
 };

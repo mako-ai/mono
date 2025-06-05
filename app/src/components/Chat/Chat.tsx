@@ -396,7 +396,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   const createAndAttachNewConsole = (
     initialContent: string = "",
-    title: string = "Console"
+    title: string = "New Console"
   ) => {
     const consoleId = addConsoleTab({
       title,

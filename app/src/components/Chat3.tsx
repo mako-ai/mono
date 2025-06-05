@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Box,
   Button,
@@ -18,6 +18,7 @@ import {
 import SendIcon from "@mui/icons-material/Send";
 import BuildIcon from "@mui/icons-material/Build";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -185,6 +186,7 @@ const MessageItem = React.memo(
     const markdownContent = React.useMemo(() => {
       return (
         <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
           components={{
             code({ className, children }) {
               const match = /language-(\w+)/.exec(className || "");
@@ -198,6 +200,52 @@ const MessageItem = React.memo(
                 <code className={className} style={{ fontSize: "0.8rem" }}>
                   {children}
                 </code>
+              );
+            },
+            table({ children }) {
+              return (
+                <Box sx={{ overflow: "auto", my: 1 }}>
+                  <table
+                    style={{
+                      borderCollapse: "collapse",
+                      width: "100%",
+                      fontSize: "0.875rem",
+                      border: "1px solid #e0e0e0",
+                    }}
+                  >
+                    {children}
+                  </table>
+                </Box>
+              );
+            },
+            th({ children }) {
+              return (
+                <th
+                  style={{
+                    padding: "8px 12px",
+                    textAlign: "left",
+                    backgroundColor: "#f5f5f5",
+                    borderBottom: "2px solid #e0e0e0",
+                    borderRight: "1px solid #e0e0e0",
+                    fontWeight: 600,
+                  }}
+                >
+                  {children}
+                </th>
+              );
+            },
+            td({ children }) {
+              return (
+                <td
+                  style={{
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #e0e0e0",
+                    borderRight: "1px solid #e0e0e0",
+                    backgroundColor: "#ffffff",
+                  }}
+                >
+                  {children}
+                </td>
               );
             },
           }}
@@ -243,7 +291,8 @@ const MessageItem = React.memo(
             sx={{
               flex: 1,
               overflow: "hidden",
-              "& p": { fontSize: "0.875rem" },
+              fontSize: "0.875rem",
+
               "& pre": { margin: 0, overflow: "hidden" },
             }}
           >
@@ -265,6 +314,9 @@ const Chat3: React.FC = () => {
   const [sessionId, setSessionId] = useState<string | "">("");
   const [steps, setSteps] = useState<string[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>("");
+
+  // Ref for auto-focusing the input
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // ---------------------------------------------------------------------------
   // Session management (identical to Chat2)
@@ -306,6 +358,18 @@ const Chat3: React.FC = () => {
     };
     loadSession();
   }, [sessionId]);
+
+  // Auto-focus input when session changes or when creating new chat
+  useEffect(() => {
+    // Focus after a short delay to ensure the component is rendered
+    const timer = setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [sessionId, messages.length]);
 
   const createNewSession = async () => {
     try {
@@ -458,7 +522,7 @@ const Chat3: React.FC = () => {
       </Box>
 
       {/* Messages */}
-      <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
+      <Box sx={{ flex: messages.length > 0 ? 1 : 0, overflow: "auto", p: 1 }}>
         <List dense>
           {messages.map((m, idx) => (
             <MessageItem
@@ -502,6 +566,7 @@ const Chat3: React.FC = () => {
                     }}
                   >
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         code({ className, children }) {
                           const match = /language-(\w+)/.exec(className || "");
@@ -523,6 +588,52 @@ const Chat3: React.FC = () => {
                             </code>
                           );
                         },
+                        table({ children }) {
+                          return (
+                            <Box sx={{ overflow: "auto", my: 1 }}>
+                              <table
+                                style={{
+                                  borderCollapse: "collapse",
+                                  width: "100%",
+                                  fontSize: "0.875rem",
+                                  border: "1px solid #e0e0e0",
+                                }}
+                              >
+                                {children}
+                              </table>
+                            </Box>
+                          );
+                        },
+                        th({ children }) {
+                          return (
+                            <th
+                              style={{
+                                padding: "8px 12px",
+                                textAlign: "left",
+                                backgroundColor: "#f5f5f5",
+                                borderBottom: "2px solid #e0e0e0",
+                                borderRight: "1px solid #e0e0e0",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {children}
+                            </th>
+                          );
+                        },
+                        td({ children }) {
+                          return (
+                            <td
+                              style={{
+                                padding: "8px 12px",
+                                borderBottom: "1px solid #e0e0e0",
+                                borderRight: "1px solid #e0e0e0",
+                                backgroundColor: "#ffffff",
+                              }}
+                            >
+                              {children}
+                            </td>
+                          );
+                        },
                       }}
                     >
                       {streamingContent}
@@ -535,20 +646,28 @@ const Chat3: React.FC = () => {
         </List>
       </Box>
 
-      {/* Loading indicator below messages, above input */}
-      {loading && (
-        <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            Generating...
-          </Typography>
-        </Box>
-      )}
-
       {/* Input */}
-      <Box sx={{ display: "flex", p: 1, gap: 1 }}>
+      <Paper
+        elevation={0}
+        sx={{
+          border: 1,
+          borderColor: "divider",
+          borderRadius: 2.5,
+          p: 1,
+          m: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 1,
+        }}
+      >
+        {/* Text Area */}
         <TextField
-          variant="outlined"
-          placeholder="Ask Chat3…"
+          fullWidth
+          autoFocus
+          multiline
+          minRows={1}
+          maxRows={6}
+          placeholder="Ask Chat3..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -558,20 +677,57 @@ const Chat3: React.FC = () => {
             }
           }}
           disabled={loading}
-          fullWidth
-          size="small"
-          multiline
-          minRows={1}
-          maxRows={6}
+          variant="outlined"
+          inputRef={inputRef}
+          sx={{
+            mb: 0.5,
+            maxHeight: "50vh",
+            overflowY: "auto",
+            "& .MuiInputBase-input": {
+              fontSize: 14,
+            },
+            "& .MuiInputBase-root": {
+              p: 0,
+              fontSize: 14,
+            },
+            "& .MuiOutlinedInput-notchedOutline": {
+              border: "none",
+            },
+            "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+              border: "none",
+            },
+            "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+              {
+                border: "none",
+              },
+          }}
         />
-        <IconButton
-          color="primary"
-          onClick={sendMessage}
-          disabled={loading || !input.trim() || !sessionId}
+
+        {/* Bottom action bar with Send button on right */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+          }}
         >
-          <SendIcon />
-        </IconButton>
-      </Box>
+          {/* Send Button */}
+          <IconButton
+            onClick={sendMessage}
+            disabled={loading || !input.trim() || !sessionId}
+            size="small"
+            sx={{
+              color: input.trim() ? "primary.main" : "text.disabled",
+              p: 0,
+              "&:hover": {
+                backgroundColor: "action.hover",
+              },
+            }}
+          >
+            <SendIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Box>
+      </Paper>
     </Box>
   );
 };

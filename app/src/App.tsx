@@ -85,19 +85,18 @@ function App() {
           <DatabaseExplorer
             onCollectionClick={(dbId, collection) => {
               const prefill = `db.${collection.name}.find({})`;
-              const collectionContext = {
-                id: `${dbId}-${collection.name}`,
-                type: "collection",
-                title: collection.name,
-                content: JSON.stringify(collection, null, 2),
-                metadata: { collectionName: collection.name },
-              };
-              openOrFocusConsoleTab(
-                `Console - ${collection.name}`,
-                prefill,
-                dbId,
-                [collectionContext]
-              );
+              openOrFocusConsoleTab(collection.name, prefill, dbId, [
+                {
+                  id: "collection-" + collection.name,
+                  type: "collection",
+                  title: collection.name,
+                  content: `Collection: ${collection.name}`,
+                  metadata: {
+                    databaseId: dbId,
+                    collectionName: collection.name,
+                  },
+                },
+              ]);
             }}
           />
         );
