@@ -231,6 +231,7 @@ const dbAgent = new Agent({
     inspectCollectionTool,
     executeQueryTool,
   ],
+  model: "o3",
 });
 
 // ------------------------------------------------------------------------------------

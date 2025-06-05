@@ -16,7 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import BuildIcon from "@mui/icons-material/Build";
+import BuildIcon from "@mui/icons-material/BuildOutlined";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -535,7 +535,7 @@ const Chat3: React.FC = () => {
           {loading && (
             <>
               {/* Show step chips first when loading */}
-              <ListItem>
+              <ListItem sx={{ p: 0, mt: 1 }}>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                   {steps.map((s, idx) => (
                     <Chip
@@ -544,6 +544,10 @@ const Chat3: React.FC = () => {
                       label={s}
                       size="small"
                       variant="outlined"
+                      sx={{
+                        backgroundColor: "background.paper",
+                        borderRadius: 2,
+                      }}
                     />
                   ))}
                   {steps.length === 0 && (
