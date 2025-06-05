@@ -84,10 +84,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     toggleViewGroup,
     expandServer,
     expandDatabase,
-    isServerExpanded,
     isDatabaseExpanded,
-    isCollectionGroupExpanded,
-    isViewGroupExpanded,
   } = useDatabaseExplorerStore();
 
   useEffect(() => {
