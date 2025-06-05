@@ -81,29 +81,29 @@ mongodb_servers:
           max_pool_size: 10
           min_pool_size: 2
 
-  local_dev:
-    name: "Local Development Server"
-    description: "Local MongoDB instance for development"
-    connection_string: "mongodb://localhost:27018"
-    active: true
-    databases:
-      analytics_db:
-        name: "Main Analytics Database"
-        description: "Primary MongoDB for analytics data"
-        database: "multi_tenant_analytics"
-        active: true
-        settings:
-          max_pool_size: 10
-          min_pool_size: 2
+  # local_dev:
+  #   name: "Local Development Server"
+  #   description: "Local MongoDB instance for development"
+  #   connection_string: "mongodb://localhost:27018"
+  #   active: true
+  #   databases:
+  #     analytics_db:
+  #       name: "Main Analytics Database"
+  #       description: "Primary MongoDB for analytics data"
+  #       database: "multi_tenant_analytics"
+  #       active: true
+  #       settings:
+  #         max_pool_size: 10
+  #         min_pool_size: 2
 
-      datawarehouse:
-        name: "Data Warehouse Database"
-        description: "Primary MongoDB for data warehouse data"
-        database: "datawarehouse"
-        active: true
-        settings:
-          max_pool_size: 10
-          min_pool_size: 2
+  #     datawarehouse:
+  #       name: "Data Warehouse Database"
+  #       description: "Primary MongoDB for data warehouse data"
+  #       database: "datawarehouse"
+  #       active: true
+  #       settings:
+  #         max_pool_size: 10
+  #         min_pool_size: 2
 
   # Example of a production server (commented out)
   # production:
