@@ -61,23 +61,6 @@ export class ConsoleManager {
    */
   async listConsoles(): Promise<ConsoleFile[]> {
     const results = this.scanDirectory("");
-    console.log(`🔍 listConsoles found ${results.length} top-level items.`);
-    // Log details of the first few items to check isDirectory
-    if (results.length > 0) {
-      console.log(
-        "Sample of first few console entries (before sending to client):"
-      );
-      results.slice(0, 3).forEach((entry) => {
-        console.log(
-          `  Path: ${entry.path}, Name: ${entry.name}, isDirectory: ${entry.isDirectory}, Children count: ${entry.children ? entry.children.length : 0}`
-        );
-        if (entry.children && entry.children.length > 0) {
-          console.log(
-            `    Child of ${entry.name} - Path: ${entry.children[0].path}, isDirectory: ${entry.children[0].isDirectory}`
-          );
-        }
-      });
-    }
     return results;
   }
 

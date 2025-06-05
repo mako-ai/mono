@@ -7,12 +7,14 @@ import { useChatStore } from "./store";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Chat from "./components/Chat/Chat";
+import Chat3 from "./components/Chat3";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
 // @ts-ignore file exists
 import DataSourceExplorer from "./components/DataSourceExplorer";
 // @ts-ignore file exists
 import Editor from "./components/Editor";
+import Chat2 from "./components/Chat2";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -83,19 +85,18 @@ function App() {
           <DatabaseExplorer
             onCollectionClick={(dbId, collection) => {
               const prefill = `db.${collection.name}.find({})`;
-              const collectionContext = {
-                id: `${dbId}-${collection.name}`,
-                type: "collection",
-                title: collection.name,
-                content: JSON.stringify(collection, null, 2),
-                metadata: { collectionName: collection.name },
-              };
-              openOrFocusConsoleTab(
-                `Console - ${collection.name}`,
-                prefill,
-                dbId,
-                [collectionContext]
-              );
+              openOrFocusConsoleTab(collection.name, prefill, dbId, [
+                {
+                  id: "collection-" + collection.name,
+                  type: "collection",
+                  title: collection.name,
+                  content: `Collection: ${collection.name}`,
+                  metadata: {
+                    databaseId: dbId,
+                    collectionName: collection.name,
+                  },
+                },
+              ]);
             }}
           />
         );
@@ -103,13 +104,7 @@ function App() {
         return (
           <ConsoleExplorer
             onConsoleSelect={(path, content) => {
-              openOrFocusConsoleTab(
-                `Console: ${path}`,
-                content,
-                undefined,
-                [],
-                path
-              );
+              openOrFocusConsoleTab(path, content, undefined, [], path);
             }}
           />
         );
@@ -147,13 +142,13 @@ function App() {
         <StyledHorizontalResizeHandle />
 
         {/* Editor + Results vertical layout inside Editor component */}
-        <Panel defaultSize={65} minSize={30}>
+        <Panel defaultSize={30} minSize={30}>
           <Editor />
         </Panel>
 
-        <StyledHorizontalResizeHandle />
+        {/* <StyledHorizontalResizeHandle />
 
-        <Panel defaultSize={20} minSize={10}>
+        <Panel defaultSize={0} minSize={0}>
           <Box
             sx={{
               height: "100%",
@@ -163,6 +158,21 @@ function App() {
             }}
           >
             <Chat currentEditorContent={activeEditorContent} />
+          </Box>
+        </Panel> */}
+
+        <StyledHorizontalResizeHandle />
+
+        <Panel defaultSize={30} minSize={10}>
+          <Box
+            sx={{
+              height: "100%",
+              overflow: "hidden",
+              borderLeft: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Chat3 />
           </Box>
         </Panel>
       </PanelGroup>

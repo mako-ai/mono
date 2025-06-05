@@ -267,7 +267,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             sx={{
               "& .MuiDataGrid-cell": {
                 fontSize: "0.875rem",
-                backgroundColor: "background.paper",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
               },
@@ -282,6 +281,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               },
               "& .MuiDataGrid-main": {
                 overflow: "hidden",
+                backgroundColor: "background.paper",
               },
               "& .MuiDataGrid-virtualScroller": {
                 overflow: "auto",

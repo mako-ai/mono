@@ -24,6 +24,7 @@ export interface ConsoleTab {
   databaseId?: string;
   filePath?: string;
   kind?: "console" | "settings" | "sources";
+  isDirty?: boolean; // false/undefined = pristine (replaceable), true = dirty (persistent)
 }
 
 export interface GlobalState {
@@ -127,6 +128,8 @@ export type Action =
   | { type: "CLOSE_CONSOLE_TAB"; payload: { id: string } }
   | { type: "FOCUS_CONSOLE_TAB"; payload: { id: string | null } }
   | { type: "UPDATE_CONSOLE_CONTENT"; payload: { id: string; content: string } }
+  | { type: "UPDATE_CONSOLE_TITLE"; payload: { id: string; title: string } }
+  | { type: "UPDATE_CONSOLE_DIRTY"; payload: { id: string; isDirty: boolean } }
   | {
       type: "SET_ATTACHED_CONTEXT";
       payload: { chatId: string; items: AttachedContext[] };
@@ -171,6 +174,18 @@ export const reducer = (state: GlobalState, action: Action): void => {
     case "OPEN_CONSOLE_TAB": {
       const { id, title, content, initialContent, databaseId, filePath, kind } =
         action.payload;
+
+      // Check if there's an existing pristine tab to replace
+      const pristineTabId = Object.keys(state.consoles.tabs).find(
+        (tabId) => !state.consoles.tabs[tabId].isDirty
+      );
+
+      // If there's a pristine tab, remove it first
+      if (pristineTabId) {
+        delete state.consoles.tabs[pristineTabId];
+      }
+
+      // Create new tab with the new ID
       state.consoles.tabs[id] = {
         id,
         title,
@@ -179,8 +194,10 @@ export const reducer = (state: GlobalState, action: Action): void => {
         databaseId,
         filePath,
         kind: kind || "console",
+        isDirty: false, // New tabs start as pristine
       };
       state.consoles.activeTabId = id;
+
       // auto-attach console context for virgin chat
       if (state.chat.currentChatId) {
         const chat = state.chat.sessions[state.chat.currentChatId];
@@ -282,6 +299,16 @@ export const reducer = (state: GlobalState, action: Action): void => {
           }
         }
       }
+      break;
+    }
+    case "UPDATE_CONSOLE_TITLE": {
+      const tab = state.consoles.tabs[action.payload.id];
+      if (tab) tab.title = action.payload.title;
+      break;
+    }
+    case "UPDATE_CONSOLE_DIRTY": {
+      const tab = state.consoles.tabs[action.payload.id];
+      if (tab) tab.isDirty = action.payload.isDirty;
       break;
     }
     case "CREATE_CHAT": {

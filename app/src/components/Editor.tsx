@@ -14,7 +14,8 @@ import {
   Alert,
   Snackbar,
 } from "@mui/material";
-import { Close as CloseIcon } from "@mui/icons-material";
+import { Close as CloseIcon, Add as AddIcon } from "@mui/icons-material";
+import { SquareTerminal as ConsoleIcon } from "lucide-react";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
@@ -71,6 +72,7 @@ function Editor() {
     updateConsoleDatabase,
     updateConsoleFilePath,
     updateConsoleTitle,
+    updateConsoleDirty,
     setActiveConsole,
   } = useConsoleStore();
 
@@ -135,6 +137,14 @@ function Editor() {
   const closeConsole = (id: string) => {
     removeConsoleTab(id);
     delete consoleRefs.current[id];
+  };
+
+  const handleAddTab = () => {
+    useConsoleStore.getState().addConsoleTab({
+      title: "New Console",
+      content: "",
+      initialContent: "",
+    });
   };
 
   const handleConsoleExecute = async (
@@ -202,11 +212,20 @@ function Editor() {
       );
       const data = await response.json();
       if (data.success) {
-        // Update file path in tab if we just created a new file (POST)
+        // Update file path and title for new files (POST)
         if (method === "POST" && savePath) {
           updateConsoleFilePath(tabId, savePath);
-          updateConsoleTitle(tabId, `Console: ${savePath}`);
         }
+
+        // Always update the title to reflect the filename after saving
+        if (savePath) {
+          const fileName = savePath.split("/").pop() || savePath; // Extract filename from path
+          updateConsoleTitle(tabId, fileName);
+        }
+
+        // Mark tab as dirty since it's now saved and should be persistent
+        updateConsoleDirty(tabId, true);
+
         setSnackbarMessage(
           `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`
         );
@@ -247,33 +266,63 @@ function Editor() {
           }}
         >
           {/* Tabs */}
-          <Tabs
-            value={activeConsoleId}
-            onChange={handleTabChange}
-            variant="scrollable"
-            scrollButtons="auto"
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              borderBottom: 1,
+              borderColor: "divider",
+            }}
           >
-            {consoleTabs.map((tab) => (
-              <Tab
-                key={tab.id}
-                value={tab.id}
-                label={
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
-                    <span>{tab.title}</span>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeConsole(tab.id);
-                      }}
+            <Tabs
+              value={activeConsoleId}
+              onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
+              {consoleTabs.map((tab) => (
+                <Tab
+                  key={tab.id}
+                  value={tab.id}
+                  label={
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
                     >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                }
-              />
-            ))}
-          </Tabs>
+                      <ConsoleIcon size={20} />
+                      <span
+                        style={{
+                          fontStyle: tab.isDirty ? "normal" : "italic",
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          updateConsoleDirty(tab.id, true);
+                        }}
+                      >
+                        {tab.title}
+                      </span>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeConsole(tab.id);
+                        }}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  }
+                />
+              ))}
+            </Tabs>
+            <IconButton
+              onClick={handleAddTab}
+              size="small"
+              sx={{ ml: 1, mr: 1 }}
+              title="Add new console tab"
+            >
+              <AddIcon />
+            </IconButton>
+          </Box>
 
           {/* Editor + Results vertical split */}
           <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
@@ -312,9 +361,16 @@ function Editor() {
                             }
                             isExecuting={isExecuting}
                             isSaving={isSaving}
-                            onContentChange={(content) =>
-                              updateConsoleContent(tab.id, content)
-                            }
+                            onContentChange={(content) => {
+                              updateConsoleContent(tab.id, content);
+                              // Mark tab as dirty when content changes from initial
+                              if (
+                                content !== tab.initialContent &&
+                                !tab.isDirty
+                              ) {
+                                updateConsoleDirty(tab.id, true);
+                              }
+                            }}
                             initialDatabaseId={tab.databaseId}
                             databases={availableDatabases}
                             onDatabaseChange={(dbId) =>
@@ -332,7 +388,9 @@ function Editor() {
                       <Box sx={{ height: "100%", overflow: "hidden" }}>
                         <ResultsTable
                           results={
-                            activeTab ? tabResults[activeTab.id] || null : null
+                            activeTab?.id
+                              ? tabResults[activeTab.id] || null
+                              : null
                           }
                         />
                       </Box>
@@ -380,7 +438,7 @@ function Editor() {
             onClick={() => {
               // Add a blank tab on demand
               useConsoleStore.getState().addConsoleTab({
-                title: "Console",
+                title: "New Console",
                 content: "",
                 initialContent: "",
               });
