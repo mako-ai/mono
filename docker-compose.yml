@@ -1,29 +1,40 @@
 version: "3.8"
 
 services:
-  mongodb:
-    image: mongo:7.0
-    container_name: mongo
-    restart: always
+  revops:
+    image: revops
+    container_name: revops
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "27018:27017"
+      - "8080:8080"
     volumes:
-      - mongodb_data:/data/db
-    networks:
-      - close-network
+      - ./config:/app/config
+      - ./consoles:/app/consoles
+  # mongodb:
+  #   image: mongo:7.0
+  #   container_name: mongo
+  #   restart: always
+  #   ports:
+  #     - "27018:27017"
+  #   volumes:
+  #     - mongodb_data:/data/db
+  #   networks:
+  #     - close-network
 
-  mongo-express:
-    image: mongo-express
-    container_name: mongo-express
-    restart: always
-    ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
-    depends_on:
-      - mongodb
-    networks:
-      - close-network
+  # mongo-express:
+  #   image: mongo-express
+  #   container_name: mongo-express
+  #   restart: always
+  #   ports:
+  #     - "8081:8081"
+  #   environment:
+  #     ME_CONFIG_MONGODB_URL: mongodb://mongodb:27017/
+  #   depends_on:
+  #     - mongodb
+  #   networks:
+  #     - close-network
 
   # Web Backend (API) - Commented out for local development
   # web-backend:

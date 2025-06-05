@@ -32,7 +32,7 @@ const app = new Hono();
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:5173", "http://localhost:3000"], // Vite dev server and potential production
+    origin: "*",
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
   })
@@ -55,7 +55,64 @@ app.route("/api/ai", aiRoutes);
 app.route("/api/chats", chatsRoutes);
 app.route("/api/agent", agentRoutes);
 
-const port = parseInt(process.env.WEB_API_PORT || "3001");
+// Serve static files (frontend) - middleware for non-API routes
+app.use("*", async (c, next) => {
+  const requestPath = c.req.path;
+
+  // Skip API routes and health check - let them continue to their handlers
+  if (requestPath.startsWith("/api/") || requestPath === "/health") {
+    await next();
+    return;
+  }
+
+  // Try to serve static file
+  const publicPath = path.join(process.cwd(), "public");
+  let filePath = path.join(publicPath, requestPath);
+
+  // If path doesn't have extension, try adding .html or serve index.html
+  if (!path.extname(filePath)) {
+    const indexPath = path.join(publicPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      const content = fs.readFileSync(indexPath, "utf8");
+      return c.html(content);
+    }
+  }
+
+  // Try to serve the actual file
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    const ext = path.extname(filePath);
+    const contentType = getContentType(ext);
+    const content = fs.readFileSync(filePath);
+    return c.body(content, { headers: { "Content-Type": contentType } });
+  }
+
+  // Fallback to index.html for SPA routing
+  const indexPath = path.join(publicPath, "index.html");
+  if (fs.existsSync(indexPath)) {
+    const content = fs.readFileSync(indexPath, "utf8");
+    return c.html(content);
+  }
+
+  return c.text("Frontend not found", 404);
+});
+
+function getContentType(ext: string): string {
+  const types: Record<string, string> = {
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+  };
+  return types[ext] || "application/octet-stream";
+}
+
+const port = parseInt(process.env.WEB_API_PORT || process.env.PORT || "8080");
 
 console.log(`🚀 Query API Server starting on port ${port}`);
 console.log(`📁 Environment: ${process.env.NODE_ENV || "development"}`);
