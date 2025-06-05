@@ -23,6 +23,11 @@ gcloud run services update revops-fullstack \
   --region $REGION \
   --env-vars-file env.yaml
 
+# Disable default run.app URL to force traffic through custom domain only (only do this once  )
+# gcloud beta run services update revops-fullstack \
+#   --region $REGION \
+#   --no-default-url
+
 # Verify domain ownership (only do this once)
 # gcloud domains verify revops.realadvisor.com
 
@@ -33,7 +38,7 @@ gcloud run services update revops-fullstack \
 #     --region=$REGION
 
 # Add IAP policy
-gcloud run services add-iam-policy-binding revops-fullstack \
-    --region=$REGION \
-    --member="allUsers" \
-    --role="roles/run.invoker"
+# gcloud run services add-iam-policy-binding revops-fullstack \
+#     --region=$REGION \
+#     --member="domain:revops.realadvisor.com" \
+#     --role="roles/run.invoker" \
