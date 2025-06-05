@@ -1,7 +1,7 @@
 source .env
 
-# Rebuild and redeploy
-docker build -t $IMAGE_NAME:latest .
+# Rebuild and redeploy (explicitly build for linux/amd64 platform)
+docker build --platform linux/amd64 -t $IMAGE_NAME:latest .
 docker tag $IMAGE_NAME:latest $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest
 docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest
 
@@ -13,4 +13,5 @@ awk -F= '/^[^#]/ && NF==2 {print $1": \""$2"\""}' .env > env.yaml
 gcloud run services update revops-fullstack \
   --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest \
   --region $REGION \
-  --env-vars-file env.yaml
+  --env-vars-file env.yaml \
+  --allow-unauthenticated
