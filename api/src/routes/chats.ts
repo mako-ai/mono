@@ -94,3 +94,19 @@ chatsRoutes.put("/:id", async (c) => {
     return c.json({ error: "Invalid chat id" }, 400);
   }
 });
+
+// Delete a chat session
+chatsRoutes.delete("/:id", async (c) => {
+  const id = c.req.param("id");
+  const collection = await getChatsCollection();
+
+  try {
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+    if (result.deletedCount === 0) {
+      return c.json({ error: "Chat not found" }, 404);
+    }
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: "Invalid chat id" }, 400);
+  }
+});

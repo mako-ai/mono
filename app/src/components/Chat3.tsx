@@ -3,17 +3,16 @@ import {
   Box,
   Button,
   Chip,
-  FormControl,
   IconButton,
-  InputLabel,
   List,
   ListItem,
   ListItemText,
   MenuItem,
   Paper,
-  Select,
   TextField,
   Typography,
+  Menu,
+  ListItemIcon,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import BuildIcon from "@mui/icons-material/BuildOutlined";
@@ -27,6 +26,10 @@ import {
   ExpandLess,
   ContentCopy,
   Check,
+  History as HistoryIcon,
+  Add as AddIcon,
+  Chat as ChatIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 
@@ -340,6 +343,11 @@ const Chat3: React.FC = () => {
   const [steps, setSteps] = useState<string[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>("");
 
+  // History menu state
+  const [historyMenuAnchor, setHistoryMenuAnchor] =
+    useState<null | HTMLElement>(null);
+  const historyMenuOpen = Boolean(historyMenuAnchor);
+
   // Ref for auto-focusing the input
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -414,6 +422,50 @@ const Chat3: React.FC = () => {
         }
         setSessionId(newId);
         setMessages([]);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  // History menu handlers
+  const handleHistoryMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setHistoryMenuAnchor(event.currentTarget);
+  };
+
+  const handleHistoryMenuClose = () => {
+    setHistoryMenuAnchor(null);
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setSessionId(sessionId);
+    handleHistoryMenuClose();
+  };
+
+  const handleDeleteSession = async (
+    sessionIdToDelete: string,
+    event: React.MouseEvent
+  ) => {
+    event.stopPropagation();
+    try {
+      const res = await fetch(`/api/chats/${sessionIdToDelete}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        // Refresh sessions list
+        const sessionsRes = await fetch("/api/chats");
+        if (sessionsRes.ok) {
+          const sessionsData = await sessionsRes.json();
+          setSessions(sessionsData);
+          // If we deleted the current session, switch to another one or create new
+          if (sessionIdToDelete === sessionId) {
+            if (sessionsData.length > 0) {
+              setSessionId(sessionsData[0]._id);
+            } else {
+              createNewSession();
+            }
+          }
+        }
       }
     } catch (_) {
       /* ignore */
@@ -524,27 +576,96 @@ const Chat3: React.FC = () => {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Session selector */}
-      <Box sx={{ p: 1, display: "flex", alignItems: "center", gap: 1 }}>
-        <FormControl size="small" sx={{ flex: 1 }}>
-          <InputLabel id="session-select-label">Session</InputLabel>
-          <Select
-            labelId="session-select-label"
-            value={sessionId}
-            label="Session"
-            onChange={(e) => setSessionId(e.target.value as string)}
+      {/* Header with history and new chat */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          p: 1,
+        }}
+      >
+        <Typography variant="h6">Agent Chat</Typography>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <IconButton
+            size="small"
+            onClick={handleHistoryMenuOpen}
+            disabled={sessions.length === 0}
           >
-            {sessions.map((s) => (
-              <MenuItem key={s._id} value={s._id}>
-                {s.title || s._id.substring(0, 6)}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-        <Button variant="outlined" size="small" onClick={createNewSession}>
-          New Chat
-        </Button>
+            <HistoryIcon />
+          </IconButton>
+          <Button
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={createNewSession}
+          >
+            New Chat
+          </Button>
+        </Box>
       </Box>
+
+      {/* History Menu */}
+      <Menu
+        anchorEl={historyMenuAnchor}
+        open={historyMenuOpen}
+        onClose={handleHistoryMenuClose}
+        PaperProps={{
+          sx: { maxHeight: 400, width: 300 },
+        }}
+      >
+        {sessions
+          .filter(
+            (session) =>
+              session._id === sessionId ||
+              (session.title && session.title.length > 0)
+          )
+          .map((session) => (
+            <MenuItem
+              key={session._id}
+              onClick={() => handleSelectSession(session._id)}
+              selected={session._id === sessionId}
+              sx={{ display: "flex", justifyContent: "space-between" }}
+            >
+              <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+                <ListItemIcon>
+                  <ChatIcon fontSize="small" />
+                </ListItemIcon>
+                <Box>
+                  <ListItemText
+                    primary={session.title || session._id.substring(0, 8)}
+                    secondary={
+                      session.updatedAt
+                        ? new Date(session.updatedAt).toLocaleString()
+                        : session.createdAt
+                          ? new Date(session.createdAt).toLocaleString()
+                          : ""
+                    }
+                    primaryTypographyProps={{
+                      noWrap: true,
+                      sx: { maxWidth: 200 },
+                    }}
+                  />
+                </Box>
+              </Box>
+              {sessions.length > 1 && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => handleDeleteSession(session._id, e)}
+                  sx={{ ml: 1 }}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              )}
+            </MenuItem>
+          ))}
+        {sessions.length === 0 && (
+          <MenuItem disabled>
+            <Typography variant="body2" color="text.secondary">
+              No chat history yet
+            </Typography>
+          </MenuItem>
+        )}
+      </Menu>
 
       {/* Messages */}
       <Box sx={{ flex: messages.length > 0 ? 1 : 0, overflow: "auto", p: 1 }}>
