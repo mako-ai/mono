@@ -206,6 +206,8 @@ const MessageItem = React.memo(
     isLastUser: boolean;
     loading: boolean;
   }) => {
+    const muiTheme = useMuiTheme();
+
     // Memoize markdown rendering to keep CodeBlock stable
     const markdownContent = React.useMemo(() => {
       return (
@@ -238,7 +240,7 @@ const MessageItem = React.memo(
                       borderCollapse: "collapse",
                       width: "100%",
                       fontSize: "0.875rem",
-                      border: "1px solid #e0e0e0",
+                      border: `1px solid ${muiTheme.palette.divider}`,
                     }}
                   >
                     {children}
@@ -252,9 +254,9 @@ const MessageItem = React.memo(
                   style={{
                     padding: "8px 12px",
                     textAlign: "left",
-                    backgroundColor: "#f5f5f5",
-                    borderBottom: "2px solid #e0e0e0",
-                    borderRight: "1px solid #e0e0e0",
+                    backgroundColor: muiTheme.palette.background.paper,
+                    borderBottom: `2px solid ${muiTheme.palette.divider}`,
+                    borderRight: `1px solid ${muiTheme.palette.divider}`,
                     fontWeight: 600,
                   }}
                 >
@@ -267,9 +269,9 @@ const MessageItem = React.memo(
                 <td
                   style={{
                     padding: "8px 12px",
-                    borderBottom: "1px solid #e0e0e0",
-                    borderRight: "1px solid #e0e0e0",
-                    backgroundColor: "#ffffff",
+                    borderBottom: `1px solid ${muiTheme.palette.divider}`,
+                    borderRight: `1px solid ${muiTheme.palette.divider}`,
+                    backgroundColor: muiTheme.palette.background.paper,
                   }}
                 >
                   {children}
@@ -281,7 +283,11 @@ const MessageItem = React.memo(
           {message.content}
         </ReactMarkdown>
       );
-    }, [message.content]);
+    }, [
+      message.content,
+      muiTheme.palette.divider,
+      muiTheme.palette.background.paper,
+    ]);
 
     return (
       <ListItem alignItems="flex-start" sx={{ p: 0 }}>
@@ -743,6 +749,7 @@ const Chat3: React.FC = () => {
                           );
                         },
                         table({ children }) {
+                          const muiTheme = useMuiTheme();
                           return (
                             <Box sx={{ overflow: "auto", my: 1 }}>
                               <table
@@ -750,7 +757,7 @@ const Chat3: React.FC = () => {
                                   borderCollapse: "collapse",
                                   width: "100%",
                                   fontSize: "0.875rem",
-                                  border: "1px solid #e0e0e0",
+                                  border: `1px solid ${muiTheme.palette.divider}`,
                                 }}
                               >
                                 {children}
@@ -759,14 +766,16 @@ const Chat3: React.FC = () => {
                           );
                         },
                         th({ children }) {
+                          const muiTheme = useMuiTheme();
                           return (
                             <th
                               style={{
                                 padding: "8px 12px",
                                 textAlign: "left",
-                                backgroundColor: "#f5f5f5",
-                                borderBottom: "2px solid #e0e0e0",
-                                borderRight: "1px solid #e0e0e0",
+                                backgroundColor:
+                                  muiTheme.palette.background.paper,
+                                borderBottom: `2px solid ${muiTheme.palette.divider}`,
+                                borderRight: `1px solid ${muiTheme.palette.divider}`,
                                 fontWeight: 600,
                               }}
                             >
@@ -775,13 +784,15 @@ const Chat3: React.FC = () => {
                           );
                         },
                         td({ children }) {
+                          const muiTheme = useMuiTheme();
                           return (
                             <td
                               style={{
                                 padding: "8px 12px",
-                                borderBottom: "1px solid #e0e0e0",
-                                borderRight: "1px solid #e0e0e0",
-                                backgroundColor: "#ffffff",
+                                borderBottom: `1px solid ${muiTheme.palette.divider}`,
+                                borderRight: `1px solid ${muiTheme.palette.divider}`,
+                                backgroundColor:
+                                  muiTheme.palette.background.paper,
                               }}
                             >
                               {children}
