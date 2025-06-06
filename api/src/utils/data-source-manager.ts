@@ -25,6 +25,18 @@ export interface DataSource {
     host?: string;
     port?: number;
     database?: string;
+    // GraphQL specific fields
+    endpoint?: string;
+    headers?: { [key: string]: string };
+    queries?: Array<{
+      name: string;
+      query: string;
+      variables?: { [key: string]: any };
+      dataPath?: string;
+      hasNextPagePath?: string;
+      cursorPath?: string;
+      totalCountPath?: string;
+    }>;
     [key: string]: any; // Allow additional config fields
   };
   settings: {
@@ -241,7 +253,6 @@ export class DataSourceManager {
       }
 
       // Basic connection test based on source type
-      // This is a placeholder - you'd implement actual connection logic per source type
       switch (dataSource.source) {
         case "close":
           // Test Close API connection
@@ -263,6 +274,32 @@ export class DataSourceManager {
           }
           return { success: true, message: "Stripe API connection configured" };
 
+        case "graphql":
+          // Test GraphQL API connection
+          if (!dataSource.config.endpoint) {
+            return {
+              success: false,
+              message: "Endpoint is required for GraphQL integration",
+            };
+          }
+          if (
+            !dataSource.config.queries ||
+            dataSource.config.queries.length === 0
+          ) {
+            return {
+              success: false,
+              message:
+                "At least one query must be configured for GraphQL integration",
+            };
+          }
+
+          // For a more comprehensive test, we could try to import and use GraphQLSyncService
+          // but for now, we'll do basic config validation
+          return {
+            success: true,
+            message: `GraphQL API connection configured with ${dataSource.config.queries.length} queries`,
+          };
+
         case "postgres":
         case "mysql":
           // Test database connection
@@ -276,7 +313,6 @@ export class DataSourceManager {
 
         case "rest":
         case "api":
-        case "graphql":
           // Test API connection
           if (!dataSource.config.api_base_url) {
             return {
