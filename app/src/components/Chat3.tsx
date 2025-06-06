@@ -43,7 +43,15 @@ interface ChatSessionMeta {
 }
 
 const CodeBlock = React.memo(
-  ({ language, children }: { language: string; children: string }) => {
+  ({
+    language,
+    children,
+    isGenerating,
+  }: {
+    language: string;
+    children: string;
+    isGenerating: boolean;
+  }) => {
     const muiTheme = useMuiTheme();
     const effectiveMode = muiTheme.palette.mode;
     const syntaxTheme = effectiveMode === "dark" ? tomorrow : prism;
@@ -77,6 +85,22 @@ const CodeBlock = React.memo(
           position: "relative",
         }}
       >
+        {isGenerating && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 1,
+            }}
+          >
+            <Typography variant="body2" color="text.primary">
+              Generating...
+            </Typography>
+          </Box>
+        )}
         {/* Copy button */}
         <Box
           sx={{
@@ -136,32 +160,29 @@ const CodeBlock = React.memo(
               right: 0,
               display: "flex",
               justifyContent: "center",
-              background:
-                effectiveMode === "dark"
-                  ? "linear-gradient(to bottom, transparent, rgba(0,0,0,0.9))"
-                  : "linear-gradient(to bottom, transparent, rgba(255,255,255,0.9))",
-              pt: 1,
-              pb: 0.5,
             }}
           >
-            <IconButton
+            <Button
               size="small"
               onClick={() => setIsExpanded(!isExpanded)}
               sx={{
+                borderRadius: 0,
+                flexGrow: 1,
+                color: "text.primary",
                 backgroundColor:
                   effectiveMode === "dark"
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(0,0,0,0.1)",
+                    ? "rgba(0, 0, 0, 0.3)"
+                    : "rgba(255, 255, 255, 0.3)",
                 "&:hover": {
                   backgroundColor:
                     effectiveMode === "dark"
-                      ? "rgba(255,255,255,0.2)"
-                      : "rgba(0,0,0,0.2)",
+                      ? "rgba(0, 0, 0, 0.1)"
+                      : "rgba(255, 255, 255, 0.1)",
                 },
               }}
             >
               {isExpanded ? <ExpandLess /> : <ExpandMore />}
-            </IconButton>
+            </Button>
           </Box>
         )}
       </Box>
@@ -193,7 +214,11 @@ const MessageItem = React.memo(
               const isInline = !match;
               const codeString = String(children).replace(/\n$/, "");
               return !isInline ? (
-                <CodeBlock language={match![1]} key={codeString}>
+                <CodeBlock
+                  language={match![1]}
+                  key={codeString}
+                  isGenerating={false}
+                >
                   {codeString}
                 </CodeBlock>
               ) : (
@@ -562,7 +587,7 @@ const Chat3: React.FC = () => {
                     sx={{
                       flex: 1,
                       overflow: "hidden",
-                      "& p": { fontSize: "0.875rem" },
+                      fontSize: "0.875rem",
                       "& pre": {
                         margin: 0,
                         overflow: "hidden",
@@ -580,7 +605,11 @@ const Chat3: React.FC = () => {
                             ""
                           );
                           return !isInline ? (
-                            <CodeBlock language={match![1]} key={codeString}>
+                            <CodeBlock
+                              language={match![1]}
+                              key={codeString}
+                              isGenerating
+                            >
                               {codeString}
                             </CodeBlock>
                           ) : (
