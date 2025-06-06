@@ -63,6 +63,155 @@ data_sources:
       sync_batch_size: 50
       rate_limit_delay_ms: 300
 
+  # GraphQL Sources
+  realadvisor_graphql:
+    name: "RealAdvisor GraphQL API"
+    description: "RealAdvisor GraphQL data source with custom queries"
+    active: true # Set to true to enable
+    type: "graphql"
+    connection:
+      endpoint: "https://hasura.realadvisor.com/v1/graphql"
+      headers:
+        "X-API-Version": "v1"
+        "X-Client-Name": "RevOps-Sync"
+        "x-hasura-admin-secret": "${REALADVISOR_HASURA_SECRET}"
+      queries:
+        - name: "teams"
+          query: |
+            query GetTeams($limit: Int!, $offset: Int!) {
+              teams_aggregate {
+                aggregate {
+                  count
+                }
+              }
+              teams(limit: $limit, offset: $offset, order_by: { id: desc_nulls_last}) {
+                id
+                created_at
+                name
+                show_in_agency_pages
+                logo {
+                  url
+                }
+                google_reviews_aggregate {
+                  aggregate {
+                    count
+                    max {
+                      created_at
+                    }
+                    avg {
+                      rating
+                    }
+                  }
+                }
+                property_transactions_aggregate {
+                  aggregate {
+                    count
+                    max {
+                      created_at
+                    }
+                  }
+                }
+                teams_users {
+                  user {
+                    first_name
+                    last_name
+                    user_images_aggregate {
+                      aggregate {
+                        count
+                      }
+                    }
+                    reviews_aggregate {
+                      aggregate {
+                        count
+                        max {
+                          created_at
+                        }
+                        avg {
+                          rating
+                        }
+                      }
+                    }
+                    activities_aggregate {
+                      aggregate {
+                        count
+                        max {
+                          created_at
+                        }
+                      }
+                    }
+                    emails {
+                      email
+                    }
+                    phone_numbers {
+                      number
+                    }
+                  }
+                }
+                tenant {
+                  id
+                  country_code
+                }
+              }
+            }
+          dataPath: "data.teams" # Direct access to teams array (no edges)
+          totalCountPath: "data.teams_aggregate.aggregate.count" # For progress tracking
+
+        - name: "users"
+          query: |
+            query GetUsers($limit: Int!, $offset: Int!) {
+              users(limit: $limit, offset: $offset, order_by: { id: desc_nulls_last }) {
+                id
+                first_name
+                last_name
+                email
+                created_at
+                updated_at
+                teams_users {
+                  team {
+                    id
+                    name
+                  }
+                }
+                tenant {
+                  id
+                  country
+                  country_code
+                  name
+                }
+              }
+              users_aggregate {
+                aggregate {
+                  count
+                }
+              }
+            }
+          dataPath: "data.users"
+          totalCountPath: "data.users_aggregate.aggregate.count"
+
+        - name: "tenants"
+          query: |
+            query GetTenants($limit: Int!, $offset: Int!) {
+              tenants(limit: $limit, offset: $offset, order_by: { id: desc_nulls_last }) {
+                id
+                name
+                country
+                country_code
+                created_at
+                updated_at
+              }
+              tenants_aggregate {
+                aggregate {
+                  count
+                }
+              }
+            }
+          dataPath: "data.tenants"
+          totalCountPath: "data.tenants_aggregate.aggregate.count"
+    settings:
+      sync_batch_size: 100
+      rate_limit_delay_ms: 500
+      timeout_ms: 30000 # 30 seconds timeout for GraphQL requests
+
 # MongoDB Servers Configuration
 # Group databases by their server instances
 mongodb_servers:

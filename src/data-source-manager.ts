@@ -9,6 +9,19 @@ export interface DataSourceConnection {
   // API sources
   api_base_url?: string;
 
+  // GraphQL sources
+  endpoint?: string;
+  headers?: { [key: string]: string };
+  queries?: Array<{
+    name: string;
+    query: string;
+    variables?: { [key: string]: any };
+    dataPath?: string;
+    hasNextPagePath?: string;
+    cursorPath?: string;
+    totalCountPath?: string;
+  }>;
+
   // Database sources
   connection_string?: string;
   database?: string;
@@ -341,6 +354,33 @@ class DataSourceManager {
               errors.push(
                 `Data source '${id}' (${source.type}) is missing api_key`
               );
+            }
+            break;
+          case "graphql":
+            if (!source.connection.endpoint) {
+              errors.push(`Data source '${id}' (graphql) is missing endpoint`);
+            }
+            if (
+              !source.connection.queries ||
+              source.connection.queries.length === 0
+            ) {
+              errors.push(
+                `Data source '${id}' (graphql) is missing queries configuration`
+              );
+            } else {
+              // Validate each query configuration
+              source.connection.queries.forEach((query: any, index: number) => {
+                if (!query.name) {
+                  errors.push(
+                    `Data source '${id}' (graphql) query ${index + 1} is missing name`
+                  );
+                }
+                if (!query.query) {
+                  errors.push(
+                    `Data source '${id}' (graphql) query ${index + 1} is missing query`
+                  );
+                }
+              });
             }
             break;
           case "mongodb":
