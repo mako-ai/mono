@@ -92,18 +92,7 @@ data_sources:
                 logo {
                   url
                 }
-                google_reviews_aggregate {
-                  aggregate {
-                    count
-                    max {
-                      created_at
-                    }
-                    avg {
-                      rating
-                    }
-                  }
-                }
-                property_transactions_aggregate {
+                property_transactions_aggregate(where: { is_published: {_eq: true }}) {
                   aggregate {
                     count
                     max {
@@ -113,6 +102,7 @@ data_sources:
                 }
                 teams_users {
                   user {
+                    id
                     first_name
                     last_name
                     user_images_aggregate {
@@ -120,7 +110,7 @@ data_sources:
                         count
                       }
                     }
-                    reviews_aggregate {
+                    reviews_aggregate(where: { completed: { _eq: true }}) {
                       aggregate {
                         count
                         max {
@@ -132,6 +122,22 @@ data_sources:
                       }
                     }
                     activities_aggregate {
+                      aggregate {
+                        count
+                        max {
+                          created_at
+                        }
+                      }
+                    }
+                    appraisal_requests: lead_agents_aggregate(where: { source: { _eq: result_page } }) {
+                      aggregate {
+                        count
+                        max {
+                          created_at
+                        }
+                      }
+                    }
+                    assigned_leads: lead_agents_aggregate(where: { source: { _eq: automation }}) {
                       aggregate {
                         count
                         max {
