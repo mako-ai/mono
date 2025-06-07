@@ -1,6 +1,7 @@
 import { dataSourceManager } from "./data-source-manager";
 import { CloseSyncService } from "./sync-close";
 import { StripeSyncService } from "./sync-stripe";
+import { GraphQLSyncService } from "./sync-graphql";
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -100,6 +101,9 @@ const SOURCE_ENTITIES = {
     "products",
     "plans",
   ],
+  graphql: [
+    "custom", // GraphQL sources use custom-defined entities from configuration
+  ],
   mongodb: [], // MongoDB sources don't have entities to sync
 };
 
@@ -164,6 +168,9 @@ async function main() {
       break;
     case "stripe":
       await syncStripe(dataSource, entity, destination);
+      break;
+    case "graphql":
+      await syncGraphQL(dataSource, entity, destination);
       break;
     case "mongodb":
       console.error(
@@ -279,6 +286,40 @@ async function syncStripe(
       console.log(`Available entities: ${SOURCE_ENTITIES.stripe.join(", ")}`);
       process.exit(1);
   }
+}
+
+async function syncGraphQL(
+  dataSource: any,
+  entity?: string,
+  targetDbId?: string
+) {
+  const syncService = new GraphQLSyncService(dataSource);
+
+  if (!entity) {
+    // Sync all entities
+    console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
+    await syncService.syncAll(targetDbId);
+    return;
+  }
+
+  // For GraphQL, we need to find the query configuration for the specified entity
+  const queries = dataSource.connection.queries || [];
+  const queryConfig = queries.find(
+    (q: any) => q.name.toLowerCase() === entity.toLowerCase()
+  );
+
+  if (!queryConfig) {
+    console.error(`❌ Unknown entity '${entity}' for GraphQL source`);
+    console.log(
+      `Available entities: ${queries.map((q: any) => q.name).join(", ")}`
+    );
+    process.exit(1);
+  }
+
+  // Sync specific entity
+  console.log(`\n🔄 Syncing ${entity} for ${dataSource.name}`);
+  const progress = new ProgressReporter(entity);
+  await syncService.syncEntity(queryConfig, targetDbId, progress);
 }
 
 function showUsage() {

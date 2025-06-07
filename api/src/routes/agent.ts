@@ -5,6 +5,10 @@ import { configLoader } from "../utils/config-loader";
 import { mongoConnection } from "../utils/mongodb-connection";
 import { QueryExecutor } from "../utils/query-executor";
 import { ObjectId, Decimal128 } from "mongodb";
+import {
+  shouldGenerateTitle,
+  generateChatTitle,
+} from "../services/title-generator";
 
 // Create a router that will be mounted at /api/agent
 export const agentRoutes = new Hono();
@@ -16,6 +20,10 @@ export const agentRoutes = new Hono();
 // Expose the same helper utilities we already use for the responses chat route so the
 // new Agent can re-use them.
 const queryExecutor = new QueryExecutor();
+
+// ------------------------------------------------------------------------------------
+// Database/Collection helpers
+// ------------------------------------------------------------------------------------
 
 const listDatabases = () => {
   const mongoSources = configLoader.getMongoDBSources();
@@ -276,12 +284,14 @@ agentRoutes.post("/stream", async (c) => {
 
   // Load existing messages...
   let existingMessages: { role: "user" | "assistant"; content: string }[] = [];
+  let existingChat: any = null;
+
   if (sessionId) {
     try {
       const coll = await getChatsCollection();
-      const chat = await coll.findOne({ _id: new ObjectId(sessionId) });
-      if (chat && Array.isArray(chat.messages)) {
-        existingMessages = chat.messages as any[];
+      existingChat = await coll.findOne({ _id: new ObjectId(sessionId) });
+      if (existingChat && Array.isArray(existingChat.messages)) {
+        existingMessages = existingChat.messages as any[];
       }
     } catch (_) {}
   }
@@ -429,7 +439,7 @@ agentRoutes.post("/stream", async (c) => {
           sendEvent({ type: "text", content: assistantReply });
         }
 
-        // Persist messages...
+        // Persist messages with smart title generation...
         const updatedMessages = [
           ...existingMessages,
           { role: "user", content: message.trim() },
@@ -441,15 +451,77 @@ agentRoutes.post("/stream", async (c) => {
         const now = new Date();
 
         if (!sessionId) {
+          // New conversation - start with a temporary title
           const insertResult = await coll.insertOne({
-            title: "Agent Chat",
+            title: "New Chat", // Temporary title
             messages: updatedMessages,
             createdAt: now,
             updatedAt: now,
+            titleGenerated: false, // Flag to track if we've generated a proper title
           });
           finalSessionId = insertResult.insertedId.toString();
+
+          // Generate title asynchronously without blocking the response
+          if (shouldGenerateTitle(updatedMessages)) {
+            // Fire-and-forget title generation
+            generateChatTitle(updatedMessages)
+              .then((generatedTitle) => {
+                return coll.updateOne(
+                  { _id: new ObjectId(finalSessionId) },
+                  {
+                    $set: {
+                      title: generatedTitle,
+                      titleGenerated: true,
+                      updatedAt: new Date(),
+                    },
+                  }
+                );
+              })
+              .then(() => {
+                console.log(
+                  `Generated title for new chat: "${finalSessionId}"`
+                );
+              })
+              .catch((error) => {
+                console.error("Failed to generate title for new chat:", error);
+              });
+          }
         } else {
+          // Existing conversation - update messages
           await persistChatSession(sessionId, updatedMessages);
+
+          // Generate title asynchronously for existing chats without blocking
+          if (
+            existingChat &&
+            !existingChat.titleGenerated &&
+            shouldGenerateTitle(updatedMessages)
+          ) {
+            // Fire-and-forget title generation
+            generateChatTitle(updatedMessages)
+              .then((generatedTitle) => {
+                return coll.updateOne(
+                  { _id: new ObjectId(sessionId) },
+                  {
+                    $set: {
+                      title: generatedTitle,
+                      titleGenerated: true,
+                      updatedAt: new Date(),
+                    },
+                  }
+                );
+              })
+              .then(() => {
+                console.log(
+                  `Generated title for existing chat: "${sessionId}"`
+                );
+              })
+              .catch((error) => {
+                console.error(
+                  "Failed to generate title for existing chat:",
+                  error
+                );
+              });
+          }
         }
 
         sendEvent({ type: "session", sessionId: finalSessionId });

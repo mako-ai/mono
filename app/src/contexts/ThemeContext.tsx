@@ -268,6 +268,28 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               {
                 backgroundColor: thumbHoverColor,
               },
+            // Link styling
+            a: {
+              color: theme.palette.primary.main,
+              textDecoration: "none",
+              transition: "color 0.2s ease, text-decoration 0.2s ease",
+              "&:hover": {
+                color:
+                  theme.palette.mode === "dark"
+                    ? theme.palette.primary.light
+                    : theme.palette.primary.dark,
+                textDecoration: "underline",
+              },
+              "&:active": {
+                color: theme.palette.secondary.main,
+              },
+              "&:visited": {
+                color:
+                  theme.palette.mode === "dark"
+                    ? alpha(theme.palette.primary.main, 0.8)
+                    : alpha(theme.palette.primary.main, 0.7),
+              },
+            },
           };
         },
       },
