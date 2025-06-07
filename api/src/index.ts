@@ -13,6 +13,8 @@ import { customPromptRoutes } from "./routes/custom-prompt";
 import { aiRoutes } from "./routes/ai";
 import { chatsRoutes } from "./routes/chats";
 import { agentRoutes } from "./routes/agent";
+import { authRoutes } from "./auth/auth.controller";
+import { connectDatabase } from "./database/schema";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -26,15 +28,22 @@ if (fs.existsSync(envPath)) {
   );
 }
 
+// Connect to MongoDB
+connectDatabase().catch((error) => {
+  console.error("Failed to connect to database:", error);
+  process.exit(1);
+});
+
 const app = new Hono();
 
 // CORS middleware
 app.use(
   "*",
   cors({
-    origin: "*",
+    origin: process.env.CLIENT_URL || "*",
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
@@ -44,6 +53,7 @@ app.get("/health", (c) => {
 });
 
 // API routes
+app.route("/api/auth", authRoutes);
 app.route("/api/consoles", consoleRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);

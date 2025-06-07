@@ -1,0 +1,129 @@
+/**
+ * General API client that handles authentication and error responses
+ */
+
+interface ApiRequestOptions extends RequestInit {
+  params?: Record<string, string>;
+}
+
+class ApiClient {
+  private baseUrl: string;
+  
+  constructor() {
+    this.baseUrl = import.meta.env.VITE_API_URL || '/api';
+  }
+
+  /**
+   * Build URL with query parameters
+   */
+  private buildUrl(path: string, params?: Record<string, string>): string {
+    const url = new URL(`${this.baseUrl}${path}`, window.location.origin);
+    
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.append(key, value);
+      });
+    }
+    
+    return url.toString();
+  }
+
+  /**
+   * Handle API response and errors
+   */
+  private async handleResponse<T>(response: Response): Promise<T> {
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+      // Clear any stored auth state
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      throw new Error(error.error || `HTTP error! status: ${response.status}`);
+    }
+
+    // Handle empty responses
+    const text = await response.text();
+    if (!text) {
+      return {} as T;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text as unknown as T;
+    }
+  }
+
+  /**
+   * Make authenticated API request
+   */
+  async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+    const { params, headers = {}, ...restOptions } = options;
+    
+    const url = this.buildUrl(path, params);
+    
+    const response = await fetch(url, {
+      ...restOptions,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      credentials: 'include', // Always include credentials for cookie-based auth
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
+  /**
+   * GET request
+   */
+  async get<T>(path: string, params?: Record<string, string>): Promise<T> {
+    return this.request<T>(path, { method: 'GET', params });
+  }
+
+  /**
+   * POST request
+   */
+  async post<T>(path: string, data?: any): Promise<T> {
+    return this.request<T>(path, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  /**
+   * PUT request
+   */
+  async put<T>(path: string, data?: any): Promise<T> {
+    return this.request<T>(path, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  /**
+   * DELETE request
+   */
+  async delete<T>(path: string): Promise<T> {
+    return this.request<T>(path, { method: 'DELETE' });
+  }
+
+  /**
+   * PATCH request
+   */
+  async patch<T>(path: string, data?: any): Promise<T> {
+    return this.request<T>(path, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+}
+
+// Export singleton instance
+export const apiClient = new ApiClient();
+
+// Re-export for backward compatibility if needed
+export default apiClient;
