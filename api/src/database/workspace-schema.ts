@@ -149,7 +149,7 @@ export interface IDataSource extends Document {
   type: "stripe" | "shopify" | "webhook" | "csv" | "api";
   config: any;
   targetDatabases?: Types.ObjectId[];
-  createdBy: Types.ObjectId;
+  createdBy: string;
   createdAt: Date;
   isActive: boolean;
 }
@@ -163,7 +163,7 @@ export interface IConsoleFolder extends Document {
   name: string;
   parentId?: Types.ObjectId;
   isPrivate: boolean;
-  ownerId?: Types.ObjectId;
+  ownerId?: string;
   createdAt: Date;
 }
 
@@ -191,7 +191,7 @@ export interface ISavedConsole extends Document {
       | "updateOne"
       | "deleteOne";
   };
-  createdBy: Types.ObjectId;
+  createdBy: string;
   isPrivate: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -348,7 +348,7 @@ const DatabaseSchema = new Schema<IDatabase>(
       get: decryptObject,
     },
     createdBy: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: "User",
       required: true,
     },
@@ -400,7 +400,7 @@ const DataSourceSchema = new Schema<IDataSource>(
       },
     ],
     createdBy: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: "User",
       required: true,
     },
@@ -444,7 +444,7 @@ const ConsoleFolderSchema = new Schema<IConsoleFolder>(
       default: false,
     },
     ownerId: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: "User",
     },
   },
@@ -511,7 +511,7 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
       },
     },
     createdBy: {
-      type: Schema.Types.ObjectId,
+      type: String,
       ref: "User",
       required: true,
     },
