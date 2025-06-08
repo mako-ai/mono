@@ -1,8 +1,19 @@
-import { Box, IconButton, Tooltip, styled } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Tooltip,
+  styled,
+  Menu,
+  MenuItem,
+  Typography,
+  Divider,
+} from "@mui/material";
 import {
   VisibilityOutlined as ViewIcon,
   SettingsOutlined as SettingsIcon,
   CloudUploadOutlined as DataSourceIcon,
+  AccountCircleOutlined as UserIcon,
+  Logout as LogoutIcon,
 } from "@mui/icons-material";
 import {
   SquareChevronRight as ConsoleIcon,
@@ -10,6 +21,8 @@ import {
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
+import { useAuth } from "../hooks/useAuth";
+import { useState } from "react";
 
 const NavButton = styled(IconButton, {
   shouldForwardProp: (prop) => prop !== "isActive",
@@ -47,6 +60,28 @@ const bottomNavigationItems: {
 
 function Sidebar() {
   const { activeView, setActiveView } = useAppStore();
+  const { user, logout } = useAuth();
+  const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(
+    null
+  );
+  const isUserMenuOpen = Boolean(userMenuAnchorEl);
+
+  const handleUserMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setUserMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setUserMenuAnchorEl(null);
+  };
+
+  const handleLogout = async () => {
+    handleUserMenuClose();
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
 
   const handleNavigation = (view: NavigationView) => {
     // Update the left pane only for views that the store recognises.
@@ -113,7 +148,49 @@ function Sidebar() {
           );
         })}
       </Box>
-      <Box>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 0.5,
+        }}
+      >
+        {/* User Menu */}
+        <Tooltip title={user?.email || "User"} placement="right">
+          <NavButton onClick={handleUserMenuOpen}>
+            <UserIcon />
+          </NavButton>
+        </Tooltip>
+
+        <Menu
+          anchorEl={userMenuAnchorEl}
+          open={isUserMenuOpen}
+          onClose={handleUserMenuClose}
+          anchorOrigin={{
+            vertical: "center",
+            horizontal: "right",
+          }}
+          transformOrigin={{
+            vertical: "center",
+            horizontal: "left",
+          }}
+        >
+          <Box sx={{ px: 2, py: 1, minWidth: 200 }}>
+            <Typography variant="body2" color="text.secondary">
+              Signed in as
+            </Typography>
+            <Typography variant="body2" fontWeight="medium">
+              {user?.email}
+            </Typography>
+          </Box>
+          <Divider />
+          <MenuItem onClick={handleLogout}>
+            <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
+            Sign out
+          </MenuItem>
+        </Menu>
+
         {bottomNavigationItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.view;
