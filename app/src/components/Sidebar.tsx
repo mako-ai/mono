@@ -1,6 +1,6 @@
 import {
   Box,
-  IconButton,
+  Button,
   Tooltip,
   styled,
   Menu,
@@ -14,6 +14,7 @@ import {
   CloudUploadOutlined as DataSourceIcon,
   AccountCircleOutlined as UserIcon,
   Logout as LogoutIcon,
+  Group as GroupIcon,
 } from "@mui/icons-material";
 import {
   SquareChevronRight as ConsoleIcon,
@@ -21,16 +22,20 @@ import {
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/auth-context";
 import { useState } from "react";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { useWorkspace } from "../contexts/workspace-context";
 
-const NavButton = styled(IconButton, {
+const NavButton = styled(Button, {
   shouldForwardProp: (prop) => prop !== "isActive",
 })<{ isActive?: boolean }>(({ theme, isActive }) => ({
-  p: 1,
-  borderRadius: 8,
+  padding: theme.spacing(1, 2),
+  borderRadius: theme.shape.borderRadius,
   backgroundColor: isActive ? theme.palette.action.selected : "transparent",
   color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
+  justifyContent: 'flex-start',
+  textTransform: 'none',
   "&:hover": {
     backgroundColor: isActive
       ? theme.palette.action.selected
@@ -42,7 +47,7 @@ const NavButton = styled(IconButton, {
 // Views that can appear in the sidebar navigation. Extends the core AppView
 // union with additional sidebar-specific entries that don't directly map to
 // a left-pane view managed by the app store.
-type NavigationView = AppView | "views" | "settings";
+type NavigationView = AppView | "views" | "settings" | "members";
 
 const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
   [
@@ -61,6 +66,7 @@ const bottomNavigationItems: {
 function Sidebar() {
   const { activeView, setActiveView } = useAppStore();
   const { user, logout } = useAuth();
+  const { currentWorkspace } = useWorkspace();
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(
     null
   );
@@ -90,122 +96,181 @@ function Sidebar() {
     }
 
     // Views that should open (or focus) a tab in the editor
-    if (view === "settings" || view === "sources") {
+    if (view === "settings" || view === "sources" || view === "members") {
       const { findTabByKind, addConsoleTab, setActiveConsole } =
         useConsoleStore.getState();
 
       const existing = findTabByKind(
-        view === "settings" ? "settings" : "sources"
+        view === "settings" ? "settings" : 
+        view === "sources" ? "sources" : "members"
       );
       if (existing) {
         setActiveConsole(existing.id);
       } else {
         const id = addConsoleTab({
-          title: view === "settings" ? "Settings" : "Data Sources",
+          title: view === "settings" ? "Settings" : 
+                view === "sources" ? "Data Sources" : "Members",
           content: "", // Will be replaced with actual forms later
           initialContent: "",
-          kind: view === "settings" ? "settings" : "sources",
+          kind: view === "settings" ? "settings" : 
+               view === "sources" ? "sources" : "members",
         });
         setActiveConsole(id);
       }
     }
   };
 
+  // Add members navigation if user has admin/owner role
+  const userCanManageMembers = currentWorkspace && 
+    (currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin');
+
   return (
     <Box
       sx={{
+        minWidth: 240,
+        maxWidth: 240,
         height: "100vh",
         borderRight: "1px solid",
         borderColor: "divider",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "space-between",
       }}
     >
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: 0.5,
-          gap: 0.5,
-        }}
-      >
-        {topNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.view;
-
-          return (
-            <Tooltip key={item.view} title={item.label} placement="right">
-              <NavButton
-                isActive={isActive}
-                onClick={() => handleNavigation(item.view as NavigationView)}
-              >
-                <Icon />
-              </NavButton>
-            </Tooltip>
-          );
-        })}
+      {/* Workspace Switcher */}
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <WorkspaceSwitcher />
       </Box>
+
+      {/* Navigation Items */}
       <Box
         sx={{
+          flex: 1,
+          overflowY: 'auto',
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          gap: 0.5,
+          justifyContent: "space-between",
         }}
       >
-        {/* User Menu */}
-        <Tooltip title={user?.email || "User"} placement="right">
-          <NavButton onClick={handleUserMenuOpen}>
-            <UserIcon />
-          </NavButton>
-        </Tooltip>
-
-        <Menu
-          anchorEl={userMenuAnchorEl}
-          open={isUserMenuOpen}
-          onClose={handleUserMenuClose}
-          anchorOrigin={{
-            vertical: "center",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "center",
-            horizontal: "left",
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            p: 1,
+            gap: 0.5,
           }}
         >
-          <Box sx={{ px: 2, py: 1, minWidth: 200 }}>
-            <Typography variant="body2" color="text.secondary">
-              Signed in as
-            </Typography>
-            <Typography variant="body2" fontWeight="medium">
-              {user?.email}
-            </Typography>
+          {topNavigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.view;
+
+            return (
+              <Tooltip key={item.view} title={item.label} placement="right">
+                <NavButton
+                  isActive={isActive}
+                  onClick={() => handleNavigation(item.view as NavigationView)}
+                  fullWidth
+                  startIcon={<Icon />}
+                >
+                  {item.label}
+                </NavButton>
+              </Tooltip>
+            );
+          })}
+
+          {/* Members navigation - only show if user has permission */}
+          {userCanManageMembers && (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <Tooltip title="Workspace Members" placement="right">
+                <NavButton
+                  onClick={() => handleNavigation("members")}
+                  fullWidth
+                  startIcon={<GroupIcon />}
+                >
+                  Members
+                </NavButton>
+              </Tooltip>
+            </>
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            p: 1,
+            gap: 0.5,
+          }}
+        >
+          {/* Settings */}
+          {bottomNavigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.view;
+
+            return (
+              <Tooltip key={item.view} title={item.label} placement="right">
+                <NavButton
+                  isActive={isActive}
+                  onClick={() => handleNavigation(item.view as NavigationView)}
+                  fullWidth
+                  startIcon={<Icon />}
+                >
+                  {item.label}
+                </NavButton>
+              </Tooltip>
+            );
+          })}
+
+          <Divider sx={{ my: 1 }} />
+
+          {/* User Menu */}
+          <Box sx={{ px: 1 }}>
+            <MenuItem
+              onClick={handleUserMenuOpen}
+              sx={{
+                borderRadius: 1,
+                px: 1,
+                py: 0.5,
+                minHeight: 'auto',
+              }}
+            >
+              <UserIcon sx={{ mr: 1 }} />
+              <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                <Typography variant="body2" noWrap>
+                  {user?.email}
+                </Typography>
+              </Box>
+            </MenuItem>
+
+            <Menu
+              anchorEl={userMenuAnchorEl}
+              open={isUserMenuOpen}
+              onClose={handleUserMenuClose}
+              anchorOrigin={{
+                vertical: "top",
+                horizontal: "right",
+              }}
+              transformOrigin={{
+                vertical: "bottom",
+                horizontal: "right",
+              }}
+            >
+              <Box sx={{ px: 2, py: 1, minWidth: 200 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Signed in as
+                </Typography>
+                <Typography variant="body2" fontWeight="medium">
+                  {user?.email}
+                </Typography>
+              </Box>
+              <Divider />
+              <MenuItem onClick={handleLogout}>
+                <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
+                Sign out
+              </MenuItem>
+            </Menu>
           </Box>
-          <Divider />
-          <MenuItem onClick={handleLogout}>
-            <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
-            Sign out
-          </MenuItem>
-        </Menu>
-
-        {bottomNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.view;
-
-          return (
-            <Tooltip key={item.view} title={item.label} placement="right">
-              <NavButton
-                isActive={isActive}
-                onClick={() => handleNavigation(item.view as NavigationView)}
-              >
-                <Icon />
-              </NavButton>
-            </Tooltip>
-          );
-        })}
+        </Box>
       </Box>
     </Box>
   );

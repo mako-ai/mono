@@ -1,25 +1,22 @@
-import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import React, { useState } from 'react';
+import { useAuth } from '../contexts/auth-context';
 import { CircularProgress, Box } from '@mui/material';
+import { LoginPage } from './LoginPage';
+import { RegisterPage } from './RegisterPage';
 
 /**
  * Props for ProtectedRoute component
  */
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  redirectTo?: string;
 }
 
 /**
  * Component to protect routes that require authentication
  */
-export function ProtectedRoute({ 
-  children, 
-  redirectTo = '/login' 
-}: ProtectedRouteProps) {
+export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
-  const location = useLocation();
+  const [showRegister, setShowRegister] = useState(false);
 
   // Show loading spinner while checking auth status
   if (loading) {
@@ -30,15 +27,17 @@ export function ProtectedRoute({
         alignItems="center"
         minHeight="100vh"
       >
-        <CircularProgress />
+        <CircularProgress size={60} />
       </Box>
     );
   }
 
-  // Redirect to login if not authenticated
+  // Show login/register if not authenticated
   if (!user) {
-    // Save the attempted location for redirecting after login
-    return <Navigate to={redirectTo} state={{ from: location }} replace />;
+    if (showRegister) {
+      return <RegisterPage onSwitchToLogin={() => setShowRegister(false)} />;
+    }
+    return <LoginPage onSwitchToRegister={() => setShowRegister(true)} />;
   }
 
   // Render children if authenticated
