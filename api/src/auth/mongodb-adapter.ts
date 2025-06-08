@@ -26,7 +26,9 @@ export class MongoDBAdapter implements Adapter {
         id: session._id,
         userId: session.userId,
         expiresAt: session.expiresAt,
-        attributes: {},
+        attributes: {
+          activeWorkspaceId: session.activeWorkspaceId,
+        },
       },
       {
         id: user._id,
@@ -46,7 +48,9 @@ export class MongoDBAdapter implements Adapter {
       id: session._id,
       userId: session.userId,
       expiresAt: session.expiresAt,
-      attributes: {},
+      attributes: {
+        activeWorkspaceId: session.activeWorkspaceId,
+      },
     }));
   }
 
@@ -58,6 +62,7 @@ export class MongoDBAdapter implements Adapter {
       _id: session.id,
       userId: session.userId,
       expiresAt: session.expiresAt,
+      activeWorkspaceId: session.attributes?.activeWorkspaceId,
     });
   }
 

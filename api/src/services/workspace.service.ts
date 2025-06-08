@@ -1,0 +1,342 @@
+import { Types } from 'mongoose';
+import { 
+  Workspace, 
+  WorkspaceMember, 
+  WorkspaceInvite,
+  IWorkspace,
+  IWorkspaceMember,
+  IWorkspaceInvite 
+} from '../database/workspace-schema';
+import { Session } from '../database/schema';
+import { nanoid } from 'nanoid';
+
+export class WorkspaceService {
+  /**
+   * Create a new workspace
+   */
+  async createWorkspace(userId: string, name: string, slug?: string): Promise<IWorkspace> {
+    // Generate unique slug if not provided
+    if (!slug) {
+      slug = this.generateSlug(name);
+    }
+
+    // Ensure slug is unique
+    let uniqueSlug = slug;
+    let counter = 1;
+    while (await Workspace.findOne({ slug: uniqueSlug })) {
+      uniqueSlug = `${slug}-${counter}`;
+      counter++;
+    }
+
+    // Start a session for transaction
+    const session = await Workspace.db.startSession();
+    session.startTransaction();
+
+    try {
+      // Create workspace
+      const workspace = new Workspace({
+        name,
+        slug: uniqueSlug,
+        createdBy: new Types.ObjectId(userId),
+        settings: {
+          maxDatabases: 5,
+          maxMembers: 10,
+          billingTier: 'free',
+        },
+      });
+      await workspace.save({ session });
+
+      // Add creator as owner
+      const member = new WorkspaceMember({
+        workspaceId: workspace._id,
+        userId: new Types.ObjectId(userId),
+        role: 'owner',
+        joinedAt: new Date(),
+      });
+      await member.save({ session });
+
+      // Update user's active workspace in session
+      await Session.updateMany(
+        { userId },
+        { activeWorkspaceId: workspace._id.toString() },
+        { session }
+      );
+
+      await session.commitTransaction();
+      return workspace;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Get all workspaces for a user
+   */
+  async getWorkspacesForUser(userId: string): Promise<Array<{
+    workspace: IWorkspace;
+    role: string;
+  }>> {
+    const members = await WorkspaceMember.aggregate([
+      { $match: { userId: new Types.ObjectId(userId) } },
+      {
+        $lookup: {
+          from: 'workspaces',
+          localField: 'workspaceId',
+          foreignField: '_id',
+          as: 'workspace',
+        },
+      },
+      { $unwind: '$workspace' },
+      {
+        $project: {
+          workspace: 1,
+          role: 1,
+        },
+      },
+    ]);
+
+    return members;
+  }
+
+  /**
+   * Get a workspace by ID
+   */
+  async getWorkspaceById(workspaceId: string): Promise<IWorkspace | null> {
+    return Workspace.findById(workspaceId);
+  }
+
+  /**
+   * Get workspace member
+   */
+  async getMember(workspaceId: string, userId: string): Promise<IWorkspaceMember | null> {
+    return WorkspaceMember.findOne({
+      workspaceId: new Types.ObjectId(workspaceId),
+      userId: new Types.ObjectId(userId),
+    });
+  }
+
+  /**
+   * Check if user has access to workspace
+   */
+  async hasAccess(workspaceId: string, userId: string): Promise<boolean> {
+    const member = await this.getMember(workspaceId, userId);
+    return member !== null;
+  }
+
+  /**
+   * Check if user has specific role in workspace
+   */
+  async hasRole(workspaceId: string, userId: string, roles: string[]): Promise<boolean> {
+    const member = await this.getMember(workspaceId, userId);
+    return member !== null && roles.includes(member.role);
+  }
+
+  /**
+   * Update workspace
+   */
+  async updateWorkspace(workspaceId: string, updates: Partial<IWorkspace>): Promise<IWorkspace | null> {
+    return Workspace.findByIdAndUpdate(workspaceId, updates, { new: true });
+  }
+
+  /**
+   * Delete workspace
+   */
+  async deleteWorkspace(workspaceId: string): Promise<boolean> {
+    const session = await Workspace.db.startSession();
+    session.startTransaction();
+
+    try {
+      // Delete workspace
+      await Workspace.deleteOne({ _id: new Types.ObjectId(workspaceId) }, { session });
+
+      // Delete all members
+      await WorkspaceMember.deleteMany({ workspaceId: new Types.ObjectId(workspaceId) }, { session });
+
+      // Delete all invites
+      await WorkspaceInvite.deleteMany({ workspaceId: new Types.ObjectId(workspaceId) }, { session });
+
+      // TODO: Delete all workspace data (databases, consoles, etc.)
+
+      await session.commitTransaction();
+      return true;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Get workspace members
+   */
+  async getMembers(workspaceId: string): Promise<IWorkspaceMember[]> {
+    return WorkspaceMember.find({ workspaceId: new Types.ObjectId(workspaceId) })
+      .populate('userId', 'email')
+      .sort({ joinedAt: 1 });
+  }
+
+  /**
+   * Add member to workspace
+   */
+  async addMember(workspaceId: string, userId: string, role: 'admin' | 'member' | 'viewer'): Promise<IWorkspaceMember> {
+    const member = new WorkspaceMember({
+      workspaceId: new Types.ObjectId(workspaceId),
+      userId: new Types.ObjectId(userId),
+      role,
+      joinedAt: new Date(),
+    });
+    return member.save();
+  }
+
+  /**
+   * Update member role
+   */
+  async updateMemberRole(workspaceId: string, userId: string, newRole: string): Promise<IWorkspaceMember | null> {
+    return WorkspaceMember.findOneAndUpdate(
+      {
+        workspaceId: new Types.ObjectId(workspaceId),
+        userId: new Types.ObjectId(userId),
+      },
+      { role: newRole },
+      { new: true }
+    );
+  }
+
+  /**
+   * Remove member from workspace
+   */
+  async removeMember(workspaceId: string, userId: string): Promise<boolean> {
+    const result = await WorkspaceMember.deleteOne({
+      workspaceId: new Types.ObjectId(workspaceId),
+      userId: new Types.ObjectId(userId),
+    });
+    return result.deletedCount > 0;
+  }
+
+  /**
+   * Create workspace invite
+   */
+  async createInvite(
+    workspaceId: string,
+    email: string,
+    role: 'admin' | 'member' | 'viewer',
+    invitedBy: string
+  ): Promise<IWorkspaceInvite> {
+    const invite = new WorkspaceInvite({
+      workspaceId: new Types.ObjectId(workspaceId),
+      email,
+      token: nanoid(32),
+      role,
+      invitedBy: new Types.ObjectId(invitedBy),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    });
+    return invite.save();
+  }
+
+  /**
+   * Get invite by token
+   */
+  async getInviteByToken(token: string): Promise<IWorkspaceInvite | null> {
+    return WorkspaceInvite.findOne({ token, acceptedAt: { $exists: false } })
+      .populate('workspaceId', 'name')
+      .populate('invitedBy', 'email');
+  }
+
+  /**
+   * Accept invite
+   */
+  async acceptInvite(token: string, userId: string): Promise<IWorkspace> {
+    const invite = await WorkspaceInvite.findOne({ 
+      token, 
+      acceptedAt: { $exists: false },
+      expiresAt: { $gt: new Date() }
+    });
+
+    if (!invite) {
+      throw new Error('Invalid or expired invite');
+    }
+
+    const session = await WorkspaceMember.db.startSession();
+    session.startTransaction();
+
+    try {
+      // Mark invite as accepted
+      invite.acceptedAt = new Date();
+      await invite.save({ session });
+
+      // Add user as member
+      await this.addMember(invite.workspaceId.toString(), userId, invite.role);
+
+      const workspace = await Workspace.findById(invite.workspaceId);
+      if (!workspace) {
+        throw new Error('Workspace not found');
+      }
+
+      await session.commitTransaction();
+      return workspace;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  /**
+   * Get pending invites for workspace
+   */
+  async getPendingInvites(workspaceId: string): Promise<IWorkspaceInvite[]> {
+    return WorkspaceInvite.find({
+      workspaceId: new Types.ObjectId(workspaceId),
+      acceptedAt: { $exists: false },
+      expiresAt: { $gt: new Date() },
+    })
+      .populate('invitedBy', 'email')
+      .sort({ createdAt: -1 });
+  }
+
+  /**
+   * Cancel invite
+   */
+  async cancelInvite(inviteId: string): Promise<boolean> {
+    const result = await WorkspaceInvite.deleteOne({ _id: new Types.ObjectId(inviteId) });
+    return result.deletedCount > 0;
+  }
+
+  /**
+   * Switch active workspace
+   */
+  async switchWorkspace(userId: string, workspaceId: string): Promise<boolean> {
+    // Verify user has access to workspace
+    const hasAccess = await this.hasAccess(workspaceId, userId);
+    if (!hasAccess) {
+      throw new Error('Access denied to workspace');
+    }
+
+    // Update all user sessions
+    const result = await Session.updateMany(
+      { userId },
+      { activeWorkspaceId: workspaceId }
+    );
+
+    return result.modifiedCount > 0;
+  }
+
+  /**
+   * Generate slug from name
+   */
+  private generateSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 50);
+  }
+}
+
+// Export singleton instance
+export const workspaceService = new WorkspaceService();

@@ -15,6 +15,8 @@ import { chatsRoutes } from "./routes/chats";
 import { agentRoutes } from "./routes/agent";
 import { authRoutes } from "./auth/auth.controller";
 import { connectDatabase } from "./database/schema";
+import { workspaceRoutes } from "./routes/workspaces";
+import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -54,6 +56,8 @@ app.get("/health", (c) => {
 
 // API routes
 app.route("/api/auth", authRoutes);
+app.route("/api/workspaces", workspaceRoutes);
+app.route("/api/workspaces/:workspaceId/databases", workspaceDatabaseRoutes);
 app.route("/api/consoles", consoleRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
