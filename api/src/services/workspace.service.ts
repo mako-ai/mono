@@ -1,20 +1,24 @@
-import { Types } from 'mongoose';
-import { 
-  Workspace, 
-  WorkspaceMember, 
+import { Types } from "mongoose";
+import {
+  Workspace,
+  WorkspaceMember,
   WorkspaceInvite,
   IWorkspace,
   IWorkspaceMember,
-  IWorkspaceInvite 
-} from '../database/workspace-schema';
-import { Session } from '../database/schema';
-import { nanoid } from 'nanoid';
+  IWorkspaceInvite,
+} from "../database/workspace-schema";
+import { Session } from "../database/schema";
+import { nanoid } from "nanoid";
 
 export class WorkspaceService {
   /**
    * Create a new workspace
    */
-  async createWorkspace(userId: string, name: string, slug?: string): Promise<IWorkspace> {
+  async createWorkspace(
+    userId: string,
+    name: string,
+    slug?: string
+  ): Promise<IWorkspace> {
     // Generate unique slug if not provided
     if (!slug) {
       slug = this.generateSlug(name);
@@ -41,7 +45,7 @@ export class WorkspaceService {
         settings: {
           maxDatabases: 5,
           maxMembers: 10,
-          billingTier: 'free',
+          billingTier: "free",
         },
       });
       await workspace.save({ session });
@@ -49,8 +53,8 @@ export class WorkspaceService {
       // Add creator as owner
       const member = new WorkspaceMember({
         workspaceId: workspace._id,
-        userId: new Types.ObjectId(userId),
-        role: 'owner',
+        userId: userId,
+        role: "owner",
         joinedAt: new Date(),
       });
       await member.save({ session });
@@ -75,21 +79,23 @@ export class WorkspaceService {
   /**
    * Get all workspaces for a user
    */
-  async getWorkspacesForUser(userId: string): Promise<Array<{
-    workspace: IWorkspace;
-    role: string;
-  }>> {
+  async getWorkspacesForUser(userId: string): Promise<
+    Array<{
+      workspace: IWorkspace;
+      role: string;
+    }>
+  > {
     const members = await WorkspaceMember.aggregate([
-      { $match: { userId: new Types.ObjectId(userId) } },
+      { $match: { userId: userId } },
       {
         $lookup: {
-          from: 'workspaces',
-          localField: 'workspaceId',
-          foreignField: '_id',
-          as: 'workspace',
+          from: "workspaces",
+          localField: "workspaceId",
+          foreignField: "_id",
+          as: "workspace",
         },
       },
-      { $unwind: '$workspace' },
+      { $unwind: "$workspace" },
       {
         $project: {
           workspace: 1,
@@ -111,10 +117,13 @@ export class WorkspaceService {
   /**
    * Get workspace member
    */
-  async getMember(workspaceId: string, userId: string): Promise<IWorkspaceMember | null> {
+  async getMember(
+    workspaceId: string,
+    userId: string
+  ): Promise<IWorkspaceMember | null> {
     return WorkspaceMember.findOne({
       workspaceId: new Types.ObjectId(workspaceId),
-      userId: new Types.ObjectId(userId),
+      userId: userId,
     });
   }
 
@@ -129,7 +138,11 @@ export class WorkspaceService {
   /**
    * Check if user has specific role in workspace
    */
-  async hasRole(workspaceId: string, userId: string, roles: string[]): Promise<boolean> {
+  async hasRole(
+    workspaceId: string,
+    userId: string,
+    roles: string[]
+  ): Promise<boolean> {
     const member = await this.getMember(workspaceId, userId);
     return member !== null && roles.includes(member.role);
   }
@@ -137,7 +150,10 @@ export class WorkspaceService {
   /**
    * Update workspace
    */
-  async updateWorkspace(workspaceId: string, updates: Partial<IWorkspace>): Promise<IWorkspace | null> {
+  async updateWorkspace(
+    workspaceId: string,
+    updates: Partial<IWorkspace>
+  ): Promise<IWorkspace | null> {
     return Workspace.findByIdAndUpdate(workspaceId, updates, { new: true });
   }
 
@@ -150,13 +166,22 @@ export class WorkspaceService {
 
     try {
       // Delete workspace
-      await Workspace.deleteOne({ _id: new Types.ObjectId(workspaceId) }, { session });
+      await Workspace.deleteOne(
+        { _id: new Types.ObjectId(workspaceId) },
+        { session }
+      );
 
       // Delete all members
-      await WorkspaceMember.deleteMany({ workspaceId: new Types.ObjectId(workspaceId) }, { session });
+      await WorkspaceMember.deleteMany(
+        { workspaceId: new Types.ObjectId(workspaceId) },
+        { session }
+      );
 
       // Delete all invites
-      await WorkspaceInvite.deleteMany({ workspaceId: new Types.ObjectId(workspaceId) }, { session });
+      await WorkspaceInvite.deleteMany(
+        { workspaceId: new Types.ObjectId(workspaceId) },
+        { session }
+      );
 
       // TODO: Delete all workspace data (databases, consoles, etc.)
 
@@ -174,18 +199,24 @@ export class WorkspaceService {
    * Get workspace members
    */
   async getMembers(workspaceId: string): Promise<IWorkspaceMember[]> {
-    return WorkspaceMember.find({ workspaceId: new Types.ObjectId(workspaceId) })
-      .populate('userId', 'email')
+    return WorkspaceMember.find({
+      workspaceId: new Types.ObjectId(workspaceId),
+    })
+      .populate("userId", "email")
       .sort({ joinedAt: 1 });
   }
 
   /**
    * Add member to workspace
    */
-  async addMember(workspaceId: string, userId: string, role: 'admin' | 'member' | 'viewer'): Promise<IWorkspaceMember> {
+  async addMember(
+    workspaceId: string,
+    userId: string,
+    role: "admin" | "member" | "viewer"
+  ): Promise<IWorkspaceMember> {
     const member = new WorkspaceMember({
       workspaceId: new Types.ObjectId(workspaceId),
-      userId: new Types.ObjectId(userId),
+      userId: userId,
       role,
       joinedAt: new Date(),
     });
@@ -195,11 +226,15 @@ export class WorkspaceService {
   /**
    * Update member role
    */
-  async updateMemberRole(workspaceId: string, userId: string, newRole: string): Promise<IWorkspaceMember | null> {
+  async updateMemberRole(
+    workspaceId: string,
+    userId: string,
+    newRole: string
+  ): Promise<IWorkspaceMember | null> {
     return WorkspaceMember.findOneAndUpdate(
       {
         workspaceId: new Types.ObjectId(workspaceId),
-        userId: new Types.ObjectId(userId),
+        userId: userId,
       },
       { role: newRole },
       { new: true }
@@ -212,7 +247,7 @@ export class WorkspaceService {
   async removeMember(workspaceId: string, userId: string): Promise<boolean> {
     const result = await WorkspaceMember.deleteOne({
       workspaceId: new Types.ObjectId(workspaceId),
-      userId: new Types.ObjectId(userId),
+      userId: userId,
     });
     return result.deletedCount > 0;
   }
@@ -223,7 +258,7 @@ export class WorkspaceService {
   async createInvite(
     workspaceId: string,
     email: string,
-    role: 'admin' | 'member' | 'viewer',
+    role: "admin" | "member" | "viewer",
     invitedBy: string
   ): Promise<IWorkspaceInvite> {
     const invite = new WorkspaceInvite({
@@ -231,7 +266,7 @@ export class WorkspaceService {
       email,
       token: nanoid(32),
       role,
-      invitedBy: new Types.ObjectId(invitedBy),
+      invitedBy: invitedBy,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
     });
     return invite.save();
@@ -242,22 +277,22 @@ export class WorkspaceService {
    */
   async getInviteByToken(token: string): Promise<IWorkspaceInvite | null> {
     return WorkspaceInvite.findOne({ token, acceptedAt: { $exists: false } })
-      .populate('workspaceId', 'name')
-      .populate('invitedBy', 'email');
+      .populate("workspaceId", "name")
+      .populate("invitedBy", "email");
   }
 
   /**
    * Accept invite
    */
   async acceptInvite(token: string, userId: string): Promise<IWorkspace> {
-    const invite = await WorkspaceInvite.findOne({ 
-      token, 
+    const invite = await WorkspaceInvite.findOne({
+      token,
       acceptedAt: { $exists: false },
-      expiresAt: { $gt: new Date() }
+      expiresAt: { $gt: new Date() },
     });
 
     if (!invite) {
-      throw new Error('Invalid or expired invite');
+      throw new Error("Invalid or expired invite");
     }
 
     const session = await WorkspaceMember.db.startSession();
@@ -273,7 +308,7 @@ export class WorkspaceService {
 
       const workspace = await Workspace.findById(invite.workspaceId);
       if (!workspace) {
-        throw new Error('Workspace not found');
+        throw new Error("Workspace not found");
       }
 
       await session.commitTransaction();
@@ -295,7 +330,7 @@ export class WorkspaceService {
       acceptedAt: { $exists: false },
       expiresAt: { $gt: new Date() },
     })
-      .populate('invitedBy', 'email')
+      .populate("invitedBy", "email")
       .sort({ createdAt: -1 });
   }
 
@@ -303,7 +338,9 @@ export class WorkspaceService {
    * Cancel invite
    */
   async cancelInvite(inviteId: string): Promise<boolean> {
-    const result = await WorkspaceInvite.deleteOne({ _id: new Types.ObjectId(inviteId) });
+    const result = await WorkspaceInvite.deleteOne({
+      _id: new Types.ObjectId(inviteId),
+    });
     return result.deletedCount > 0;
   }
 
@@ -314,7 +351,7 @@ export class WorkspaceService {
     // Verify user has access to workspace
     const hasAccess = await this.hasAccess(workspaceId, userId);
     if (!hasAccess) {
-      throw new Error('Access denied to workspace');
+      throw new Error("Access denied to workspace");
     }
 
     // Update all user sessions
@@ -332,8 +369,8 @@ export class WorkspaceService {
   private generateSlug(name: string): string {
     return name
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
       .substring(0, 50);
   }
 }
