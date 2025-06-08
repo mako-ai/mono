@@ -32,9 +32,9 @@ interface ErrorResponse {
 
 class AuthClient {
   private baseUrl: string;
-  
+
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || '/api';
+    this.baseUrl = import.meta.env.VITE_API_URL || "/api";
   }
 
   /**
@@ -42,10 +42,12 @@ class AuthClient {
    */
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      const error = await response
+        .json()
+        .catch(() => ({ error: "An error occurred" }));
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
-    
+
     return response.json();
   }
 
@@ -53,16 +55,19 @@ class AuthClient {
    * Register a new user
    */
   async register(credentials: RegisterCredentials): Promise<User> {
-    if (credentials.confirmPassword && credentials.password !== credentials.confirmPassword) {
-      throw new Error('Passwords do not match');
+    if (
+      credentials.confirmPassword &&
+      credentials.password !== credentials.confirmPassword
+    ) {
+      throw new Error("Passwords do not match");
     }
 
     const response = await fetch(`${this.baseUrl}/auth/register`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include',
+      credentials: "include",
       body: JSON.stringify({
         email: credentials.email,
         password: credentials.password,
@@ -78,11 +83,11 @@ class AuthClient {
    */
   async login(credentials: LoginCredentials): Promise<User> {
     const response = await fetch(`${this.baseUrl}/auth/login`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'include',
+      credentials: "include",
       body: JSON.stringify(credentials),
     });
 
@@ -95,8 +100,8 @@ class AuthClient {
    */
   async logout(): Promise<void> {
     const response = await fetch(`${this.baseUrl}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
+      method: "POST",
+      credentials: "include",
     });
 
     await this.handleResponse(response);
@@ -108,8 +113,8 @@ class AuthClient {
   async getMe(): Promise<User | null> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/me`, {
-        method: 'GET',
-        credentials: 'include',
+        method: "GET",
+        credentials: "include",
       });
 
       if (response.status === 401) {
@@ -129,8 +134,8 @@ class AuthClient {
   async refresh(): Promise<User | null> {
     try {
       const response = await fetch(`${this.baseUrl}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
+        method: "POST",
+        credentials: "include",
       });
 
       if (response.status === 401) {
@@ -147,7 +152,7 @@ class AuthClient {
   /**
    * Initiate OAuth login
    */
-  initiateOAuth(provider: 'google' | 'github') {
+  initiateOAuth(provider: "google" | "github") {
     window.location.href = `${this.baseUrl}/auth/${provider}`;
   }
 }
