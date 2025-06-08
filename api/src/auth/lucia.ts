@@ -13,6 +13,16 @@ export const lucia = new Lucia(new MongoDBAdapter(), {
     },
   },
   sessionExpiresIn: new TimeSpan(24, "h"), // 24 hours
+  getUserAttributes: (attributes) => {
+    return {
+      email: attributes.email,
+    };
+  },
+  getSessionAttributes: (attributes) => {
+    return {
+      activeWorkspaceId: attributes.activeWorkspaceId,
+    };
+  },
 });
 
 /**
@@ -22,6 +32,7 @@ declare module "lucia" {
   interface Register {
     Lucia: typeof lucia;
     DatabaseUserAttributes: DatabaseUserAttributes;
+    DatabaseSessionAttributes: DatabaseSessionAttributes;
   }
 }
 
@@ -30,4 +41,11 @@ declare module "lucia" {
  */
 interface DatabaseUserAttributes {
   email: string;
+}
+
+/**
+ * Session attributes stored in the database
+ */
+interface DatabaseSessionAttributes {
+  activeWorkspaceId?: string;
 }

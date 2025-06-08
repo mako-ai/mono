@@ -19,6 +19,7 @@ export interface ISession extends Document {
   _id: string;
   userId: string;
   expiresAt: Date;
+  activeWorkspaceId?: string;
 }
 
 /**
@@ -71,6 +72,11 @@ const SessionSchema = new Schema<ISession>({
   expiresAt: {
     type: Date,
     required: true,
+  },
+  activeWorkspaceId: {
+    type: String,
+    required: false,
+    ref: 'Workspace',
   },
 });
 
