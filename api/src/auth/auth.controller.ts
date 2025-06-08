@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import { generateState, generateCodeVerifier } from "arctic";
 import { lucia } from "./lucia";
-import { google, github } from "./arctic";
+import { getGoogle, getGitHub } from "./arctic";
 import { AuthService } from "./auth.service";
 import { authMiddleware, rateLimitMiddleware } from "./auth.middleware";
 
@@ -197,7 +197,7 @@ authRoutes.get("/google", async (c) => {
     sameSite: "Lax",
   });
 
-  const url = google.createAuthorizationURL(state, codeVerifier, {
+  const url = await getGoogle().createAuthorizationURL(state, codeVerifier, {
     scopes: ["openid", "email"],
   });
 
@@ -224,7 +224,10 @@ authRoutes.get("/google/callback", async (c) => {
       return c.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
     }
 
-    const tokens = await google.validateAuthorizationCode(code, codeVerifier);
+    const tokens = await getGoogle().validateAuthorizationCode(
+      code,
+      codeVerifier
+    );
 
     // Get user info from Google
     const response = await fetch(
@@ -277,7 +280,7 @@ authRoutes.get("/github", async (c) => {
     sameSite: "Lax",
   });
 
-  const url = github.createAuthorizationURL(state, {
+  const url = await getGitHub().createAuthorizationURL(state, {
     scopes: ["user:email"],
   });
 
@@ -297,7 +300,7 @@ authRoutes.get("/github/callback", async (c) => {
       return c.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
     }
 
-    const tokens = await github.validateAuthorizationCode(code);
+    const tokens = await getGitHub().validateAuthorizationCode(code);
 
     // Get user info from GitHub
     const userResponse = await fetch("https://api.github.com/user", {
