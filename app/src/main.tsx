@@ -5,6 +5,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { LicenseInfo } from "@mui/x-license";
 import App from "./App.tsx";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { AuthProvider } from "./contexts/auth-context.tsx";
 
 // Set MUI X Premium license key
 LicenseInfo.setLicenseKey(
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     {/* <BrowserRouter> */}
     <ThemeProvider>
       <CssBaseline />
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </ThemeProvider>
     {/* </BrowserRouter> */}
   </React.StrictMode>
