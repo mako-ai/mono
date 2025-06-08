@@ -30,12 +30,13 @@ import { useWorkspace } from "../contexts/workspace-context";
 const NavButton = styled(Button, {
   shouldForwardProp: (prop) => prop !== "isActive",
 })<{ isActive?: boolean }>(({ theme, isActive }) => ({
-  padding: theme.spacing(1, 2),
+  minWidth: 40,
+  width: 40,
+  height: 40,
+  padding: 0,
   borderRadius: theme.shape.borderRadius,
   backgroundColor: isActive ? theme.palette.action.selected : "transparent",
-  color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-  justifyContent: 'flex-start',
-  textTransform: 'none',
+  color: isActive ? theme.palette.primary.main : theme.palette.text.secondary,
   "&:hover": {
     backgroundColor: isActive
       ? theme.palette.action.selected
@@ -101,19 +102,30 @@ function Sidebar() {
         useConsoleStore.getState();
 
       const existing = findTabByKind(
-        view === "settings" ? "settings" : 
-        view === "sources" ? "sources" : "members"
+        view === "settings"
+          ? "settings"
+          : view === "sources"
+            ? "sources"
+            : "members"
       );
       if (existing) {
         setActiveConsole(existing.id);
       } else {
         const id = addConsoleTab({
-          title: view === "settings" ? "Settings" : 
-                view === "sources" ? "Data Sources" : "Members",
+          title:
+            view === "settings"
+              ? "Settings"
+              : view === "sources"
+                ? "Data Sources"
+                : "Members",
           content: "", // Will be replaced with actual forms later
           initialContent: "",
-          kind: view === "settings" ? "settings" : 
-               view === "sources" ? "sources" : "members",
+          kind:
+            view === "settings"
+              ? "settings"
+              : view === "sources"
+                ? "sources"
+                : "members",
         });
         setActiveConsole(id);
       }
@@ -121,42 +133,40 @@ function Sidebar() {
   };
 
   // Add members navigation if user has admin/owner role
-  const userCanManageMembers = currentWorkspace && 
-    (currentWorkspace.role === 'owner' || currentWorkspace.role === 'admin');
+  const userCanManageMembers =
+    currentWorkspace &&
+    (currentWorkspace.role === "owner" || currentWorkspace.role === "admin");
 
   return (
     <Box
       sx={{
-        minWidth: 240,
-        maxWidth: 240,
+        width: 52,
         height: "100vh",
         borderRight: "1px solid",
         borderColor: "divider",
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
       }}
     >
-      {/* Workspace Switcher */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <WorkspaceSwitcher />
-      </Box>
-
       {/* Navigation Items */}
       <Box
         sx={{
           flex: 1,
-          overflowY: 'auto',
+          overflowY: "auto",
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
+          width: "100%",
         }}
       >
         <Box
           sx={{
             display: "flex",
             flexDirection: "column",
-            p: 1,
+            p: 0.5,
             gap: 0.5,
+            alignItems: "center",
           }}
         >
           {topNavigationItems.map((item) => {
@@ -168,10 +178,8 @@ function Sidebar() {
                 <NavButton
                   isActive={isActive}
                   onClick={() => handleNavigation(item.view as NavigationView)}
-                  fullWidth
-                  startIcon={<Icon />}
                 >
-                  {item.label}
+                  <Icon size={20} />
                 </NavButton>
               </Tooltip>
             );
@@ -179,18 +187,11 @@ function Sidebar() {
 
           {/* Members navigation - only show if user has permission */}
           {userCanManageMembers && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Tooltip title="Workspace Members" placement="right">
-                <NavButton
-                  onClick={() => handleNavigation("members")}
-                  fullWidth
-                  startIcon={<GroupIcon />}
-                >
-                  Members
-                </NavButton>
-              </Tooltip>
-            </>
+            <Tooltip title="Workspace Members" placement="right">
+              <NavButton onClick={() => handleNavigation("members")}>
+                <GroupIcon />
+              </NavButton>
+            </Tooltip>
           )}
         </Box>
 
@@ -198,8 +199,9 @@ function Sidebar() {
           sx={{
             display: "flex",
             flexDirection: "column",
-            p: 1,
-            gap: 0.5,
+            p: 0.25,
+            gap: 0.25,
+            alignItems: "center",
           }}
         >
           {/* Settings */}
@@ -212,64 +214,56 @@ function Sidebar() {
                 <NavButton
                   isActive={isActive}
                   onClick={() => handleNavigation(item.view as NavigationView)}
-                  fullWidth
-                  startIcon={<Icon />}
                 >
-                  {item.label}
+                  <Icon />
                 </NavButton>
               </Tooltip>
             );
           })}
 
-          <Divider sx={{ my: 1 }} />
-
           {/* User Menu */}
-          <Box sx={{ px: 1 }}>
-            <MenuItem
-              onClick={handleUserMenuOpen}
-              sx={{
-                borderRadius: 1,
-                px: 1,
-                py: 0.5,
-                minHeight: 'auto',
-              }}
-            >
-              <UserIcon sx={{ mr: 1 }} />
-              <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                <Typography variant="body2" noWrap>
-                  {user?.email}
-                </Typography>
-              </Box>
-            </MenuItem>
+          <Tooltip title="User Menu" placement="right">
+            <NavButton onClick={handleUserMenuOpen}>
+              <UserIcon />
+            </NavButton>
+          </Tooltip>
 
-            <Menu
-              anchorEl={userMenuAnchorEl}
-              open={isUserMenuOpen}
-              onClose={handleUserMenuClose}
-              anchorOrigin={{
-                vertical: "top",
-                horizontal: "right",
-              }}
-              transformOrigin={{
-                vertical: "bottom",
-                horizontal: "right",
-              }}
-            >
-              <Box sx={{ px: 2, py: 1, minWidth: 200 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Signed in as
-                </Typography>
-                <Typography variant="body2" fontWeight="medium">
-                  {user?.email}
-                </Typography>
-              </Box>
-              <Divider />
-              <MenuItem onClick={handleLogout}>
-                <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
-                Sign out
-              </MenuItem>
-            </Menu>
-          </Box>
+          <Menu
+            anchorEl={userMenuAnchorEl}
+            open={isUserMenuOpen}
+            onClose={handleUserMenuClose}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            transformOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+          >
+            {/* Workspace Switcher in User Menu */}
+            <Box sx={{ px: 2, py: 1, minWidth: 250 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Workspace
+              </Typography>
+              <WorkspaceSwitcher />
+            </Box>
+            <Divider />
+
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Signed in as
+              </Typography>
+              <Typography variant="body2" fontWeight="medium">
+                {user?.email}
+              </Typography>
+            </Box>
+            <Divider />
+            <MenuItem onClick={handleLogout}>
+              <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
+              Sign out
+            </MenuItem>
+          </Menu>
         </Box>
       </Box>
     </Box>

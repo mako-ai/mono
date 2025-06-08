@@ -41,7 +41,7 @@ export class WorkspaceService {
       const workspace = new Workspace({
         name,
         slug: uniqueSlug,
-        createdBy: new Types.ObjectId(userId),
+        createdBy: userId,
         settings: {
           maxDatabases: 5,
           maxMembers: 10,
