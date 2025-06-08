@@ -13,6 +13,7 @@ import ConsoleExplorer from "./components/ConsoleExplorer";
 import DataSourceExplorer from "./components/DataSourceExplorer";
 // @ts-ignore file exists
 import Editor from "./components/Editor";
+import { AuthWrapper } from "./components/AuthWrapper";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -115,66 +116,68 @@ function App() {
   };
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        height: "100vh",
-        width: "100vw",
-        maxWidth: "100vw",
-        overflow: "hidden",
-      }}
-    >
-      {/* Sidebar Navigation */}
-      <Sidebar />
-
-      <PanelGroup
-        direction="horizontal"
-        style={{ height: "100%", width: "100%" }}
+    <AuthWrapper>
+      <Box
+        sx={{
+          display: "flex",
+          height: "100vh",
+          width: "100vw",
+          maxWidth: "100vw",
+          overflow: "hidden",
+        }}
       >
-        <Panel defaultSize={15} minSize={10}>
-          <Box sx={{ height: "100%", overflow: "hidden" }}>
-            {renderLeftPane()}
-          </Box>
-        </Panel>
+        {/* Sidebar Navigation */}
+        <Sidebar />
 
-        <StyledHorizontalResizeHandle />
+        <PanelGroup
+          direction="horizontal"
+          style={{ height: "100%", width: "100%" }}
+        >
+          <Panel defaultSize={15} minSize={10}>
+            <Box sx={{ height: "100%", overflow: "hidden" }}>
+              {renderLeftPane()}
+            </Box>
+          </Panel>
 
-        {/* Editor + Results vertical layout inside Editor component */}
-        <Panel defaultSize={30} minSize={30}>
-          <Editor />
-        </Panel>
+          <StyledHorizontalResizeHandle />
 
-        {/* <StyledHorizontalResizeHandle />
+          {/* Editor + Results vertical layout inside Editor component */}
+          <Panel defaultSize={30} minSize={30}>
+            <Editor />
+          </Panel>
 
-        <Panel defaultSize={0} minSize={0}>
-          <Box
-            sx={{
-              height: "100%",
-              overflow: "hidden",
-              borderLeft: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Chat currentEditorContent={activeEditorContent} />
-          </Box>
-        </Panel> */}
+          {/* <StyledHorizontalResizeHandle />
 
-        <StyledHorizontalResizeHandle />
+          <Panel defaultSize={0} minSize={0}>
+            <Box
+              sx={{
+                height: "100%",
+                overflow: "hidden",
+                borderLeft: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Chat currentEditorContent={activeEditorContent} />
+            </Box>
+          </Panel> */}
 
-        <Panel defaultSize={30} minSize={10}>
-          <Box
-            sx={{
-              height: "100%",
-              overflow: "hidden",
-              borderLeft: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Chat3 />
-          </Box>
-        </Panel>
-      </PanelGroup>
-    </Box>
+          <StyledHorizontalResizeHandle />
+
+          <Panel defaultSize={30} minSize={10}>
+            <Box
+              sx={{
+                height: "100%",
+                overflow: "hidden",
+                borderLeft: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Chat3 />
+            </Box>
+          </Panel>
+        </PanelGroup>
+      </Box>
+    </AuthWrapper>
   );
 }
 

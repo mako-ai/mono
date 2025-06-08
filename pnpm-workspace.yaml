@@ -1,5 +1,6 @@
-# pnpm workspace configuration
 packages:
-  - "."
-  - "app"
-  - "api"
+  - .
+  - app
+  - api
+ignoredBuiltDependencies:
+  - bcrypt
