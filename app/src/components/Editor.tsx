@@ -22,6 +22,7 @@ import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
 import Settings from "../pages/Settings";
 import DataSources from "../pages/DataSources";
+import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
 
@@ -331,7 +332,7 @@ function Editor() {
                 (t) => t.id === activeConsoleId
               );
               const isConsoleTab =
-                activeTab?.kind !== "settings" && activeTab?.kind !== "sources";
+                activeTab?.kind !== "settings" && activeTab?.kind !== "sources" && activeTab?.kind !== "members";
 
               if (isConsoleTab) {
                 return (
@@ -409,9 +410,11 @@ function Editor() {
                     <Box sx={{ height: "100%", overflow: "auto" }}>
                       {activeTab?.kind === "settings" ? (
                         <Settings />
-                      ) : (
+                      ) : activeTab?.kind === "sources" ? (
                         <DataSources />
-                      )}
+                      ) : activeTab?.kind === "members" ? (
+                        <WorkspaceMembers />
+                      ) : null}
                     </Box>
                   </Panel>
                 </PanelGroup>

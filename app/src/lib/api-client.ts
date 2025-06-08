@@ -14,6 +14,13 @@ class ApiClient {
   }
 
   /**
+   * Get active workspace ID from localStorage
+   */
+  private getActiveWorkspaceId(): string | null {
+    return localStorage.getItem('activeWorkspaceId');
+  }
+
+  /**
    * Build URL with query parameters
    */
   private buildUrl(path: string, params?: Record<string, string>): string {
@@ -35,6 +42,7 @@ class ApiClient {
     // Handle 401 Unauthorized - redirect to login
     if (response.status === 401) {
       // Clear any stored auth state
+      localStorage.removeItem('activeWorkspaceId');
       window.location.href = '/login';
       throw new Error('Unauthorized');
     }
@@ -65,10 +73,18 @@ class ApiClient {
     
     const url = this.buildUrl(path, params);
     
+    // Add workspace header if available
+    const workspaceId = this.getActiveWorkspaceId();
+    const workspaceHeaders: Record<string, string> = {};
+    if (workspaceId) {
+      workspaceHeaders['x-workspace-id'] = workspaceId;
+    }
+    
     const response = await fetch(url, {
       ...restOptions,
       headers: {
         'Content-Type': 'application/json',
+        ...workspaceHeaders,
         ...headers,
       },
       credentials: 'include', // Always include credentials for cookie-based auth

@@ -23,7 +23,7 @@ export interface ConsoleTab {
   initialContent: string;
   databaseId?: string;
   filePath?: string;
-  kind?: "console" | "settings" | "sources";
+  kind?: "console" | "settings" | "sources" | "members";
   isDirty?: boolean; // false/undefined = pristine (replaceable), true = dirty (persistent)
 }
 
