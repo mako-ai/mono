@@ -583,30 +583,48 @@ const Chat3: React.FC = () => {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Header with history and new chat */}
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          p: 1,
-        }}
-      >
-        <Typography variant="h6">Agent Chat</Typography>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <IconButton
-            size="small"
-            onClick={handleHistoryMenuOpen}
-            disabled={sessions.length === 0}
+      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Box
+            sx={{
+              flexGrow: 1,
+              overflow: "hidden",
+              maxWidth: "calc(100% - 120px)",
+            }}
           >
-            <HistoryIcon />
-          </IconButton>
-          <Button
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={createNewSession}
-          >
-            New Chat
-          </Button>
+            <Typography
+              variant="h6"
+              sx={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Agent Chat
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <IconButton
+              size="small"
+              onClick={handleHistoryMenuOpen}
+              disabled={sessions.length === 0}
+            >
+              <HistoryIcon />
+            </IconButton>
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={createNewSession}
+            >
+              New Chat
+            </Button>
+          </Box>
         </Box>
       </Box>
 

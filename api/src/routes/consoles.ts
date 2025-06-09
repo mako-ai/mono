@@ -27,20 +27,6 @@ consoleRoutes.get("/", async (c: Context) => {
 
     const tree = await consoleManager.listConsoles(workspaceId);
 
-    // Log the tree structure just before sending it
-    console.log("Tree data in route handler (before c.json):");
-    if (tree.length > 0) {
-      tree.slice(0, 3).forEach((entry) => {
-        console.log(
-          `  Path: ${entry.path}, Name: ${entry.name}, isDirectory: ${entry.isDirectory}, Children count: ${entry.children ? entry.children.length : 0}`
-        );
-        if (entry.children && entry.children.length > 0) {
-          console.log(
-            `    Child of ${entry.name} - Path: ${entry.children[0].path}, isDirectory: ${entry.children[0].isDirectory}`
-          );
-        }
-      });
-    }
     return c.json({ success: true, tree });
   } catch (error) {
     console.error("Error listing consoles:", error);
