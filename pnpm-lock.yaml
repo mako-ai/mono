@@ -109,7 +109,7 @@ importers:
         specifier: ^8.10.2
         version: 8.15.1(socks@2.8.4)
       mssql:
-        specifier: ^10.0.1
+        specifier: ^10.0.4
         version: 10.0.4
       mysql2:
         specifier: ^3.6.5
@@ -121,7 +121,7 @@ importers:
         specifier: ^4.103.0
         version: 4.103.0(encoding@0.1.13)(ws@8.18.2)(zod@3.25.51)
       pg:
-        specifier: ^8.11.3
+        specifier: ^8.16.0
         version: 8.16.0
       sqlite:
         specifier: ^5.1.1
