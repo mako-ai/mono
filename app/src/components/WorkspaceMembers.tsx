@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -57,7 +57,6 @@ export function WorkspaceMembers() {
     updateMemberRole,
     removeMember,
     cancelInvite,
-    loading,
   } = useWorkspace();
 
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);

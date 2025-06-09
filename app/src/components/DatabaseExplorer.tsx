@@ -274,7 +274,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",

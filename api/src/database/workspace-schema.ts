@@ -243,7 +243,6 @@ const WorkspaceSchema = new Schema<IWorkspace>(
 );
 
 // Indexes
-WorkspaceSchema.index({ slug: 1 }, { unique: true });
 WorkspaceSchema.index({ createdBy: 1 });
 
 /**
@@ -317,7 +316,6 @@ const WorkspaceInviteSchema = new Schema<IWorkspaceInvite>({
 });
 
 // Indexes
-WorkspaceInviteSchema.index({ token: 1 }, { unique: true });
 WorkspaceInviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 WorkspaceInviteSchema.index({ workspaceId: 1, email: 1 });
 

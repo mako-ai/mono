@@ -409,30 +409,44 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
 
     return (
       <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            p: 1,
-            borderBottom: 1,
-            borderColor: "divider",
-          }}
-        >
-          <Typography variant="subtitle1" sx={{ ml: 1 }}>
-            Console Explorer
-          </Typography>
-          <Box sx={{ display: "flex", gap: 0.5 }}>
-            <Tooltip title="Add new folder">
-              <IconButton onClick={handleMenuOpen} size="small">
-                <AddIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Refresh">
-              <IconButton onClick={fetchConsoleEntries} size="small">
-                <RefreshIcon />
-              </IconButton>
-            </Tooltip>
+        <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Box
+              sx={{
+                flexGrow: 1,
+                overflow: "hidden",
+                maxWidth: "calc(100% - 80px)",
+              }}
+            >
+              <Typography
+                variant="h6"
+                sx={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Saved Consoles
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", gap: 0.5 }}>
+              <Tooltip title="Add new folder">
+                <IconButton onClick={handleMenuOpen} size="small">
+                  <AddIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Refresh">
+                <IconButton onClick={fetchConsoleEntries} size="small">
+                  <RefreshIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Box>
         </Box>
         {error && (
