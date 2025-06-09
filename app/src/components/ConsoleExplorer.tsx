@@ -549,6 +549,20 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           onClose={handleFolderDialogClose}
           maxWidth="sm"
           fullWidth
+          TransitionProps={{
+            onEntered: () => {
+              // Force focus on the text field after dialog animation completes
+              setTimeout(() => {
+                const input = document.querySelector(
+                  'input[name="folderName"]'
+                ) as HTMLInputElement;
+                if (input) {
+                  input.focus();
+                  input.select();
+                }
+              }, 100);
+            },
+          }}
         >
           <DialogTitle>
             {selectedParentFolder
@@ -557,6 +571,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           </DialogTitle>
           <DialogContent>
             <TextField
+              name="folderName"
               autoFocus
               margin="dense"
               label="Folder Name"
@@ -569,6 +584,10 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
                   handleFolderCreate();
                 }
               }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               helperText="Organize your consoles by creating folders. Right-click folders to create subfolders."
             />
           </DialogContent>
@@ -590,12 +609,27 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           onClose={() => setRenameDialogOpen(false)}
           maxWidth="sm"
           fullWidth
+          TransitionProps={{
+            onEntered: () => {
+              // Force focus on the text field after dialog animation completes
+              setTimeout(() => {
+                const input = document.querySelector(
+                  'input[name="itemName"]'
+                ) as HTMLInputElement;
+                if (input) {
+                  input.focus();
+                  input.select();
+                }
+              }, 100);
+            },
+          }}
         >
           <DialogTitle>
             Rename {selectedItem?.isDirectory ? "Folder" : "Console"}
           </DialogTitle>
           <DialogContent>
             <TextField
+              name="itemName"
               autoFocus
               margin="dense"
               label="Name"
@@ -608,6 +642,10 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
                   handleRenameConfirm();
                 }
               }}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               helperText={
                 selectedItem?.isDirectory
                   ? "Enter the new folder name"
