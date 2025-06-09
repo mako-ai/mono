@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  forwardRef,
-  useImperativeHandle,
-} from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -19,7 +13,6 @@ import {
   Snackbar,
   Tabs,
   Tab,
-  Divider,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import DatabaseExplorer from "../components/DatabaseExplorer";
@@ -51,23 +44,9 @@ interface Database {
   type: string;
   active: boolean;
   lastConnectedAt?: string;
-  connection: {
-    host?: string;
-    port?: number;
-    connectionString?: string;
-  };
   displayName: string;
   hostKey: string;
   hostName: string;
-}
-
-interface Server {
-  id: string;
-  name: string;
-  description: string;
-  connectionString: string;
-  active: boolean;
-  databases: Database[];
 }
 
 // Styled PanelResizeHandle components
@@ -190,8 +169,12 @@ function Databases() {
   // Fetch available databases on mount
   useEffect(() => {
     const fetchDatabases = async () => {
+      if (!currentWorkspace) return;
+
       try {
-        const response = await fetch("/api/databases");
+        const response = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases`
+        );
         const data = await response.json();
 
         if (data.success) {
@@ -204,7 +187,7 @@ function Databases() {
     };
 
     fetchDatabases();
-  }, []);
+  }, [currentWorkspace]);
 
   // Replace handleQueryExecute with handleConsoleExecute
   const handleConsoleExecute = async (query: string, databaseId?: string) => {

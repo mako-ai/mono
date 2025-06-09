@@ -77,7 +77,9 @@ function Consoles() {
       if (!currentWorkspace) return;
 
       try {
-        const response = await fetch("/api/databases");
+        const response = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases`
+        );
         const data = await response.json();
 
         if (data.success) {

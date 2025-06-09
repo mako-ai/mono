@@ -25,11 +25,6 @@ interface Database {
   type: string;
   active: boolean;
   lastConnectedAt?: string;
-  connection: {
-    host?: string;
-    port?: number;
-    connectionString?: string;
-  };
   displayName: string;
   hostKey: string;
   hostName: string;
