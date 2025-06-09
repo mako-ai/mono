@@ -14,7 +14,6 @@ import {
   CloudUploadOutlined as DataSourceIcon,
   AccountCircleOutlined as UserIcon,
   Logout as LogoutIcon,
-  Group as GroupIcon,
 } from "@mui/icons-material";
 import {
   SquareChevronRight as ConsoleIcon,
@@ -25,7 +24,6 @@ import { useConsoleStore } from "../store/consoleStore";
 import { useAuth } from "../contexts/auth-context";
 import { useState } from "react";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
-import { useWorkspace } from "../contexts/workspace-context";
 
 const NavButton = styled(Button, {
   shouldForwardProp: (prop) => prop !== "isActive",
@@ -48,7 +46,7 @@ const NavButton = styled(Button, {
 // Views that can appear in the sidebar navigation. Extends the core AppView
 // union with additional sidebar-specific entries that don't directly map to
 // a left-pane view managed by the app store.
-type NavigationView = AppView | "views" | "settings" | "members";
+type NavigationView = AppView | "views" | "settings";
 
 const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
   [
@@ -67,7 +65,6 @@ const bottomNavigationItems: {
 function Sidebar() {
   const { activeView, setActiveView } = useAppStore();
   const { user, logout } = useAuth();
-  const { currentWorkspace } = useWorkspace();
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(
     null
   );
@@ -97,45 +94,26 @@ function Sidebar() {
     }
 
     // Views that should open (or focus) a tab in the editor
-    if (view === "settings" || view === "sources" || view === "members") {
+    if (view === "settings" || view === "sources") {
       const { findTabByKind, addConsoleTab, setActiveConsole } =
         useConsoleStore.getState();
 
       const existing = findTabByKind(
-        view === "settings"
-          ? "settings"
-          : view === "sources"
-            ? "sources"
-            : "members"
+        view === "settings" ? "settings" : "sources"
       );
       if (existing) {
         setActiveConsole(existing.id);
       } else {
         const id = addConsoleTab({
-          title:
-            view === "settings"
-              ? "Settings"
-              : view === "sources"
-                ? "Data Sources"
-                : "Members",
+          title: view === "settings" ? "Settings" : "Data Sources",
           content: "", // Will be replaced with actual forms later
           initialContent: "",
-          kind:
-            view === "settings"
-              ? "settings"
-              : view === "sources"
-                ? "sources"
-                : "members",
+          kind: view === "settings" ? "settings" : "sources",
         });
         setActiveConsole(id);
       }
     }
   };
-
-  // Add members navigation if user has admin/owner role
-  const userCanManageMembers =
-    currentWorkspace &&
-    (currentWorkspace.role === "owner" || currentWorkspace.role === "admin");
 
   return (
     <Box
@@ -184,15 +162,6 @@ function Sidebar() {
               </Tooltip>
             );
           })}
-
-          {/* Members navigation - only show if user has permission */}
-          {userCanManageMembers && (
-            <Tooltip title="Workspace Members" placement="right">
-              <NavButton onClick={() => handleNavigation("members")}>
-                <GroupIcon />
-              </NavButton>
-            </Tooltip>
-          )}
         </Box>
 
         <Box
