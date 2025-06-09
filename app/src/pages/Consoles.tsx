@@ -17,6 +17,7 @@ import ConsoleExplorer, {
 import Console, { ConsoleRef } from "../components/Console";
 import ResultsTable from "../components/ResultsTable";
 import Chat from "../components/Chat/Chat";
+import { useWorkspace } from "../contexts/workspace-context";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -48,6 +49,7 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 }));
 
 function Consoles() {
+  const { currentWorkspace } = useWorkspace();
   const [selectedConsole, setSelectedConsole] = useState<string>("");
   const [consoleContent, setConsoleContent] = useState<string>("");
   const [consoleResults, setConsoleResults] = useState<ConsoleResult | null>(
@@ -127,6 +129,12 @@ function Consoles() {
     contentToSave: string,
     currentPath?: string
   ): Promise<boolean> => {
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return false;
+    }
+
     setIsSaving(true);
     let success = false;
     let newPathCreated = false;
@@ -152,7 +160,9 @@ function Consoles() {
       }
 
       const response = await fetch(
-        method === "PUT" ? `/api/consoles/${savePath}` : `/api/consoles`,
+        method === "PUT"
+          ? `/api/workspaces/${currentWorkspace.id}/consoles/${savePath}`
+          : `/api/workspaces/${currentWorkspace.id}/consoles`,
         {
           method: method,
           headers: {

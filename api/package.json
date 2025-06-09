@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "pnpm exec tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "migrate:workspaces": "tsx src/migrations/migrate-to-workspaces.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.8.0",
@@ -21,8 +22,13 @@
     "lucia": "^3.2.2",
     "mongodb": "^6.3.0",
     "mongoose": "^8.10.2",
+    "mssql": "^10.0.1",
+    "mysql2": "^3.6.5",
     "nanoid": "^5.0.9",
-    "openai": "^4.103.0"
+    "openai": "^4.103.0",
+    "pg": "^8.11.3",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

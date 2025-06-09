@@ -1,4 +1,4 @@
-db.italy_close_opportunities.aggregate([
+db.it_close_opportunities.aggregate([
   {
     $match: {
       status_type: "won", // Filter for active opportunities

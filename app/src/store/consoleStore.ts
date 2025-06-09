@@ -1,7 +1,7 @@
 import { useAppStore, useAppDispatch } from "./appStore";
 import { ConsoleTab } from "./appStore";
 
-export type TabKind = "console" | "settings" | "sources";
+export type TabKind = "console" | "settings" | "sources" | "members";
 
 // Selector helpers
 const selectConsoleState = (state: any) => state.consoles;

@@ -1,6 +1,6 @@
 import {
   Box,
-  IconButton,
+  Button,
   Tooltip,
   styled,
   Menu,
@@ -21,13 +21,17 @@ import {
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/auth-context";
 import { useState } from "react";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
-const NavButton = styled(IconButton, {
+const NavButton = styled(Button, {
   shouldForwardProp: (prop) => prop !== "isActive",
 })<{ isActive?: boolean }>(({ theme, isActive }) => ({
-  p: 1,
+  minWidth: 40,
+  width: 40,
+  height: 40,
+  padding: 0,
   borderRadius: 8,
   backgroundColor: isActive ? theme.palette.action.selected : "transparent",
   color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
@@ -114,98 +118,122 @@ function Sidebar() {
   return (
     <Box
       sx={{
+        width: 52,
         height: "100vh",
         borderRight: "1px solid",
         borderColor: "divider",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "space-between",
       }}
     >
+      {/* Navigation Items */}
       <Box
         sx={{
+          flex: 1,
+          overflowY: "auto",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          padding: 0.5,
-          gap: 0.5,
+          justifyContent: "space-between",
+          width: "100%",
         }}
       >
-        {topNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.view;
-
-          return (
-            <Tooltip key={item.view} title={item.label} placement="right">
-              <NavButton
-                isActive={isActive}
-                onClick={() => handleNavigation(item.view as NavigationView)}
-              >
-                <Icon />
-              </NavButton>
-            </Tooltip>
-          );
-        })}
-      </Box>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 0.5,
-        }}
-      >
-        {/* User Menu */}
-        <Tooltip title={user?.email || "User"} placement="right">
-          <NavButton onClick={handleUserMenuOpen}>
-            <UserIcon />
-          </NavButton>
-        </Tooltip>
-
-        <Menu
-          anchorEl={userMenuAnchorEl}
-          open={isUserMenuOpen}
-          onClose={handleUserMenuClose}
-          anchorOrigin={{
-            vertical: "center",
-            horizontal: "right",
-          }}
-          transformOrigin={{
-            vertical: "center",
-            horizontal: "left",
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            p: 0.5,
+            gap: 0.5,
+            alignItems: "center",
           }}
         >
-          <Box sx={{ px: 2, py: 1, minWidth: 200 }}>
-            <Typography variant="body2" color="text.secondary">
-              Signed in as
-            </Typography>
-            <Typography variant="body2" fontWeight="medium">
-              {user?.email}
-            </Typography>
-          </Box>
-          <Divider />
-          <MenuItem onClick={handleLogout}>
-            <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
-            Sign out
-          </MenuItem>
-        </Menu>
+          {topNavigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.view;
 
-        {bottomNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.view;
+            return (
+              <Tooltip key={item.view} title={item.label} placement="right">
+                <NavButton
+                  isActive={isActive}
+                  onClick={() => handleNavigation(item.view as NavigationView)}
+                >
+                  <Icon size={24} />
+                </NavButton>
+              </Tooltip>
+            );
+          })}
+        </Box>
 
-          return (
-            <Tooltip key={item.view} title={item.label} placement="right">
-              <NavButton
-                isActive={isActive}
-                onClick={() => handleNavigation(item.view as NavigationView)}
-              >
-                <Icon />
-              </NavButton>
-            </Tooltip>
-          );
-        })}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            p: 0.25,
+            gap: 0.25,
+            alignItems: "center",
+          }}
+        >
+          {/* User Menu */}
+          <Tooltip title="User Menu" placement="right">
+            <NavButton onClick={handleUserMenuOpen}>
+              <UserIcon />
+            </NavButton>
+          </Tooltip>
+
+          {/* Settings */}
+          {bottomNavigationItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.view;
+
+            return (
+              <Tooltip key={item.view} title={item.label} placement="right">
+                <NavButton
+                  isActive={isActive}
+                  onClick={() => handleNavigation(item.view as NavigationView)}
+                >
+                  <Icon />
+                </NavButton>
+              </Tooltip>
+            );
+          })}
+
+          <Menu
+            anchorEl={userMenuAnchorEl}
+            open={isUserMenuOpen}
+            onClose={handleUserMenuClose}
+            anchorOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            transformOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+          >
+            {/* Workspace Switcher in User Menu */}
+            <Box sx={{ px: 2, py: 1, minWidth: 250 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Workspace
+              </Typography>
+              <WorkspaceSwitcher />
+            </Box>
+            <Divider />
+
+            <Box sx={{ px: 2, py: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                Signed in as
+              </Typography>
+              <Typography variant="body2" fontWeight="medium">
+                {user?.email}
+              </Typography>
+            </Box>
+            <Divider />
+            <MenuItem onClick={handleLogout}>
+              <LogoutIcon sx={{ mr: 1, fontSize: 20 }} />
+              Sign out
+            </MenuItem>
+          </Menu>
+        </Box>
       </Box>
     </Box>
   );
