@@ -59,11 +59,20 @@ function Editor() {
   const [availableDatabases, setAvailableDatabases] = useState<
     {
       id: string;
-      localId: string;
       name: string;
       description: string;
       database: string;
+      type: string;
       active: boolean;
+      lastConnectedAt?: string;
+      connection: {
+        host?: string;
+        port?: number;
+        connectionString?: string;
+      };
+      displayName: string;
+      hostKey: string;
+      hostName: string;
     }[]
   >([]);
 
@@ -117,14 +126,11 @@ function Editor() {
   useEffect(() => {
     const fetchDatabases = async () => {
       try {
-        const response = await fetch("/api/databases/servers");
+        const response = await fetch("/api/databases");
         const data = await response.json();
         if (data.success) {
-          const all: typeof availableDatabases = [];
-          data.data.forEach((srv: any) => {
-            all.push(...srv.databases);
-          });
-          setAvailableDatabases(all);
+          // Use the databases directly from the new API structure
+          setAvailableDatabases(data.data);
         }
       } catch (e) {
         console.error("Failed to fetch databases list", e);

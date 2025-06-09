@@ -317,54 +317,118 @@ export class DatabaseConnectionService {
     db: Db,
     query: string
   ): Promise<any> {
-    // Parse and execute JavaScript-style MongoDB queries
-    // This is a simplified implementation - in production, you'd want more robust parsing
+    // Use eval() approach with Proxy for proper MongoDB method chaining support
+    // Create a proxy db object that can access any collection dynamically
+    const dbProxy = new Proxy(db, {
+      get: (target, prop) => {
+        // First check if this property exists on the target (database methods)
+        if (prop in target) {
+          const value = (target as any)[prop];
+          // If it's a function, bind it to the target to maintain 'this' context
+          if (typeof value === "function") {
+            return value.bind(target);
+          }
+          return value;
+        }
 
-    // Extract collection name and operation from query
-    const collectionMatch = query.match(/db\.(\w+)\.(\w+)\(/);
-    if (!collectionMatch) {
-      throw new Error("Invalid MongoDB query format");
+        // Mongo-shell helper for db.getCollectionInfos([filter], [options])
+        if (prop === "getCollectionInfos") {
+          return (filter?: any, options?: any) => {
+            return (target as Db).listCollections(filter, options).toArray();
+          };
+        }
+
+        // Mongo-shell helper for db.getCollectionNames([filter])
+        if (prop === "getCollectionNames") {
+          return (filter?: any) => {
+            return (target as Db)
+              .listCollections(filter, { nameOnly: true })
+              .toArray()
+              .then((infos) => infos.map((info) => info.name));
+          };
+        }
+
+        // Provide backwards-compatibility for Mongo-shell style helper db.getCollection(<n>)
+        if (prop === "getCollection") {
+          return (name: string) => (target as Db).collection(name);
+        }
+
+        // If it's a string and not a database method, treat it as a collection name
+        if (typeof prop === "string") {
+          return target.collection(prop);
+        }
+
+        return undefined;
+      },
+    });
+
+    // Execute the query using eval() for proper method chaining support
+    const result = eval(
+      `(function() { const db = arguments[0]; return ${query}; })`
+    )(dbProxy);
+
+    // Handle MongoDB cursors and promises
+    let finalResult;
+    if (result && typeof result.then === "function") {
+      // It's a promise, await it
+      finalResult = await result;
+    } else if (result && typeof result.toArray === "function") {
+      // It's a MongoDB cursor, convert to array
+      finalResult = await result.toArray();
+    } else {
+      // It's a direct result
+      finalResult = result;
     }
 
-    const [, collectionName, operation] = collectionMatch;
-    const collection = db.collection(collectionName);
+    // Ensure the result can be safely serialized to JSON (avoid circular refs)
+    const getCircularReplacer = () => {
+      const seen = new WeakSet();
+      return (key: string, value: any) => {
+        // Handle BigInt explicitly (convert to string)
+        if (typeof value === "bigint") return value.toString();
 
-    // Extract arguments (simplified - doesn't handle complex cases)
-    const argsMatch = query.match(/\(([^)]*)\)/);
-    const argsString = argsMatch ? argsMatch[1] : "";
+        if (typeof value === "object" && value !== null) {
+          // Replace common MongoDB driver objects with descriptive strings
+          const ctor = value.constructor?.name;
+          if (
+            ctor === "Collection" ||
+            ctor === "Db" ||
+            ctor === "MongoClient" ||
+            ctor === "Cursor"
+          ) {
+            // Provide minimal useful info instead of the full object
+            if (ctor === "Collection") {
+              return {
+                _type: "Collection",
+                name: (value as any).collectionName,
+              };
+            }
+            return `[${ctor}]`;
+          }
 
-    // Parse arguments (very simplified)
-    let args: any[] = [];
-    if (argsString) {
-      try {
-        // Use Function constructor to safely evaluate the arguments
-        args = new Function(`return [${argsString}]`)();
-      } catch (error) {
-        throw new Error("Failed to parse query arguments");
-      }
+          // Handle circular structures
+          if (seen.has(value)) {
+            return "[Circular]";
+          }
+          seen.add(value);
+        }
+        return value;
+      };
+    };
+
+    let serializedResult: any;
+    try {
+      serializedResult = JSON.parse(
+        JSON.stringify(finalResult, getCircularReplacer())
+      );
+    } catch (stringifyError) {
+      console.warn(
+        "⚠️ Failed to fully serialize result, falling back to string representation"
+      );
+      serializedResult = String(finalResult);
     }
 
-    // Execute the operation
-    switch (operation) {
-      case "find":
-        return await collection.find(args[0] || {}, args[1] || {}).toArray();
-      case "findOne":
-        return await collection.findOne(args[0] || {}, args[1] || {});
-      case "aggregate":
-        return await collection.aggregate(args[0] || []).toArray();
-      case "insertMany":
-        return await collection.insertMany(args[0] || []);
-      case "updateMany":
-        return await collection.updateMany(
-          args[0] || {},
-          args[1] || {},
-          args[2] || {}
-        );
-      case "deleteMany":
-        return await collection.deleteMany(args[0] || {});
-      default:
-        throw new Error(`Unsupported MongoDB operation: ${operation}`);
-    }
+    return serializedResult;
   }
 
   // PostgreSQL specific methods

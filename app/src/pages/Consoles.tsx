@@ -77,16 +77,12 @@ function Consoles() {
       if (!currentWorkspace) return;
 
       try {
-        const response = await fetch("/api/databases/servers");
+        const response = await fetch("/api/databases");
         const data = await response.json();
 
         if (data.success) {
-          // Extract all databases from all servers
-          const allDatabases: any[] = [];
-          data.data.forEach((server: any) => {
-            allDatabases.push(...server.databases);
-          });
-          setAvailableDatabases(allDatabases);
+          // Use the databases directly from the new API structure
+          setAvailableDatabases(data.data);
         }
       } catch (error) {
         console.error("Failed to fetch databases:", error);

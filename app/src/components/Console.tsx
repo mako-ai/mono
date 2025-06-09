@@ -19,11 +19,20 @@ import { useTheme } from "../contexts/ThemeContext";
 
 interface Database {
   id: string;
-  localId: string;
   name: string;
   description: string;
   database: string;
+  type: string;
   active: boolean;
+  lastConnectedAt?: string;
+  connection: {
+    host?: string;
+    port?: number;
+    connectionString?: string;
+  };
+  displayName: string;
+  hostKey: string;
+  hostName: string;
 }
 
 interface ConsoleProps {
@@ -292,7 +301,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
               ) : (
                 databases.map((db) => (
                   <MenuItem key={db.id} value={db.id}>
-                    {db.database || db.name || "Unknown Database"}
+                    {db.displayName || db.name || "Unknown Database"}
                   </MenuItem>
                 ))
               )}
