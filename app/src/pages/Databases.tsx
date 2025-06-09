@@ -45,11 +45,20 @@ interface QueryResult {
 
 interface Database {
   id: string;
-  localId: string;
   name: string;
   description: string;
   database: string;
+  type: string;
   active: boolean;
+  lastConnectedAt?: string;
+  connection: {
+    host?: string;
+    port?: number;
+    connectionString?: string;
+  };
+  displayName: string;
+  hostKey: string;
+  hostName: string;
 }
 
 interface Server {
@@ -182,16 +191,12 @@ function Databases() {
   useEffect(() => {
     const fetchDatabases = async () => {
       try {
-        const response = await fetch("/api/databases/servers");
+        const response = await fetch("/api/databases");
         const data = await response.json();
 
         if (data.success) {
-          // Extract all databases from all servers
-          const allDatabases: Database[] = [];
-          data.data.forEach((server: Server) => {
-            allDatabases.push(...server.databases);
-          });
-          setAvailableDatabases(allDatabases);
+          // Use the databases directly from the new API structure
+          setAvailableDatabases(data.data);
         }
       } catch (error) {
         console.error("Failed to fetch databases:", error);

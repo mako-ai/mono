@@ -55,11 +55,20 @@ const MongoDBIcon = () => (
 
 interface Database {
   id: string;
-  localId: string;
   name: string;
   description: string;
   database: string;
+  type: string;
   active: boolean;
+  lastConnectedAt?: string;
+  connection: {
+    host?: string;
+    port?: number;
+    connectionString?: string;
+  };
+  displayName: string;
+  hostKey: string;
+  hostName: string;
 }
 
 interface Server {
@@ -124,11 +133,36 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/databases/servers");
+      const response = await fetch("/api/databases");
       const data = await response.json();
 
       if (data.success) {
-        setServers(data.data);
+        // Group databases by host on the frontend
+        const serverMap = new Map<string, Server>();
+
+        data.data.forEach((db: Database) => {
+          const hostKey = db.hostKey;
+
+          if (!serverMap.has(hostKey)) {
+            serverMap.set(hostKey, {
+              id: hostKey,
+              name: db.hostName,
+              description: "",
+              connectionString:
+                db.connection.connectionString ||
+                `mongodb://${db.connection.host}:${db.connection.port || 27017}`,
+              active: true,
+              databases: [],
+            });
+          }
+
+          const server = serverMap.get(hostKey)!;
+          server.databases.push(db);
+        });
+
+        // Convert map to array
+        const serversData = Array.from(serverMap.values());
+        setServers(serversData);
 
         // Clear any previously cached collections/views so we always show fresh data
         setCollections({});
@@ -136,27 +170,25 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
         // Automatically fetch collections/views for every database so that the
         // data tree is fully up-to-date after a refresh.
-        data.data.forEach((srv: Server) => {
-          srv.databases.forEach((db) => {
-            fetchDatabaseData(db.id);
-          });
+        data.data.forEach((db: Database) => {
+          fetchDatabaseData(db.id);
         });
 
         // Only auto-expand the first server/database if nothing is expanded yet
-        if (data.data.length > 0 && expandedServers.size === 0) {
-          const firstServerId = data.data[0].id;
+        if (serversData.length > 0 && expandedServers.size === 0) {
+          const firstServerId = serversData[0].id;
           expandServer(firstServerId);
-          if (data.data[0].databases.length > 0) {
-            const firstDbId = data.data[0].databases[0].id;
+          if (serversData[0].databases.length > 0) {
+            const firstDbId = serversData[0].databases[0].id;
             expandDatabase(firstDbId);
           }
         }
       } else {
-        setError(data.error || "Failed to fetch servers");
+        setError(data.error || "Failed to fetch databases");
       }
     } catch (err) {
       setError("Failed to connect to the database API");
-      console.error("Error fetching servers:", err);
+      console.error("Error fetching databases:", err);
     } finally {
       setLoading(false);
     }
@@ -441,9 +473,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                           whiteSpace: "nowrap",
                                         }}
                                       >
-                                        {database.database ||
-                                          database.name ||
-                                          "Unknown Database"}
+                                        {database.displayName}
                                       </Typography>
                                     </Box>
                                   }
