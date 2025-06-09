@@ -1,112 +1,172 @@
 import { Hono } from "hono";
-import { mongoConnection } from "../utils/mongodb-connection";
+import { Chat, Workspace } from "../database/workspace-schema";
 import { ObjectId } from "mongodb";
 
 export const chatsRoutes = new Hono();
 
-// Helper to get the chats collection from the default analytics database
-const getChatsCollection = async () => {
-  const db = await mongoConnection.getDb();
-  return db.collection("chats");
-};
-
 // List chat sessions (most recent first)
 chatsRoutes.get("/", async (c) => {
-  const collection = await getChatsCollection();
-  const chats = await collection
-    .find({}, { projection: { messages: 0 } })
-    .sort({ updatedAt: -1 })
-    .toArray();
+  try {
+    const workspaceId = c.req.param("workspaceId");
 
-  // Convert ObjectId to string for frontend convenience
-  const mapped = chats.map((chat) => ({
-    ...chat,
-    _id: (chat._id as any)?.toString(),
-  }));
+    if (!ObjectId.isValid(workspaceId)) {
+      return c.json({ error: "Invalid workspace id" }, 400);
+    }
 
-  return c.json(mapped);
+    const chats = await Chat.find(
+      { workspaceId: new ObjectId(workspaceId) },
+      { messages: 0 }
+    ).sort({ updatedAt: -1 });
+
+    // Convert ObjectId to string for frontend convenience
+    const mapped = chats.map((chat) => ({
+      ...chat.toObject(),
+      _id: chat._id.toString(),
+    }));
+
+    return c.json(mapped);
+  } catch (error) {
+    console.error("Error listing chats:", error);
+    return c.json({ error: "Failed to list chats" }, 500);
+  }
 });
 
 // Create a new chat session
 chatsRoutes.post("/", async (c) => {
-  let body: any = {};
   try {
-    body = await c.req.json();
-  } catch (_) {}
+    const workspaceId = c.req.param("workspaceId");
 
-  const title = (body?.title as string) || "New Chat";
+    if (!ObjectId.isValid(workspaceId)) {
+      return c.json({ error: "Invalid workspace id" }, 400);
+    }
 
-  const collection = await getChatsCollection();
-  const now = new Date();
-  const result = await collection.insertOne({
-    title,
-    messages: [],
-    createdAt: now,
-    updatedAt: now,
-  });
+    let body: any = {};
+    try {
+      body = await c.req.json();
+    } catch (_) {}
 
-  return c.json({ chatId: result.insertedId.toString() });
+    const title = (body?.title as string) || "New Chat";
+
+    const now = new Date();
+    const chat = new Chat({
+      workspaceId: new ObjectId(workspaceId),
+      title,
+      messages: [],
+      createdBy: "system", // TODO: Get from auth context when available
+      titleGenerated: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await chat.save();
+
+    return c.json({ chatId: chat._id.toString() });
+  } catch (error) {
+    console.error("Error creating chat:", error);
+    return c.json({ error: "Failed to create chat" }, 500);
+  }
 });
 
 // Get a single chat session with messages
 chatsRoutes.get("/:id", async (c) => {
-  const id = c.req.param("id");
-  const collection = await getChatsCollection();
-
   try {
-    const chat = await collection.findOne({ _id: new ObjectId(id) });
+    const workspaceId = c.req.param("workspaceId");
+    const id = c.req.param("id");
+
+    if (!ObjectId.isValid(workspaceId)) {
+      return c.json({ error: "Invalid workspace id" }, 400);
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return c.json({ error: "Invalid chat id" }, 400);
+    }
+
+    const chat = await Chat.findOne({
+      _id: new ObjectId(id),
+      workspaceId: new ObjectId(workspaceId),
+    });
+
     if (!chat) {
       return c.json({ error: "Chat not found" }, 404);
     }
+
     return c.json({
-      ...chat,
-      _id: (chat._id as any)?.toString(),
+      ...chat.toObject(),
+      _id: chat._id.toString(),
     });
-  } catch (err) {
-    return c.json({ error: "Invalid chat id" }, 400);
+  } catch (error) {
+    console.error("Error getting chat:", error);
+    return c.json({ error: "Failed to get chat" }, 500);
   }
 });
 
 // Update chat title (optional future use)
 chatsRoutes.put("/:id", async (c) => {
-  const id = c.req.param("id");
-  let body: any = {};
   try {
-    body = await c.req.json();
-  } catch (_) {}
+    const workspaceId = c.req.param("workspaceId");
+    const id = c.req.param("id");
 
-  const { title } = body;
-  if (!title) {
-    return c.json({ error: "'title' is required" }, 400);
-  }
+    if (!ObjectId.isValid(workspaceId)) {
+      return c.json({ error: "Invalid workspace id" }, 400);
+    }
 
-  const collection = await getChatsCollection();
-  try {
-    const result = await collection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { title, updatedAt: new Date() } }
+    if (!ObjectId.isValid(id)) {
+      return c.json({ error: "Invalid chat id" }, 400);
+    }
+
+    let body: any = {};
+    try {
+      body = await c.req.json();
+    } catch (_) {}
+
+    const { title } = body;
+    if (!title) {
+      return c.json({ error: "'title' is required" }, 400);
+    }
+
+    const result = await Chat.findOneAndUpdate(
+      { _id: new ObjectId(id), workspaceId: new ObjectId(workspaceId) },
+      { title, updatedAt: new Date() },
+      { new: true }
     );
-    if (result.matchedCount === 0) {
+
+    if (!result) {
       return c.json({ error: "Chat not found" }, 404);
     }
+
     return c.json({ success: true });
-  } catch (err) {
-    return c.json({ error: "Invalid chat id" }, 400);
+  } catch (error) {
+    console.error("Error updating chat:", error);
+    return c.json({ error: "Failed to update chat" }, 500);
   }
 });
 
 // Delete a chat session
 chatsRoutes.delete("/:id", async (c) => {
-  const id = c.req.param("id");
-  const collection = await getChatsCollection();
-
   try {
-    const result = await collection.deleteOne({ _id: new ObjectId(id) });
-    if (result.deletedCount === 0) {
+    const workspaceId = c.req.param("workspaceId");
+    const id = c.req.param("id");
+
+    if (!ObjectId.isValid(workspaceId)) {
+      return c.json({ error: "Invalid workspace id" }, 400);
+    }
+
+    if (!ObjectId.isValid(id)) {
+      return c.json({ error: "Invalid chat id" }, 400);
+    }
+
+    const result = await Chat.findOneAndDelete({
+      _id: new ObjectId(id),
+      workspaceId: new ObjectId(workspaceId),
+    });
+
+    if (!result) {
       return c.json({ error: "Chat not found" }, 404);
     }
+
     return c.json({ success: true });
-  } catch (err) {
-    return c.json({ error: "Invalid chat id" }, 400);
+  } catch (error) {
+    console.error("Error deleting chat:", error);
+    return c.json({ error: "Failed to delete chat" }, 500);
   }
 });

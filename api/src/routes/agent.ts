@@ -9,6 +9,7 @@ import {
   shouldGenerateTitle,
   generateChatTitle,
 } from "../services/title-generator";
+import { Chat, Workspace } from "../database/workspace-schema";
 
 // Create a router that will be mounted at /api/agent
 export const agentRoutes = new Hono();
@@ -20,6 +21,11 @@ export const agentRoutes = new Hono();
 // Expose the same helper utilities we already use for the responses chat route so the
 // new Agent can re-use them.
 const queryExecutor = new QueryExecutor();
+
+// Helper to get the default workspace (first one by creation date)
+const getDefaultWorkspace = async () => {
+  return await Workspace.findOne().sort({ createdAt: 1 });
+};
 
 // ------------------------------------------------------------------------------------
 // Database/Collection helpers
@@ -247,19 +253,11 @@ const dbAgent = new Agent({
 // circular dependency).
 // ------------------------------------------------------------------------------------
 
-const CHAT_COLLECTION = "chats";
-
-const getChatsCollection = async () => {
-  const db = await mongoConnection.getDb();
-  return db.collection(CHAT_COLLECTION);
-};
-
 const persistChatSession = async (sessionId: string, messages: any[]) => {
-  const coll = await getChatsCollection();
-  await coll.updateOne(
-    { _id: new ObjectId(sessionId) },
-    { $set: { messages, updatedAt: new Date() } },
-    { upsert: false }
+  await Chat.findByIdAndUpdate(
+    sessionId,
+    { messages, updatedAt: new Date() },
+    { new: true }
   );
 };
 
@@ -273,13 +271,21 @@ agentRoutes.post("/stream", async (c) => {
     body = await c.req.json();
   } catch (_) {}
 
-  const { message, sessionId } = body as {
+  const { message, sessionId, workspaceId } = body as {
     message?: string;
     sessionId?: string;
+    workspaceId?: string;
   };
 
   if (!message || typeof message !== "string" || message.trim().length === 0) {
     return c.json({ error: "'message' is required" }, 400);
+  }
+
+  if (!workspaceId || !ObjectId.isValid(workspaceId)) {
+    return c.json(
+      { error: "'workspaceId' is required and must be valid" },
+      400
+    );
   }
 
   // Load existing messages...
@@ -288,8 +294,10 @@ agentRoutes.post("/stream", async (c) => {
 
   if (sessionId) {
     try {
-      const coll = await getChatsCollection();
-      existingChat = await coll.findOne({ _id: new ObjectId(sessionId) });
+      existingChat = await Chat.findOne({
+        _id: new ObjectId(sessionId),
+        workspaceId: new ObjectId(workspaceId),
+      });
       if (existingChat && Array.isArray(existingChat.messages)) {
         existingMessages = existingChat.messages as any[];
       }
@@ -447,35 +455,33 @@ agentRoutes.post("/stream", async (c) => {
         ];
 
         let finalSessionId = sessionId;
-        const coll = await getChatsCollection();
         const now = new Date();
 
         if (!sessionId) {
           // New conversation - start with a temporary title
-          const insertResult = await coll.insertOne({
+          const newChat = new Chat({
+            workspaceId: new ObjectId(workspaceId),
             title: "New Chat", // Temporary title
             messages: updatedMessages,
+            createdBy: "system", // TODO: Get from auth context when available
+            titleGenerated: false, // Flag to track if we've generated a proper title
             createdAt: now,
             updatedAt: now,
-            titleGenerated: false, // Flag to track if we've generated a proper title
           });
-          finalSessionId = insertResult.insertedId.toString();
+
+          await newChat.save();
+          finalSessionId = newChat._id.toString();
 
           // Generate title asynchronously without blocking the response
           if (shouldGenerateTitle(updatedMessages)) {
             // Fire-and-forget title generation
             generateChatTitle(updatedMessages)
               .then((generatedTitle) => {
-                return coll.updateOne(
-                  { _id: new ObjectId(finalSessionId) },
-                  {
-                    $set: {
-                      title: generatedTitle,
-                      titleGenerated: true,
-                      updatedAt: new Date(),
-                    },
-                  }
-                );
+                return Chat.findByIdAndUpdate(finalSessionId, {
+                  title: generatedTitle,
+                  titleGenerated: true,
+                  updatedAt: new Date(),
+                });
               })
               .then(() => {
                 console.log(
@@ -499,16 +505,11 @@ agentRoutes.post("/stream", async (c) => {
             // Fire-and-forget title generation
             generateChatTitle(updatedMessages)
               .then((generatedTitle) => {
-                return coll.updateOne(
-                  { _id: new ObjectId(sessionId) },
-                  {
-                    $set: {
-                      title: generatedTitle,
-                      titleGenerated: true,
-                      updatedAt: new Date(),
-                    },
-                  }
-                );
+                return Chat.findByIdAndUpdate(sessionId, {
+                  title: generatedTitle,
+                  titleGenerated: true,
+                  updatedAt: new Date(),
+                });
               })
               .then(() => {
                 console.log(

@@ -59,6 +59,7 @@ app.route("/api/auth", authRoutes);
 app.route("/api/workspaces", workspaceRoutes);
 app.route("/api/workspaces/:workspaceId/databases", workspaceDatabaseRoutes);
 app.route("/api/workspaces/:workspaceId/consoles", consoleRoutes);
+app.route("/api/workspaces/:workspaceId/chats", chatsRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
@@ -66,7 +67,6 @@ app.route("/api/sources", dataSourceRoutes);
 app.route("/api/databases", databasesRoutes);
 app.route("/api/custom-prompt", customPromptRoutes);
 app.route("/api/ai", aiRoutes);
-app.route("/api/chats", chatsRoutes);
 app.route("/api/agent", agentRoutes);
 
 // Serve static files (frontend) - middleware for non-API routes
