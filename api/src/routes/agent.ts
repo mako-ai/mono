@@ -1,15 +1,14 @@
 import { Hono } from "hono";
 // @ts-ignore – module will be provided via dependency at runtime
 import { Agent, run as runAgent, tool } from "@openai/agents";
-import { configLoader } from "../utils/config-loader";
-import { mongoConnection } from "../utils/mongodb-connection";
-import { QueryExecutor } from "../utils/query-executor";
 import { ObjectId, Decimal128 } from "mongodb";
 import {
   shouldGenerateTitle,
   generateChatTitle,
 } from "../services/title-generator";
-import { Chat, Workspace } from "../database/workspace-schema";
+import { Chat, Workspace, Database } from "../database/workspace-schema";
+import { databaseConnectionService } from "../services/database-connection.service";
+import { Types } from "mongoose";
 
 // Create a router that will be mounted at /api/agent
 export const agentRoutes = new Hono();
@@ -18,37 +17,63 @@ export const agentRoutes = new Hono();
 // Helper functions & shared instances
 // ------------------------------------------------------------------------------------
 
-// Expose the same helper utilities we already use for the responses chat route so the
-// new Agent can re-use them.
-const queryExecutor = new QueryExecutor();
-
 // Helper to get the default workspace (first one by creation date)
 const getDefaultWorkspace = async () => {
   return await Workspace.findOne().sort({ createdAt: 1 });
 };
 
 // ------------------------------------------------------------------------------------
-// Database/Collection helpers
+// Database/Collection helpers - Updated for workspace-scoped operations
 // ------------------------------------------------------------------------------------
 
-const listDatabases = () => {
-  const mongoSources = configLoader.getMongoDBSources();
-  return mongoSources.map((source) => ({
-    id: source.id,
-    name: source.name,
-    description: source.description || "",
-    database: source.database,
-    active: source.active,
-    serverId: source.serverId,
-    serverName: source.serverName,
+const listDatabases = async (workspaceId: string) => {
+  if (!Types.ObjectId.isValid(workspaceId)) {
+    throw new Error("Invalid workspace ID");
+  }
+
+  const databases = await Database.find({
+    workspaceId: new Types.ObjectId(workspaceId),
+  }).sort({ name: 1 });
+
+  return databases.map((db) => ({
+    id: db._id.toString(),
+    name: db.name,
+    description: "",
+    database: db.connection.database,
+    type: db.type,
+    active: true,
+    displayName: db.connection.database || db.name || "Unknown Database",
   }));
 };
 
-const listCollections = async (databaseId: string) => {
-  const db = await mongoConnection.getDatabase(databaseId);
+const listCollections = async (databaseId: string, workspaceId: string) => {
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+
+  // Ensure database belongs to the workspace for security
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+
+  if (!database) {
+    throw new Error("Database not found or access denied");
+  }
+
+  if (database.type !== "mongodb") {
+    throw new Error("Collection listing only supported for MongoDB databases");
+  }
+
+  const connection = await databaseConnectionService.getConnection(database);
+  const db = connection.db(database.connection.database);
   const collections = await db
     .listCollections({ type: "collection" })
     .toArray();
+
   return collections.map((col: any) => ({
     name: col.name,
     type: col.type,
@@ -70,18 +95,37 @@ const inferBsonType = (value: any): string => {
 /**
  * Sample a subset of documents from the collection and build a lightweight
  * schema summary of field names and their observed BSON types.
- *
- * Returns an object containing:
- *   - schema: Array<{ field: string; types: string[] }>
- *   - sampleDocuments: the sampled documents used for the inspection
- *   - totalSampled: number of sampled documents (may be < SAMPLE_SIZE if the
- *                   collection is small)
  */
 const inspectCollection = async (
   databaseId: string,
-  collectionName: string
+  collectionName: string,
+  workspaceId: string
 ) => {
-  const db = await mongoConnection.getDatabase(databaseId);
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+
+  // Ensure database belongs to the workspace for security
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+
+  if (!database) {
+    throw new Error("Database not found or access denied");
+  }
+
+  if (database.type !== "mongodb") {
+    throw new Error(
+      "Collection inspection only supported for MongoDB databases"
+    );
+  }
+
+  const connection = await databaseConnectionService.getConnection(database);
+  const db = connection.db(database.connection.database);
   const collection = db.collection(collectionName);
 
   const SAMPLE_SIZE = 100;
@@ -113,6 +157,36 @@ const inspectCollection = async (
   };
 };
 
+/**
+ * Execute a MongoDB query with workspace security
+ */
+const executeQuery = async (
+  query: string,
+  databaseId: string,
+  workspaceId: string
+) => {
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+
+  // Ensure database belongs to the workspace for security
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+
+  if (!database) {
+    throw new Error("Database not found or access denied");
+  }
+
+  const result = await databaseConnectionService.executeQuery(database, query);
+
+  return result;
+};
+
 // ------------------------------------------------------------------------------------
 // Tool wrappers – these are exported to the OpenAI Agents SDK so that the model can
 // decide when to call them.
@@ -122,94 +196,106 @@ const inspectCollection = async (
 //             `parameters` object. This keeps us roughly consistent with the function
 //             calling definitions used elsewhere in the code-base.
 
-const listDatabasesTool = tool({
-  name: "list_databases",
-  description:
-    "Return a list of all active MongoDB databases that the system knows about.",
-  parameters: {
-    type: "object",
-    properties: {},
-    required: [],
-    additionalProperties: false,
-  },
-  execute: async (_: any) => listDatabases(),
-});
-
-const listCollectionsTool = tool({
-  name: "list_collections",
-  description:
-    "Return a list of collections for the provided database identifier.",
-  parameters: {
-    type: "object",
-    properties: {
-      databaseId: {
-        type: "string",
-        description:
-          "The id of the database to list collections for (e.g. server1.analytics_db)",
-      },
+// We'll need to pass workspaceId to tools via context. Let's create a factory function.
+const createWorkspaceTools = (workspaceId: string) => {
+  const listDatabasesTool = tool({
+    name: "list_databases",
+    description:
+      "Return a list of all active MongoDB databases that the system knows about for the current workspace.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
     },
-    required: ["databaseId"],
-    additionalProperties: false,
-  },
-  execute: async (input: any) => listCollections(input.databaseId),
-});
+    execute: async (_: any) => listDatabases(workspaceId),
+  });
 
-const executeQueryTool = tool({
-  name: "execute_query",
-  description:
-    "Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.",
-  parameters: {
-    type: "object",
-    properties: {
-      query: {
-        type: "string",
-        description:
-          "The MongoDB query to execute in JavaScript syntax (e.g., 'db.users.find({})').",
+  const listCollectionsTool = tool({
+    name: "list_collections",
+    description:
+      "Return a list of collections for the provided database identifier.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: {
+          type: "string",
+          description:
+            "The id of the database to list collections for (e.g. 68470cf77091aab932a69c81)",
+        },
       },
-      databaseId: {
-        type: "string",
-        description:
-          "The database identifier to execute the query against (e.g. server1.analytics_db)",
-      },
+      required: ["databaseId"],
+      additionalProperties: false,
     },
-    required: ["query", "databaseId"],
-    additionalProperties: false,
-  },
-  execute: async (input: any) =>
-    queryExecutor.executeQuery(input.query, input.databaseId),
-});
+    execute: async (input: any) =>
+      listCollections(input.databaseId, workspaceId),
+  });
 
-const inspectCollectionTool = tool({
-  name: "inspect_collection",
-  description:
-    "Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.",
-  parameters: {
-    type: "object",
-    properties: {
-      databaseId: {
-        type: "string",
-        description:
-          "The database identifier to inspect (e.g. server1.analytics_db)",
+  const executeQueryTool = tool({
+    name: "execute_query",
+    description:
+      "Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description:
+            "The MongoDB query to execute in JavaScript syntax (e.g., 'db.users.find({})').",
+        },
+        databaseId: {
+          type: "string",
+          description:
+            "The database identifier to execute the query against (e.g. 68470cf77091aab932a69c81)",
+        },
       },
-      collectionName: {
-        type: "string",
-        description: "The name of the collection to inspect (e.g. users)",
-      },
+      required: ["query", "databaseId"],
+      additionalProperties: false,
     },
-    required: ["databaseId", "collectionName"],
-    additionalProperties: false,
-  },
-  execute: async (input: any) =>
-    inspectCollection(input.databaseId, input.collectionName),
-});
+    execute: async (input: any) =>
+      executeQuery(input.query, input.databaseId, workspaceId),
+  });
+
+  const inspectCollectionTool = tool({
+    name: "inspect_collection",
+    description:
+      "Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: {
+          type: "string",
+          description:
+            "The database identifier to inspect (e.g. 68470cf77091aab932a69c81)",
+        },
+        collectionName: {
+          type: "string",
+          description: "The name of the collection to inspect (e.g. users)",
+        },
+      },
+      required: ["databaseId", "collectionName"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      inspectCollection(input.databaseId, input.collectionName, workspaceId),
+  });
+
+  return [
+    listDatabasesTool,
+    listCollectionsTool,
+    inspectCollectionTool,
+    executeQueryTool,
+  ];
+};
 
 // ------------------------------------------------------------------------------------
-// The Agent definition
+// The Agent definition - Updated to be created dynamically with workspaceId
 // ------------------------------------------------------------------------------------
 
-const dbAgent = new Agent({
-  name: "Database Assistant",
-  instructions: `You are an expert MongoDB assistant.
+const createDbAgent = (workspaceId: string) =>
+  new Agent({
+    name: "Database Assistant",
+    instructions: `You are an expert MongoDB assistant.
   Your goal is to help the user write MongoDB queries (mostly aggregation) to answer their questions.
   Use the available tools to inspect the available databases, list their collections, inspect collections schemas and execute queries.
   Your process should be:
@@ -239,14 +325,9 @@ const dbAgent = new Agent({
     | **Fields with dots**             | Access via \`$getField\`.                                                                                 | Dot-notation on such fields.                     |
 
     `,
-  tools: [
-    listDatabasesTool,
-    listCollectionsTool,
-    inspectCollectionTool,
-    executeQueryTool,
-  ],
-  model: "o3",
-});
+    tools: createWorkspaceTools(workspaceId),
+    model: "o3",
+  });
 
 // ------------------------------------------------------------------------------------
 // Chat-session helpers (shared with the /ai route but duplicated locally to avoid a
@@ -319,9 +400,13 @@ agentRoutes.post("/stream", async (c) => {
       };
 
       try {
-        const runStream: any = await runAgent(dbAgent, agentInput, {
-          stream: true,
-        });
+        const runStream: any = await runAgent(
+          createDbAgent(workspaceId),
+          agentInput,
+          {
+            stream: true,
+          }
+        );
 
         let assistantReply = "";
         let eventCount = 0;
