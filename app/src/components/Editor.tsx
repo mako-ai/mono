@@ -26,6 +26,7 @@ import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
+import Chat from "./Chat/Chat";
 
 interface QueryResult {
   results: any[];
@@ -156,16 +157,39 @@ function Editor() {
     databaseId?: string
   ) => {
     if (!contentToExecute.trim()) return;
+
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
+    if (!databaseId) {
+      setErrorMessage("No database selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
     setIsExecuting(true);
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: contentToExecute, databaseId }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: contentToExecute }),
+        }
+      );
       const data = await response.json();
       if (data.success) {
-        setTabResults((prev) => ({ ...prev, [tabId]: data.data }));
+        setTabResults((prev) => ({
+          ...prev,
+          [tabId]: {
+            results: data.data,
+            executedAt: new Date().toISOString(),
+            resultCount: Array.isArray(data.data) ? data.data.length : 1,
+          },
+        }));
       } else {
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);

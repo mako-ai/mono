@@ -292,7 +292,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
               ) : (
                 databases.map((db) => (
                   <MenuItem key={db.id} value={db.id}>
-                    {db.database}
+                    {db.database || db.name || "Unknown Database"}
                   </MenuItem>
                 ))
               )}

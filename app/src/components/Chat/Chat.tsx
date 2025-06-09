@@ -26,6 +26,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { useCustomPrompt } from "./CustomPrompt";
+import { useWorkspace } from "../../contexts/workspace-context";
 
 const Chat: React.FC<ChatProps> = () => {
   // Get state and actions from Zustand store
@@ -94,6 +95,9 @@ const Chat: React.FC<ChatProps> = () => {
 
   // Get custom prompt content
   const { content: customPromptContent } = useCustomPrompt();
+
+  // Get workspace context
+  const { currentWorkspace } = useWorkspace();
 
   // Initialize OpenAI client
   useEffect(() => {
@@ -457,14 +461,25 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       return null;
     }
 
+    if (!currentWorkspace) {
+      return { success: false, error: "No workspace selected" };
+    }
+
+    if (!consoleTab.databaseId) {
+      return { success: false, error: "No database selected for this console" };
+    }
+
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content: consoleTab.content }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${consoleTab.databaseId}/execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: consoleTab.content }),
+        }
+      );
 
       const data = await response.json();
       return data;
