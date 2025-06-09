@@ -91,8 +91,8 @@ function Settings() {
 
   return (
     <Box sx={{ height: "100%", p: 2, overflow: "auto" }}>
-      <Typography variant="h5" component="h1" gutterBottom sx={{ mb: 2 }}>
-        Settings
+      <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 2 }}>
+        Workspace Settings
       </Typography>
 
       <Box
