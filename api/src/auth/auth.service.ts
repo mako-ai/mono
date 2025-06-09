@@ -3,6 +3,7 @@ import { generateId } from 'lucia';
 import { lucia } from './lucia';
 import { User, OAuthAccount } from '../database/schema';
 import type { OAuthProvider } from './arctic';
+import { workspaceService } from '../services/workspace.service';
 
 /**
  * Authentication service with business logic
@@ -39,8 +40,16 @@ export class AuthService {
       hashedPassword,
     });
 
-    // Create session
-    const session = await lucia.createSession(userId, {});
+    // Create default workspace for the user
+    const workspace = await workspaceService.createWorkspace(
+      userId,
+      `${email}'s Workspace`
+    );
+
+    // Create session with workspace
+    const session = await lucia.createSession(userId, {
+      activeWorkspaceId: workspace._id.toString(),
+    });
     
     return { user, session };
   }
@@ -71,8 +80,14 @@ export class AuthService {
       throw new Error('Invalid email or password');
     }
 
+    // Get user's workspaces
+    const workspaces = await workspaceService.getWorkspacesForUser(user._id);
+    const activeWorkspaceId = workspaces.length > 0 ? workspaces[0].workspace._id.toString() : undefined;
+
     // Create session
-    const session = await lucia.createSession(user._id, {});
+    const session = await lucia.createSession(user._id, {
+      activeWorkspaceId,
+    });
     
     return { user, session };
   }
@@ -98,7 +113,13 @@ export class AuthService {
         throw new Error('User account not found');
       }
 
-      const session = await lucia.createSession(user._id, {});
+      // Get user's workspaces
+      const workspaces = await workspaceService.getWorkspacesForUser(user._id);
+      const activeWorkspaceId = workspaces.length > 0 ? workspaces[0].workspace._id.toString() : undefined;
+
+      const session = await lucia.createSession(user._id, {
+        activeWorkspaceId,
+      });
       return { user, session, isNewUser: false };
     }
 
@@ -134,8 +155,25 @@ export class AuthService {
       email,
     });
 
+    // Create default workspace for new user
+    const workspaces = await workspaceService.getWorkspacesForUser(user._id);
+    let activeWorkspaceId: string;
+    
+    if (workspaces.length === 0) {
+      // Create workspace only if user doesn't have any
+      const workspace = await workspaceService.createWorkspace(
+        user._id,
+        `${user.email}'s Workspace`
+      );
+      activeWorkspaceId = workspace._id.toString();
+    } else {
+      activeWorkspaceId = workspaces[0].workspace._id.toString();
+    }
+
     // Create session
-    const session = await lucia.createSession(user._id, {});
+    const session = await lucia.createSession(user._id, {
+      activeWorkspaceId,
+    });
     
     return { user, session, isNewUser: true };
   }

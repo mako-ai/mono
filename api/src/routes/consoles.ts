@@ -1,27 +1,32 @@
 import { Hono } from "hono";
 import { ConsoleManager } from "../utils/console-manager";
+import { authMiddleware } from "../auth/auth.middleware";
+import { Database } from "../database/workspace-schema";
+import { workspaceService } from "../services/workspace.service";
+import { Context } from "hono";
 
 export const consoleRoutes = new Hono();
 const consoleManager = new ConsoleManager();
 
-// GET /api/consoles - List all consoles (tree structure)
-consoleRoutes.get("/", async (c) => {
+// Apply auth middleware to all console routes
+consoleRoutes.use("*", authMiddleware);
+
+// GET /api/workspaces/:workspaceId/consoles - List all consoles (tree structure) for workspace
+consoleRoutes.get("/", async (c: Context) => {
   try {
-    const tree = await consoleManager.listConsoles();
-    // Log the tree structure just before sending it
-    console.log("Tree data in route handler (before c.json):");
-    if (tree.length > 0) {
-      tree.slice(0, 3).forEach((entry) => {
-        console.log(
-          `  Path: ${entry.path}, Name: ${entry.name}, isDirectory: ${entry.isDirectory}, Children count: ${entry.children ? entry.children.length : 0}`
-        );
-        if (entry.children && entry.children.length > 0) {
-          console.log(
-            `    Child of ${entry.name} - Path: ${entry.children[0].path}, isDirectory: ${entry.children[0].isDirectory}`
-          );
-        }
-      });
+    const workspaceId = c.req.param("workspaceId");
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
     }
+
+    const tree = await consoleManager.listConsoles(workspaceId);
+
     return c.json({ success: true, tree });
   } catch (error) {
     console.error("Error listing consoles:", error);
@@ -35,20 +40,30 @@ consoleRoutes.get("/", async (c) => {
   }
 });
 
-// GET /api/consoles/content - Get specific console content
-// Changed from /api/consoles/:path to /api/consoles/content?path=...
-// to match the new frontend ConsoleExplorer structure
-consoleRoutes.get("/content", async (c) => {
+// GET /api/workspaces/:workspaceId/consoles/content - Get specific console content
+consoleRoutes.get("/content", async (c: Context) => {
   try {
+    const workspaceId = c.req.param("workspaceId");
     const consolePath = c.req.query("path");
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
     if (!consolePath) {
       return c.json(
         { success: false, error: "Path query parameter is required" },
         400
       );
     }
-    const content = await consoleManager.getConsole(consolePath);
-    return c.json({ success: true, content }); // Return just content, path is known
+
+    const content = await consoleManager.getConsole(consolePath, workspaceId);
+    return c.json({ success: true, content });
   } catch (error) {
     console.error(
       `Error fetching console content for ${c.req.query("path")}:`,
@@ -64,12 +79,29 @@ consoleRoutes.get("/content", async (c) => {
   }
 });
 
-// POST /api/consoles - Create new console
-// The path will be part of the request body, e.g., { path: "folder/newConsole", content: "..." }
-consoleRoutes.post("/", async (c) => {
+// POST /api/workspaces/:workspaceId/consoles - Create new console
+consoleRoutes.post("/", async (c: Context) => {
   try {
+    const workspaceId = c.req.param("workspaceId");
     const body = await c.req.json();
-    const { path: consolePath, content } = body;
+    const {
+      path: consolePath,
+      content,
+      databaseId,
+      folderId,
+      description,
+      language,
+      isPrivate,
+    } = body;
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
 
     if (!consolePath || typeof consolePath !== "string") {
       return c.json(
@@ -78,11 +110,21 @@ consoleRoutes.post("/", async (c) => {
       );
     }
     if (typeof content !== "string") {
-      // Allow empty content
       return c.json({ success: false, error: "Content must be a string" }, 400);
     }
 
-    const exists = await consoleManager.consoleExists(consolePath);
+    // databaseId is optional - consoles can be saved without being associated with a specific database
+    let targetDatabaseId = databaseId;
+    if (!targetDatabaseId) {
+      // Try to get the first database for the workspace, but don't require it
+      const databases = await Database.find({ workspaceId }).limit(1);
+      if (databases.length > 0) {
+        targetDatabaseId = databases[0]._id.toString();
+      }
+      // If no databases exist, that's fine - targetDatabaseId will remain undefined
+    }
+
+    const exists = await consoleManager.consoleExists(consolePath, workspaceId);
     if (exists) {
       return c.json(
         { success: false, error: "Console already exists at this path" },
@@ -90,13 +132,31 @@ consoleRoutes.post("/", async (c) => {
       );
     }
 
-    await consoleManager.saveConsole(consolePath, content);
-    // Return the created console's details, could be useful for the client
+    const savedConsole = await consoleManager.saveConsole(
+      consolePath,
+      content,
+      workspaceId,
+      user.id,
+      targetDatabaseId,
+      {
+        folderId,
+        description,
+        language,
+        isPrivate,
+      }
+    );
+
     return c.json(
       {
         success: true,
         message: "Console created successfully",
-        data: { path: consolePath, content },
+        data: {
+          id: savedConsole._id.toString(),
+          path: consolePath,
+          content,
+          databaseId: targetDatabaseId,
+          language: savedConsole.language,
+        },
       },
       201
     );
@@ -115,12 +175,21 @@ consoleRoutes.post("/", async (c) => {
   }
 });
 
-// PUT /api/consoles/:path - Update existing console
-// The path is still in the URL, content in the body
-consoleRoutes.put("/:path{.+}", async (c) => {
+// PUT /api/workspaces/:workspaceId/consoles/:path - Update existing console
+consoleRoutes.put("/:path{.+}", async (c: Context) => {
   try {
+    const workspaceId = c.req.param("workspaceId");
     const consolePath = c.req.param("path");
     const body = await c.req.json();
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
 
     if (typeof body.content !== "string") {
       return c.json(
@@ -129,18 +198,41 @@ consoleRoutes.put("/:path{.+}", async (c) => {
       );
     }
 
-    // Optional: Check if console exists before attempting to save, though saveConsole should handle it by creating if not present.
-    // For a strict update, you might want to check and return 404 if it doesn't exist.
-    // const exists = await consoleManager.consoleExists(consolePath);
-    // if (!exists) {
-    //   return c.json({ success: false, error: "Console not found" }, 404);
-    // }
+    // databaseId is optional - consoles can be saved without being associated with a specific database
+    let targetDatabaseId = body.databaseId;
+    if (!targetDatabaseId) {
+      // Try to get the first database for the workspace, but don't require it
+      const databases = await Database.find({ workspaceId }).limit(1);
+      if (databases.length > 0) {
+        targetDatabaseId = databases[0]._id.toString();
+      }
+      // If no databases exist, that's fine - targetDatabaseId will remain undefined
+    }
 
-    await consoleManager.saveConsole(consolePath, body.content);
+    const savedConsole = await consoleManager.saveConsole(
+      consolePath,
+      body.content,
+      workspaceId,
+      user.id,
+      targetDatabaseId,
+      {
+        folderId: body.folderId,
+        description: body.description,
+        language: body.language,
+        isPrivate: body.isPrivate,
+      }
+    );
+
     return c.json({
       success: true,
       message: "Console updated successfully",
-      data: { path: consolePath, content: body.content },
+      data: {
+        id: savedConsole._id.toString(),
+        path: consolePath,
+        content: body.content,
+        databaseId: targetDatabaseId,
+        language: savedConsole.language,
+      },
     });
   } catch (error) {
     console.error(`Error updating console ${c.req.param("path")}:`, error);
@@ -157,22 +249,272 @@ consoleRoutes.put("/:path{.+}", async (c) => {
   }
 });
 
-// DELETE /api/consoles/:path - Delete a console
-// (Placeholder, as delete functionality was not explicitly in queryManager but is good for CRUD)
-// consoleRoutes.delete("/:path{.+}", async (c) => {
-//   try {
-//     const consolePath = c.req.param("path");
-//     // Add consoleManager.deleteConsole(consolePath) method
-//     // await consoleManager.deleteConsole(consolePath);
-//     return c.json({ success: true, message: "Console deleted successfully" });
-//   } catch (error) {
-//     console.error(`Error deleting console ${c.req.param("path")}:`, error);
-//     return c.json(
-//       {
-//         success: false,
-//         error: error instanceof Error ? error.message : "Unknown error deleting console",
-//       },
-//       500
-//     );
-//   }
-// });
+// POST /api/workspaces/:workspaceId/consoles/folders - Create new folder
+consoleRoutes.post("/folders", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const body = await c.req.json();
+    const { name, parentId, isPrivate } = body;
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    if (!name || typeof name !== "string") {
+      return c.json(
+        { success: false, error: "Name is required and must be a string" },
+        400
+      );
+    }
+
+    const folder = await consoleManager.createFolder(
+      name,
+      workspaceId,
+      user.id,
+      parentId,
+      isPrivate || false
+    );
+
+    return c.json(
+      {
+        success: true,
+        message: "Folder created successfully",
+        data: {
+          id: folder._id.toString(),
+          name: folder.name,
+          parentId: folder.parentId?.toString(),
+          isPrivate: folder.isPrivate,
+        },
+      },
+      201
+    );
+  } catch (error) {
+    console.error("Error creating folder:", error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error creating folder",
+      },
+      500
+    );
+  }
+});
+
+// PATCH /api/workspaces/:workspaceId/consoles/:id/rename - Rename a console
+consoleRoutes.patch("/:id/rename", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const consoleId = c.req.param("id");
+    const body = await c.req.json();
+    const { name } = body;
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    if (!name || typeof name !== "string") {
+      return c.json(
+        { success: false, error: "Name is required and must be a string" },
+        400
+      );
+    }
+
+    const success = await consoleManager.renameConsole(
+      consoleId,
+      name,
+      workspaceId,
+      user.id
+    );
+
+    if (success) {
+      return c.json({ success: true, message: "Console renamed successfully" });
+    } else {
+      return c.json({ success: false, error: "Console not found" }, 404);
+    }
+  } catch (error) {
+    console.error(`Error renaming console ${c.req.param("id")}:`, error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error renaming console",
+      },
+      500
+    );
+  }
+});
+
+// DELETE /api/workspaces/:workspaceId/consoles/:id - Delete a console
+consoleRoutes.delete("/:id", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const consoleId = c.req.param("id");
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    const success = await consoleManager.deleteConsole(consoleId, workspaceId);
+
+    if (success) {
+      return c.json({ success: true, message: "Console deleted successfully" });
+    } else {
+      return c.json({ success: false, error: "Console not found" }, 404);
+    }
+  } catch (error) {
+    console.error(`Error deleting console ${c.req.param("id")}:`, error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error deleting console",
+      },
+      500
+    );
+  }
+});
+
+// PATCH /api/workspaces/:workspaceId/consoles/folders/:id/rename - Rename a folder
+consoleRoutes.patch("/folders/:id/rename", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const folderId = c.req.param("id");
+    const body = await c.req.json();
+    const { name } = body;
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    if (!name || typeof name !== "string") {
+      return c.json(
+        { success: false, error: "Name is required and must be a string" },
+        400
+      );
+    }
+
+    const success = await consoleManager.renameFolder(
+      folderId,
+      name,
+      workspaceId
+    );
+
+    if (success) {
+      return c.json({ success: true, message: "Folder renamed successfully" });
+    } else {
+      return c.json({ success: false, error: "Folder not found" }, 404);
+    }
+  } catch (error) {
+    console.error(`Error renaming folder ${c.req.param("id")}:`, error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error renaming folder",
+      },
+      500
+    );
+  }
+});
+
+// DELETE /api/workspaces/:workspaceId/consoles/folders/:id - Delete a folder
+consoleRoutes.delete("/folders/:id", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const folderId = c.req.param("id");
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    const success = await consoleManager.deleteFolder(folderId, workspaceId);
+
+    if (success) {
+      return c.json({ success: true, message: "Folder deleted successfully" });
+    } else {
+      return c.json({ success: false, error: "Folder not found" }, 404);
+    }
+  } catch (error) {
+    console.error(`Error deleting folder ${c.req.param("id")}:`, error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error deleting folder",
+      },
+      500
+    );
+  }
+});
+
+// POST /api/workspaces/:workspaceId/consoles/:id/execute - Update execution stats when console is executed
+consoleRoutes.post("/:id/execute", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const consoleId = c.req.param("id");
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    await consoleManager.updateExecutionStats(consoleId, workspaceId);
+
+    return c.json({ success: true, message: "Execution stats updated" });
+  } catch (error) {
+    console.error(
+      `Error updating execution stats for console ${c.req.param("id")}:`,
+      error
+    );
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error updating execution stats",
+      },
+      500
+    );
+  }
+});
