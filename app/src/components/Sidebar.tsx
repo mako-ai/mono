@@ -32,9 +32,9 @@ const NavButton = styled(Button, {
   width: 40,
   height: 40,
   padding: 0,
-  borderRadius: theme.shape.borderRadius,
+  borderRadius: 8,
   backgroundColor: isActive ? theme.palette.action.selected : "transparent",
-  color: isActive ? theme.palette.primary.main : theme.palette.text.secondary,
+  color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
   "&:hover": {
     backgroundColor: isActive
       ? theme.palette.action.selected
@@ -157,7 +157,7 @@ function Sidebar() {
                   isActive={isActive}
                   onClick={() => handleNavigation(item.view as NavigationView)}
                 >
-                  <Icon size={20} />
+                  <Icon size={24} />
                 </NavButton>
               </Tooltip>
             );
