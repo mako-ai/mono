@@ -634,7 +634,10 @@ const Chat3: React.FC = () => {
               Agent Chat
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", gap: 1 }}>
+          <Box sx={{ display: "flex" }}>
+            <IconButton size="small" onClick={createNewSession}>
+              <AddIcon />
+            </IconButton>
             <IconButton
               size="small"
               onClick={handleHistoryMenuOpen}
@@ -642,13 +645,6 @@ const Chat3: React.FC = () => {
             >
               <HistoryIcon />
             </IconButton>
-            <Button
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={createNewSession}
-            >
-              New Chat
-            </Button>
           </Box>
         </Box>
       </Box>
@@ -752,7 +748,7 @@ const Chat3: React.FC = () => {
               </ListItem>
               {/* Show streaming assistant response below the chips */}
               {streamingContent && (
-                <ListItem alignItems="flex-start">
+                <ListItem alignItems="flex-start" sx={{ p: 0 }}>
                   <Box
                     sx={{
                       flex: 1,
