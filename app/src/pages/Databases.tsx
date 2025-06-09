@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import {
   Box,
   Typography,
@@ -13,6 +19,7 @@ import {
   Snackbar,
   Tabs,
   Tab,
+  Divider,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 import DatabaseExplorer from "../components/DatabaseExplorer";
@@ -198,23 +205,39 @@ function Databases() {
   const handleConsoleExecute = async (query: string, databaseId?: string) => {
     if (!query.trim()) return;
 
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
+    if (!databaseId) {
+      setErrorMessage("No database selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
     setIsExecuting(true);
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: query,
-          databaseId: databaseId,
-        }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query }),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        setQueryResults(data.data);
+        setQueryResults({
+          results: data.data,
+          executedAt: new Date().toISOString(),
+          resultCount: Array.isArray(data.data) ? data.data.length : 1,
+        });
       } else {
         console.error("Query execution failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));

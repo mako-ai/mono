@@ -82,14 +82,30 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       return;
     }
 
-    if (!useConnectionString) {
-      if (!connection.host || !connection.database) {
-        setError("Host and database name are required");
-        return;
-      }
-    } else {
+    let finalConnection = { ...connection };
+
+    if (useConnectionString) {
       if (!connection.connectionString) {
         setError("Connection string is required");
+        return;
+      }
+      // Ensure database name is extracted for MongoDB connection strings
+      if (type === "mongodb" && !finalConnection.database) {
+        const dbName = extractDatabaseFromConnectionString(
+          connection.connectionString
+        );
+        if (dbName) {
+          finalConnection.database = dbName;
+        } else {
+          setError(
+            "Could not extract database name from connection string. Please ensure it includes the database name (e.g., /mydb)"
+          );
+          return;
+        }
+      }
+    } else {
+      if (!connection.host || !connection.database) {
+        setError("Host and database name are required");
         return;
       }
     }
@@ -108,9 +124,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
           body: JSON.stringify({
             name,
             type,
-            connection: useConnectionString
-              ? { connectionString: connection.connectionString }
-              : connection,
+            connection: finalConnection,
           }),
         }
       );
@@ -154,6 +168,33 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       port: getDefaultPort(newType),
     }));
     setUseConnectionString(newType === "mongodb");
+  };
+
+  const extractDatabaseFromConnectionString = (
+    connectionString: string
+  ): string => {
+    try {
+      // Extract database name from MongoDB connection string
+      // Format: mongodb://user:pass@host:port/database or mongodb+srv://user:pass@host/database
+      const match = connectionString.match(/\/([^/?]+)(\?|$)/);
+      return match ? match[1] : "";
+    } catch {
+      return "";
+    }
+  };
+
+  const handleConnectionStringChange = (connectionString: string) => {
+    const updatedConnection = { ...connection, connectionString };
+
+    // Auto-extract database name for MongoDB
+    if (type === "mongodb" && connectionString) {
+      const dbName = extractDatabaseFromConnectionString(connectionString);
+      if (dbName) {
+        updatedConnection.database = dbName;
+      }
+    }
+
+    setConnection(updatedConnection);
   };
 
   return (
@@ -218,22 +259,26 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
               )}
 
               {useConnectionString ? (
-                <TextField
-                  fullWidth
-                  label="Connection String"
-                  value={connection.connectionString || ""}
-                  onChange={(e) =>
-                    setConnection((prev) => ({
-                      ...prev,
-                      connectionString: e.target.value,
-                    }))
-                  }
-                  margin="normal"
-                  required
-                  placeholder="mongodb+srv://username:password@cluster.mongodb.net/database"
-                  multiline
-                  rows={2}
-                />
+                <>
+                  <TextField
+                    fullWidth
+                    label="Connection String"
+                    value={connection.connectionString || ""}
+                    onChange={(e) =>
+                      handleConnectionStringChange(e.target.value)
+                    }
+                    margin="normal"
+                    required
+                    placeholder="mongodb+srv://username:password@cluster.mongodb.net/database"
+                    multiline
+                    rows={2}
+                    helperText={
+                      connection.database
+                        ? `Detected database: ${connection.database}`
+                        : "Enter a connection string that includes the database name"
+                    }
+                  />
+                </>
               ) : (
                 <>
                   <TextField

@@ -441,7 +441,9 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                           whiteSpace: "nowrap",
                                         }}
                                       >
-                                        {database.database}
+                                        {database.database ||
+                                          database.name ||
+                                          "Unknown Database"}
                                       </Typography>
                                     </Box>
                                   }

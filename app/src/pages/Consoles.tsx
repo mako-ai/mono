@@ -67,8 +67,34 @@ function Consoles() {
       }
     | undefined
   >(undefined);
+  const [availableDatabases, setAvailableDatabases] = useState<any[]>([]);
   const consoleEditorRef = useRef<ConsoleRef>(null);
   const consoleExplorerRef = useRef<ConsoleExplorerRef>(null);
+
+  // Load databases when workspace changes
+  useEffect(() => {
+    const fetchDatabases = async () => {
+      if (!currentWorkspace) return;
+
+      try {
+        const response = await fetch("/api/databases/servers");
+        const data = await response.json();
+
+        if (data.success) {
+          // Extract all databases from all servers
+          const allDatabases: any[] = [];
+          data.data.forEach((server: any) => {
+            allDatabases.push(...server.databases);
+          });
+          setAvailableDatabases(allDatabases);
+        }
+      } catch (error) {
+        console.error("Failed to fetch databases:", error);
+      }
+    };
+
+    fetchDatabases();
+  }, [currentWorkspace]);
 
   // Update current editor content periodically
   useEffect(() => {
@@ -94,23 +120,45 @@ function Consoles() {
     setConsoleResults(null); // Clear previous results
   };
 
-  const handleConsoleExecute = async (contentToExecute: string) => {
+  const handleConsoleExecute = async (
+    contentToExecute: string,
+    databaseId?: string
+  ) => {
     if (!contentToExecute.trim()) return;
+
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
+    if (!databaseId) {
+      setErrorMessage("No database selected");
+      setErrorModalOpen(true);
+      return;
+    }
 
     setIsExecuting(true);
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content: contentToExecute }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: contentToExecute }),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        setConsoleResults(data.data);
+        setConsoleResults({
+          results: data.data,
+          executedAt: new Date().toISOString(),
+          resultCount: Array.isArray(data.data) ? data.data.length : 1,
+        });
       } else {
         console.error("Console execution failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
@@ -257,6 +305,7 @@ function Consoles() {
                     isSaving={isSaving}
                     ref={consoleEditorRef}
                     filePath={selectedConsole}
+                    databases={availableDatabases}
                   />
                 </Box>
               </Panel>
