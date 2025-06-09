@@ -25,6 +25,7 @@ import DataSources from "../pages/DataSources";
 import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface QueryResult {
   results: any[];
@@ -44,6 +45,7 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 }));
 
 function Editor() {
+  const { currentWorkspace } = useWorkspace();
   const [tabResults, setTabResults] = useState<
     Record<string, QueryResult | null>
   >({});
@@ -183,6 +185,12 @@ function Editor() {
     contentToSave: string,
     currentPath?: string
   ): Promise<boolean> => {
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return false;
+    }
+
     setIsSaving(true);
     let success = false;
     try {
@@ -200,7 +208,9 @@ function Editor() {
         method = "POST";
       }
       const response = await fetch(
-        method === "PUT" ? `/api/consoles/${savePath}` : `/api/consoles`,
+        method === "PUT"
+          ? `/api/workspaces/${currentWorkspace.id}/consoles/${savePath}`
+          : `/api/workspaces/${currentWorkspace.id}/consoles`,
         {
           method,
           headers: { "Content-Type": "application/json" },
@@ -332,7 +342,9 @@ function Editor() {
                 (t) => t.id === activeConsoleId
               );
               const isConsoleTab =
-                activeTab?.kind !== "settings" && activeTab?.kind !== "sources" && activeTab?.kind !== "members";
+                activeTab?.kind !== "settings" &&
+                activeTab?.kind !== "sources" &&
+                activeTab?.kind !== "members";
 
               if (isConsoleTab) {
                 return (

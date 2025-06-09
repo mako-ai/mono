@@ -58,7 +58,7 @@ app.get("/health", (c) => {
 app.route("/api/auth", authRoutes);
 app.route("/api/workspaces", workspaceRoutes);
 app.route("/api/workspaces/:workspaceId/databases", workspaceDatabaseRoutes);
-app.route("/api/consoles", consoleRoutes);
+app.route("/api/workspaces/:workspaceId/consoles", consoleRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
