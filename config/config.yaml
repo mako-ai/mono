@@ -220,6 +220,12 @@ data_sources:
 
 # MongoDB Servers Configuration
 # Group databases by their server instances
+# 
+# ⚠️ DEPRECATED: Database connections are now managed in MongoDB
+# This section is maintained for backward compatibility during migration.
+# Use the web UI or API to manage database connections after migration.
+# To migrate existing connections, run: pnpm migrate:databases
+#
 mongodb_servers:
   atlas:
     name: "MongoDB Atlas"

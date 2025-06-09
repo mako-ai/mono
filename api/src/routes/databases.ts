@@ -1,34 +1,57 @@
 import { Hono } from "hono";
-import { configLoader } from "../utils/config-loader";
-import { mongoConnection } from "../utils/mongodb-connection";
-import { Filter, FindOptions } from "mongodb";
+import { authMiddleware } from "../auth/auth.middleware";
+import { requireWorkspace, AuthenticatedContext } from "../middleware/workspace.middleware";
+import { Database } from "../database/workspace-schema";
+import { databaseConnectionService } from "../services/database-connection.service";
+import { Types } from "mongoose";
 
 export const databasesRoutes = new Hono();
 
-// GET /api/databases/servers - List all MongoDB servers
-databasesRoutes.get("/servers", async (c) => {
+// GET /api/databases/servers - List all MongoDB servers (grouped by unique hosts)
+// Note: This endpoint is deprecated, use /api/databases instead
+databasesRoutes.get("/servers", authMiddleware, requireWorkspace, async (c: AuthenticatedContext) => {
   try {
-    // Get all MongoDB servers
-    const servers = configLoader.getMongoServers();
+    const workspace = c.get("workspace");
+    
+    // Get all MongoDB databases for the workspace
+    const databases = await Database.find({
+      workspaceId: workspace._id,
+      type: "mongodb"
+    }).sort({ name: 1 });
 
-    // Transform to API response format
-    const serversData = servers.map((server) => ({
-      id: server.id,
-      name: server.name,
-      description: server.description || "",
-      connectionString: server.connection_string,
-      active: server.active,
-      databases: Object.entries(server.databases || {})
-        .filter(([_, db]) => db.active)
-        .map(([dbId, db]) => ({
-          id: `${server.id}.${dbId}`,
-          localId: dbId,
-          name: db.name,
-          description: db.description || "",
-          database: db.database,
-          active: db.active,
-        })),
-    }));
+    // Group databases by their host to simulate "servers"
+    // This is for backward compatibility with the UI
+    const serverMap = new Map<string, any>();
+
+    databases.forEach(db => {
+      const conn = db.connection;
+      // Use host or connection string as the key
+      const serverKey = conn.connectionString || conn.host || "unknown";
+      
+      if (!serverMap.has(serverKey)) {
+        serverMap.set(serverKey, {
+          id: serverKey,
+          name: conn.connectionString ? "MongoDB Atlas" : `MongoDB (${conn.host})`,
+          description: "",
+          connectionString: conn.connectionString || `mongodb://${conn.host}:${conn.port || 27017}`,
+          active: true,
+          databases: []
+        });
+      }
+
+      const server = serverMap.get(serverKey);
+      server.databases.push({
+        id: db._id.toString(),
+        localId: db._id.toString(),
+        name: db.name,
+        description: "",
+        database: conn.database,
+        active: true,
+      });
+    });
+
+    // Convert map to array
+    const serversData = Array.from(serverMap.values());
 
     return c.json({
       success: true,
@@ -46,21 +69,25 @@ databasesRoutes.get("/servers", async (c) => {
   }
 });
 
-// GET /api/databases - List all MongoDB databases from config (backward compatibility)
-databasesRoutes.get("/", async (c) => {
+// GET /api/databases - List all databases for the workspace
+databasesRoutes.get("/", authMiddleware, requireWorkspace, async (c: AuthenticatedContext) => {
   try {
-    // Get all MongoDB data sources
-    const mongoSources = configLoader.getMongoDBSources();
+    const workspace = c.get("workspace");
+    
+    // Get all databases for the workspace
+    const dbs = await Database.find({
+      workspaceId: workspace._id
+    }).sort({ name: 1 });
 
     // Transform to API response format
-    const databases = mongoSources.map((source) => ({
-      id: source.id,
-      name: source.name,
-      description: source.description || "",
-      database: source.database,
-      active: source.active,
-      serverId: source.serverId,
-      serverName: source.serverName,
+    const databases = dbs.map((db) => ({
+      id: db._id.toString(),
+      name: db.name,
+      description: "",
+      database: db.connection.database,
+      type: db.type,
+      active: true,
+      lastConnectedAt: db.lastConnectedAt,
     }));
 
     return c.json({
@@ -79,24 +106,80 @@ databasesRoutes.get("/", async (c) => {
   }
 });
 
-// GET /api/databases/:id/collections - List all collections in a database
-databasesRoutes.get("/:id/collections", async (c) => {
+// GET /api/databases/:id/collections - List collections in a database
+databasesRoutes.get("/:id/collections", authMiddleware, requireWorkspace, async (c: AuthenticatedContext) => {
+  const databaseId = c.req.param("id");
+  const workspace = c.get("workspace");
+
   try {
-    const databaseId = c.req.param("id");
-    const db = await mongoConnection.getDatabase(databaseId);
+    // Validate database ID
+    if (!Types.ObjectId.isValid(databaseId)) {
+      return c.json({ success: false, error: "Invalid database ID" }, 400);
+    }
 
-    const collections = await db
-      .listCollections({ type: "collection" })
-      .toArray();
-
-    return c.json({
-      success: true,
-      data: collections.map((col) => ({
-        name: col.name,
-        type: col.type,
-        options: (col as any).options,
-      })),
+    // Get the database from MongoDB
+    const database = await Database.findOne({
+      _id: new Types.ObjectId(databaseId),
+      workspaceId: workspace._id
     });
+
+    if (!database) {
+      return c.json({ success: false, error: "Database not found" }, 404);
+    }
+
+    // Update last connected timestamp
+    await Database.updateOne(
+      { _id: database._id },
+      { lastConnectedAt: new Date() }
+    );
+
+    // Get the actual database connection
+    const connection = await databaseConnectionService.getConnection(database);
+
+    if (!connection) {
+      throw new Error("Failed to establish database connection");
+    }
+
+    // For MongoDB, get collections
+    if (database.type === "mongodb") {
+      const db = connection.db(database.connection.database);
+      const collections = await db.listCollections().toArray();
+
+      const collectionDetails = await Promise.all(
+        collections.map(async (collection: any) => {
+          try {
+            // Get additional collection info if needed
+            const stats = await db.collection(collection.name).stats().catch(() => null);
+            
+            return {
+              name: collection.name,
+              type: collection.type || "collection",
+              options: collection.options || {},
+              size: stats?.size,
+              count: stats?.count,
+            };
+          } catch (error) {
+            // If stats fail, just return basic info
+            return {
+              name: collection.name,
+              type: collection.type || "collection",
+              options: collection.options || {},
+            };
+          }
+        })
+      );
+
+      return c.json({
+        success: true,
+        data: collectionDetails,
+      });
+    } else {
+      // For SQL databases, would return tables instead
+      return c.json({
+        success: false,
+        error: "Collection listing not implemented for non-MongoDB databases",
+      });
+    }
   } catch (error) {
     console.error("Error listing collections:", error);
     return c.json(
@@ -109,22 +192,56 @@ databasesRoutes.get("/:id/collections", async (c) => {
   }
 });
 
-// GET /api/databases/:id/views - List all views in a database
-databasesRoutes.get("/:id/views", async (c) => {
+// GET /api/databases/:id/views - List views in a database  
+databasesRoutes.get("/:id/views", authMiddleware, requireWorkspace, async (c: AuthenticatedContext) => {
+  const databaseId = c.req.param("id");
+  const workspace = c.get("workspace");
+
   try {
-    const databaseId = c.req.param("id");
-    const db = await mongoConnection.getDatabase(databaseId);
+    // Validate database ID
+    if (!Types.ObjectId.isValid(databaseId)) {
+      return c.json({ success: false, error: "Invalid database ID" }, 400);
+    }
 
-    const views = await db.listCollections({ type: "view" }).toArray();
-
-    return c.json({
-      success: true,
-      data: views.map((view) => ({
-        name: view.name,
-        type: view.type,
-        options: (view as any).options,
-      })),
+    // Get the database from MongoDB
+    const database = await Database.findOne({
+      _id: new Types.ObjectId(databaseId),
+      workspaceId: workspace._id
     });
+
+    if (!database) {
+      return c.json({ success: false, error: "Database not found" }, 404);
+    }
+
+    // Get the actual database connection
+    const connection = await databaseConnectionService.getConnection(database);
+
+    if (!connection) {
+      throw new Error("Failed to establish database connection");
+    }
+
+    // For MongoDB, get views
+    if (database.type === "mongodb") {
+      const db = connection.db(database.connection.database);
+      const collections = await db.listCollections({ type: "view" }).toArray();
+
+      const viewDetails = collections.map((view: any) => ({
+        name: view.name,
+        type: "view",
+        options: view.options || {},
+      }));
+
+      return c.json({
+        success: true,
+        data: viewDetails,
+      });
+    } else {
+      // For SQL databases, would return views differently
+      return c.json({
+        success: false,
+        error: "View listing not implemented for non-MongoDB databases",
+      });
+    }
   } catch (error) {
     console.error("Error listing views:", error);
     return c.json(
@@ -137,54 +254,41 @@ databasesRoutes.get("/:id/views", async (c) => {
   }
 });
 
-// GET /api/databases/:id/collections/:name - Get collection info
-databasesRoutes.get("/:id/collections/:name", async (c) => {
+// POST /api/databases/:id/test - Test database connection
+databasesRoutes.post("/:id/test", authMiddleware, requireWorkspace, async (c: AuthenticatedContext) => {
+  const databaseId = c.req.param("id");
+  const workspace = c.get("workspace");
+
   try {
-    const databaseId = c.req.param("id");
-    const collectionName = c.req.param("name");
-    const db = await mongoConnection.getDatabase(databaseId);
+    // Validate database ID
+    if (!Types.ObjectId.isValid(databaseId)) {
+      return c.json({ success: false, error: "Invalid database ID" }, 400);
+    }
 
-    // Check if collection exists
-    const collections = await db
-      .listCollections({ name: collectionName })
-      .toArray();
+    // Get the database from MongoDB
+    const database = await Database.findOne({
+      _id: new Types.ObjectId(databaseId),
+      workspaceId: workspace._id
+    });
 
-    if (collections.length === 0) {
-      return c.json(
-        {
-          success: false,
-          error: `Collection '${collectionName}' not found`,
-        },
-        404
+    if (!database) {
+      return c.json({ success: false, error: "Database not found" }, 404);
+    }
+
+    // Test the connection
+    const result = await databaseConnectionService.testConnection(database);
+
+    // Update last connected timestamp if successful
+    if (result.success) {
+      await Database.updateOne(
+        { _id: database._id },
+        { lastConnectedAt: new Date() }
       );
     }
 
-    const collection = db.collection(collectionName);
-
-    // Get collection stats
-    const stats = await db.command({ collStats: collectionName });
-
-    // Get indexes
-    const indexes = await collection.indexes();
-
-    return c.json({
-      success: true,
-      data: {
-        name: collectionName,
-        type: collections[0].type,
-        stats: {
-          count: stats.count,
-          size: stats.size,
-          avgObjSize: stats.avgObjSize,
-          storageSize: stats.storageSize,
-          indexes: stats.nindexes,
-          totalIndexSize: stats.totalIndexSize,
-        },
-        indexes,
-      },
-    });
+    return c.json(result);
   } catch (error) {
-    console.error("Error getting collection info:", error);
+    console.error("Error testing database connection:", error);
     return c.json(
       {
         success: false,
@@ -195,178 +299,48 @@ databasesRoutes.get("/:id/collections/:name", async (c) => {
   }
 });
 
-// GET /api/databases/:id/collections/:name/documents - Get documents from a collection
-databasesRoutes.get("/:id/collections/:name/documents", async (c) => {
+// POST /api/databases/:id/query - Execute a query on the database
+databasesRoutes.post("/:id/query", authMiddleware, requireWorkspace, async (c: AuthenticatedContext) => {
+  const databaseId = c.req.param("id");
+  const workspace = c.get("workspace");
+
   try {
-    const databaseId = c.req.param("id");
-    const collectionName = c.req.param("name");
-    const query = c.req.query();
-
-    // Parse query parameters
-    const limit = parseInt(query.limit || "10", 10);
-    const skip = parseInt(query.skip || "0", 10);
-    const sort = query.sort ? JSON.parse(query.sort) : {};
-    const filter: Filter<any> = query.filter ? JSON.parse(query.filter) : {};
-
-    // Validate parameters
-    if (limit < 1 || limit > 1000) {
-      return c.json(
-        {
-          success: false,
-          error: "Limit must be between 1 and 1000",
-        },
-        400
-      );
+    // Validate database ID
+    if (!Types.ObjectId.isValid(databaseId)) {
+      return c.json({ success: false, error: "Invalid database ID" }, 400);
     }
 
-    const db = await mongoConnection.getDatabase(databaseId);
-    const collection = db.collection(collectionName);
-
-    // Check if collection exists
-    const collections = await db
-      .listCollections({ name: collectionName })
-      .toArray();
-
-    if (collections.length === 0) {
-      return c.json(
-        {
-          success: false,
-          error: `Collection '${collectionName}' not found`,
-        },
-        404
-      );
-    }
-
-    // Build find options
-    const findOptions: FindOptions = {
-      limit,
-      skip,
-      sort,
-    };
-
-    // Execute query
-    const documents = await collection.find(filter, findOptions).toArray();
-
-    // Get total count for pagination
-    const totalCount = await collection.countDocuments(filter);
-
-    return c.json({
-      success: true,
-      data: {
-        documents,
-        pagination: {
-          limit,
-          skip,
-          total: totalCount,
-          hasMore: skip + documents.length < totalCount,
-        },
-      },
+    // Get the database from MongoDB
+    const database = await Database.findOne({
+      _id: new Types.ObjectId(databaseId),
+      workspaceId: workspace._id
     });
-  } catch (error) {
-    console.error("Error fetching documents:", error);
-    return c.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      500
-    );
-  }
-});
 
-// GET /api/databases/:id/collections/:name/sample - Get sample documents with schema analysis
-databasesRoutes.get("/:id/collections/:name/sample", async (c) => {
-  try {
-    const databaseId = c.req.param("id");
-    const collectionName = c.req.param("name");
-    const query = c.req.query();
-    const sampleSize = parseInt(query.size || "5", 10);
-
-    if (sampleSize < 1 || sampleSize > 100) {
-      return c.json(
-        {
-          success: false,
-          error: "Sample size must be between 1 and 100",
-        },
-        400
-      );
+    if (!database) {
+      return c.json({ success: false, error: "Database not found" }, 404);
     }
 
-    const db = await mongoConnection.getDatabase(databaseId);
-    const collection = db.collection(collectionName);
-
-    // Check if collection exists
-    const collections = await db
-      .listCollections({ name: collectionName })
-      .toArray();
-
-    if (collections.length === 0) {
-      return c.json(
-        {
-          success: false,
-          error: `Collection '${collectionName}' not found`,
-        },
-        404
-      );
-    }
-
-    // Get sample documents
-    const sampleDocuments = await collection
-      .find({})
-      .limit(sampleSize)
-      .toArray();
-
-    // Analyze schema
-    const schemaInfo = analyzeSchema(sampleDocuments);
-
-    return c.json({
-      success: true,
-      data: {
-        databaseId,
-        collectionName,
-        sampleSize: sampleDocuments.length,
-        documents: sampleDocuments,
-        schema: schemaInfo,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching sample documents:", error);
-    return c.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      500
-    );
-  }
-});
-
-// POST /api/databases/:id/collections - Create a new collection
-databasesRoutes.post("/:id/collections", async (c) => {
-  try {
-    const databaseId = c.req.param("id");
     const body = await c.req.json();
+    const { query, options } = body;
 
-    if (!body.name) {
-      return c.json(
-        { success: false, error: "Collection name is required" },
-        400
+    if (!query) {
+      return c.json({ success: false, error: "Query is required" }, 400);
+    }
+
+    // Execute the query
+    const result = await databaseConnectionService.executeQuery(database, query, options);
+
+    // Update last connected timestamp if successful
+    if (result.success) {
+      await Database.updateOne(
+        { _id: database._id },
+        { lastConnectedAt: new Date() }
       );
     }
 
-    const db = await mongoConnection.getDatabase(databaseId);
-    const result = await db.createCollection(body.name, body.options);
-
-    return c.json({
-      success: true,
-      message: "Collection created successfully",
-      data: {
-        name: body.name,
-        databaseId,
-      },
-    });
+    return c.json(result);
   } catch (error) {
-    console.error("Error creating collection:", error);
+    console.error("Error executing query:", error);
     return c.json(
       {
         success: false,
@@ -376,92 +350,3 @@ databasesRoutes.post("/:id/collections", async (c) => {
     );
   }
 });
-
-// DELETE /api/databases/:id/collections/:name - Delete a collection
-databasesRoutes.delete("/:id/collections/:name", async (c) => {
-  try {
-    const databaseId = c.req.param("id");
-    const collectionName = c.req.param("name");
-
-    const db = await mongoConnection.getDatabase(databaseId);
-    const result = await db.dropCollection(collectionName);
-
-    return c.json({
-      success: true,
-      message: "Collection deleted successfully",
-      data: {
-        name: collectionName,
-        databaseId,
-        dropped: result,
-      },
-    });
-  } catch (error) {
-    console.error("Error deleting collection:", error);
-    return c.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      500
-    );
-  }
-});
-
-// Helper function to analyze schema from sample documents
-function analyzeSchema(documents: any[]): any {
-  if (!documents || documents.length === 0) return {};
-
-  const schemaMap: any = {};
-
-  const analyzeValue = (value: any): string => {
-    if (value === null) return "null";
-    if (Array.isArray(value)) {
-      if (value.length > 0) {
-        const types = new Set(value.map((v) => analyzeValue(v)));
-        return `Array<${Array.from(types).join(" | ")}>`;
-      }
-      return "Array<any>";
-    }
-    if (value instanceof Date) return "Date";
-    if (typeof value === "object") return "Object";
-    return typeof value;
-  };
-
-  // Analyze each document
-  documents.forEach((doc) => {
-    Object.keys(doc).forEach((key) => {
-      const value = doc[key];
-      const type = analyzeValue(value);
-
-      if (!schemaMap[key]) {
-        schemaMap[key] = {
-          types: new Set([type]),
-          exampleValues: [],
-        };
-      } else {
-        schemaMap[key].types.add(type);
-      }
-
-      // Store example values (limit to 3)
-      if (
-        schemaMap[key].exampleValues.length < 3 &&
-        !schemaMap[key].exampleValues.some(
-          (v: any) => JSON.stringify(v) === JSON.stringify(value)
-        )
-      ) {
-        schemaMap[key].exampleValues.push(value);
-      }
-    });
-  });
-
-  // Convert sets to arrays for JSON serialization
-  const schema: any = {};
-  Object.keys(schemaMap).forEach((key) => {
-    schema[key] = {
-      types: Array.from(schemaMap[key].types),
-      exampleValues: schemaMap[key].exampleValues,
-    };
-  });
-
-  return schema;
-}
