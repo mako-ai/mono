@@ -11,6 +11,19 @@ import { Types } from "mongoose";
 
 export const workspaceDatabaseRoutes = new Hono();
 
+// Helper function to mask passwords in connection strings
+function maskPasswordInConnectionString(connectionString: string): string {
+  if (!connectionString) return connectionString;
+
+  // Generic pattern for database connection strings:
+  // protocol://[username:password@]host[:port][/database][?options]
+  // This handles mongodb://, mongodb+srv://, postgresql://, postgres://, mysql://, etc.
+  return connectionString.replace(
+    /^([a-z][a-z0-9+.-]*:\/\/[^:]+:)([^@]+)(@)/g,
+    "$1*****$3"
+  );
+}
+
 // Get all databases for workspace
 workspaceDatabaseRoutes.get(
   "/",
@@ -24,16 +37,38 @@ workspaceDatabaseRoutes.get(
         workspaceId: workspace._id,
       }).sort({ createdAt: -1 });
 
+      // Transform to API response format without connection details for security
+      const transformedDatabases = databases.map((db: IDatabase) => {
+        // Create masked hostKey for grouping
+        let hostKey: string;
+        if (db.connection.connectionString) {
+          hostKey = maskPasswordInConnectionString(
+            db.connection.connectionString
+          );
+        } else {
+          hostKey = db.connection.host || "unknown";
+        }
+
+        return {
+          id: db._id.toString(),
+          name: db.name,
+          description: "",
+          database: db.connection.database,
+          type: db.type,
+          active: true,
+          lastConnectedAt: db.lastConnectedAt,
+          // Helper fields for easier access (connection object removed for security)
+          displayName: db.connection.database || db.name || "Unknown Database",
+          hostKey,
+          hostName: db.connection.connectionString
+            ? "MongoDB Atlas"
+            : `MongoDB (${db.connection.host || "localhost"})`,
+        };
+      });
+
       return c.json({
         success: true,
-        data: databases.map((db: IDatabase) => ({
-          id: db._id,
-          name: db.name,
-          type: db.type,
-          createdAt: db.createdAt,
-          updatedAt: db.updatedAt,
-          lastConnectedAt: db.lastConnectedAt,
-        })),
+        data: transformedDatabases,
       });
     } catch (error) {
       console.error("Error getting databases:", error);
@@ -548,6 +583,65 @@ workspaceDatabaseRoutes.get(
             error instanceof Error
               ? error.message
               : "Failed to get collection info",
+        },
+        500
+      );
+    }
+  }
+);
+
+// Get views for MongoDB database
+workspaceDatabaseRoutes.get(
+  "/:id/views",
+  authMiddleware,
+  requireWorkspace,
+  async (c: AuthenticatedContext) => {
+    try {
+      const workspace = c.get("workspace");
+      const databaseId = c.req.param("id");
+
+      if (!Types.ObjectId.isValid(databaseId)) {
+        return c.json({ success: false, error: "Invalid database ID" }, 400);
+      }
+
+      const database = await Database.findOne({
+        _id: new Types.ObjectId(databaseId),
+        workspaceId: workspace._id,
+      });
+
+      if (!database) {
+        return c.json({ success: false, error: "Database not found" }, 404);
+      }
+
+      if (database.type !== "mongodb") {
+        return c.json(
+          {
+            success: false,
+            error: "This endpoint is only for MongoDB databases",
+          },
+          400
+        );
+      }
+
+      const connection =
+        await databaseConnectionService.getConnection(database);
+      const db = connection.db(database.connection.database);
+      const views = await db.listCollections({ type: "view" }).toArray();
+
+      return c.json({
+        success: true,
+        data: views.map((view: any) => ({
+          name: view.name,
+          type: view.type,
+          options: view.options,
+        })),
+      });
+    } catch (error) {
+      console.error("Error getting views:", error);
+      return c.json(
+        {
+          success: false,
+          error: error instanceof Error ? error.message : "Failed to get views",
         },
         500
       );

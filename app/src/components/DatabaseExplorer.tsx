@@ -27,6 +27,7 @@ import {
 } from "@mui/icons-material";
 import { Database as DatabaseIcon } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
+import { useWorkspace } from "../contexts/workspace-context";
 import CreateDatabaseDialog from "./CreateDatabaseDialog";
 
 const MongoDBIcon = () => (
@@ -61,11 +62,6 @@ interface Database {
   type: string;
   active: boolean;
   lastConnectedAt?: string;
-  connection: {
-    host?: string;
-    port?: number;
-    connectionString?: string;
-  };
   displayName: string;
   hostKey: string;
   hostName: string;
@@ -124,16 +120,23 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     isDatabaseExpanded,
   } = useDatabaseExplorerStore();
 
+  // Use the workspace context
+  const { currentWorkspace } = useWorkspace();
+
   useEffect(() => {
     fetchServers();
-  }, []);
+  }, [currentWorkspace]);
 
   const fetchServers = async () => {
+    if (!currentWorkspace) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/databases");
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases`
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -148,9 +151,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
               id: hostKey,
               name: db.hostName,
               description: "",
-              connectionString:
-                db.connection.connectionString ||
-                `mongodb://${db.connection.host}:${db.connection.port || 27017}`,
+              connectionString: db.hostKey,
               active: true,
               databases: [],
             });
@@ -195,13 +196,19 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   };
 
   const fetchDatabaseData = async (databaseId: string) => {
+    if (!currentWorkspace) return;
+
     try {
       setLoadingData((prev) => new Set(prev).add(databaseId));
 
       // Fetch both collections and views in parallel
       const [collectionsResponse, viewsResponse] = await Promise.all([
-        fetch(`/api/databases/${databaseId}/collections`),
-        fetch(`/api/databases/${databaseId}/views`),
+        fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/collections`
+        ),
+        fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/views`
+        ),
       ]);
 
       const collectionsData = await collectionsResponse.json();

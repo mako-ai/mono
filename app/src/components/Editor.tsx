@@ -26,7 +26,6 @@ import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
-import Chat from "./Chat/Chat";
 
 interface QueryResult {
   results: any[];
@@ -122,11 +121,15 @@ function Editor() {
     return () => clearInterval(interval);
   }, [activeConsoleId, consoleTabs.length, setActiveEditorContent]);
 
-  // Fetch databases once
+  // Fetch databases when workspace changes
   useEffect(() => {
     const fetchDatabases = async () => {
+      if (!currentWorkspace) return;
+
       try {
-        const response = await fetch("/api/databases");
+        const response = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases`
+        );
         const data = await response.json();
         if (data.success) {
           // Use the databases directly from the new API structure
@@ -137,7 +140,7 @@ function Editor() {
       }
     };
     fetchDatabases();
-  }, []);
+  }, [currentWorkspace]);
 
   /* ------------------------ Console Actions ------------------------ */
   const handleTabChange = (_: React.SyntheticEvent, newValue: string) => {
