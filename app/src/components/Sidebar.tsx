@@ -204,6 +204,13 @@ function Sidebar() {
             alignItems: "center",
           }}
         >
+          {/* User Menu */}
+          <Tooltip title="User Menu" placement="right">
+            <NavButton onClick={handleUserMenuOpen}>
+              <UserIcon />
+            </NavButton>
+          </Tooltip>
+
           {/* Settings */}
           {bottomNavigationItems.map((item) => {
             const Icon = item.icon;
@@ -220,13 +227,6 @@ function Sidebar() {
               </Tooltip>
             );
           })}
-
-          {/* User Menu */}
-          <Tooltip title="User Menu" placement="right">
-            <NavButton onClick={handleUserMenuOpen}>
-              <UserIcon />
-            </NavButton>
-          </Tooltip>
 
           <Menu
             anchorEl={userMenuAnchorEl}
