@@ -13,6 +13,7 @@ import {
   Collapse,
   Chip,
   SvgIcon,
+  Button,
 } from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
@@ -22,9 +23,11 @@ import {
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
+  Add as AddIcon,
 } from "@mui/icons-material";
 import { Database as DatabaseIcon } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
+import CreateDatabaseDialog from "./CreateDatabaseDialog";
 
 const MongoDBIcon = () => (
   <SvgIcon>
@@ -95,6 +98,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Use the store for expanded states
   const {
@@ -242,6 +246,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     fetchServers();
   };
 
+  const handleDatabaseCreated = () => {
+    // Refresh the server data after creating a new database
+    handleRefresh();
+  };
+
   if (loading) {
     return (
       <Box
@@ -286,7 +295,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
             sx={{
               flexGrow: 1,
               overflow: "hidden",
-              maxWidth: "calc(100% - 40px)",
+              maxWidth: "calc(100% - 80px)",
             }}
           >
             <Typography
@@ -300,9 +309,20 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
               Databases
             </Typography>
           </Box>
-          <IconButton size="small" onClick={handleRefresh}>
-            <RefreshIcon />
-          </IconButton>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateDialogOpen(true)}
+              sx={{ fontSize: "0.75rem", minWidth: "auto" }}
+            >
+              Create
+            </Button>
+            <IconButton size="small" onClick={handleRefresh}>
+              <RefreshIcon />
+            </IconButton>
+          </Box>
         </Box>
       </Box>
 
@@ -671,6 +691,12 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
           </List>
         )}
       </Box>
+
+      <CreateDatabaseDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onSuccess={handleDatabaseCreated}
+      />
     </Box>
   );
 };
