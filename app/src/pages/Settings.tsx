@@ -19,6 +19,7 @@ import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import ThemeSelector from "../components/ThemeSelector";
 import { useCustomPrompt } from "../components/Chat/CustomPrompt";
+import { WorkspaceMembers } from "../components/WorkspaceMembers";
 
 function Settings() {
   const [openaiApiKey, setOpenaiApiKey] = useState(
@@ -89,21 +90,25 @@ function Settings() {
   };
 
   return (
-    <Box sx={{ height: "100%", p: 3, overflow: "auto" }}>
-      <Typography variant="h4" component="h1" gutterBottom>
+    <Box sx={{ height: "100%", p: 2, overflow: "auto" }}>
+      <Typography variant="h5" component="h1" gutterBottom sx={{ mb: 2 }}>
         Settings
       </Typography>
 
       <Box
-        sx={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 800 }}
+        sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 800 }}
       >
         {/* OpenAI Configuration */}
         <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Typography
+              variant="subtitle1"
+              gutterBottom
+              sx={{ fontWeight: 600 }}
+            >
               OpenAI Configuration
             </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <TextField
                 label="OpenAI API Key"
                 value={openaiApiKey}
@@ -128,17 +133,21 @@ function Settings() {
 
         {/* Custom Prompt Configuration */}
         <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Typography
+              variant="subtitle1"
+              gutterBottom
+              sx={{ fontWeight: 600 }}
+            >
               Custom Prompt Configuration
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Customize the AI assistant's behavior by adding context about your
               business, data relationships, and common query patterns.
             </Typography>
 
             {customPromptError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
+              <Alert severity="error" sx={{ mb: 1.5 }}>
                 {customPromptError}
               </Alert>
             )}
@@ -146,12 +155,12 @@ function Settings() {
             <TextField
               fullWidth
               multiline
-              rows={12}
+              rows={10}
               value={localCustomPrompt}
               onChange={handleCustomPromptChange}
               placeholder="Enter your custom prompt content here..."
               disabled={customPromptLoading}
-              sx={{ mb: 2 }}
+              sx={{ mb: 1.5 }}
             />
 
             <Box sx={{ display: "flex", gap: 1 }}>
@@ -177,13 +186,24 @@ function Settings() {
           </CardContent>
         </Card>
 
+        {/* Workspace Members */}
+        <Card>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <WorkspaceMembers />
+          </CardContent>
+        </Card>
+
         {/* Appearance Settings */}
         <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Typography
+              variant="subtitle1"
+              gutterBottom
+              sx={{ fontWeight: 600 }}
+            >
               Appearance
             </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <Box
                 sx={{
                   display: "flex",
@@ -191,20 +211,30 @@ function Settings() {
                   alignItems: "center",
                 }}
               >
-                <Typography variant="body1">Theme</Typography>
+                <Typography variant="body2">Theme</Typography>
                 <ThemeSelector />
               </Box>
               <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Show line numbers in editor"
+                control={<Switch defaultChecked size="small" />}
+                label={
+                  <Typography variant="body2">
+                    Show line numbers in editor
+                  </Typography>
+                }
               />
               <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Enable syntax highlighting"
+                control={<Switch defaultChecked size="small" />}
+                label={
+                  <Typography variant="body2">
+                    Enable syntax highlighting
+                  </Typography>
+                }
               />
               <FormControlLabel
-                control={<Switch />}
-                label="Word wrap in editor"
+                control={<Switch size="small" />}
+                label={
+                  <Typography variant="body2">Word wrap in editor</Typography>
+                }
               />
             </Box>
           </CardContent>
@@ -212,11 +242,15 @@ function Settings() {
 
         {/* Query Execution Settings */}
         <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Typography
+              variant="subtitle1"
+              gutterBottom
+              sx={{ fontWeight: 600 }}
+            >
               Query Execution
             </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Default result limit</InputLabel>
                 <Select defaultValue={1000} label="Default result limit">
@@ -238,12 +272,18 @@ function Settings() {
                 </Select>
               </FormControl>
               <FormControlLabel
-                control={<Switch defaultChecked />}
-                label="Auto-save queries"
+                control={<Switch defaultChecked size="small" />}
+                label={
+                  <Typography variant="body2">Auto-save queries</Typography>
+                }
               />
               <FormControlLabel
-                control={<Switch />}
-                label="Confirm before executing destructive queries"
+                control={<Switch size="small" />}
+                label={
+                  <Typography variant="body2">
+                    Confirm before executing destructive queries
+                  </Typography>
+                }
               />
             </Box>
           </CardContent>
@@ -251,11 +291,15 @@ function Settings() {
 
         {/* Database Connection */}
         <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+            <Typography
+              variant="subtitle1"
+              gutterBottom
+              sx={{ fontWeight: 600 }}
+            >
               Database Connection
             </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <TextField
                 label="Connection Name"
                 defaultValue="Production Database"
@@ -293,11 +337,11 @@ function Settings() {
         </Card>
 
         {/* Save Button */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
           <Button
             variant="contained"
             startIcon={<SaveIcon />}
-            size="large"
+            size="medium"
             onClick={handleSaveSettings}
             disableElevation
           >

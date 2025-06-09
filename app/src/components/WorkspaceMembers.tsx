@@ -1,15 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from "react";
 import {
   Box,
-  Paper,
   Typography,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  ListItemSecondaryAction,
-  Avatar,
-  IconButton,
   Button,
   Select,
   MenuItem,
@@ -21,20 +13,39 @@ import {
   Chip,
   CircularProgress,
   Alert,
-  Divider,
   Tooltip,
   FormControl,
   InputLabel,
-} from '@mui/material';
+  IconButton,
+  Avatar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+} from "@mui/material";
 import {
   PersonAdd,
   Delete,
   Email,
   ContentCopy,
   Close,
-} from '@mui/icons-material';
-import { useWorkspace } from '../contexts/workspace-context';
-import { useAuth } from '../contexts/auth-context';
+} from "@mui/icons-material";
+import { useWorkspace } from "../contexts/workspace-context";
+import { useAuth } from "../contexts/auth-context";
+
+interface MemberRow {
+  id: string;
+  email: string;
+  role: string;
+  status: "active" | "pending";
+  joinedAt?: string;
+  expiresAt?: string;
+  userId?: string;
+  token?: string;
+}
 
 export function WorkspaceMembers() {
   const { user } = useAuth();
@@ -50,15 +61,17 @@ export function WorkspaceMembers() {
   } = useWorkspace();
 
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'viewer'>('member');
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"admin" | "member" | "viewer">(
+    "member"
+  );
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleInviteMember = async () => {
     if (!inviteEmail.trim()) {
-      setError('Email is required');
+      setError("Email is required");
       return;
     }
 
@@ -68,31 +81,34 @@ export function WorkspaceMembers() {
     try {
       await inviteMember({ email: inviteEmail.trim(), role: inviteRole });
       setInviteDialogOpen(false);
-      setInviteEmail('');
-      setInviteRole('member');
-      setSuccessMessage('Invitation sent successfully');
+      setInviteEmail("");
+      setInviteRole("member");
+      setSuccessMessage("Invitation sent successfully");
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error: any) {
-      setError(error.message || 'Failed to send invitation');
+      setError(error.message || "Failed to send invitation");
     } finally {
       setInviting(false);
     }
   };
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'member' | 'viewer') => {
+  const handleRoleChange = async (
+    userId: string,
+    newRole: "admin" | "member" | "viewer"
+  ) => {
     try {
       await updateMemberRole(userId, newRole);
     } catch (error: any) {
-      setError(error.message || 'Failed to update role');
+      setError(error.message || "Failed to update role");
     }
   };
 
   const handleRemoveMember = async (userId: string) => {
-    if (window.confirm('Are you sure you want to remove this member?')) {
+    if (window.confirm("Are you sure you want to remove this member?")) {
       try {
         await removeMember(userId);
       } catch (error: any) {
-        setError(error.message || 'Failed to remove member');
+        setError(error.message || "Failed to remove member");
       }
     }
   };
@@ -101,50 +117,82 @@ export function WorkspaceMembers() {
     try {
       await cancelInvite(inviteId);
     } catch (error: any) {
-      setError(error.message || 'Failed to cancel invitation');
+      setError(error.message || "Failed to cancel invitation");
     }
   };
 
   const copyInviteLink = (token: string) => {
     const inviteUrl = `${window.location.origin}/invite/${token}`;
     navigator.clipboard.writeText(inviteUrl);
-    setSuccessMessage('Invite link copied to clipboard');
+    setSuccessMessage("Invite link copied to clipboard");
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
-      case 'owner':
-        return 'error';
-      case 'admin':
-        return 'warning';
-      case 'member':
-        return 'primary';
-      case 'viewer':
-        return 'default';
+      case "owner":
+        return "error";
+      case "admin":
+        return "warning";
+      case "member":
+        return "primary";
+      case "viewer":
+        return "default";
       default:
-        return 'default';
+        return "default";
     }
   };
 
-  const currentUserRole = members.find(m => m.email === user?.email)?.role;
-  const canManageMembers = currentUserRole === 'owner' || currentUserRole === 'admin';
+  const currentUserRole = members.find((m) => m.email === user?.email)?.role;
+  const canManageMembers =
+    currentUserRole === "owner" || currentUserRole === "admin";
+
+  // Combine members and invites into a single dataset
+  const rows: MemberRow[] = useMemo(() => {
+    const memberRows: MemberRow[] = members.map((member) => ({
+      id: member.id,
+      email: member.email,
+      role: member.role,
+      status: "active" as const,
+      joinedAt: member.joinedAt,
+      userId: member.userId,
+    }));
+
+    const inviteRows: MemberRow[] = invites.map((invite) => ({
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      status: "pending" as const,
+      expiresAt: invite.expiresAt,
+      token: invite.token,
+    }));
+
+    return [...memberRows, ...inviteRows];
+  }, [members, invites]);
 
   if (!currentWorkspace) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="info">Please select a workspace to view members</Alert>
-      </Box>
+      <Alert severity="info">Please select a workspace to view members</Alert>
     );
   }
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Workspace Members</Typography>
+    <Box>
+      <Box
+        sx={{
+          mb: 2,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+          Workspace Members
+        </Typography>
         {canManageMembers && (
           <Button
             variant="contained"
+            size="small"
             startIcon={<PersonAdd />}
             onClick={() => setInviteDialogOpen(true)}
           >
@@ -160,129 +208,146 @@ export function WorkspaceMembers() {
       )}
 
       {successMessage && (
-        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccessMessage(null)}>
+        <Alert
+          severity="success"
+          sx={{ mb: 2 }}
+          onClose={() => setSuccessMessage(null)}
+        >
           {successMessage}
         </Alert>
       )}
 
-      <Paper>
-        <List>
-          {members.map((member, index) => (
-            <React.Fragment key={member.id}>
-              {index > 0 && <Divider />}
-              <ListItem>
-                <ListItemAvatar>
-                  <Avatar>{member.email[0].toUpperCase()}</Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={member.email}
-                  secondary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                      <Chip
-                        label={member.role}
-                        size="small"
-                        color={getRoleBadgeColor(member.role)}
-                      />
-                      <Typography variant="caption" color="text.secondary">
-                        Joined {new Date(member.joinedAt).toLocaleDateString()}
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <ListItemSecondaryAction>
-                  {canManageMembers && member.role !== 'owner' && member.email !== user?.email && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <FormControl size="small" sx={{ minWidth: 100 }}>
-                        <Select
-                          value={member.role}
-                          onChange={(e) => handleRoleChange(member.userId, e.target.value as any)}
-                          size="small"
-                        >
-                          <MenuItem value="admin">Admin</MenuItem>
-                          <MenuItem value="member">Member</MenuItem>
-                          <MenuItem value="viewer">Viewer</MenuItem>
-                        </Select>
-                      </FormControl>
-                      <Tooltip title="Remove member">
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleRemoveMember(member.userId)}
-                          color="error"
-                        >
-                          <Delete />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  )}
-                </ListItemSecondaryAction>
-              </ListItem>
-            </React.Fragment>
-          ))}
-        </List>
-      </Paper>
+      <TableContainer
+        component={Paper}
+        sx={{ boxShadow: "none", border: "1px solid rgba(224, 224, 224, 1)" }}
+      >
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ backgroundColor: "rgba(0, 0, 0, 0.04)" }}>
+              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                Email
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                Role
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                Status
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                Date
+              </TableCell>
+              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                Actions
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => {
+              const isCurrentUser = row.email === user?.email;
+              const isOwner = row.role === "owner";
+              const canEdit = canManageMembers && !isOwner && !isCurrentUser;
 
-      {invites.length > 0 && (
-        <>
-          <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>
-            Pending Invitations
-          </Typography>
-          <Paper>
-            <List>
-              {invites.map((invite, index) => (
-                <React.Fragment key={invite.id}>
-                  {index > 0 && <Divider />}
-                  <ListItem>
-                    <ListItemAvatar>
-                      <Avatar>
-                        <Email />
+              return (
+                <TableRow key={row.id} hover>
+                  <TableCell>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Avatar
+                        sx={{ width: 32, height: 32, fontSize: "0.875rem" }}
+                      >
+                        {row.status === "pending" ? (
+                          <Email />
+                        ) : (
+                          row.email[0].toUpperCase()
+                        )}
                       </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={invite.email}
-                      secondary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                          <Chip
-                            label={invite.role}
-                            size="small"
-                            color={getRoleBadgeColor(invite.role)}
-                          />
-                          <Typography variant="caption" color="text.secondary">
-                            Expires {new Date(invite.expiresAt).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      }
+                      <Typography variant="body2">{row.email}</Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.role}
+                      size="small"
+                      color={getRoleBadgeColor(row.role)}
                     />
-                    <ListItemSecondaryAction>
-                      {canManageMembers && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {invite.token && (
-                            <Tooltip title="Copy invite link">
-                              <IconButton
-                                onClick={() => copyInviteLink(invite.token!)}
-                              >
-                                <ContentCopy />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          <Tooltip title="Cancel invitation">
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.status}
+                      size="small"
+                      variant="outlined"
+                      color={row.status === "active" ? "success" : "warning"}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" color="text.secondary">
+                      {row.status === "active" ? "Joined" : "Expires"}{" "}
+                      {new Date(
+                        row.status === "active" ? row.joinedAt! : row.expiresAt!
+                      ).toLocaleDateString()}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {row.status === "pending" && canManageMembers ? (
+                      <Box sx={{ display: "flex", gap: 0.5 }}>
+                        {row.token && (
+                          <Tooltip title="Copy invite link">
                             <IconButton
-                              edge="end"
-                              onClick={() => handleCancelInvite(invite.id)}
-                              color="error"
+                              size="small"
+                              onClick={() => copyInviteLink(row.token!)}
                             >
-                              <Close />
+                              <ContentCopy fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                        </Box>
-                      )}
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                </React.Fragment>
-              ))}
-            </List>
-          </Paper>
-        </>
-      )}
+                        )}
+                        <Tooltip title="Cancel invitation">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCancelInvite(row.id)}
+                            color="error"
+                          >
+                            <Close fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ) : canEdit ? (
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                      >
+                        <FormControl size="small" sx={{ minWidth: 80 }}>
+                          <Select
+                            value={row.role}
+                            onChange={(e) =>
+                              handleRoleChange(
+                                row.userId!,
+                                e.target.value as any
+                              )
+                            }
+                            size="small"
+                            variant="standard"
+                          >
+                            <MenuItem value="admin">Admin</MenuItem>
+                            <MenuItem value="member">Member</MenuItem>
+                            <MenuItem value="viewer">Viewer</MenuItem>
+                          </Select>
+                        </FormControl>
+                        <Tooltip title="Remove member">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleRemoveMember(row.userId!)}
+                            color="error"
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       {/* Invite Member Dialog */}
       <Dialog
@@ -313,17 +378,28 @@ export function WorkspaceMembers() {
               label="Role"
               disabled={inviting}
             >
-              <MenuItem value="admin">Admin - Can manage workspace settings and members</MenuItem>
-              <MenuItem value="member">Member - Can create and manage resources</MenuItem>
+              <MenuItem value="admin">
+                Admin - Can manage workspace settings and members
+              </MenuItem>
+              <MenuItem value="member">
+                Member - Can create and manage resources
+              </MenuItem>
               <MenuItem value="viewer">Viewer - Read-only access</MenuItem>
             </Select>
           </FormControl>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ mt: 2, display: "block" }}
+          >
             An invitation email will be sent to the provided address.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setInviteDialogOpen(false)} disabled={inviting}>
+          <Button
+            onClick={() => setInviteDialogOpen(false)}
+            disabled={inviting}
+          >
             Cancel
           </Button>
           <Button
@@ -331,7 +407,7 @@ export function WorkspaceMembers() {
             variant="contained"
             disabled={inviting || !inviteEmail.trim()}
           >
-            {inviting ? <CircularProgress size={20} /> : 'Send Invitation'}
+            {inviting ? <CircularProgress size={20} /> : "Send Invitation"}
           </Button>
         </DialogActions>
       </Dialog>
