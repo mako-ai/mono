@@ -22,6 +22,7 @@ import Chat from "../components/Chat/Chat";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "../components/Console";
 import { useConsoleStore } from "../store/consoleStore";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface CollectionInfo {
   name: string;
@@ -75,6 +76,7 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 }));
 
 function Databases() {
+  const { currentWorkspace } = useWorkspace();
   const [queryResults, setQueryResults] = useState<QueryResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -231,6 +233,12 @@ function Databases() {
     contentToSave: string,
     _currentPath?: string
   ): Promise<boolean> => {
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return false;
+    }
+
     // In Databases page, save is always "Save As" to the main consoles directory
     setIsSaving(true);
     let success = false;
@@ -247,13 +255,16 @@ function Databases() {
         ? fileName.substring(0, fileName.length - 3)
         : fileName;
 
-      const response = await fetch(`/api/consoles`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ path: savePath, content: contentToSave }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/consoles`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ path: savePath, content: contentToSave }),
+        }
+      );
 
       const data = await response.json();
 

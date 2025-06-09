@@ -174,7 +174,7 @@ export interface ISavedConsole extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   folderId?: Types.ObjectId;
-  databaseId: Types.ObjectId;
+  databaseId?: Types.ObjectId;
   name: string;
   description?: string;
   code: string;
@@ -474,7 +474,7 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
     databaseId: {
       type: Schema.Types.ObjectId,
       ref: "Database",
-      required: true,
+      required: false,
     },
     name: {
       type: String,
@@ -535,7 +535,7 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
 // Indexes
 SavedConsoleSchema.index({ workspaceId: 1, folderId: 1 });
 SavedConsoleSchema.index({ workspaceId: 1, createdBy: 1, isPrivate: 1 });
-SavedConsoleSchema.index({ databaseId: 1 });
+SavedConsoleSchema.index({ databaseId: 1 }, { sparse: true }); // Sparse index since databaseId is optional
 
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
