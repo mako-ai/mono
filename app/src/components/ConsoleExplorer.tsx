@@ -6,7 +6,6 @@ import {
   ListItemIcon,
   ListItemText,
   Collapse,
-  CircularProgress,
   Typography,
   IconButton,
   Skeleton,
@@ -19,6 +18,7 @@ import {
   TextField,
   Button,
   Tooltip,
+  Alert,
 } from "@mui/material";
 import {
   FolderOutlined as FolderIcon,
@@ -27,7 +27,8 @@ import {
   Refresh as RefreshIcon,
   Add as AddIcon,
   CreateNewFolder as CreateFolderIcon,
-  MoreVert as MoreVertIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { SquareTerminal as ConsoleIcon } from "lucide-react";
 import { useAppStore } from "../store/appStore";
@@ -75,6 +76,15 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const [selectedParentFolder, setSelectedParentFolder] = useState<
       string | null
     >(null);
+    const [contextMenu, setContextMenu] = useState<{
+      mouseX: number;
+      mouseY: number;
+      item: ConsoleEntry;
+    } | null>(null);
+    const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<ConsoleEntry | null>(null);
+    const [newItemName, setNewItemName] = useState("");
 
     const fetchConsoleEntries = async () => {
       // Don't fetch if no workspace is selected
@@ -217,6 +227,101 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
       }
     };
 
+    const handleContextMenu = (event: React.MouseEvent, item: ConsoleEntry) => {
+      event.preventDefault();
+      setContextMenu({
+        mouseX: event.clientX + 2,
+        mouseY: event.clientY - 6,
+        item,
+      });
+    };
+
+    const handleContextMenuClose = () => {
+      setContextMenu(null);
+    };
+
+    const handleRename = (item: ConsoleEntry) => {
+      setSelectedItem(item);
+      setNewItemName(item.name);
+      setRenameDialogOpen(true);
+      handleContextMenuClose();
+    };
+
+    const handleDelete = (item: ConsoleEntry) => {
+      setSelectedItem(item);
+      setDeleteDialogOpen(true);
+      handleContextMenuClose();
+    };
+
+    const handleRenameConfirm = async () => {
+      if (!currentWorkspace || !selectedItem || !newItemName.trim()) {
+        return;
+      }
+
+      try {
+        const endpoint = selectedItem.isDirectory
+          ? `/api/workspaces/${currentWorkspace.id}/consoles/folders/${selectedItem.id}/rename`
+          : `/api/workspaces/${currentWorkspace.id}/consoles/${selectedItem.id}/rename`;
+
+        const response = await fetch(endpoint, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: newItemName.trim(),
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          setRenameDialogOpen(false);
+          setSelectedItem(null);
+          setNewItemName("");
+          fetchConsoleEntries(); // Refresh the tree
+        } else {
+          console.error("Failed to rename item:", data.error);
+        }
+      } catch (e: any) {
+        console.error("Failed to rename item:", e);
+      }
+    };
+
+    const handleDeleteConfirm = async () => {
+      if (!currentWorkspace || !selectedItem) {
+        return;
+      }
+
+      try {
+        const endpoint = selectedItem.isDirectory
+          ? `/api/workspaces/${currentWorkspace.id}/consoles/folders/${selectedItem.id}`
+          : `/api/workspaces/${currentWorkspace.id}/consoles/${selectedItem.id}`;
+
+        const response = await fetch(endpoint, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          setDeleteDialogOpen(false);
+          setSelectedItem(null);
+          fetchConsoleEntries(); // Refresh the tree
+        } else {
+          console.error("Failed to delete item:", data.error);
+        }
+      } catch (e: any) {
+        console.error("Failed to delete item:", e);
+      }
+    };
+
     const renderTree = (nodes: ConsoleEntry[], depth = 0) => {
       return nodes.map((node) => {
         if (node.isDirectory) {
@@ -225,12 +330,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
             <div key={node.path}>
               <ListItemButton
                 onClick={() => handleFolderToggle(node.path)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  if (node.id) {
-                    handleCreateFolderInParent(node.id);
-                  }
-                }}
+                onContextMenu={(e) => handleContextMenu(e, node)}
                 sx={{ py: 0.5, pl: 1 + depth }}
               >
                 <ListItemIcon sx={{ minWidth: 32 }}>
@@ -263,6 +363,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           <ListItemButton
             key={node.path}
             onClick={() => handleFileClick(node.path)}
+            onContextMenu={(e) => handleContextMenu(e, node)}
             sx={{ pl: 0.5 + depth }}
           >
             <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
@@ -394,6 +495,40 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           </MenuItem>
         </Menu>
 
+        {/* Context Menu */}
+        <Menu
+          open={contextMenu !== null}
+          onClose={handleContextMenuClose}
+          anchorReference="anchorPosition"
+          anchorPosition={
+            contextMenu !== null
+              ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+              : undefined
+          }
+        >
+          <MenuItem onClick={() => handleRename(contextMenu!.item)}>
+            <EditIcon sx={{ mr: 1 }} fontSize="small" />
+            Rename
+          </MenuItem>
+          <MenuItem onClick={() => handleDelete(contextMenu!.item)}>
+            <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
+            Delete
+          </MenuItem>
+          {contextMenu?.item.isDirectory && (
+            <MenuItem
+              onClick={() => {
+                if (contextMenu.item.id) {
+                  handleCreateFolderInParent(contextMenu.item.id);
+                }
+                handleContextMenuClose();
+              }}
+            >
+              <CreateFolderIcon sx={{ mr: 1 }} fontSize="small" />
+              New Subfolder
+            </MenuItem>
+          )}
+        </Menu>
+
         {/* Create Folder Dialog */}
         <Dialog
           open={folderDialogOpen}
@@ -431,6 +566,81 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               variant="contained"
             >
               Create
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Rename Dialog */}
+        <Dialog
+          open={renameDialogOpen}
+          onClose={() => setRenameDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Rename {selectedItem?.isDirectory ? "Folder" : "Console"}
+          </DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Name"
+              fullWidth
+              variant="outlined"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newItemName.trim()) {
+                  handleRenameConfirm();
+                }
+              }}
+              helperText={
+                selectedItem?.isDirectory
+                  ? "Enter the new folder name"
+                  : "Enter the new console name. Use 'folder/name' to move to a folder."
+              }
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setRenameDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleRenameConfirm}
+              disabled={!newItemName.trim()}
+              variant="contained"
+            >
+              Rename
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog
+          open={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            Delete {selectedItem?.isDirectory ? "Folder" : "Console"}
+          </DialogTitle>
+          <DialogContent>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {selectedItem?.isDirectory
+                ? "This will permanently delete the folder and all its contents (subfolders and consoles)."
+                : "This will permanently delete the console."}
+            </Alert>
+            <Typography>
+              Are you sure you want to delete "{selectedItem?.name}"?
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              color="error"
+              variant="contained"
+            >
+              Delete
             </Button>
           </DialogActions>
         </Dialog>
