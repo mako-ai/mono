@@ -242,12 +242,25 @@ export class ConsoleManager {
       const parts = consolePath.split("/");
       const consoleName = parts[parts.length - 1];
 
+      // Handle folder path from consolePath if not provided in options
+      let folderId = options?.folderId;
+
+      if (!folderId && parts.length > 1) {
+        // Extract folder path and find/create the folder
+        const folderParts = parts.slice(0, -1);
+        folderId = await this.ensureFolderPath(
+          folderParts,
+          workspaceId,
+          userId
+        );
+      }
+
       // Check if console already exists
       let console = await SavedConsole.findOne({
         name: consoleName,
         workspaceId: new Types.ObjectId(workspaceId),
-        ...(options?.folderId && {
-          folderId: new Types.ObjectId(options.folderId),
+        ...(folderId && {
+          folderId: new Types.ObjectId(folderId),
         }),
       });
 
@@ -266,9 +279,7 @@ export class ConsoleManager {
         // Create new console
         console = new SavedConsole({
           workspaceId: new Types.ObjectId(workspaceId),
-          folderId: options?.folderId
-            ? new Types.ObjectId(options.folderId)
-            : undefined,
+          folderId: folderId ? new Types.ObjectId(folderId) : undefined,
           databaseId: databaseId ? new Types.ObjectId(databaseId) : undefined,
           name: consoleName,
           description: options?.description || "",
@@ -282,14 +293,9 @@ export class ConsoleManager {
         await console.save();
       }
 
-      // Also save to filesystem for backward compatibility
-      this.saveConsoleToFilesystem(consolePath, content);
-
       return console;
     } catch (error) {
       console.error("Error saving console to database:", error);
-      // Fallback to filesystem only
-      this.saveConsoleToFilesystem(consolePath, content);
       throw error;
     }
   }
@@ -316,6 +322,59 @@ export class ConsoleManager {
   }
 
   /**
+   * Rename a console in the database
+   */
+  async renameConsole(
+    consoleId: string,
+    newName: string,
+    workspaceId: string,
+    userId: string
+  ): Promise<boolean> {
+    try {
+      // Parse the new name for potential folder path
+      const parts = newName.split("/");
+      const consoleName = parts[parts.length - 1];
+
+      let folderId: string | undefined = undefined;
+
+      if (parts.length > 1) {
+        // Extract folder path and find/create the folder
+        const folderParts = parts.slice(0, -1);
+        folderId = await this.ensureFolderPath(
+          folderParts,
+          workspaceId,
+          userId
+        );
+      }
+
+      const updateFields: any = {
+        name: consoleName,
+        updatedAt: new Date(),
+      };
+
+      // Update folderId if we have a folder path
+      if (parts.length > 1) {
+        updateFields.folderId = folderId ? new Types.ObjectId(folderId) : null;
+      }
+
+      const result = await SavedConsole.updateOne(
+        {
+          _id: new Types.ObjectId(consoleId),
+          workspaceId: new Types.ObjectId(workspaceId),
+        },
+        {
+          $set: updateFields,
+        }
+      );
+
+      return result.modifiedCount > 0;
+    } catch (error) {
+      console.error("Error renaming console:", error);
+      return false;
+    }
+  }
+
+  /**
    * Delete a console from database
    */
   async deleteConsole(
@@ -331,6 +390,35 @@ export class ConsoleManager {
       return result.deletedCount > 0;
     } catch (error) {
       console.error("Error deleting console:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Rename a folder in the database
+   */
+  async renameFolder(
+    folderId: string,
+    newName: string,
+    workspaceId: string
+  ): Promise<boolean> {
+    try {
+      const result = await ConsoleFolder.updateOne(
+        {
+          _id: new Types.ObjectId(folderId),
+          workspaceId: new Types.ObjectId(workspaceId),
+        },
+        {
+          $set: {
+            name: newName,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      return result.modifiedCount > 0;
+    } catch (error) {
+      console.error("Error renaming folder:", error);
       return false;
     }
   }
@@ -425,6 +513,48 @@ export class ConsoleManager {
     } catch (error) {
       console.error("Error updating execution stats:", error);
     }
+  }
+
+  /**
+   * Ensure folder path exists, creating folders as needed
+   * Returns the ID of the deepest folder in the path
+   */
+  private async ensureFolderPath(
+    folderParts: string[],
+    workspaceId: string,
+    userId: string
+  ): Promise<string | undefined> {
+    if (folderParts.length === 0) {
+      return undefined;
+    }
+
+    let currentParentId: string | undefined = undefined;
+
+    for (const folderName of folderParts) {
+      // Check if folder exists at this level
+      let folder: IConsoleFolder | null = await ConsoleFolder.findOne({
+        name: folderName,
+        workspaceId: new Types.ObjectId(workspaceId),
+        parentId: currentParentId
+          ? new Types.ObjectId(currentParentId)
+          : undefined,
+      });
+
+      if (!folder) {
+        // Create the folder if it doesn't exist
+        folder = await this.createFolder(
+          folderName,
+          workspaceId,
+          userId,
+          currentParentId,
+          false // Default to not private
+        );
+      }
+
+      currentParentId = folder._id.toString();
+    }
+
+    return currentParentId;
   }
 
   // --- Filesystem fallback methods ---

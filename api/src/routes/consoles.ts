@@ -322,6 +322,57 @@ consoleRoutes.post("/folders", async (c: Context) => {
   }
 });
 
+// PATCH /api/workspaces/:workspaceId/consoles/:id/rename - Rename a console
+consoleRoutes.patch("/:id/rename", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const consoleId = c.req.param("id");
+    const body = await c.req.json();
+    const { name } = body;
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    if (!name || typeof name !== "string") {
+      return c.json(
+        { success: false, error: "Name is required and must be a string" },
+        400
+      );
+    }
+
+    const success = await consoleManager.renameConsole(
+      consoleId,
+      name,
+      workspaceId,
+      user.id
+    );
+
+    if (success) {
+      return c.json({ success: true, message: "Console renamed successfully" });
+    } else {
+      return c.json({ success: false, error: "Console not found" }, 404);
+    }
+  } catch (error) {
+    console.error(`Error renaming console ${c.req.param("id")}:`, error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error renaming console",
+      },
+      500
+    );
+  }
+});
+
 // DELETE /api/workspaces/:workspaceId/consoles/:id - Delete a console
 consoleRoutes.delete("/:id", async (c: Context) => {
   try {
@@ -353,6 +404,56 @@ consoleRoutes.delete("/:id", async (c: Context) => {
           error instanceof Error
             ? error.message
             : "Unknown error deleting console",
+      },
+      500
+    );
+  }
+});
+
+// PATCH /api/workspaces/:workspaceId/consoles/folders/:id/rename - Rename a folder
+consoleRoutes.patch("/folders/:id/rename", async (c: Context) => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const folderId = c.req.param("id");
+    const body = await c.req.json();
+    const { name } = body;
+    const user = c.get("user");
+
+    // Verify user has access to workspace
+    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403
+      );
+    }
+
+    if (!name || typeof name !== "string") {
+      return c.json(
+        { success: false, error: "Name is required and must be a string" },
+        400
+      );
+    }
+
+    const success = await consoleManager.renameFolder(
+      folderId,
+      name,
+      workspaceId
+    );
+
+    if (success) {
+      return c.json({ success: true, message: "Folder renamed successfully" });
+    } else {
+      return c.json({ success: false, error: "Folder not found" }, 404);
+    }
+  } catch (error) {
+    console.error(`Error renaming folder ${c.req.param("id")}:`, error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unknown error renaming folder",
       },
       500
     );
