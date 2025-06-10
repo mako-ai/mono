@@ -1,5 +1,5 @@
 import { Box, styled } from "@mui/material";
-// import { Routes, Route } from "react-router-dom"; // Remove react-router-dom imports
+import { Routes, Route, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import { useAppStore, useChatStore } from "./store";
 import { useConsoleStore } from "./store/consoleStore";
@@ -10,6 +10,8 @@ import ConsoleExplorer from "./components/ConsoleExplorer";
 import DataSourceExplorer from "./components/DataSourceExplorer";
 import Editor from "./components/Editor";
 import { AuthWrapper } from "./components/AuthWrapper";
+import { AcceptInvite } from "./components/AcceptInvite";
+import { WorkspaceProvider } from "./contexts/workspace-context";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -22,7 +24,23 @@ const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
   },
 }));
 
-function App() {
+// Component for the invite page route
+function InvitePage() {
+  const { token } = useParams<{ token: string }>();
+
+  if (!token) {
+    return <div>Invalid invitation link</div>;
+  }
+
+  return (
+    <WorkspaceProvider>
+      <AcceptInvite token={token} />
+    </WorkspaceProvider>
+  );
+}
+
+// Main application component (extracted from original App)
+function MainApp() {
   const { activeView } = useAppStore();
   const { addConsoleTab, setActiveConsole, consoleTabs } = useConsoleStore();
 
@@ -142,21 +160,6 @@ function App() {
             <Editor />
           </Panel>
 
-          {/* <StyledHorizontalResizeHandle />
-
-          <Panel defaultSize={0} minSize={0}>
-            <Box
-              sx={{
-                height: "100%",
-                overflow: "hidden",
-                borderLeft: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Chat currentEditorContent={activeEditorContent} />
-            </Box>
-          </Panel> */}
-
           <StyledHorizontalResizeHandle />
 
           <Panel defaultSize={30} minSize={10}>
@@ -174,6 +177,18 @@ function App() {
         </PanelGroup>
       </Box>
     </AuthWrapper>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      {/* Invite route - no authentication required */}
+      <Route path="/invite/:token" element={<InvitePage />} />
+
+      {/* Main app route - authentication required */}
+      <Route path="/*" element={<MainApp />} />
+    </Routes>
   );
 }
 

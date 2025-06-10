@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Box,
   Paper,
@@ -21,9 +21,13 @@ export function AcceptInvite({ token }: AcceptInviteProps) {
     "loading",
   );
   const [message, setMessage] = useState<string>("");
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
     const handleAcceptInvite = async () => {
+      if (isProcessingRef.current) return; // Prevent multiple concurrent calls
+      isProcessingRef.current = true;
+
       try {
         const workspace = await acceptInvite(token);
         setStatus("success");
@@ -36,6 +40,8 @@ export function AcceptInvite({ token }: AcceptInviteProps) {
       } catch (error: any) {
         setStatus("error");
         setMessage(error.message || "Failed to accept invitation");
+      } finally {
+        isProcessingRef.current = false;
       }
     };
 
