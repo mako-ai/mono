@@ -60,11 +60,11 @@ app.route("/api/workspaces", workspaceRoutes);
 app.route("/api/workspaces/:workspaceId/databases", workspaceDatabaseRoutes);
 app.route("/api/workspaces/:workspaceId/consoles", consoleRoutes);
 app.route("/api/workspaces/:workspaceId/chats", chatsRoutes);
+app.route("/api/workspaces/:workspaceId/custom-prompt", customPromptRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
 app.route("/api/sources", dataSourceRoutes);
-app.route("/api/custom-prompt", customPromptRoutes);
 app.route("/api/ai", aiRoutes);
 app.route("/api/agent", agentRoutes);
 

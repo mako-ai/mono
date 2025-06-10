@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useWorkspace } from "../../contexts/workspace-context";
 
 // Default custom prompt content (fallback)
 const defaultCustomPromptContent = `# Custom Prompt Configuration
@@ -19,22 +20,30 @@ Add any specific instructions for how the AI should interpret your data or respo
 
 ---
 
-*This prompt is combined with the system prompt to provide context-aware responses. You can edit this file through the Settings page.*`;
+*This prompt is combined with the system prompt to provide context-aware responses. You can edit this through the Settings page.*`;
 
 // Export default content for immediate use
 export const customPromptContent = defaultCustomPromptContent;
 
 // Hook to fetch and manage custom prompt content
 export const useCustomPrompt = () => {
+  const { currentWorkspace } = useWorkspace();
   const [content, setContent] = useState<string>(defaultCustomPromptContent);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchCustomPrompt = async () => {
+  const fetchCustomPrompt = useCallback(async () => {
+    if (!currentWorkspace?.id) {
+      setError("No workspace selected");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/custom-prompt");
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/custom-prompt`,
+      );
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -51,19 +60,27 @@ export const useCustomPrompt = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentWorkspace?.id]);
 
   const updateCustomPrompt = async (newContent: string) => {
+    if (!currentWorkspace?.id) {
+      setError("No workspace selected");
+      return false;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/custom-prompt", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/custom-prompt`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ content: newContent }),
         },
-        body: JSON.stringify({ content: newContent }),
-      });
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -88,8 +105,10 @@ export const useCustomPrompt = () => {
   };
 
   useEffect(() => {
-    fetchCustomPrompt();
-  }, []);
+    if (currentWorkspace?.id) {
+      fetchCustomPrompt();
+    }
+  }, [currentWorkspace?.id, fetchCustomPrompt]);
 
   return {
     content,

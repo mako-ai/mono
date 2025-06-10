@@ -19,8 +19,10 @@ import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import ThemeSelector from "../components/ThemeSelector";
 import { useCustomPrompt } from "../components/Chat/CustomPrompt";
 import { WorkspaceMembers } from "../components/WorkspaceMembers";
+import { useWorkspace } from "../contexts/workspace-context";
 
 function Settings() {
+  const { currentWorkspace } = useWorkspace();
   const [openaiApiKey, setOpenaiApiKey] = useState(
     localStorage.getItem("openai_api_key") || "",
   );
@@ -70,10 +72,19 @@ function Settings() {
   };
 
   const handleResetCustomPrompt = async () => {
+    if (!currentWorkspace?.id) {
+      setSnackbarMessage("No workspace selected");
+      setShowSnackbar(true);
+      return;
+    }
+
     try {
-      const response = await fetch("/api/custom-prompt/reset", {
-        method: "POST",
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/custom-prompt/reset`,
+        {
+          method: "POST",
+        },
+      );
 
       if (response.ok) {
         const data = await response.json();
