@@ -285,6 +285,31 @@ export class WorkspaceService {
    * Accept invite
    */
   async acceptInvite(token: string, userId: string): Promise<IWorkspace> {
+    // Retry logic for write conflicts
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await this._acceptInviteAttempt(token, userId);
+      } catch (error: any) {
+        // Retry on write conflicts
+        if (error.code === 112 && attempt < maxRetries - 1) {
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Failed to accept invite after multiple attempts");
+  }
+
+  /**
+   * Single attempt to accept invite
+   */
+  private async _acceptInviteAttempt(
+    token: string,
+    userId: string,
+  ): Promise<IWorkspace> {
     const invite = await WorkspaceInvite.findOne({
       token,
       acceptedAt: { $exists: false },
@@ -295,6 +320,24 @@ export class WorkspaceService {
       throw new Error("Invalid or expired invite");
     }
 
+    // Check if user is already a member
+    const existingMember = await WorkspaceMember.findOne({
+      workspaceId: invite.workspaceId,
+      userId: userId,
+    });
+
+    if (existingMember) {
+      // User is already a member, just mark invite as accepted
+      invite.acceptedAt = new Date();
+      await invite.save();
+
+      const workspace = await Workspace.findById(invite.workspaceId);
+      if (!workspace) {
+        throw new Error("Workspace not found");
+      }
+      return workspace;
+    }
+
     const session = await WorkspaceMember.db.startSession();
     await session.startTransaction();
 
@@ -303,10 +346,18 @@ export class WorkspaceService {
       invite.acceptedAt = new Date();
       await invite.save({ session });
 
-      // Add user as member
-      await this.addMember(invite.workspaceId.toString(), userId, invite.role);
+      // Add user as member (with session)
+      const member = new WorkspaceMember({
+        workspaceId: invite.workspaceId,
+        userId: userId,
+        role: invite.role,
+        joinedAt: new Date(),
+      });
+      await member.save({ session });
 
-      const workspace = await Workspace.findById(invite.workspaceId);
+      const workspace = await Workspace.findById(invite.workspaceId).session(
+        session,
+      );
       if (!workspace) {
         throw new Error("Workspace not found");
       }
