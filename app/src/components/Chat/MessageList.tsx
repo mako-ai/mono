@@ -1,15 +1,21 @@
 import React from "react";
-import { Box } from "@mui/material";
+import { Box, IconButton } from "@mui/material";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  tomorrow,
+  prism,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
+
 import { Message } from "./types";
 import { useTheme } from "../../contexts/ThemeContext";
 import UserMessage from "./UserMessage";
-import { ExpandMore, ExpandLess } from "@mui/icons-material";
-import { IconButton } from "@mui/material";
-import { ContentCopy, Check } from "@mui/icons-material";
+import {
+  ExpandMore,
+  ExpandLess,
+  ContentCopy,
+  Check,
+} from "@mui/icons-material";
 
 interface MessageListProps {
   messages: Message[];
