@@ -90,6 +90,7 @@ export interface IWorkspace extends Document {
     maxDatabases: number;
     maxMembers: number;
     billingTier: "free" | "pro" | "enterprise";
+    customPrompt?: string;
   };
 }
 
@@ -262,6 +263,28 @@ const WorkspaceSchema = new Schema<IWorkspace>(
         type: String,
         enum: ["free", "pro", "enterprise"],
         default: "free",
+      },
+      customPrompt: {
+        type: String,
+        default: `# Custom Prompt Configuration
+
+This is your custom prompt that will be combined with the system prompt to provide additional context about your data and business relationships.
+
+## Business Context
+Add information about your business domain, terminology, and key concepts here.
+
+## Data Relationships
+Describe important relationships between your collections and how they connect.
+
+## Common Queries
+Document frequently requested queries or analysis patterns.
+
+## Custom Instructions
+Add any specific instructions for how the AI should interpret your data or respond to certain types of questions.
+
+---
+
+*This prompt is combined with the system prompt to provide context-aware responses. You can edit this through the Settings page.*`,
       },
     },
   },
