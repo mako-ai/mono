@@ -1,23 +1,23 @@
-import { Box, styled } from '@mui/material';
+import { Box, styled } from "@mui/material";
 // import { Routes, Route } from "react-router-dom"; // Remove react-router-dom imports
-import Sidebar from './components/Sidebar';
-import { useAppStore, useChatStore } from './store';
-import { useConsoleStore } from './store/consoleStore';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import Chat3 from './components/Chat3';
-import DatabaseExplorer from './components/DatabaseExplorer';
-import ConsoleExplorer from './components/ConsoleExplorer';
-import DataSourceExplorer from './components/DataSourceExplorer';
-import Editor from './components/Editor';
-import { AuthWrapper } from './components/AuthWrapper';
+import Sidebar from "./components/Sidebar";
+import { useAppStore, useChatStore } from "./store";
+import { useConsoleStore } from "./store/consoleStore";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import Chat3 from "./components/Chat3";
+import DatabaseExplorer from "./components/DatabaseExplorer";
+import ConsoleExplorer from "./components/ConsoleExplorer";
+import DataSourceExplorer from "./components/DataSourceExplorer";
+import Editor from "./components/Editor";
+import { AuthWrapper } from "./components/AuthWrapper";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  width: '4px',
+  width: "4px",
   background: theme.palette.divider,
-  cursor: 'col-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "col-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
@@ -42,7 +42,7 @@ function App() {
       useChatStore.getState().ensureContextItems([
         {
           id: existing.id,
-          type: 'console',
+          type: "console",
           title,
           content,
           metadata: { consoleId: existing.id, filePath },
@@ -63,7 +63,7 @@ function App() {
     useChatStore.getState().ensureContextItems([
       {
         id,
-        type: 'console',
+        type: "console",
         title,
         content,
         metadata: { consoleId: id, filePath },
@@ -75,15 +75,15 @@ function App() {
   // Left pane content renderer
   const renderLeftPane = () => {
     switch (activeView) {
-      case 'databases':
+      case "databases":
         return (
           <DatabaseExplorer
             onCollectionClick={(dbId, collection) => {
               const prefill = `db.${collection.name}.find({}).limit(500)`;
               openOrFocusConsoleTab(collection.name, prefill, dbId, [
                 {
-                  id: 'collection-' + collection.name,
-                  type: 'collection',
+                  id: "collection-" + collection.name,
+                  type: "collection",
                   title: collection.name,
                   content: `Collection: ${collection.name}`,
                   metadata: {
@@ -95,7 +95,7 @@ function App() {
             }}
           />
         );
-      case 'consoles':
+      case "consoles":
         return (
           <ConsoleExplorer
             onConsoleSelect={(path, content) => {
@@ -103,7 +103,7 @@ function App() {
             }}
           />
         );
-      case 'sources':
+      case "sources":
         return <DataSourceExplorer />;
       // Add others as needed
       default:
@@ -115,11 +115,11 @@ function App() {
     <AuthWrapper>
       <Box
         sx={{
-          display: 'flex',
-          height: '100vh',
-          width: '100vw',
-          maxWidth: '100vw',
-          overflow: 'hidden',
+          display: "flex",
+          height: "100vh",
+          width: "100vw",
+          maxWidth: "100vw",
+          overflow: "hidden",
         }}
       >
         {/* Sidebar Navigation */}
@@ -127,10 +127,10 @@ function App() {
 
         <PanelGroup
           direction="horizontal"
-          style={{ height: '100%', width: '100%' }}
+          style={{ height: "100%", width: "100%" }}
         >
           <Panel defaultSize={15} minSize={10}>
-            <Box sx={{ height: '100%', overflow: 'hidden' }}>
+            <Box sx={{ height: "100%", overflow: "hidden" }}>
               {renderLeftPane()}
             </Box>
           </Panel>
@@ -162,10 +162,10 @@ function App() {
           <Panel defaultSize={30} minSize={10}>
             <Box
               sx={{
-                height: '100%',
-                overflow: 'hidden',
-                borderLeft: '1px solid',
-                borderColor: 'divider',
+                height: "100%",
+                overflow: "hidden",
+                borderLeft: "1px solid",
+                borderColor: "divider",
               }}
             >
               <Chat3 />

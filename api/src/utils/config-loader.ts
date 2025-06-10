@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'js-yaml';
+import * as fs from "fs";
+import * as path from "path";
+import * as yaml from "js-yaml";
 
 export interface DataSourceConnection {
   connection_string?: string;
@@ -45,14 +45,14 @@ export interface MongoServer {
   databases: {
     [key: string]: Omit<
       MongoDatabase,
-      'id' | 'serverId' | 'serverName' | 'connectionString'
+      "id" | "serverId" | "serverName" | "connectionString"
     >;
   };
 }
 
 interface ConfigFile {
-  data_sources: { [key: string]: Omit<DataSourceConfig, 'id'> };
-  mongodb_servers?: { [key: string]: Omit<MongoServer, 'id'> };
+  data_sources: { [key: string]: Omit<DataSourceConfig, "id"> };
+  mongodb_servers?: { [key: string]: Omit<MongoServer, "id"> };
   global: any;
 }
 
@@ -62,7 +62,7 @@ class ConfigLoader {
 
   constructor() {
     // Look for config.yaml in the project root (../../../config/config.yaml from api/src/utils)
-    this.configPath = path.join(__dirname, '../../../config/config.yaml');
+    this.configPath = path.join(__dirname, "../../../config/config.yaml");
   }
 
   /**
@@ -78,7 +78,7 @@ class ConfigLoader {
         throw new Error(`Configuration file not found: ${this.configPath}`);
       }
 
-      const fileContents = fs.readFileSync(this.configPath, 'utf8');
+      const fileContents = fs.readFileSync(this.configPath, "utf8");
       const rawConfig = yaml.load(fileContents) as ConfigFile;
 
       // Process environment variable substitution
@@ -116,7 +116,7 @@ class ConfigLoader {
     const servers = this.getMongoServers();
     const databases: MongoDatabase[] = [];
 
-    servers.forEach((server) => {
+    servers.forEach(server => {
       if (server.databases) {
         Object.entries(server.databases).forEach(([dbId, db]) => {
           if (db.active) {
@@ -140,7 +140,7 @@ class ConfigLoader {
    */
   getMongoDBSource(sourceId: string): MongoDatabase | null {
     const databases = this.getMongoDBSources();
-    return databases.find((db) => db.id === sourceId) || null;
+    return databases.find(db => db.id === sourceId) || null;
   }
 
   /**
@@ -148,7 +148,7 @@ class ConfigLoader {
    */
   getDatabasesForServer(serverId: string): MongoDatabase[] {
     const databases = this.getMongoDBSources();
-    return databases.filter((db) => db.serverId === serverId);
+    return databases.filter(db => db.serverId === serverId);
   }
 
   /**
@@ -160,18 +160,18 @@ class ConfigLoader {
 
     // Group legacy MongoDB data sources by connection string
     Object.entries(config.data_sources)
-      .filter(([_, source]) => source.type === 'mongodb' && source.active)
+      .filter(([_, source]) => source.type === "mongodb" && source.active)
       .forEach(([id, source]) => {
         if (source.connection?.connection_string) {
           // Extract base connection string (without database)
           const baseConnString =
-            source.connection.connection_string.split('/')[0];
+            source.connection.connection_string.split("/")[0];
 
           if (!serverMap.has(baseConnString)) {
             serverMap.set(baseConnString, {
               id: `server_${serverMap.size + 1}`,
-              name: 'MongoDB Server',
-              description: 'Auto-detected from legacy config',
+              name: "MongoDB Server",
+              description: "Auto-detected from legacy config",
               connection_string: baseConnString,
               active: true,
               databases: {},
@@ -196,7 +196,7 @@ class ConfigLoader {
    * Process environment variable substitution in configuration
    */
   private processEnvironmentVariables(obj: any): any {
-    if (typeof obj === 'string') {
+    if (typeof obj === "string") {
       const envVarPattern = /\$\{([^}]+)\}/g;
       return obj.replace(envVarPattern, (match, varName) => {
         const value = process.env[varName];
@@ -209,8 +209,8 @@ class ConfigLoader {
         return value;
       });
     } else if (Array.isArray(obj)) {
-      return obj.map((item) => this.processEnvironmentVariables(item));
-    } else if (typeof obj === 'object' && obj !== null) {
+      return obj.map(item => this.processEnvironmentVariables(item));
+    } else if (typeof obj === "object" && obj !== null) {
       const processed: any = {};
       for (const key in obj) {
         processed[key] = this.processEnvironmentVariables(obj[key]);

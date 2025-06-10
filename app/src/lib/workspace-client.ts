@@ -2,7 +2,7 @@
  * Workspace client for handling all workspace-related API calls
  */
 
-import { apiClient } from './api-client';
+import { apiClient } from "./api-client";
 
 // Types
 export interface Workspace {
@@ -15,7 +15,7 @@ export interface Workspace {
   settings: {
     maxDatabases: number;
     maxMembers: number;
-    billingTier: 'free' | 'pro' | 'enterprise';
+    billingTier: "free" | "pro" | "enterprise";
   };
 }
 
@@ -23,14 +23,14 @@ export interface WorkspaceMember {
   id: string;
   userId: string;
   email: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: "owner" | "admin" | "member" | "viewer";
   joinedAt: string;
 }
 
 export interface WorkspaceInvite {
   id: string;
   email: string;
-  role: 'admin' | 'member' | 'viewer';
+  role: "admin" | "member" | "viewer";
   token?: string;
   invitedBy: string;
   expiresAt: string;
@@ -43,17 +43,17 @@ export interface CreateWorkspaceData {
 
 export interface InviteMemberData {
   email: string;
-  role: 'admin' | 'member' | 'viewer';
+  role: "admin" | "member" | "viewer";
 }
 
 export interface UpdateMemberRoleData {
-  role: 'admin' | 'member' | 'viewer';
+  role: "admin" | "member" | "viewer";
 }
 
 export interface WorkspaceDatabase {
   id: string;
   name: string;
-  type: 'mongodb' | 'postgresql' | 'mysql' | 'sqlite' | 'mssql';
+  type: "mongodb" | "postgresql" | "mysql" | "sqlite" | "mssql";
   createdAt: string;
   updatedAt: string;
   lastConnectedAt?: string;
@@ -64,7 +64,10 @@ class WorkspaceClient {
    * Get all workspaces for the current user
    */
   async listWorkspaces(): Promise<Workspace[]> {
-    const response = await apiClient.get<{ success: boolean; data: Workspace[] }>('/workspaces');
+    const response = await apiClient.get<{
+      success: boolean;
+      data: Workspace[];
+    }>("/workspaces");
     return response.data;
   }
 
@@ -72,7 +75,10 @@ class WorkspaceClient {
    * Get current active workspace
    */
   async getCurrentWorkspace(): Promise<Workspace | null> {
-    const response = await apiClient.get<{ success: boolean; data: Workspace | null }>('/workspaces/current');
+    const response = await apiClient.get<{
+      success: boolean;
+      data: Workspace | null;
+    }>("/workspaces/current");
     return response.data;
   }
 
@@ -80,7 +86,9 @@ class WorkspaceClient {
    * Get a specific workspace by ID
    */
   async getWorkspace(id: string): Promise<Workspace> {
-    const response = await apiClient.get<{ success: boolean; data: Workspace }>(`/workspaces/${id}`);
+    const response = await apiClient.get<{ success: boolean; data: Workspace }>(
+      `/workspaces/${id}`,
+    );
     return response.data;
   }
 
@@ -88,15 +96,24 @@ class WorkspaceClient {
    * Create a new workspace
    */
   async createWorkspace(data: CreateWorkspaceData): Promise<Workspace> {
-    const response = await apiClient.post<{ success: boolean; data: Workspace }>('/workspaces', data);
+    const response = await apiClient.post<{
+      success: boolean;
+      data: Workspace;
+    }>("/workspaces", data);
     return response.data;
   }
 
   /**
    * Update workspace
    */
-  async updateWorkspace(id: string, data: Partial<CreateWorkspaceData>): Promise<Workspace> {
-    const response = await apiClient.put<{ success: boolean; data: Workspace }>(`/workspaces/${id}`, data);
+  async updateWorkspace(
+    id: string,
+    data: Partial<CreateWorkspaceData>,
+  ): Promise<Workspace> {
+    const response = await apiClient.put<{ success: boolean; data: Workspace }>(
+      `/workspaces/${id}`,
+      data,
+    );
     return response.data;
   }
 
@@ -113,27 +130,32 @@ class WorkspaceClient {
   async switchWorkspace(id: string): Promise<void> {
     await apiClient.post(`/workspaces/${id}/switch`);
     // Update local storage
-    localStorage.setItem('activeWorkspaceId', id);
+    localStorage.setItem("activeWorkspaceId", id);
   }
 
   /**
    * Get workspace members
    */
   async getMembers(workspaceId: string): Promise<WorkspaceMember[]> {
-    const response = await apiClient.get<{ success: boolean; data: WorkspaceMember[] }>(
-      `/workspaces/${workspaceId}/members`,
-    );
+    const response = await apiClient.get<{
+      success: boolean;
+      data: WorkspaceMember[];
+    }>(`/workspaces/${workspaceId}/members`);
     return response.data;
   }
 
   /**
    * Add member to workspace
    */
-  async addMember(workspaceId: string, userId: string, role: 'admin' | 'member' | 'viewer'): Promise<WorkspaceMember> {
-    const response = await apiClient.post<{ success: boolean; data: WorkspaceMember }>(
-      `/workspaces/${workspaceId}/members`,
-      { userId, role },
-    );
+  async addMember(
+    workspaceId: string,
+    userId: string,
+    role: "admin" | "member" | "viewer",
+  ): Promise<WorkspaceMember> {
+    const response = await apiClient.post<{
+      success: boolean;
+      data: WorkspaceMember;
+    }>(`/workspaces/${workspaceId}/members`, { userId, role });
     return response.data;
   }
 
@@ -145,10 +167,10 @@ class WorkspaceClient {
     userId: string,
     data: UpdateMemberRoleData,
   ): Promise<WorkspaceMember> {
-    const response = await apiClient.put<{ success: boolean; data: WorkspaceMember }>(
-      `/workspaces/${workspaceId}/members/${userId}`,
-      data,
-    );
+    const response = await apiClient.put<{
+      success: boolean;
+      data: WorkspaceMember;
+    }>(`/workspaces/${workspaceId}/members/${userId}`, data);
     return response.data;
   }
 
@@ -162,11 +184,14 @@ class WorkspaceClient {
   /**
    * Create workspace invitation
    */
-  async createInvite(workspaceId: string, data: InviteMemberData): Promise<WorkspaceInvite> {
-    const response = await apiClient.post<{ success: boolean; data: WorkspaceInvite }>(
-      `/workspaces/${workspaceId}/invites`,
-      data,
-    );
+  async createInvite(
+    workspaceId: string,
+    data: InviteMemberData,
+  ): Promise<WorkspaceInvite> {
+    const response = await apiClient.post<{
+      success: boolean;
+      data: WorkspaceInvite;
+    }>(`/workspaces/${workspaceId}/invites`, data);
     return response.data;
   }
 
@@ -174,9 +199,10 @@ class WorkspaceClient {
    * Get pending invitations
    */
   async getPendingInvites(workspaceId: string): Promise<WorkspaceInvite[]> {
-    const response = await apiClient.get<{ success: boolean; data: WorkspaceInvite[] }>(
-      `/workspaces/${workspaceId}/invites`,
-    );
+    const response = await apiClient.get<{
+      success: boolean;
+      data: WorkspaceInvite[];
+    }>(`/workspaces/${workspaceId}/invites`);
     return response.data;
   }
 
@@ -191,9 +217,10 @@ class WorkspaceClient {
    * Accept invitation
    */
   async acceptInvite(token: string): Promise<Workspace> {
-    const response = await apiClient.post<{ success: boolean; data: Workspace }>(
-      `/workspaces/invites/${token}/accept`,
-    );
+    const response = await apiClient.post<{
+      success: boolean;
+      data: Workspace;
+    }>(`/workspaces/invites/${token}/accept`);
     return response.data;
   }
 
@@ -201,9 +228,10 @@ class WorkspaceClient {
    * Get databases for workspace
    */
   async getDatabases(workspaceId: string): Promise<WorkspaceDatabase[]> {
-    const response = await apiClient.get<{ success: boolean; data: WorkspaceDatabase[] }>(
-      `/workspaces/${workspaceId}/databases`,
-    );
+    const response = await apiClient.get<{
+      success: boolean;
+      data: WorkspaceDatabase[];
+    }>(`/workspaces/${workspaceId}/databases`);
     return response.data;
   }
 }

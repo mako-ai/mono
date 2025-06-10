@@ -1,7 +1,7 @@
-import { AuthProvider } from '../contexts/auth-context';
-import { WorkspaceProvider } from '../contexts/workspace-context';
-import { ThemeProvider } from '../contexts/ThemeContext';
-import { ProtectedRoute } from './ProtectedRoute';
+import { AuthProvider } from "../contexts/auth-context";
+import { WorkspaceProvider } from "../contexts/workspace-context";
+import { ThemeProvider } from "../contexts/ThemeContext";
+import { ProtectedRoute } from "./ProtectedRoute";
 
 interface AuthWrapperProps {
   children: React.ReactNode;
@@ -16,9 +16,7 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
     <ThemeProvider>
       <AuthProvider>
         <WorkspaceProvider>
-          <ProtectedRoute>
-            {children}
-          </ProtectedRoute>
+          <ProtectedRoute>{children}</ProtectedRoute>
         </WorkspaceProvider>
       </AuthProvider>
     </ThemeProvider>

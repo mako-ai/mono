@@ -1,9 +1,9 @@
-import { Google, GitHub } from 'arctic';
+import { Google, GitHub } from "arctic";
 
 /**
  * OAuth provider types
  */
-export type OAuthProvider = 'google' | 'github';
+export type OAuthProvider = "google" | "github";
 
 // Lazy-loaded providers to ensure environment variables are loaded first
 let _google: Google | null = null;
@@ -20,7 +20,7 @@ export function getGoogle(): Google {
       !process.env.BASE_URL
     ) {
       throw new Error(
-        'Missing Google OAuth environment variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, BASE_URL',
+        "Missing Google OAuth environment variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, BASE_URL",
       );
     }
     _google = new Google(
@@ -43,7 +43,7 @@ export function getGitHub(): GitHub {
       !process.env.BASE_URL
     ) {
       throw new Error(
-        'Missing GitHub OAuth environment variables: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL',
+        "Missing GitHub OAuth environment variables: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, BASE_URL",
       );
     }
     _github = new GitHub(

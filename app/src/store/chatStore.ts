@@ -1,13 +1,13 @@
-import { useAppStore } from './appStore';
-import { AttachedContext, Message } from '../components/Chat/types';
-import { ChatSession } from './appStore';
-import { useMemo } from 'react';
+import { useAppStore } from "./appStore";
+import { AttachedContext, Message } from "../components/Chat/types";
+import { ChatSession } from "./appStore";
+import { useMemo } from "react";
 
 export const useChatStore = () => {
-  const dispatch = useAppStore((s) => s.dispatch);
-  const sessions = useAppStore((s) => s.chat.sessions);
-  const currentChatId = useAppStore((s) => s.chat.currentChatId);
-  const selectedModelGlobal = useAppStore((s) => s.settings.modelId);
+  const dispatch = useAppStore(s => s.dispatch);
+  const sessions = useAppStore(s => s.chat.sessions);
+  const currentChatId = useAppStore(s => s.chat.currentChatId);
+  const selectedModelGlobal = useAppStore(s => s.settings.modelId);
 
   const value = useMemo(() => {
     const chatSessions: ChatSession[] = Object.values(sessions);
@@ -32,19 +32,19 @@ export const useChatStore = () => {
 
       // Create new chat
       const id = Date.now().toString() + Math.random();
-      dispatch({ type: 'CREATE_CHAT', payload: { id } } as any);
+      dispatch({ type: "CREATE_CHAT", payload: { id } } as any);
       return id;
     };
 
     const setCurrentChat = (chatId: string) =>
-      dispatch({ type: 'FOCUS_CHAT', payload: { id: chatId } } as any);
+      dispatch({ type: "FOCUS_CHAT", payload: { id: chatId } } as any);
 
     const deleteChat = (_chatId: string) => {};
 
     const addMessage = (message: Message) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'ADD_MESSAGE',
+        type: "ADD_MESSAGE",
         payload: { chatId: currentChatId, message },
       } as any);
     };
@@ -52,7 +52,7 @@ export const useChatStore = () => {
     const updateMessage = (id: string, content: string) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'UPDATE_MESSAGE_PARTIAL',
+        type: "UPDATE_MESSAGE_PARTIAL",
         payload: { chatId: currentChatId, messageId: id, delta: content },
       } as any);
     };
@@ -62,7 +62,7 @@ export const useChatStore = () => {
     const addContextItem = (item: AttachedContext) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'SET_ATTACHED_CONTEXT',
+        type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
           items: [...attachedContext, item],
@@ -73,10 +73,10 @@ export const useChatStore = () => {
     const removeContextItem = (id: string) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'SET_ATTACHED_CONTEXT',
+        type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.filter((c) => c.id !== id),
+          items: attachedContext.filter(c => c.id !== id),
         },
       } as any);
     };
@@ -87,10 +87,10 @@ export const useChatStore = () => {
     ) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'SET_ATTACHED_CONTEXT',
+        type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.map((c) =>
+          items: attachedContext.map(c =>
             c.id === id ? { ...c, ...updates } : c,
           ),
         },
@@ -102,14 +102,14 @@ export const useChatStore = () => {
       const chat = getCurrentChat();
       if (chat && chat.messages.length === 0) {
         dispatch({
-          type: 'SET_ATTACHED_CONTEXT',
+          type: "SET_ATTACHED_CONTEXT",
           payload: { chatId: currentChatId, items },
         } as any);
       }
     };
 
     const setSelectedModel = (model: string) =>
-      dispatch({ type: 'SET_SELECTED_MODEL', payload: { model } } as any);
+      dispatch({ type: "SET_SELECTED_MODEL", payload: { model } } as any);
 
     const error = getCurrentChat()?.error || null;
     const setError = (_e: string | null) => {};
@@ -159,7 +159,7 @@ useChatStore.getState = () => {
     const addMessage = (message: Message) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'ADD_MESSAGE',
+        type: "ADD_MESSAGE",
         payload: { chatId: currentChatId, message },
       });
     };
@@ -167,18 +167,18 @@ useChatStore.getState = () => {
     const updateMessage = (id: string, content: string) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'UPDATE_MESSAGE_PARTIAL',
+        type: "UPDATE_MESSAGE_PARTIAL",
         payload: { chatId: currentChatId, messageId: id, delta: content },
       });
     };
 
     const setSelectedModel = (model: string) =>
-      dispatch({ type: 'SET_SELECTED_MODEL', payload: { model } });
+      dispatch({ type: "SET_SELECTED_MODEL", payload: { model } });
 
     const addContextItem = (item: AttachedContext) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'SET_ATTACHED_CONTEXT',
+        type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
           items: [...attachedContext, item],
@@ -189,10 +189,10 @@ useChatStore.getState = () => {
     const removeContextItem = (id: string) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'SET_ATTACHED_CONTEXT',
+        type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.filter((c) => c.id !== id),
+          items: attachedContext.filter(c => c.id !== id),
         },
       });
     };
@@ -203,10 +203,10 @@ useChatStore.getState = () => {
     ) => {
       if (!currentChatId) return;
       dispatch({
-        type: 'SET_ATTACHED_CONTEXT',
+        type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.map((c) =>
+          items: attachedContext.map(c =>
             c.id === id ? { ...c, ...updates } : c,
           ),
         },
@@ -218,7 +218,7 @@ useChatStore.getState = () => {
       const chat = global.chat.sessions[currentChatId];
       if (chat.messages.length === 0) {
         dispatch({
-          type: 'SET_ATTACHED_CONTEXT',
+          type: "SET_ATTACHED_CONTEXT",
           payload: { chatId: currentChatId, items },
         });
       }
@@ -245,11 +245,11 @@ useChatStore.getState = () => {
 
         // Create new chat
         const id = Date.now().toString() + Math.random();
-        dispatch({ type: 'CREATE_CHAT', payload: { id } });
+        dispatch({ type: "CREATE_CHAT", payload: { id } });
         return id;
       },
       setCurrentChat: (chatId: string) =>
-        dispatch({ type: 'FOCUS_CHAT', payload: { id: chatId } }),
+        dispatch({ type: "FOCUS_CHAT", payload: { id: chatId } }),
       deleteChat: (_chatId: string) => {},
       addMessage,
       updateMessage,

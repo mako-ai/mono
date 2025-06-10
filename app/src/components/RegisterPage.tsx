@@ -1,4 +1,4 @@
-import React, { useState, FormEvent } from 'react';
+import { useState, FormEvent } from "react";
 import {
   Box,
   Paper,
@@ -10,13 +10,13 @@ import {
   Link,
   IconButton,
   InputAdornment,
-} from '@mui/material';
-import { Visibility, VisibilityOff } from '@mui/icons-material';
+} from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
   Google as GoogleIcon,
   GitHub as GitHubIcon,
-} from '@mui/icons-material';
-import { useAuth } from '../hooks/useAuth';
+} from "@mui/icons-material";
+import { useAuth } from "../hooks/useAuth";
 
 interface RegisterPageProps {
   onSwitchToLogin: () => void;
@@ -24,9 +24,9 @@ interface RegisterPageProps {
 
 export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   const { register, loginWithOAuth, error, loading, clearError } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -35,21 +35,21 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
     const errors: Record<string, string> = {};
 
     if (!email) {
-      errors.email = 'Email is required';
+      errors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errors.email = 'Please enter a valid email';
+      errors.email = "Please enter a valid email";
     }
 
     if (!password) {
-      errors.password = 'Password is required';
+      errors.password = "Password is required";
     } else if (password.length < 8) {
-      errors.password = 'Password must be at least 8 characters long';
+      errors.password = "Password must be at least 8 characters long";
     }
 
     if (!confirmPassword) {
-      errors.confirmPassword = 'Please confirm your password';
+      errors.confirmPassword = "Please confirm your password";
     } else if (password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
+      errors.confirmPassword = "Passwords do not match";
     }
 
     setFormErrors(errors);
@@ -70,7 +70,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
     }
   };
 
-  const handleOAuthLogin = (provider: 'google' | 'github') => {
+  const handleOAuthLogin = (provider: "google" | "github") => {
     clearError();
     loginWithOAuth(provider);
   };
@@ -78,11 +78,11 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        bgcolor: 'background.default',
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "background.default",
         p: 2,
       }}
     >
@@ -91,11 +91,11 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
         sx={{
           p: 4,
           maxWidth: 400,
-          width: '100%',
+          width: "100%",
           borderRadius: 2,
         }}
       >
-        <Box sx={{ textAlign: 'center', mb: 3 }}>
+        <Box sx={{ textAlign: "center", mb: 3 }}>
           <Typography variant="h4" component="h1" gutterBottom>
             Create Account
           </Typography>
@@ -116,7 +116,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             label="Email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             error={!!formErrors.email}
             helperText={formErrors.email}
             margin="normal"
@@ -128,9 +128,9 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
           <TextField
             fullWidth
             label="Password"
-            type={showPassword ? 'text' : 'password'}
+            type={showPassword ? "text" : "password"}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             error={!!formErrors.password}
             helperText={formErrors.password}
             margin="normal"
@@ -154,9 +154,9 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
           <TextField
             fullWidth
             label="Confirm Password"
-            type={showConfirmPassword ? 'text' : 'password'}
+            type={showConfirmPassword ? "text" : "password"}
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={e => setConfirmPassword(e.target.value)}
             error={!!formErrors.confirmPassword}
             helperText={formErrors.confirmPassword}
             margin="normal"
@@ -185,7 +185,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             disabled={loading}
             sx={{ mt: 3, mb: 2 }}
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading ? "Creating Account..." : "Create Account"}
           </Button>
         </form>
 
@@ -195,12 +195,12 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
           </Typography>
         </Divider>
 
-        <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
           <Button
             fullWidth
             variant="outlined"
             startIcon={<GoogleIcon />}
-            onClick={() => handleOAuthLogin('google')}
+            onClick={() => handleOAuthLogin("google")}
             disabled={loading}
           >
             Google
@@ -209,20 +209,20 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             fullWidth
             variant="outlined"
             startIcon={<GitHubIcon />}
-            onClick={() => handleOAuthLogin('github')}
+            onClick={() => handleOAuthLogin("github")}
             disabled={loading}
           >
             GitHub
           </Button>
         </Box>
 
-        <Box sx={{ textAlign: 'center' }}>
+        <Box sx={{ textAlign: "center" }}>
           <Typography variant="body2" color="text.secondary">
-            Already have an account?{' '}
+            Already have an account?{" "}
             <Link
               component="button"
               variant="body2"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 onSwitchToLogin();
               }}

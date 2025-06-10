@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -11,7 +11,7 @@ import {
   Alert,
   IconButton,
   Collapse,
-} from '@mui/material';
+} from "@mui/material";
 import {
   VisibilityOutlined as ViewIcon,
   Refresh as RefreshIcon,
@@ -19,8 +19,8 @@ import {
   FolderOutlined,
   ExpandLess,
   ExpandMore,
-} from '@mui/icons-material';
-import { useAppStore } from '../store/appStore';
+} from "@mui/icons-material";
+import { useAppStore } from "../store/appStore";
 
 interface ViewInfo {
   name: string;
@@ -46,9 +46,9 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   const [views, setViews] = useState<ViewInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const dispatch = useAppStore((s) => s.dispatch);
+  const dispatch = useAppStore(s => s.dispatch);
   const expandedCollectionsArray = useAppStore(
-    (s) => s.explorers.view.expandedCollections,
+    s => s.explorers.view.expandedCollections,
   );
   const expandedCollections = new Set(expandedCollectionsArray);
 
@@ -57,7 +57,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/database/views');
+      const response = await fetch("/api/database/views");
       const data = await response.json();
 
       if (data.success) {
@@ -67,11 +67,11 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
         // Keep all collections collapsed by default
         // The global state will handle the default collapsed state
       } else {
-        setError(data.error || 'Failed to fetch views');
+        setError(data.error || "Failed to fetch views");
       }
     } catch (err) {
-      setError('Failed to connect to the database API');
-      console.error('Error fetching views:', err);
+      setError("Failed to connect to the database API");
+      console.error("Error fetching views:", err);
     } finally {
       setLoading(false);
     }
@@ -85,9 +85,9 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
     // Debug: view selected
 
     // Ensure the parent collection is expanded
-    const collection = view.options.viewOn || 'Unknown Collection';
+    const collection = view.options.viewOn || "Unknown Collection";
     dispatch({
-      type: 'EXPAND_VIEW_COLLECTION',
+      type: "EXPAND_VIEW_COLLECTION",
       payload: { collectionName: collection },
     } as any);
 
@@ -107,7 +107,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
 
   const handleCollectionToggle = (collectionName: string) => {
     dispatch({
-      type: 'TOGGLE_VIEW_COLLECTION',
+      type: "TOGGLE_VIEW_COLLECTION",
       payload: { collectionName },
     } as any);
   };
@@ -115,8 +115,8 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   const groupViewsByCollection = () => {
     const grouped: { [key: string]: ViewInfo[] } = {};
 
-    views.forEach((view) => {
-      const collection = view.options.viewOn || 'Unknown Collection';
+    views.forEach(view => {
+      const collection = view.options.viewOn || "Unknown Collection";
       if (!grouped[collection]) {
         grouped[collection] = [];
       }
@@ -130,10 +130,10 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
     return (
       <Box
         sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         <CircularProgress size={24} />
@@ -147,7 +147,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-        <Box sx={{ textAlign: 'center' }}>
+        <Box sx={{ textAlign: "center" }}>
           <IconButton onClick={handleRefresh} color="primary">
             <RefreshIcon />
           </IconButton>
@@ -157,19 +157,19 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Box>
             <Typography variant="h6">Database Views</Typography>
             <Typography variant="body2" color="text.secondary">
-              {views.length} view{views.length !== 1 ? 's' : ''} found
+              {views.length} view{views.length !== 1 ? "s" : ""} found
             </Typography>
           </Box>
           <Box>
@@ -183,13 +183,13 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
         </Box>
       </Box>
 
-      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+      <Box sx={{ flexGrow: 1, overflow: "auto" }}>
         {views.length === 0 ? (
           <Box
             sx={{
               p: 3,
-              textAlign: 'center',
-              color: 'text.secondary',
+              textAlign: "center",
+              color: "text.secondary",
             }}
           >
             <Typography variant="body2">
@@ -202,7 +202,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
               const groupedViews = groupViewsByCollection();
               const collections = Object.keys(groupedViews).sort();
 
-              return collections.map((collection) => {
+              return collections.map(collection => {
                 const isExpanded = expandedCollections.has(collection);
                 const collectionViews = groupedViews[collection];
 
@@ -220,10 +220,10 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
                         <ListItemText
                           primary={collection}
                           sx={{
-                            '& .MuiListItemText-primary': {
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
+                            "& .MuiListItemText-primary": {
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
                             },
                           }}
                         />
@@ -233,7 +233,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
 
                     {/* Views under this collection */}
                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                      {collectionViews.map((view) => (
+                      {collectionViews.map(view => (
                         <ListItem key={view.name} disablePadding>
                           <ListItemButton
                             selected={selectedView === view.name}
@@ -246,10 +246,10 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
                             <ListItemText
                               primary={view.name}
                               sx={{
-                                '& .MuiListItemText-primary': {
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
+                                "& .MuiListItemText-primary": {
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
                                 },
                               }}
                             />

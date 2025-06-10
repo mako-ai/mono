@@ -1,4 +1,4 @@
-import { Types } from 'mongoose';
+import { Types } from "mongoose";
 import {
   Workspace,
   WorkspaceMember,
@@ -6,9 +6,9 @@ import {
   IWorkspace,
   IWorkspaceMember,
   IWorkspaceInvite,
-} from '../database/workspace-schema';
-import { Session } from '../database/schema';
-import { nanoid } from 'nanoid';
+} from "../database/workspace-schema";
+import { Session } from "../database/schema";
+import { nanoid } from "nanoid";
 
 export class WorkspaceService {
   /**
@@ -45,7 +45,7 @@ export class WorkspaceService {
         settings: {
           maxDatabases: 5,
           maxMembers: 10,
-          billingTier: 'free',
+          billingTier: "free",
         },
       });
       await workspace.save({ session });
@@ -54,7 +54,7 @@ export class WorkspaceService {
       const member = new WorkspaceMember({
         workspaceId: workspace._id,
         userId: userId,
-        role: 'owner',
+        role: "owner",
         joinedAt: new Date(),
       });
       await member.save({ session });
@@ -89,13 +89,13 @@ export class WorkspaceService {
       { $match: { userId: userId } },
       {
         $lookup: {
-          from: 'workspaces',
-          localField: 'workspaceId',
-          foreignField: '_id',
-          as: 'workspace',
+          from: "workspaces",
+          localField: "workspaceId",
+          foreignField: "_id",
+          as: "workspace",
         },
       },
-      { $unwind: '$workspace' },
+      { $unwind: "$workspace" },
       {
         $project: {
           workspace: 1,
@@ -202,7 +202,7 @@ export class WorkspaceService {
     return WorkspaceMember.find({
       workspaceId: new Types.ObjectId(workspaceId),
     })
-      .populate('userId', 'email')
+      .populate("userId", "email")
       .sort({ joinedAt: 1 });
   }
 
@@ -212,7 +212,7 @@ export class WorkspaceService {
   async addMember(
     workspaceId: string,
     userId: string,
-    role: 'admin' | 'member' | 'viewer',
+    role: "admin" | "member" | "viewer",
   ): Promise<IWorkspaceMember> {
     const member = new WorkspaceMember({
       workspaceId: new Types.ObjectId(workspaceId),
@@ -258,7 +258,7 @@ export class WorkspaceService {
   async createInvite(
     workspaceId: string,
     email: string,
-    role: 'admin' | 'member' | 'viewer',
+    role: "admin" | "member" | "viewer",
     invitedBy: string,
   ): Promise<IWorkspaceInvite> {
     const invite = new WorkspaceInvite({
@@ -277,8 +277,8 @@ export class WorkspaceService {
    */
   async getInviteByToken(token: string): Promise<IWorkspaceInvite | null> {
     return WorkspaceInvite.findOne({ token, acceptedAt: { $exists: false } })
-      .populate('workspaceId', 'name')
-      .populate('invitedBy', 'email');
+      .populate("workspaceId", "name")
+      .populate("invitedBy", "email");
   }
 
   /**
@@ -292,7 +292,7 @@ export class WorkspaceService {
     });
 
     if (!invite) {
-      throw new Error('Invalid or expired invite');
+      throw new Error("Invalid or expired invite");
     }
 
     const session = await WorkspaceMember.db.startSession();
@@ -308,7 +308,7 @@ export class WorkspaceService {
 
       const workspace = await Workspace.findById(invite.workspaceId);
       if (!workspace) {
-        throw new Error('Workspace not found');
+        throw new Error("Workspace not found");
       }
 
       await session.commitTransaction();
@@ -330,7 +330,7 @@ export class WorkspaceService {
       acceptedAt: { $exists: false },
       expiresAt: { $gt: new Date() },
     })
-      .populate('invitedBy', 'email')
+      .populate("invitedBy", "email")
       .sort({ createdAt: -1 });
   }
 
@@ -351,7 +351,7 @@ export class WorkspaceService {
     // Verify user has access to workspace
     const hasAccess = await this.hasAccess(workspaceId, userId);
     if (!hasAccess) {
-      throw new Error('Access denied to workspace');
+      throw new Error("Access denied to workspace");
     }
 
     // Update all user sessions
@@ -369,8 +369,8 @@ export class WorkspaceService {
   private generateSlug(name: string): string {
     return name
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
       .substring(0, 50);
   }
 }

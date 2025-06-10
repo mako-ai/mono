@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   TextField,
@@ -9,7 +9,7 @@ import {
   FormControl,
   Select,
   MenuItem,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Send as SendIcon,
   Storage,
@@ -18,8 +18,8 @@ import {
   TableView,
   Close,
   AlternateEmailOutlined,
-} from '@mui/icons-material';
-import { AttachedContext } from './types';
+} from "@mui/icons-material";
+import { AttachedContext } from "./types";
 
 interface UserInputProps {
   inputMessage: string;
@@ -47,21 +47,21 @@ const UserInput: React.FC<UserInputProps> = ({
   setSelectedModel,
 }) => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       onSend();
     }
   };
 
-  const getContextIcon = (type: AttachedContext['type']) => {
+  const getContextIcon = (type: AttachedContext["type"]) => {
     switch (type) {
-      case 'collection':
+      case "collection":
         return <Storage />;
-      case 'definition':
+      case "definition":
         return <Code />;
-      case 'view':
+      case "view":
         return <TableView />;
-      case 'console':
+      case "console":
         return <Code />;
       default:
         return <Description />;
@@ -73,15 +73,15 @@ const UserInput: React.FC<UserInputProps> = ({
       elevation={0}
       sx={{
         border: 1,
-        borderColor: 'divider',
+        borderColor: "divider",
         borderRadius: 2.5,
         p: 1,
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 1,
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'row', gap: 1 }}>
+      <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
         <Button
           variant="outlined"
           size="small"
@@ -90,25 +90,25 @@ const UserInput: React.FC<UserInputProps> = ({
           startIcon={<AlternateEmailOutlined />}
           sx={{
             height: 24,
-            fontSize: '0.8125rem',
+            fontSize: "0.8125rem",
             py: 0,
             px: 1,
-            minWidth: 'auto',
-            '& .MuiButton-startIcon': {
+            minWidth: "auto",
+            "& .MuiButton-startIcon": {
               marginLeft: -0.5,
               marginRight: attachedContext.length === 0 ? 0.5 : -0.5,
             },
-            '& .MuiSvgIcon-root': {
+            "& .MuiSvgIcon-root": {
               fontSize: 16,
             },
           }}
         >
-          {attachedContext.length === 0 && 'Add context'}
+          {attachedContext.length === 0 && "Add context"}
         </Button>
         {/* Attached Context Display - Now inside Paper */}
         {attachedContext.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {attachedContext.map((context) => (
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+            {attachedContext.map(context => (
               <Chip
                 key={context.id}
                 label={context.title}
@@ -120,9 +120,9 @@ const UserInput: React.FC<UserInputProps> = ({
                 sx={{
                   borderRadius: 1,
                   maxWidth: 200,
-                  backgroundColor: 'background.paper',
-                  '&:hover': {
-                    backgroundColor: 'action.hover',
+                  backgroundColor: "background.paper",
+                  "&:hover": {
+                    backgroundColor: "action.hover",
                   },
                 }}
               />
@@ -138,30 +138,30 @@ const UserInput: React.FC<UserInputProps> = ({
         minRows={1}
         placeholder="Ask me anything..."
         value={inputMessage}
-        onChange={(e) => setInputMessage(e.target.value)}
+        onChange={e => setInputMessage(e.target.value)}
         onKeyPress={handleKeyPress}
         disabled={isLoading}
         variant="outlined"
         sx={{
           mb: 0.5,
-          maxHeight: '50vh',
-          overflowY: 'auto',
-          '& .MuiInputBase-input': {
+          maxHeight: "50vh",
+          overflowY: "auto",
+          "& .MuiInputBase-input": {
             fontSize: 14,
           },
-          '& .MuiInputBase-root': {
+          "& .MuiInputBase-root": {
             p: 0,
             fontSize: 14,
           },
-          '& .MuiOutlinedInput-notchedOutline': {
-            border: 'none',
+          "& .MuiOutlinedInput-notchedOutline": {
+            border: "none",
           },
-          '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
-            border: 'none',
+          "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+            border: "none",
           },
-          '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline':
+          "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
             {
-              border: 'none',
+              border: "none",
             },
         }}
       />
@@ -169,9 +169,9 @@ const UserInput: React.FC<UserInputProps> = ({
       {/* Bottom action bar with Model dropdown on left and Send button on right */}
       <Box
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         {/* Model Selection Dropdown */}
@@ -185,9 +185,9 @@ const UserInput: React.FC<UserInputProps> = ({
             variant="standard"
             disableUnderline
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value as string)}
+            onChange={e => setSelectedModel(e.target.value as string)}
           >
-            {availableModels.map((modelId) => (
+            {availableModels.map(modelId => (
               <MenuItem key={modelId} value={modelId} sx={{ fontSize: 12 }}>
                 {modelId}
               </MenuItem>
@@ -201,10 +201,10 @@ const UserInput: React.FC<UserInputProps> = ({
           disabled={!inputMessage.trim() || isLoading}
           size="small"
           sx={{
-            color: inputMessage.trim() ? 'primary.main' : 'text.disabled',
+            color: inputMessage.trim() ? "primary.main" : "text.disabled",
             p: 0,
-            '&:hover': {
-              backgroundColor: 'action.hover',
+            "&:hover": {
+              backgroundColor: "action.hover",
             },
           }}
         >

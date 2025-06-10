@@ -7,6 +7,7 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
+    'plugin:prettier/recommended',
   ],
   ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules', 'app/', 'api/', 'consoles/', 'scripts/', 'docs/', 'config/'],
   parser: '@typescript-eslint/parser',
@@ -46,7 +47,7 @@ module.exports = {
     
     // Code style
     'semi': ['error', 'always'],
-    'quotes': ['error', 'single', { 'avoidEscape': true }],
+    'quotes': ['error', 'double', { 'avoidEscape': true }],
     'comma-dangle': ['error', 'always-multiline'],
     'indent': ['error', 2, { 'SwitchCase': 1 }],
     'object-curly-spacing': ['error', 'always'],

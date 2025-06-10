@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -11,15 +11,15 @@ import {
   IconButton,
   Alert,
   Snackbar,
-} from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import ViewExplorer from '../components/ViewExplorer';
-import ViewEditor, { ViewEditorRef } from '../components/ViewEditor';
-import ResultsTable from '../components/ResultsTable';
-import Chat from '../components/Chat/Chat';
-import { useWorkspace } from '../contexts/workspace-context';
+} from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material";
+import ViewExplorer from "../components/ViewExplorer";
+import ViewEditor, { ViewEditorRef } from "../components/ViewEditor";
+import ResultsTable from "../components/ResultsTable";
+import Chat from "../components/Chat/Chat";
+
 // @ts-ignore – types will be available once the package is installed
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 interface ViewDefinition {
   name: string;
@@ -35,29 +35,27 @@ interface QueryResult {
 
 // Styled PanelResizeHandle components
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  width: '4px',
+  width: "4px",
   background: theme.palette.divider,
-  cursor: 'col-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "col-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
 
 const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  height: '4px',
+  height: "4px",
   background: theme.palette.divider,
-  cursor: 'row-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "row-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
 
 function Views() {
-  const { currentWorkspace } = useWorkspace();
-  const [views, setViews] = useState<ViewDefinition[]>([]);
-  const [selectedView, setSelectedView] = useState<string>('');
+  const [selectedView, setSelectedView] = useState<string>("");
   const [viewDefinition, setViewDefinition] = useState<ViewDefinition | null>(
     null,
   );
@@ -65,9 +63,9 @@ function Views() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentEditorContent, setCurrentEditorContent] = useState<
     | {
@@ -115,7 +113,7 @@ function Views() {
       !definition.pipeline ||
       !Array.isArray(definition.pipeline)
     ) {
-      setErrorMessage('Invalid view definition: missing viewOn or pipeline');
+      setErrorMessage("Invalid view definition: missing viewOn or pipeline");
       setErrorModalOpen(true);
       return;
     }
@@ -129,16 +127,16 @@ function Views() {
 // Source collection: ${definition.viewOn}
 // Pipeline:
 db.${definition.viewOn}.aggregate(${JSON.stringify(
-  definition.pipeline,
-  null,
-  2,
-)})
+        definition.pipeline,
+        null,
+        2,
+      )})
       `.trim();
 
-      const response = await fetch('/api/execute', {
-        method: 'POST',
+      const response = await fetch("/api/execute", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ content: queryContent }),
       });
@@ -148,12 +146,12 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
       if (data.success) {
         setQueryResults(data.data);
       } else {
-        console.error('View execution failed:', data.error);
+        console.error("View execution failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
       }
     } catch (error) {
-      console.error('Failed to execute view:', error);
+      console.error("Failed to execute view:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
     } finally {
@@ -170,15 +168,15 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
       if (isUpdate) {
         // Delete the existing view first, then create the new one
         await fetch(`/api/database/views/${encodeURIComponent(selectedView)}`, {
-          method: 'DELETE',
+          method: "DELETE",
         });
       }
 
       // Create the view with the new definition
-      const response = await fetch('/api/database/views', {
-        method: 'POST',
+      const response = await fetch("/api/database/views", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(definition),
       });
@@ -191,14 +189,14 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         setSelectedView(definition.name);
         setViewDefinition(definition);
         // Refresh the view explorer
-        setRefreshKey((prev) => prev + 1);
+        setRefreshKey(prev => prev + 1);
       } else {
-        console.error('View save failed:', data.error);
+        console.error("View save failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
       }
     } catch (error) {
-      console.error('Failed to save view:', error);
+      console.error("Failed to save view:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
     } finally {
@@ -211,7 +209,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
       const response = await fetch(
         `/api/database/views/${encodeURIComponent(viewName)}`,
         {
-          method: 'DELETE',
+          method: "DELETE",
         },
       );
 
@@ -221,18 +219,18 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         setSnackbarMessage(`View "${viewName}" deleted successfully`);
         setSnackbarOpen(true);
         // Clear the current selection
-        setSelectedView('');
+        setSelectedView("");
         setViewDefinition(null);
         setQueryResults(null);
         // Refresh the view explorer
-        setRefreshKey((prev) => prev + 1);
+        setRefreshKey(prev => prev + 1);
       } else {
-        console.error('View delete failed:', data.error);
+        console.error("View delete failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
       }
     } catch (error) {
-      console.error('Failed to delete view:', error);
+      console.error("Failed to delete view:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
     }
@@ -240,17 +238,17 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
 
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
-    setErrorMessage('');
+    setErrorMessage("");
   };
 
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
-    setSnackbarMessage('');
+    setSnackbarMessage("");
   };
 
   const handleCreateNewView = () => {
     // Clear current selection when creating a new view
-    setSelectedView('');
+    setSelectedView("");
     setViewDefinition(null);
     setQueryResults(null);
 
@@ -261,21 +259,21 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
   return (
     <Box
       sx={{
-        height: '100%',
-        width: '100%',
-        maxWidth: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
+        height: "100%",
+        width: "100%",
+        maxWidth: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
       <PanelGroup
         direction="horizontal"
-        style={{ height: '100%', width: '100%' }}
+        style={{ height: "100%", width: "100%" }}
       >
         {/* Left Panel - View Explorer */}
         <Panel defaultSize={15}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <ViewExplorer
               onViewSelect={handleViewSelect}
               selectedView={selectedView}
@@ -289,14 +287,14 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
 
         {/* Middle Panel - Editor and Results */}
         <Panel defaultSize={55} minSize={30}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <PanelGroup
               direction="vertical"
-              style={{ height: '100%', width: '100%' }}
+              style={{ height: "100%", width: "100%" }}
             >
               {/* View Editor */}
               <Panel defaultSize={50} minSize={1}>
-                <Box sx={{ height: '100%', overflow: 'hidden' }}>
+                <Box sx={{ height: "100%", overflow: "hidden" }}>
                   <ViewEditor
                     viewDefinition={viewDefinition}
                     selectedView={selectedView}
@@ -314,7 +312,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
 
               {/* Results */}
               <Panel defaultSize={50} minSize={1}>
-                <Box sx={{ height: '100%', overflow: 'hidden' }}>
+                <Box sx={{ height: "100%", overflow: "hidden" }}>
                   <ResultsTable results={queryResults} />
                 </Box>
               </Panel>
@@ -326,7 +324,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
 
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={30} minSize={1}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <Chat currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
@@ -340,15 +338,15 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         fullWidth
         PaperProps={{
           sx: {
-            maxHeight: '80vh',
+            maxHeight: "80vh",
           },
         }}
       >
         <DialogTitle
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Typography variant="h6" color="error">
@@ -358,7 +356,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
             aria-label="close"
             onClick={handleCloseErrorModal}
             sx={{
-              color: (theme) => theme.palette.grey[500],
+              color: theme => theme.palette.grey[500],
             }}
           >
             <CloseIcon />
@@ -368,14 +366,14 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
           <Box
             component="pre"
             sx={{
-              backgroundColor: 'background.default',
+              backgroundColor: "background.default",
               padding: 2,
               borderRadius: 1,
-              overflow: 'auto',
-              fontFamily: 'monospace',
-              fontSize: '0.875rem',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
+              overflow: "auto",
+              fontFamily: "monospace",
+              fontSize: "0.875rem",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
             }}
           >
             {errorMessage}
@@ -397,12 +395,12 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={handleCloseSnackbar}
           severity="success"
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {snackbarMessage}
         </Alert>

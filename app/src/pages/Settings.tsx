@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Typography,
@@ -14,16 +14,16 @@ import {
   InputLabel,
   Alert,
   Snackbar,
-} from '@mui/material';
-import { Save as SaveIcon, Refresh as RefreshIcon } from '@mui/icons-material';
-import { useState, useEffect } from 'react';
-import ThemeSelector from '../components/ThemeSelector';
-import { useCustomPrompt } from '../components/Chat/CustomPrompt';
-import { WorkspaceMembers } from '../components/WorkspaceMembers';
+} from "@mui/material";
+import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import { useState, useEffect } from "react";
+import ThemeSelector from "../components/ThemeSelector";
+import { useCustomPrompt } from "../components/Chat/CustomPrompt";
+import { WorkspaceMembers } from "../components/WorkspaceMembers";
 
 function Settings() {
   const [openaiApiKey, setOpenaiApiKey] = useState(
-    localStorage.getItem('openai_api_key') || '',
+    localStorage.getItem("openai_api_key") || "",
   );
 
   // Custom prompt state
@@ -35,10 +35,10 @@ function Settings() {
     fetchCustomPrompt,
   } = useCustomPrompt();
 
-  const [localCustomPrompt, setLocalCustomPrompt] = useState('');
+  const [localCustomPrompt, setLocalCustomPrompt] = useState("");
   const [customPromptModified, setCustomPromptModified] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
 
   // Update local state when custom prompt content changes
   useEffect(() => {
@@ -48,9 +48,9 @@ function Settings() {
 
   const handleSaveSettings = () => {
     // Save OpenAI API key to localStorage
-    localStorage.setItem('openai_api_key', openaiApiKey);
+    localStorage.setItem("openai_api_key", openaiApiKey);
 
-    setSnackbarMessage('Settings saved successfully!');
+    setSnackbarMessage("Settings saved successfully!");
     setShowSnackbar(true);
   };
 
@@ -65,42 +65,42 @@ function Settings() {
     const success = await updateCustomPrompt(localCustomPrompt);
     if (success) {
       setCustomPromptModified(false);
-      setSnackbarMessage('Custom prompt saved successfully!');
+      setSnackbarMessage("Custom prompt saved successfully!");
       setShowSnackbar(true);
     }
   };
 
   const handleResetCustomPrompt = async () => {
     try {
-      const response = await fetch('/api/custom-prompt/reset', {
-        method: 'POST',
+      const response = await fetch("/api/custom-prompt/reset", {
+        method: "POST",
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           await fetchCustomPrompt(); // Refresh the content
-          setSnackbarMessage('Custom prompt reset to default!');
+          setSnackbarMessage("Custom prompt reset to default!");
           setShowSnackbar(true);
         }
       }
     } catch (error) {
-      console.error('Error resetting custom prompt:', error);
+      console.error("Error resetting custom prompt:", error);
     }
   };
 
   return (
-    <Box sx={{ height: '100%', p: 2, overflow: 'auto' }}>
+    <Box sx={{ height: "100%", p: 2, overflow: "auto" }}>
       <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 2 }}>
         Workspace Settings
       </Typography>
 
       <Box
-        sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 800 }}
+        sx={{ display: "flex", flexDirection: "column", gap: 2, maxWidth: 800 }}
       >
         {/* OpenAI Configuration */}
         <Card>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
             <Typography
               variant="subtitle1"
               gutterBottom
@@ -108,11 +108,11 @@ function Settings() {
             >
               OpenAI Configuration
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <TextField
                 label="OpenAI API Key"
                 value={openaiApiKey}
-                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                onChange={e => setOpenaiApiKey(e.target.value)}
                 type="password"
                 size="small"
                 fullWidth
@@ -122,7 +122,7 @@ function Settings() {
               <Button
                 variant="outlined"
                 size="small"
-                sx={{ alignSelf: 'flex-start' }}
+                sx={{ alignSelf: "flex-start" }}
                 disabled={!openaiApiKey.trim()}
               >
                 Test API Key
@@ -133,7 +133,7 @@ function Settings() {
 
         {/* Custom Prompt Configuration */}
         <Card>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
             <Typography
               variant="subtitle1"
               gutterBottom
@@ -163,7 +163,7 @@ function Settings() {
               sx={{ mb: 1.5 }}
             />
 
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: "flex", gap: 1 }}>
               <Button
                 variant="contained"
                 size="small"
@@ -188,14 +188,14 @@ function Settings() {
 
         {/* Workspace Members */}
         <Card>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
             <WorkspaceMembers />
           </CardContent>
         </Card>
 
         {/* Appearance Settings */}
         <Card>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
             <Typography
               variant="subtitle1"
               gutterBottom
@@ -203,12 +203,12 @@ function Settings() {
             >
               Appearance
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <Box
                 sx={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
                 <Typography variant="body2">Theme</Typography>
@@ -242,7 +242,7 @@ function Settings() {
 
         {/* Query Execution Settings */}
         <Card>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
             <Typography
               variant="subtitle1"
               gutterBottom
@@ -250,7 +250,7 @@ function Settings() {
             >
               Query Execution
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Default result limit</InputLabel>
                 <Select defaultValue={1000} label="Default result limit">
@@ -291,7 +291,7 @@ function Settings() {
 
         {/* Database Connection */}
         <Card>
-          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+          <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
             <Typography
               variant="subtitle1"
               gutterBottom
@@ -299,7 +299,7 @@ function Settings() {
             >
               Database Connection
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <TextField
                 label="Connection Name"
                 defaultValue="Production Database"
@@ -328,7 +328,7 @@ function Settings() {
               <Button
                 variant="outlined"
                 size="small"
-                sx={{ alignSelf: 'flex-start' }}
+                sx={{ alignSelf: "flex-start" }}
               >
                 Test Connection
               </Button>
@@ -337,7 +337,7 @@ function Settings() {
         </Card>
 
         {/* Save Button */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
           <Button
             variant="contained"
             startIcon={<SaveIcon />}

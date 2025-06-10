@@ -1,9 +1,9 @@
-import bcrypt from 'bcrypt';
-import { generateId } from 'lucia';
-import { lucia } from './lucia';
-import { User, OAuthAccount } from '../database/schema';
-import type { OAuthProvider } from './arctic';
-import { workspaceService } from '../services/workspace.service';
+import bcrypt from "bcrypt";
+import { generateId } from "lucia";
+import { lucia } from "./lucia";
+import { User, OAuthAccount } from "../database/schema";
+import type { OAuthProvider } from "./arctic";
+import { workspaceService } from "../services/workspace.service";
 
 /**
  * Authentication service with business logic
@@ -15,21 +15,21 @@ export class AuthService {
   async register(email: string, password: string) {
     // Validate input
     if (!email || !password) {
-      throw new Error('Email and password are required');
+      throw new Error("Email and password are required");
     }
 
     if (password.length < 8) {
-      throw new Error('Password must be at least 8 characters long');
+      throw new Error("Password must be at least 8 characters long");
     }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
-      throw new Error('User with this email already exists');
+      throw new Error("User with this email already exists");
     }
 
     // Hash password
-    const rounds = parseInt(process.env.BCRYPT_ROUNDS || '10');
+    const rounds = parseInt(process.env.BCRYPT_ROUNDS || "10");
     const hashedPassword = await bcrypt.hash(password, rounds);
 
     // Create user
@@ -50,7 +50,7 @@ export class AuthService {
     const session = await lucia.createSession(userId, {
       activeWorkspaceId: workspace._id.toString(),
     });
-    
+
     return { user, session };
   }
 
@@ -60,35 +60,38 @@ export class AuthService {
   async login(email: string, password: string) {
     // Validate input
     if (!email || !password) {
-      throw new Error('Email and password are required');
+      throw new Error("Email and password are required");
     }
 
     // Find user
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new Error("Invalid email or password");
     }
 
     // Check if user has password (not OAuth only)
     if (!user.hashedPassword) {
-      throw new Error('Please login with your OAuth provider');
+      throw new Error("Please login with your OAuth provider");
     }
 
     // Verify password
     const validPassword = await bcrypt.compare(password, user.hashedPassword);
     if (!validPassword) {
-      throw new Error('Invalid email or password');
+      throw new Error("Invalid email or password");
     }
 
     // Get user's workspaces
     const workspaces = await workspaceService.getWorkspacesForUser(user._id);
-    const activeWorkspaceId = workspaces.length > 0 ? workspaces[0].workspace._id.toString() : undefined;
+    const activeWorkspaceId =
+      workspaces.length > 0
+        ? workspaces[0].workspace._id.toString()
+        : undefined;
 
     // Create session
     const session = await lucia.createSession(user._id, {
       activeWorkspaceId,
     });
-    
+
     return { user, session };
   }
 
@@ -110,12 +113,15 @@ export class AuthService {
       // User exists, create session
       const user = await User.findById(existingAccount.userId);
       if (!user) {
-        throw new Error('User account not found');
+        throw new Error("User account not found");
       }
 
       // Get user's workspaces
       const workspaces = await workspaceService.getWorkspacesForUser(user._id);
-      const activeWorkspaceId = workspaces.length > 0 ? workspaces[0].workspace._id.toString() : undefined;
+      const activeWorkspaceId =
+        workspaces.length > 0
+          ? workspaces[0].workspace._id.toString()
+          : undefined;
 
       const session = await lucia.createSession(user._id, {
         activeWorkspaceId,
@@ -125,11 +131,11 @@ export class AuthService {
 
     // New OAuth account
     let user;
-    
+
     if (email) {
       // Check if user with this email exists
       user = await User.findOne({ email: email.toLowerCase() });
-      
+
       if (!user) {
         // Create new user
         const userId = generateId(15);
@@ -158,7 +164,7 @@ export class AuthService {
     // Create default workspace for new user
     const workspaces = await workspaceService.getWorkspacesForUser(user._id);
     let activeWorkspaceId: string;
-    
+
     if (workspaces.length === 0) {
       // Create workspace only if user doesn't have any
       const workspace = await workspaceService.createWorkspace(
@@ -174,7 +180,7 @@ export class AuthService {
     const session = await lucia.createSession(user._id, {
       activeWorkspaceId,
     });
-    
+
     return { user, session, isNewUser: true };
   }
 
@@ -183,7 +189,7 @@ export class AuthService {
    */
   async validateSession(sessionId: string) {
     const result = await lucia.validateSession(sessionId);
-    
+
     if (!result.session || !result.user) {
       return { session: null, user: null };
     }
@@ -194,7 +200,7 @@ export class AuthService {
       return { session: null, user: null };
     }
 
-    return { 
+    return {
       session: result.session,
       user: {
         id: user._id,

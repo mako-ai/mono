@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – module will be provided via dependency at runtime
-import { Agent, run as runAgent } from '@openai/agents';
+import { Agent, run as runAgent } from "@openai/agents";
 
 // ------------------------------------------------------------------------------------
 // Title Generation Service
@@ -8,7 +8,7 @@ import { Agent, run as runAgent } from '@openai/agents';
 
 // Simple title generation agent for creating concise chat titles
 const titleAgent = new Agent({
-  name: 'Title Generator',
+  name: "Title Generator",
   instructions: `You are a title generator. Your job is to create short, descriptive titles for chat conversations.
 
 Rules:
@@ -20,7 +20,7 @@ Rules:
 - Examples of good titles: "Sales Revenue Analysis", "Customer Churn Prediction", "MongoDB Query Optimization", "Product Performance Dashboard"
 
 Return only the title, nothing else.`,
-  model: 'gpt-4o-mini', // Use a lighter model for title generation
+  model: "gpt-4o-mini", // Use a lighter model for title generation
 });
 
 /**
@@ -39,8 +39,8 @@ export const shouldGenerateTitle = (messages: any[]): boolean => {
   if (messages.length < 2) return false;
 
   // Check that we have at least one user message and one assistant message
-  const userMessages = messages.filter(m => m.role === 'user');
-  const assistantMessages = messages.filter(m => m.role === 'assistant');
+  const userMessages = messages.filter(m => m.role === "user");
+  const assistantMessages = messages.filter(m => m.role === "assistant");
 
   if (userMessages.length < 1 || assistantMessages.length < 1) return false;
 
@@ -55,7 +55,7 @@ export const shouldGenerateTitle = (messages: any[]): boolean => {
 
   const shouldGenerate = hasSubstantialContent || hasMultipleExchanges;
 
-  console.log('Title generation check:', {
+  console.log("Title generation check:", {
     messageCount: messages.length,
     userMessages: userMessages.length,
     assistantMessages: assistantMessages.length,
@@ -73,7 +73,7 @@ export const shouldGenerateTitle = (messages: any[]): boolean => {
  */
 export const generateChatTitle = async (messages: any[]): Promise<string> => {
   try {
-    console.log('Starting title generation with', messages.length, 'messages');
+    console.log("Starting title generation with", messages.length, "messages");
 
     // Take the first few exchanges for context (up to 6 messages or first 3 user turns)
     const contextMessages = [];
@@ -81,27 +81,27 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
 
     for (const msg of messages) {
       contextMessages.push(msg);
-      if (msg.role === 'user') {
+      if (msg.role === "user") {
         userTurnCount++;
         if (userTurnCount >= 3) break;
       }
       if (contextMessages.length >= 6) break;
     }
 
-    console.log('Using', contextMessages.length, 'messages for context');
+    console.log("Using", contextMessages.length, "messages for context");
 
     // Build context string for title generation
     const conversationContext = contextMessages
-      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-      .join('\n\n');
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n\n");
 
     const titlePrompt = `Based on this conversation, generate a concise title (3-8 words) that captures the main topic or task:\n\n${conversationContext}`;
 
-    console.log('Calling title agent with prompt length:', titlePrompt.length);
+    console.log("Calling title agent with prompt length:", titlePrompt.length);
 
     const titleResult = await runAgent(titleAgent, titlePrompt);
 
-    console.log('Title agent result:', {
+    console.log("Title agent result:", {
       type: typeof titleResult,
       result: titleResult,
       finalOutput: (titleResult as any)?.finalOutput,
@@ -109,10 +109,10 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
     });
 
     // Extract the text from the RunResult - check for different possible properties
-    let title = '';
-    if (typeof titleResult === 'string') {
+    let title = "";
+    if (typeof titleResult === "string") {
       title = titleResult;
-    } else if (titleResult && typeof titleResult === 'object') {
+    } else if (titleResult && typeof titleResult === "object") {
       // Try different possible properties where the text might be stored
       title =
         (titleResult as any).finalOutput ||
@@ -124,25 +124,25 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
       title = String(titleResult);
     }
 
-    console.log('Extracted title before processing:', title);
+    console.log("Extracted title before processing:", title);
 
     title = title.trim();
 
     // Quality checks
-    title = title.replace(/^["']|["']$/g, ''); // Remove quotes
+    title = title.replace(/^["']|["']$/g, ""); // Remove quotes
     title = title.substring(0, 80); // Character limit
 
     // Check for generic phrases and replace if needed
     const genericPhrases = [
-      'conversation',
-      'chat',
-      'question',
-      'help',
-      'assistance',
-      'discussion',
-      'inquiry',
-      'request',
-      'general',
+      "conversation",
+      "chat",
+      "question",
+      "help",
+      "assistance",
+      "discussion",
+      "inquiry",
+      "request",
+      "general",
     ];
 
     const isGeneric = genericPhrases.some(phrase =>
@@ -151,17 +151,17 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
 
     if (isGeneric || title.length < 10) {
       console.log(
-        'Title failed quality check, using fallback. isGeneric:',
+        "Title failed quality check, using fallback. isGeneric:",
         isGeneric,
-        'length:',
+        "length:",
         title.length,
       );
 
       // Fallback: try to extract key terms from user messages
       const userContent = contextMessages
-        .filter(m => m.role === 'user')
+        .filter(m => m.role === "user")
         .map(m => m.content)
-        .join(' ');
+        .join(" ");
 
       // Simple keyword extraction for fallback
       const words = userContent
@@ -172,19 +172,19 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
 
       if (words.length >= 2) {
         title =
-          words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') +
-          ' Discussion';
+          words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") +
+          " Discussion";
       } else {
-        title = 'Database Query Session';
+        title = "Database Query Session";
       }
 
-      console.log('Fallback title:', title);
+      console.log("Fallback title:", title);
     }
 
-    console.log('Final generated title:', title);
+    console.log("Final generated title:", title);
     return title;
   } catch (error) {
-    console.error('Title generation failed:', error);
-    return 'Database Query Session';
+    console.error("Title generation failed:", error);
+    return "Database Query Session";
   }
 };

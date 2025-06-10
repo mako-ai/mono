@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from "react";
 import {
   Box,
   Tabs,
@@ -13,19 +13,19 @@ import {
   DialogActions,
   Alert,
   Snackbar,
-} from '@mui/material';
-import { Close as CloseIcon, Add as AddIcon } from '@mui/icons-material';
-import { SquareTerminal as ConsoleIcon } from 'lucide-react';
+} from "@mui/material";
+import { Close as CloseIcon, Add as AddIcon } from "@mui/icons-material";
+import { SquareTerminal as ConsoleIcon } from "lucide-react";
 // @ts-ignore – types will be available once the package is installed
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import Console, { ConsoleRef } from './Console';
-import ResultsTable from './ResultsTable';
-import Settings from '../pages/Settings';
-import DataSources from '../pages/DataSources';
-import { WorkspaceMembers } from './WorkspaceMembers';
-import { useConsoleStore } from '../store/consoleStore';
-import { useAppStore } from '../store';
-import { useWorkspace } from '../contexts/workspace-context';
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import Console, { ConsoleRef } from "./Console";
+import ResultsTable from "./ResultsTable";
+import Settings from "../pages/Settings";
+import DataSources from "../pages/DataSources";
+import { WorkspaceMembers } from "./WorkspaceMembers";
+import { useConsoleStore } from "../store/consoleStore";
+import { useAppStore } from "../store";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface QueryResult {
   results: any[];
@@ -35,11 +35,11 @@ interface QueryResult {
 
 // Styled PanelResizeHandle components
 const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  height: '4px',
+  height: "4px",
   background: theme.palette.divider,
-  cursor: 'row-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "row-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
@@ -52,9 +52,9 @@ function Editor() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [availableDatabases, setAvailableDatabases] = useState<
     {
       id: string;
@@ -93,7 +93,7 @@ function Editor() {
 
   // Ensure refs exist for every tab
   useEffect(() => {
-    consoleTabs.forEach((tab) => {
+    consoleTabs.forEach(tab => {
       if (!consoleRefs.current[tab.id]) {
         consoleRefs.current[tab.id] = React.createRef<ConsoleRef>();
       }
@@ -102,7 +102,7 @@ function Editor() {
 
   // Keep activeEditorContent in app store updated so Chat can use it
   const setActiveEditorContent = useAppStore(
-    (state) => state.setActiveEditorContent,
+    state => state.setActiveEditorContent,
   );
 
   useEffect(() => {
@@ -136,7 +136,7 @@ function Editor() {
           setAvailableDatabases(data.data);
         }
       } catch (e) {
-        console.error('Failed to fetch databases list', e);
+        console.error("Failed to fetch databases list", e);
       }
     };
     fetchDatabases();
@@ -154,9 +154,9 @@ function Editor() {
 
   const handleAddTab = () => {
     useConsoleStore.getState().addConsoleTab({
-      title: 'New Console',
-      content: '',
-      initialContent: '',
+      title: "New Console",
+      content: "",
+      initialContent: "",
     });
   };
 
@@ -168,13 +168,13 @@ function Editor() {
     if (!contentToExecute.trim()) return;
 
     if (!currentWorkspace) {
-      setErrorMessage('No workspace selected');
+      setErrorMessage("No workspace selected");
       setErrorModalOpen(true);
       return;
     }
 
     if (!databaseId) {
-      setErrorMessage('No database selected');
+      setErrorMessage("No database selected");
       setErrorModalOpen(true);
       return;
     }
@@ -184,14 +184,14 @@ function Editor() {
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: contentToExecute }),
         },
       );
       const data = await response.json();
       if (data.success) {
-        setTabResults((prev) => ({
+        setTabResults(prev => ({
           ...prev,
           [tabId]: {
             results: data.data,
@@ -202,12 +202,12 @@ function Editor() {
       } else {
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
-        setTabResults((prev) => ({ ...prev, [tabId]: null }));
+        setTabResults(prev => ({ ...prev, [tabId]: null }));
       }
     } catch (e: any) {
       setErrorMessage(JSON.stringify(e, null, 2));
       setErrorModalOpen(true);
-      setTabResults((prev) => ({ ...prev, [tabId]: null }));
+      setTabResults(prev => ({ ...prev, [tabId]: null }));
     } finally {
       setIsExecuting(false);
     }
@@ -219,7 +219,7 @@ function Editor() {
     currentPath?: string,
   ): Promise<boolean> => {
     if (!currentWorkspace) {
-      setErrorMessage('No workspace selected');
+      setErrorMessage("No workspace selected");
       setErrorModalOpen(true);
       return false;
     }
@@ -228,27 +228,27 @@ function Editor() {
     let success = false;
     try {
       let savePath = currentPath;
-      let method = 'PUT';
+      let method = "PUT";
       if (!savePath) {
         const fileName = prompt(
-          'Enter a file name to save (e.g., myFolder/myConsole). .js will be appended if absent.',
+          "Enter a file name to save (e.g., myFolder/myConsole). .js will be appended if absent.",
         );
         if (!fileName) {
           setIsSaving(false);
           return false;
         }
-        savePath = fileName.endsWith('.js') ? fileName.slice(0, -3) : fileName;
-        method = 'POST';
+        savePath = fileName.endsWith(".js") ? fileName.slice(0, -3) : fileName;
+        method = "POST";
       }
       const response = await fetch(
-        method === 'PUT'
+        method === "PUT"
           ? `/api/workspaces/${currentWorkspace.id}/consoles/${savePath}`
           : `/api/workspaces/${currentWorkspace.id}/consoles`,
         {
           method,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            method === 'POST'
+            method === "POST"
               ? { path: savePath, content: contentToSave }
               : { content: contentToSave },
           ),
@@ -257,13 +257,13 @@ function Editor() {
       const data = await response.json();
       if (data.success) {
         // Update file path and title for new files (POST)
-        if (method === 'POST' && savePath) {
+        if (method === "POST" && savePath) {
           updateConsoleFilePath(tabId, savePath);
         }
 
         // Always update the title to reflect the filename after saving
         if (savePath) {
-          const fileName = savePath.split('/').pop() || savePath; // Extract filename from path
+          const fileName = savePath.split("/").pop() || savePath; // Extract filename from path
           updateConsoleTitle(tabId, fileName);
         }
 
@@ -271,7 +271,7 @@ function Editor() {
         updateConsoleDirty(tabId, true);
 
         setSnackbarMessage(
-          `Console saved ${method === 'POST' ? 'as' : 'to'} '${savePath}.js'`,
+          `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`,
         );
         setSnackbarOpen(true);
         success = true;
@@ -290,7 +290,7 @@ function Editor() {
 
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
-    setErrorMessage('');
+    setErrorMessage("");
   };
 
   const handleCloseSnackbar = () => {
@@ -299,23 +299,23 @@ function Editor() {
 
   /* ----------------------------- Render ---------------------------- */
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {consoleTabs.length > 0 ? (
         <Box
           sx={{
-            height: '100%',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
+            height: "100%",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           {/* Tabs */}
           <Box
             sx={{
-              display: 'flex',
-              alignItems: 'center',
+              display: "flex",
+              alignItems: "center",
               borderBottom: 1,
-              borderColor: 'divider',
+              borderColor: "divider",
             }}
           >
             <Tabs
@@ -324,20 +324,20 @@ function Editor() {
               variant="scrollable"
               scrollButtons="auto"
             >
-              {consoleTabs.map((tab) => (
+              {consoleTabs.map(tab => (
                 <Tab
                   key={tab.id}
                   value={tab.id}
                   label={
                     <Box
-                      sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}
+                      sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
                     >
                       <ConsoleIcon size={20} />
                       <span
                         style={{
-                          fontStyle: tab.isDirty ? 'normal' : 'italic',
+                          fontStyle: tab.isDirty ? "normal" : "italic",
                         }}
-                        onDoubleClick={(e) => {
+                        onDoubleClick={e => {
                           e.stopPropagation();
                           updateConsoleDirty(tab.id, true);
                         }}
@@ -346,7 +346,7 @@ function Editor() {
                       </span>
                       <IconButton
                         size="small"
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           closeConsole(tab.id);
                         }}
@@ -369,30 +369,28 @@ function Editor() {
           </Box>
 
           {/* Editor + Results vertical split */}
-          <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
+          <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
             {(() => {
-              const activeTab = consoleTabs.find(
-                (t) => t.id === activeConsoleId,
-              );
+              const activeTab = consoleTabs.find(t => t.id === activeConsoleId);
               const isConsoleTab =
-                activeTab?.kind !== 'settings' &&
-                activeTab?.kind !== 'sources' &&
-                activeTab?.kind !== 'members';
+                activeTab?.kind !== "settings" &&
+                activeTab?.kind !== "sources" &&
+                activeTab?.kind !== "members";
 
               if (isConsoleTab) {
                 return (
                   <PanelGroup
                     direction="vertical"
-                    style={{ height: '100%', width: '100%' }}
+                    style={{ height: "100%", width: "100%" }}
                   >
                     <Panel defaultSize={60} minSize={1}>
-                      {consoleTabs.map((tab) => (
+                      {consoleTabs.map(tab => (
                         <Box
                           key={tab.id}
                           sx={{
-                            height: '100%',
+                            height: "100%",
                             display:
-                              activeConsoleId === tab.id ? 'block' : 'none',
+                              activeConsoleId === tab.id ? "block" : "none",
                           }}
                         >
                           <Console
@@ -407,7 +405,7 @@ function Editor() {
                             }
                             isExecuting={isExecuting}
                             isSaving={isSaving}
-                            onContentChange={(content) => {
+                            onContentChange={content => {
                               updateConsoleContent(tab.id, content);
                               // Mark tab as dirty when content changes from initial
                               if (
@@ -431,7 +429,7 @@ function Editor() {
                     <StyledVerticalResizeHandle />
 
                     <Panel defaultSize={40} minSize={1}>
-                      <Box sx={{ height: '100%', overflow: 'hidden' }}>
+                      <Box sx={{ height: "100%", overflow: "hidden" }}>
                         <ResultsTable
                           results={
                             activeTab?.id
@@ -449,15 +447,15 @@ function Editor() {
               return (
                 <PanelGroup
                   direction="vertical"
-                  style={{ height: '100%', width: '100%' }}
+                  style={{ height: "100%", width: "100%" }}
                 >
                   <Panel>
-                    <Box sx={{ height: '100%', overflow: 'auto' }}>
-                      {activeTab?.kind === 'settings' ? (
+                    <Box sx={{ height: "100%", overflow: "auto" }}>
+                      {activeTab?.kind === "settings" ? (
                         <Settings />
-                      ) : activeTab?.kind === 'sources' ? (
+                      ) : activeTab?.kind === "sources" ? (
                         <DataSources />
-                      ) : activeTab?.kind === 'members' ? (
+                      ) : activeTab?.kind === "members" ? (
                         <WorkspaceMembers />
                       ) : null}
                     </Box>
@@ -471,11 +469,11 @@ function Editor() {
         <Box
           sx={{
             flexGrow: 1,
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
             gap: 2,
           }}
         >
@@ -486,9 +484,9 @@ function Editor() {
             onClick={() => {
               // Add a blank tab on demand
               useConsoleStore.getState().addConsoleTab({
-                title: 'New Console',
-                content: '',
-                initialContent: '',
+                title: "New Console",
+                content: "",
+                initialContent: "",
               });
             }}
           >
@@ -503,13 +501,13 @@ function Editor() {
         onClose={handleCloseErrorModal}
         maxWidth="md"
         fullWidth
-        PaperProps={{ sx: { maxHeight: '80vh' } }}
+        PaperProps={{ sx: { maxHeight: "80vh" } }}
       >
         <DialogTitle
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Typography variant="h6" color="error">
@@ -520,7 +518,7 @@ function Editor() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
-          <Box component="pre" sx={{ p: 2, overflow: 'auto' }}>
+          <Box component="pre" sx={{ p: 2, overflow: "auto" }}>
             {errorMessage}
           </Box>
         </DialogContent>
@@ -540,12 +538,12 @@ function Editor() {
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={handleCloseSnackbar}
           severity="success"
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {snackbarMessage}
         </Alert>

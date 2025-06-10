@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,10 +14,10 @@ import {
   MenuItem,
   IconButton,
   Alert,
-} from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import Editor from '@monaco-editor/react';
-import { useTheme } from '../contexts/ThemeContext';
+} from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface CreateViewDialogProps {
   open: boolean;
@@ -33,8 +33,8 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
   isCreating,
 }) => {
   const { effectiveMode } = useTheme();
-  const [viewName, setViewName] = useState('');
-  const [viewOn, setViewOn] = useState('');
+  const [viewName, setViewName] = useState("");
+  const [viewOn, setViewOn] = useState("");
   const [collections, setCollections] = useState<string[]>([]);
   const [pipeline, setPipeline] = useState(
     '[\n  {\n    "$match": {\n      // Add your match criteria here\n    }\n  }\n]',
@@ -45,8 +45,8 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
     if (open) {
       fetchCollections();
       // Reset form when dialog opens
-      setViewName('');
-      setViewOn('');
+      setViewName("");
+      setViewOn("");
       setPipeline(
         '[\n  {\n    "$match": {\n      // Add your match criteria here\n    }\n  }\n]',
       );
@@ -56,13 +56,13 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
 
   const fetchCollections = async () => {
     try {
-      const response = await fetch('/api/database/collections');
+      const response = await fetch("/api/database/collections");
       const data = await response.json();
       if (data.success) {
         setCollections(data.data.map((col: any) => col.name));
       }
     } catch (err) {
-      console.error('Failed to fetch collections:', err);
+      console.error("Failed to fetch collections:", err);
     }
   };
 
@@ -70,7 +70,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
     try {
       const parsed = JSON.parse(pipelineStr);
       if (!Array.isArray(parsed)) {
-        throw new Error('Pipeline must be an array');
+        throw new Error("Pipeline must be an array");
       }
       return parsed;
     } catch (error) {
@@ -82,18 +82,18 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
     setError(null);
 
     if (!viewName.trim()) {
-      setError('View name is required');
+      setError("View name is required");
       return;
     }
 
     if (!viewOn) {
-      setError('Source collection is required');
+      setError("Source collection is required");
       return;
     }
 
     const parsedPipeline = validatePipeline(pipeline);
     if (!parsedPipeline) {
-      setError('Invalid pipeline JSON format');
+      setError("Invalid pipeline JSON format");
       return;
     }
 
@@ -120,16 +120,16 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
       fullWidth
       PaperProps={{
         sx: {
-          height: '80vh',
-          maxHeight: '800px',
+          height: "80vh",
+          maxHeight: "800px",
         },
       }}
     >
       <DialogTitle
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         <Typography variant="h6">Create New View</Typography>
@@ -138,7 +138,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           onClick={handleClose}
           disabled={isCreating}
           sx={{
-            color: (theme) => theme.palette.grey[500],
+            color: theme => theme.palette.grey[500],
           }}
         >
           <CloseIcon />
@@ -147,7 +147,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
 
       <DialogContent
         dividers
-        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+        sx={{ display: "flex", flexDirection: "column", gap: 2 }}
       >
         {error && (
           <Alert severity="error" onClose={() => setError(null)}>
@@ -158,7 +158,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
         <TextField
           label="View Name"
           value={viewName}
-          onChange={(e) => setViewName(e.target.value)}
+          onChange={e => setViewName(e.target.value)}
           fullWidth
           required
           disabled={isCreating}
@@ -168,10 +168,10 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           <InputLabel>Source Collection</InputLabel>
           <Select
             value={viewOn}
-            onChange={(e) => setViewOn(e.target.value)}
+            onChange={e => setViewOn(e.target.value)}
             label="Source Collection"
           >
-            {collections.map((collection) => (
+            {collections.map(collection => (
               <MenuItem key={collection} value={collection}>
                 {collection}
               </MenuItem>
@@ -179,15 +179,15 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           </Select>
         </FormControl>
 
-        <Box sx={{ flexGrow: 1, minHeight: '300px' }}>
+        <Box sx={{ flexGrow: 1, minHeight: "300px" }}>
           <Typography variant="subtitle2" gutterBottom>
             Aggregation Pipeline (JSON)
           </Typography>
           <Box
             sx={{
-              height: '300px',
+              height: "300px",
               border: 1,
-              borderColor: 'divider',
+              borderColor: "divider",
               borderRadius: 1,
             }}
           >
@@ -195,14 +195,14 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
               defaultLanguage="json"
               value={pipeline}
               height="100%"
-              theme={effectiveMode === 'dark' ? 'vs-dark' : 'vs'}
-              onChange={(value) => setPipeline(value || '')}
+              theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+              onChange={value => setPipeline(value || "")}
               options={{
                 automaticLayout: true,
                 readOnly: isCreating,
                 minimap: { enabled: false },
                 fontSize: 12,
-                wordWrap: 'on',
+                wordWrap: "on",
                 scrollBeyondLastLine: false,
                 formatOnPaste: true,
                 formatOnType: true,
@@ -222,7 +222,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           disabled={isCreating || !viewName.trim() || !viewOn}
           disableElevation
         >
-          {isCreating ? 'Creating...' : 'Create View'}
+          {isCreating ? "Creating..." : "Create View"}
         </Button>
       </DialogActions>
     </Dialog>

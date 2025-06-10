@@ -1,8 +1,8 @@
-import { dataSourceManager } from './data-source-manager';
-import { CloseSyncService } from './sync-close';
-import { StripeSyncService } from './sync-stripe';
-import { GraphQLSyncService } from './sync-graphql';
-import * as dotenv from 'dotenv';
+import { dataSourceManager } from "./data-source-manager";
+import { CloseSyncService } from "./sync-close";
+import { StripeSyncService } from "./sync-stripe";
+import { GraphQLSyncService } from "./sync-graphql";
+import * as dotenv from "dotenv";
 
 dotenv.config();
 
@@ -65,7 +65,7 @@ export class ProgressReporter {
     const width = 20;
     const filled = Math.floor((width * percentage) / 100);
     const empty = width - filled;
-    return '█'.repeat(filled) + '░'.repeat(empty);
+    return "█".repeat(filled) + "░".repeat(empty);
   }
 
   private formatTime(milliseconds: number): string {
@@ -74,9 +74,9 @@ export class ProgressReporter {
     const hours = Math.floor(minutes / 60);
 
     if (hours > 0) {
-      return `${hours}h${(minutes % 60).toString().padStart(2, '0')}m`;
+      return `${hours}h${(minutes % 60).toString().padStart(2, "0")}m`;
     } else if (minutes > 0) {
-      return `${minutes}m${(seconds % 60).toString().padStart(2, '0')}s`;
+      return `${minutes}m${(seconds % 60).toString().padStart(2, "0")}s`;
     } else {
       return `${seconds}s`;
     }
@@ -86,23 +86,23 @@ export class ProgressReporter {
 // Define available entities for each source type
 const SOURCE_ENTITIES = {
   close: [
-    'leads',
-    'opportunities',
-    'activities',
-    'contacts',
-    'users',
-    'custom_fields',
+    "leads",
+    "opportunities",
+    "activities",
+    "contacts",
+    "users",
+    "custom_fields",
   ],
   stripe: [
-    'customers',
-    'subscriptions',
-    'charges',
-    'invoices',
-    'products',
-    'plans',
+    "customers",
+    "subscriptions",
+    "charges",
+    "invoices",
+    "products",
+    "plans",
   ],
   graphql: [
-    'custom', // GraphQL sources use custom-defined entities from configuration
+    "custom", // GraphQL sources use custom-defined entities from configuration
   ],
   mongodb: [], // MongoDB sources don't have entities to sync
 };
@@ -121,7 +121,7 @@ async function main() {
   const entity = args[2]; // optional
 
   if (!destination) {
-    console.error('❌ Destination database is required');
+    console.error("❌ Destination database is required");
     showUsage();
     process.exit(1);
   }
@@ -129,8 +129,8 @@ async function main() {
   // Validate configuration
   const validation = dataSourceManager.validateConfig();
   if (!validation.valid) {
-    console.error('Configuration validation failed:');
-    validation.errors.forEach((error) => console.error(`  - ${error}`));
+    console.error("Configuration validation failed:");
+    validation.errors.forEach(error => console.error(`  - ${error}`));
     process.exit(1);
   }
 
@@ -138,11 +138,9 @@ async function main() {
   const dataSource = dataSourceManager.getDataSource(dataSourceId);
   if (!dataSource) {
     console.error(`❌ Data source '${dataSourceId}' not found`);
-    console.log('\nAvailable data sources:');
+    console.log("\nAvailable data sources:");
     const allSources = dataSourceManager.getActiveDataSources();
-    allSources.forEach((s) =>
-      console.log(`  - ${s.id}: ${s.name} (${s.type})`),
-    );
+    allSources.forEach(s => console.log(`  - ${s.id}: ${s.name} (${s.type})`));
     process.exit(1);
   }
 
@@ -155,26 +153,26 @@ async function main() {
   const destinationDb = dataSourceManager.getMongoDBDatabase(destination);
   if (!destinationDb) {
     console.error(`❌ Destination database '${destination}' not found`);
-    console.log('\nAvailable MongoDB destinations:');
+    console.log("\nAvailable MongoDB destinations:");
     const databases = dataSourceManager.listMongoDBDatabases();
-    databases.forEach((db) => console.log(`  - ${db}`));
+    databases.forEach(db => console.log(`  - ${db}`));
     process.exit(1);
   }
 
   // Handle different source types
   switch (dataSource.type) {
-    case 'close':
+    case "close":
       await syncClose(dataSource, entity, destination);
       break;
-    case 'stripe':
+    case "stripe":
       await syncStripe(dataSource, entity, destination);
       break;
-    case 'graphql':
+    case "graphql":
       await syncGraphQL(dataSource, entity, destination);
       break;
-    case 'mongodb':
+    case "mongodb":
       console.error(
-        '❌ MongoDB data sources cannot be synced (they are sync targets)',
+        "❌ MongoDB data sources cannot be synced (they are sync targets)",
       );
       process.exit(1);
     default:
@@ -184,7 +182,7 @@ async function main() {
       process.exit(1);
   }
 
-  console.log('\n✅ Sync completed successfully!');
+  console.log("\n✅ Sync completed successfully!");
   process.exit(0);
 }
 
@@ -207,33 +205,33 @@ async function syncClose(
   const progress = new ProgressReporter(entity);
 
   switch (entity.toLowerCase()) {
-    case 'leads':
-    case 'lead':
+    case "leads":
+    case "lead":
       await syncService.syncLeads(targetDbId, progress);
       break;
-    case 'opportunities':
-    case 'opportunity':
+    case "opportunities":
+    case "opportunity":
       await syncService.syncOpportunities(targetDbId, progress);
       break;
-    case 'activities':
-    case 'activity':
+    case "activities":
+    case "activity":
       await syncService.syncActivities(targetDbId, progress);
       break;
-    case 'contacts':
-    case 'contact':
+    case "contacts":
+    case "contact":
       await syncService.syncContacts(targetDbId, progress);
       break;
-    case 'users':
-    case 'user':
+    case "users":
+    case "user":
       await syncService.syncUsers(targetDbId, progress);
       break;
-    case 'custom_fields':
-    case 'customfields':
+    case "custom_fields":
+    case "customfields":
       await syncService.syncCustomFields(targetDbId, progress);
       break;
     default:
       console.error(`❌ Unknown entity '${entity}' for Close.com`);
-      console.log(`Available entities: ${SOURCE_ENTITIES.close.join(', ')}`);
+      console.log(`Available entities: ${SOURCE_ENTITIES.close.join(", ")}`);
       process.exit(1);
   }
 }
@@ -257,33 +255,33 @@ async function syncStripe(
   const progress = new ProgressReporter(entity);
 
   switch (entity.toLowerCase()) {
-    case 'customers':
-    case 'customer':
+    case "customers":
+    case "customer":
       await syncService.syncCustomers(targetDbId, progress);
       break;
-    case 'subscriptions':
-    case 'subscription':
+    case "subscriptions":
+    case "subscription":
       await syncService.syncSubscriptions(targetDbId, progress);
       break;
-    case 'charges':
-    case 'charge':
+    case "charges":
+    case "charge":
       await syncService.syncCharges(targetDbId, progress);
       break;
-    case 'invoices':
-    case 'invoice':
+    case "invoices":
+    case "invoice":
       await syncService.syncInvoices(targetDbId, progress);
       break;
-    case 'products':
-    case 'product':
+    case "products":
+    case "product":
       await syncService.syncProducts(targetDbId, progress);
       break;
-    case 'plans':
-    case 'plan':
+    case "plans":
+    case "plan":
       await syncService.syncPlans(targetDbId, progress);
       break;
     default:
       console.error(`❌ Unknown entity '${entity}' for Stripe`);
-      console.log(`Available entities: ${SOURCE_ENTITIES.stripe.join(', ')}`);
+      console.log(`Available entities: ${SOURCE_ENTITIES.stripe.join(", ")}`);
       process.exit(1);
   }
 }
@@ -311,7 +309,7 @@ async function syncGraphQL(
   if (!queryConfig) {
     console.error(`❌ Unknown entity '${entity}' for GraphQL source`);
     console.log(
-      `Available entities: ${queries.map((q: any) => q.name).join(', ')}`,
+      `Available entities: ${queries.map((q: any) => q.name).join(", ")}`,
     );
     process.exit(1);
   }
@@ -337,21 +335,21 @@ Examples:
   pnpm run sync stripe_spain local_dev.datawarehouse customers        # Sync only customers from stripe_spain
 
 Available entities by source type:
-  Close.com: ${SOURCE_ENTITIES.close.join(', ')}
-  Stripe: ${SOURCE_ENTITIES.stripe.join(', ')}
+  Close.com: ${SOURCE_ENTITIES.close.join(", ")}
+  Stripe: ${SOURCE_ENTITIES.stripe.join(", ")}
 
 Available MongoDB destinations:
 ${dataSourceManager
-    .listMongoDBDatabases()
-    .map((db) => `  - ${db}`)
-    .join('\n')}
+  .listMongoDBDatabases()
+  .map(db => `  - ${db}`)
+  .join("\n")}
 `);
 }
 
 // Execute
 if (require.main === module) {
-  main().catch((error) => {
-    console.error('Fatal error:', error);
+  main().catch(error => {
+    console.error("Fatal error:", error);
     process.exit(1);
   });
 }

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { useAuth } from '../contexts/auth-context';
-import { CircularProgress, Box } from '@mui/material';
-import { LoginPage } from './LoginPage';
-import { RegisterPage } from './RegisterPage';
+import React, { useState } from "react";
+import { useAuth } from "../contexts/auth-context";
+import { CircularProgress, Box } from "@mui/material";
+import { LoginPage } from "./LoginPage";
+import { RegisterPage } from "./RegisterPage";
 
 /**
  * Props for ProtectedRoute component

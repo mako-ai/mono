@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -13,7 +13,7 @@ import {
   Chip,
   SvgIcon,
   Skeleton,
-} from '@mui/material';
+} from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
   TableChartOutlined as CollectionIcon,
@@ -23,11 +23,11 @@ import {
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
   Add as AddIcon,
-} from '@mui/icons-material';
-import { Database as DatabaseIcon } from 'lucide-react';
-import { useDatabaseExplorerStore } from '../store';
-import { useWorkspace } from '../contexts/workspace-context';
-import CreateDatabaseDialog from './CreateDatabaseDialog';
+} from "@mui/icons-material";
+import { Database as DatabaseIcon } from "lucide-react";
+import { useDatabaseExplorerStore } from "../store";
+import { useWorkspace } from "../contexts/workspace-context";
+import CreateDatabaseDialog from "./CreateDatabaseDialog";
 
 const MongoDBIcon = () => (
   <SvgIcon>
@@ -85,7 +85,7 @@ interface DatabaseExplorerProps {
   onCollectionSelect?: (
     databaseId: string,
     collectionName: string,
-    collectionInfo: CollectionInfo
+    collectionInfo: CollectionInfo,
   ) => void;
   onCollectionClick?: (databaseId: string, collection: CollectionInfo) => void;
 }
@@ -149,7 +149,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
             serverMap.set(hostKey, {
               id: hostKey,
               name: db.hostName,
-              description: '',
+              description: "",
               connectionString: db.hostKey,
               active: true,
               databases: [],
@@ -184,11 +184,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
           }
         }
       } else {
-        setError(data.error || 'Failed to fetch databases');
+        setError(data.error || "Failed to fetch databases");
       }
     } catch (err) {
-      setError('Failed to connect to the database API');
-      console.error('Error fetching databases:', err);
+      setError("Failed to connect to the database API");
+      console.error("Error fetching databases:", err);
     } finally {
       setLoading(false);
     }
@@ -198,7 +198,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     if (!currentWorkspace) return;
 
     try {
-      setLoadingData((prev) => new Set(prev).add(databaseId));
+      setLoadingData(prev => new Set(prev).add(databaseId));
 
       // Fetch both collections and views in parallel
       const [collectionsResponse, viewsResponse] = await Promise.all([
@@ -215,9 +215,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
       if (collectionsData.success) {
         const sortedCollections = collectionsData.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name),
+          (a: CollectionInfo, b: CollectionInfo) =>
+            a.name.localeCompare(b.name),
         );
-        setCollections((prev) => ({
+        setCollections(prev => ({
           ...prev,
           [databaseId]: sortedCollections,
         }));
@@ -225,9 +226,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
       if (viewsData.success) {
         const sortedViews = viewsData.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name),
+          (a: CollectionInfo, b: CollectionInfo) =>
+            a.name.localeCompare(b.name),
         );
-        setViews((prev) => ({
+        setViews(prev => ({
           ...prev,
           [databaseId]: sortedViews,
         }));
@@ -235,7 +237,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     } catch (err) {
       console.error(`Error fetching data for ${databaseId}:`, err);
     } finally {
-      setLoadingData((prev) => {
+      setLoadingData(prev => {
         const next = new Set(prev);
         next.delete(databaseId);
         return next;
@@ -340,7 +342,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-        <Box sx={{ textAlign: 'center' }}>
+        <Box sx={{ textAlign: "center" }}>
           <IconButton onClick={handleRefresh} color="primary">
             <RefreshIcon />
           </IconButton>
@@ -350,34 +352,34 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   }
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: 'divider' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Box
             sx={{
               flexGrow: 1,
-              overflow: 'hidden',
-              maxWidth: 'calc(100% - 80px)',
+              overflow: "hidden",
+              maxWidth: "calc(100% - 80px)",
             }}
           >
             <Typography
               variant="h6"
               sx={{
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
               Databases
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex' }}>
+          <Box sx={{ display: "flex" }}>
             <IconButton size="small" onClick={() => setCreateDialogOpen(true)}>
               <AddIcon />
             </IconButton>
@@ -388,7 +390,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
         </Box>
       </Box>
 
-      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+      <Box sx={{ flexGrow: 1, overflow: "auto" }}>
         <List dense>
           {loading ? (
             renderSkeletonItems()
@@ -396,8 +398,8 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
             <Box
               sx={{
                 p: 3,
-                textAlign: 'center',
-                color: 'text.secondary',
+                textAlign: "center",
+                color: "text.secondary",
               }}
             >
               <Typography variant="body2">
@@ -405,7 +407,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
               </Typography>
             </Box>
           ) : (
-            servers.map((server) => {
+            servers.map(server => {
               const isServerExpanded = expandedServers.has(server.id);
 
               return (
@@ -424,7 +426,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                         )}
                       </ListItemIcon>
                       <ListItemIcon sx={{ minWidth: 32 }}>
-                        {server.connectionString.includes('mongodb') ? (
+                        {server.connectionString.includes("mongodb") ? (
                           <MongoDBIcon />
                         ) : (
                           <ServerIcon />
@@ -434,19 +436,19 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                         primary={
                           <Box
                             sx={{
-                              display: 'flex',
-                              alignItems: 'center',
+                              display: "flex",
+                              alignItems: "center",
                               gap: 1,
-                              overflow: 'hidden',
+                              overflow: "hidden",
                             }}
                           >
                             <Typography
                               variant="body2"
                               fontWeight="bold"
                               sx={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
                               }}
                             >
                               {server.name}
@@ -459,7 +461,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
                   <Collapse in={isServerExpanded} timeout="auto" unmountOnExit>
                     <List dense disablePadding>
-                      {server.databases.map((database) => {
+                      {server.databases.map(database => {
                         const isDatabaseExpanded = expandedDatabases.has(
                           database.id,
                         );
@@ -491,18 +493,18 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   primary={
                                     <Box
                                       sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
+                                        display: "flex",
+                                        alignItems: "center",
                                         gap: 1,
-                                        overflow: 'hidden',
+                                        overflow: "hidden",
                                       }}
                                     >
                                       <Typography
                                         variant="body2"
                                         sx={{
-                                          overflow: 'hidden',
-                                          textOverflow: 'ellipsis',
-                                          whiteSpace: 'nowrap',
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
                                         }}
                                       >
                                         {database.displayName}
@@ -531,10 +533,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                       {expandedCollectionGroups.has(
                                         database.id,
                                       ) ? (
-                                          <ExpandMoreIcon />
-                                        ) : (
-                                          <ChevronRightIcon />
-                                        )}
+                                        <ExpandMoreIcon />
+                                      ) : (
+                                        <ChevronRightIcon />
+                                      )}
                                     </ListItemIcon>
                                     <ListItemIcon sx={{ minWidth: 32 }}>
                                       <FolderIcon />
@@ -544,14 +546,14 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         <Typography
                                           variant="body2"
                                           sx={{
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap',
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
                                           }}
                                         >
                                           Collections (
                                           {isLoadingData
-                                            ? '...'
+                                            ? "..."
                                             : dbCollections.length}
                                           )
                                         </Typography>
@@ -573,7 +575,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         sx={{
                                           py: 1,
                                           pl: 9,
-                                          color: 'text.secondary',
+                                          color: "text.secondary",
                                         }}
                                       >
                                         <Typography variant="caption">
@@ -581,7 +583,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         </Typography>
                                       </Box>
                                     ) : (
-                                      dbCollections.map((collection) => (
+                                      dbCollections.map(collection => (
                                         <ListItem
                                           key={collection.name}
                                           disablePadding
@@ -602,19 +604,19 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                               primary={
                                                 <Box
                                                   sx={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
+                                                    display: "flex",
+                                                    alignItems: "center",
                                                     gap: 1,
-                                                    overflow: 'hidden',
+                                                    overflow: "hidden",
                                                   }}
                                                 >
                                                   <Typography
                                                     variant="body2"
                                                     fontSize="0.8rem"
                                                     sx={{
-                                                      overflow: 'hidden',
-                                                      textOverflow: 'ellipsis',
-                                                      whiteSpace: 'nowrap',
+                                                      overflow: "hidden",
+                                                      textOverflow: "ellipsis",
+                                                      whiteSpace: "nowrap",
                                                     }}
                                                   >
                                                     {collection.name}
@@ -627,7 +629,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                       variant="outlined"
                                                       color="warning"
                                                       sx={{
-                                                        fontSize: '0.65rem',
+                                                        fontSize: "0.65rem",
                                                         height: 14,
                                                         flexShrink: 0,
                                                       }}
@@ -666,14 +668,14 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         <Typography
                                           variant="body2"
                                           sx={{
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap',
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
                                           }}
                                         >
                                           Views (
                                           {isLoadingData
-                                            ? '...'
+                                            ? "..."
                                             : dbViews.length}
                                           )
                                         </Typography>
@@ -695,7 +697,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         sx={{
                                           py: 1,
                                           pl: 9,
-                                          color: 'text.secondary',
+                                          color: "text.secondary",
                                         }}
                                       >
                                         <Typography variant="caption">
@@ -703,7 +705,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         </Typography>
                                       </Box>
                                     ) : (
-                                      dbViews.map((view) => (
+                                      dbViews.map(view => (
                                         <ListItem
                                           key={view.name}
                                           disablePadding
@@ -720,9 +722,9 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                   variant="body2"
                                                   fontSize="0.8rem"
                                                   sx={{
-                                                    overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    whiteSpace: 'nowrap',
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
                                                   }}
                                                 >
                                                   {view.name}

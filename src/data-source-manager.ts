@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as yaml from 'js-yaml';
+import * as fs from "fs";
+import * as path from "path";
+import * as yaml from "js-yaml";
 
 export interface DataSourceConnection {
   // Common fields
@@ -75,7 +75,7 @@ export interface MongoDBServer {
 }
 
 export interface ConfigFile {
-  data_sources: { [key: string]: Omit<DataSourceConfig, 'id'> };
+  data_sources: { [key: string]: Omit<DataSourceConfig, "id"> };
   mongodb_servers?: { [key: string]: MongoDBServer };
   global: GlobalConfig;
 }
@@ -86,7 +86,7 @@ class DataSourceManager {
 
   constructor(configPath?: string) {
     this.configPath =
-      configPath || path.join(process.cwd(), 'config', 'config.yaml');
+      configPath || path.join(process.cwd(), "config", "config.yaml");
   }
 
   /**
@@ -102,7 +102,7 @@ class DataSourceManager {
         throw new Error(`Configuration file not found: ${this.configPath}`);
       }
 
-      const fileContents = fs.readFileSync(this.configPath, 'utf8');
+      const fileContents = fs.readFileSync(this.configPath, "utf8");
       const rawConfig = yaml.load(fileContents) as ConfigFile;
 
       // Process environment variable substitution
@@ -159,7 +159,7 @@ class DataSourceManager {
    * Get data sources by type
    */
   getDataSourcesByType(type: string): DataSourceConfig[] {
-    return this.getActiveDataSources().filter((source) => source.type === type);
+    return this.getActiveDataSources().filter(source => source.type === type);
   }
 
   /**
@@ -172,7 +172,7 @@ class DataSourceManager {
       return null;
     }
 
-    const [serverId, databaseId] = identifier.split('.');
+    const [serverId, databaseId] = identifier.split(".");
 
     if (!serverId || !databaseId) {
       return null;
@@ -194,7 +194,7 @@ class DataSourceManager {
       name: database.name,
       description: database.description,
       active: true,
-      type: 'mongodb',
+      type: "mongodb",
       connection: {
         connection_string: server.connection_string,
         database: database.database,
@@ -252,11 +252,11 @@ class DataSourceManager {
     const sources: DataSourceConfig[] = [];
 
     // Get legacy mongodb sources from data_sources
-    sources.push(...this.getDataSourcesByType('mongodb'));
+    sources.push(...this.getDataSourcesByType("mongodb"));
 
     // Get new format mongodb sources
     const databases = this.listMongoDBDatabases();
-    databases.forEach((dbId) => {
+    databases.forEach(dbId => {
       const db = this.getMongoDBDatabase(dbId);
       if (db) {
         sources.push(db);
@@ -271,7 +271,7 @@ class DataSourceManager {
    */
   getPrimaryDatabase(): DataSourceConfig | null {
     // Try new format first
-    const analyticsDb = this.getMongoDBDatabase('local_dev.analytics_db');
+    const analyticsDb = this.getMongoDBDatabase("local_dev.analytics_db");
     if (analyticsDb) {
       return analyticsDb;
     }
@@ -279,7 +279,7 @@ class DataSourceManager {
     // Fall back to legacy format
     const mongoSources = this.getMongoDBSources();
     return (
-      mongoSources.find((source) => source.id === 'analytics_db') ||
+      mongoSources.find(source => source.id === "analytics_db") ||
       mongoSources[0] ||
       null
     );
@@ -305,7 +305,7 @@ class DataSourceManager {
    * List active data source IDs
    */
   listActiveDataSourceIds(): string[] {
-    return this.getActiveDataSources().map((s) => s.id);
+    return this.getActiveDataSources().map(s => s.id);
   }
 
   /**
@@ -319,7 +319,7 @@ class DataSourceManager {
 
       // Validate global config
       if (!config.global) {
-        errors.push('Global configuration is missing');
+        errors.push("Global configuration is missing");
       }
 
       // Validate data sources
@@ -327,7 +327,7 @@ class DataSourceManager {
         !config.data_sources ||
         Object.keys(config.data_sources).length === 0
       ) {
-        errors.push('No data sources configured');
+        errors.push("No data sources configured");
       }
 
       // Validate each data source
@@ -348,15 +348,15 @@ class DataSourceManager {
 
         // Type-specific validation
         switch (source.type) {
-          case 'close':
-          case 'stripe':
+          case "close":
+          case "stripe":
             if (!source.connection.api_key) {
               errors.push(
                 `Data source '${id}' (${source.type}) is missing api_key`,
               );
             }
             break;
-          case 'graphql':
+          case "graphql":
             if (!source.connection.endpoint) {
               errors.push(`Data source '${id}' (graphql) is missing endpoint`);
             }
@@ -383,7 +383,7 @@ class DataSourceManager {
               });
             }
             break;
-          case 'mongodb':
+          case "mongodb":
             if (!source.connection.connection_string) {
               errors.push(
                 `Data source '${id}' (mongodb) is missing connection_string`,
@@ -409,7 +409,7 @@ class DataSourceManager {
    * Process environment variable substitution in configuration
    */
   private processEnvironmentVariables(obj: any): any {
-    if (typeof obj === 'string') {
+    if (typeof obj === "string") {
       // Check for environment variable pattern ${VAR_NAME}
       const envVarPattern = /\$\{([^}]+)\}/g;
       return obj.replace(envVarPattern, (match, varName) => {
@@ -423,8 +423,8 @@ class DataSourceManager {
         return value;
       });
     } else if (Array.isArray(obj)) {
-      return obj.map((item) => this.processEnvironmentVariables(item));
-    } else if (typeof obj === 'object' && obj !== null) {
+      return obj.map(item => this.processEnvironmentVariables(item));
+    } else if (typeof obj === "object" && obj !== null) {
       const processed: any = {};
       for (const key in obj) {
         processed[key] = this.processEnvironmentVariables(obj[key]);
@@ -443,7 +443,7 @@ class DataSourceManager {
     return {
       sync_batch_size: 100,
       rate_limit_delay_ms: 200,
-      timezone: global.default_timezone || 'UTC',
+      timezone: global.default_timezone || "UTC",
       max_retries: global.max_retries,
     };
   }

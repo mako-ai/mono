@@ -1,6 +1,6 @@
-import mongoose, { Schema, Document, Types } from 'mongoose';
-import { nanoid } from 'nanoid';
-import * as crypto from 'crypto';
+import mongoose, { Schema, Document, Types } from "mongoose";
+import { nanoid } from "nanoid";
+import * as crypto from "crypto";
 
 // Encryption helper functions
 let _encryptionKey: string | null = null;
@@ -9,7 +9,7 @@ function getEncryptionKey(): string {
   if (!_encryptionKey) {
     const key = process.env.ENCRYPTION_KEY;
     if (!key) {
-      throw new Error('ENCRYPTION_KEY environment variable is not set');
+      throw new Error("ENCRYPTION_KEY environment variable is not set");
     }
     _encryptionKey = key;
   }
@@ -21,22 +21,22 @@ const IV_LENGTH = 16;
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(
-    'aes-256-cbc',
-    Buffer.from(getEncryptionKey(), 'hex'),
+    "aes-256-cbc",
+    Buffer.from(getEncryptionKey(), "hex"),
     iv,
   );
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  return iv.toString("hex") + ":" + encrypted.toString("hex");
 }
 
 function decrypt(text: string): string {
-  const textParts = text.split(':');
-  const iv = Buffer.from(textParts.shift()!, 'hex');
-  const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+  const textParts = text.split(":");
+  const iv = Buffer.from(textParts.shift()!, "hex");
+  const encryptedText = Buffer.from(textParts.join(":"), "hex");
   const decipher = crypto.createDecipheriv(
-    'aes-256-cbc',
-    Buffer.from(getEncryptionKey(), 'hex'),
+    "aes-256-cbc",
+    Buffer.from(getEncryptionKey(), "hex"),
     iv,
   );
   let decrypted = decipher.update(encryptedText);
@@ -47,9 +47,9 @@ function decrypt(text: string): string {
 function encryptObject(obj: any): any {
   const encrypted: any = {};
   for (const key in obj) {
-    if (typeof obj[key] === 'string' && obj[key]) {
+    if (typeof obj[key] === "string" && obj[key]) {
       encrypted[key] = encrypt(obj[key]);
-    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+    } else if (typeof obj[key] === "object" && obj[key] !== null) {
       encrypted[key] = encryptObject(obj[key]);
     } else {
       encrypted[key] = obj[key];
@@ -61,13 +61,13 @@ function encryptObject(obj: any): any {
 function decryptObject(obj: any): any {
   const decrypted: any = {};
   for (const key in obj) {
-    if (typeof obj[key] === 'string' && obj[key] && obj[key].includes(':')) {
+    if (typeof obj[key] === "string" && obj[key] && obj[key].includes(":")) {
       try {
         decrypted[key] = decrypt(obj[key]);
       } catch {
         decrypted[key] = obj[key]; // If decryption fails, return as is
       }
-    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+    } else if (typeof obj[key] === "object" && obj[key] !== null) {
       decrypted[key] = decryptObject(obj[key]);
     } else {
       decrypted[key] = obj[key];
@@ -89,7 +89,7 @@ export interface IWorkspace extends Document {
   settings: {
     maxDatabases: number;
     maxMembers: number;
-    billingTier: 'free' | 'pro' | 'enterprise';
+    billingTier: "free" | "pro" | "enterprise";
   };
 }
 
@@ -100,7 +100,7 @@ export interface IWorkspaceMember extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   userId: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: "owner" | "admin" | "member" | "viewer";
   joinedAt: Date;
 }
 
@@ -112,7 +112,7 @@ export interface IWorkspaceInvite extends Document {
   workspaceId: Types.ObjectId;
   email: string;
   token: string;
-  role: 'admin' | 'member' | 'viewer';
+  role: "admin" | "member" | "viewer";
   invitedBy: string;
   expiresAt: Date;
   acceptedAt?: Date;
@@ -125,7 +125,7 @@ export interface IDatabase extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
-  type: 'mongodb' | 'postgresql' | 'mysql' | 'sqlite' | 'mssql';
+  type: "mongodb" | "postgresql" | "mysql" | "sqlite" | "mssql";
   connection: {
     host?: string;
     port?: number;
@@ -157,7 +157,7 @@ export interface IDataSource extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
-  type: 'stripe' | 'shopify' | 'webhook' | 'csv' | 'api';
+  type: "stripe" | "shopify" | "webhook" | "csv" | "api";
   config: any;
   targetDatabases?: Types.ObjectId[];
   createdBy: string;
@@ -189,18 +189,18 @@ export interface ISavedConsole extends Document {
   name: string;
   description?: string;
   code: string;
-  language: 'sql' | 'javascript' | 'mongodb';
+  language: "sql" | "javascript" | "mongodb";
   mongoOptions?: {
     collection: string;
     operation:
-      | 'find'
-      | 'aggregate'
-      | 'insertMany'
-      | 'updateMany'
-      | 'deleteMany'
-      | 'findOne'
-      | 'updateOne'
-      | 'deleteOne';
+      | "find"
+      | "aggregate"
+      | "insertMany"
+      | "updateMany"
+      | "deleteMany"
+      | "findOne"
+      | "updateOne"
+      | "deleteOne";
   };
   createdBy: string;
   isPrivate: boolean;
@@ -218,7 +218,7 @@ export interface IChat extends Document {
   workspaceId: Types.ObjectId;
   title: string;
   messages: Array<{
-    role: 'user' | 'assistant';
+    role: "user" | "assistant";
     content: string;
   }>;
   createdBy: string;
@@ -246,7 +246,7 @@ const WorkspaceSchema = new Schema<IWorkspace>(
     },
     createdBy: {
       type: String,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     settings: {
@@ -260,8 +260,8 @@ const WorkspaceSchema = new Schema<IWorkspace>(
       },
       billingTier: {
         type: String,
-        enum: ['free', 'pro', 'enterprise'],
-        default: 'free',
+        enum: ["free", "pro", "enterprise"],
+        default: "free",
       },
     },
   },
@@ -279,17 +279,17 @@ WorkspaceSchema.index({ createdBy: 1 });
 const WorkspaceMemberSchema = new Schema<IWorkspaceMember>({
   workspaceId: {
     type: Schema.Types.ObjectId,
-    ref: 'Workspace',
+    ref: "Workspace",
     required: true,
   },
   userId: {
     type: String,
-    ref: 'User',
+    ref: "User",
     required: true,
   },
   role: {
     type: String,
-    enum: ['owner', 'admin', 'member', 'viewer'],
+    enum: ["owner", "admin", "member", "viewer"],
     required: true,
   },
   joinedAt: {
@@ -308,7 +308,7 @@ WorkspaceMemberSchema.index({ userId: 1 });
 const WorkspaceInviteSchema = new Schema<IWorkspaceInvite>({
   workspaceId: {
     type: Schema.Types.ObjectId,
-    ref: 'Workspace',
+    ref: "Workspace",
     required: true,
   },
   email: {
@@ -325,12 +325,12 @@ const WorkspaceInviteSchema = new Schema<IWorkspaceInvite>({
   },
   role: {
     type: String,
-    enum: ['admin', 'member', 'viewer'],
+    enum: ["admin", "member", "viewer"],
     required: true,
   },
   invitedBy: {
     type: String,
-    ref: 'User',
+    ref: "User",
     required: true,
   },
   expiresAt: {
@@ -354,7 +354,7 @@ const DatabaseSchema = new Schema<IDatabase>(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: true,
     },
     name: {
@@ -364,7 +364,7 @@ const DatabaseSchema = new Schema<IDatabase>(
     },
     type: {
       type: String,
-      enum: ['mongodb', 'postgresql', 'mysql', 'sqlite', 'mssql'],
+      enum: ["mongodb", "postgresql", "mysql", "sqlite", "mssql"],
       required: true,
     },
     connection: {
@@ -375,7 +375,7 @@ const DatabaseSchema = new Schema<IDatabase>(
     },
     createdBy: {
       type: String,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     lastConnectedAt: {
@@ -400,7 +400,7 @@ const DataSourceSchema = new Schema<IDataSource>(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: true,
     },
     name: {
@@ -410,7 +410,7 @@ const DataSourceSchema = new Schema<IDataSource>(
     },
     type: {
       type: String,
-      enum: ['stripe', 'shopify', 'webhook', 'csv', 'api'],
+      enum: ["stripe", "shopify", "webhook", "csv", "api"],
       required: true,
     },
     config: {
@@ -422,12 +422,12 @@ const DataSourceSchema = new Schema<IDataSource>(
     targetDatabases: [
       {
         type: Schema.Types.ObjectId,
-        ref: 'Database',
+        ref: "Database",
       },
     ],
     createdBy: {
       type: String,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     isActive: {
@@ -453,7 +453,7 @@ const ConsoleFolderSchema = new Schema<IConsoleFolder>(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: true,
     },
     name: {
@@ -463,7 +463,7 @@ const ConsoleFolderSchema = new Schema<IConsoleFolder>(
     },
     parentId: {
       type: Schema.Types.ObjectId,
-      ref: 'ConsoleFolder',
+      ref: "ConsoleFolder",
     },
     isPrivate: {
       type: Boolean,
@@ -471,7 +471,7 @@ const ConsoleFolderSchema = new Schema<IConsoleFolder>(
     },
     ownerId: {
       type: String,
-      ref: 'User',
+      ref: "User",
     },
   },
   {
@@ -490,16 +490,16 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: true,
     },
     folderId: {
       type: Schema.Types.ObjectId,
-      ref: 'ConsoleFolder',
+      ref: "ConsoleFolder",
     },
     databaseId: {
       type: Schema.Types.ObjectId,
-      ref: 'Database',
+      ref: "Database",
       required: false,
     },
     name: {
@@ -517,7 +517,7 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
     },
     language: {
       type: String,
-      enum: ['sql', 'javascript', 'mongodb'],
+      enum: ["sql", "javascript", "mongodb"],
       required: true,
     },
     mongoOptions: {
@@ -525,20 +525,20 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
       operation: {
         type: String,
         enum: [
-          'find',
-          'aggregate',
-          'insertMany',
-          'updateMany',
-          'deleteMany',
-          'findOne',
-          'updateOne',
-          'deleteOne',
+          "find",
+          "aggregate",
+          "insertMany",
+          "updateMany",
+          "deleteMany",
+          "findOne",
+          "updateOne",
+          "deleteOne",
         ],
       },
     },
     createdBy: {
       type: String,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     isPrivate: {
@@ -570,7 +570,7 @@ const ChatSchema = new Schema<IChat>(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: 'Workspace',
+      ref: "Workspace",
       required: true,
     },
     title: {
@@ -582,7 +582,7 @@ const ChatSchema = new Schema<IChat>(
       {
         role: {
           type: String,
-          enum: ['user', 'assistant'],
+          enum: ["user", "assistant"],
           required: true,
         },
         content: {
@@ -593,7 +593,7 @@ const ChatSchema = new Schema<IChat>(
     ],
     createdBy: {
       type: String,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
     titleGenerated: {
@@ -612,28 +612,28 @@ ChatSchema.index({ workspaceId: 1, title: 1 });
 
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
-  'Workspace',
+  "Workspace",
   WorkspaceSchema,
 );
 export const WorkspaceMember = mongoose.model<IWorkspaceMember>(
-  'WorkspaceMember',
+  "WorkspaceMember",
   WorkspaceMemberSchema,
 );
 export const WorkspaceInvite = mongoose.model<IWorkspaceInvite>(
-  'WorkspaceInvite',
+  "WorkspaceInvite",
   WorkspaceInviteSchema,
 );
-export const Database = mongoose.model<IDatabase>('Database', DatabaseSchema);
+export const Database = mongoose.model<IDatabase>("Database", DatabaseSchema);
 export const DataSource = mongoose.model<IDataSource>(
-  'DataSource',
+  "DataSource",
   DataSourceSchema,
 );
 export const ConsoleFolder = mongoose.model<IConsoleFolder>(
-  'ConsoleFolder',
+  "ConsoleFolder",
   ConsoleFolderSchema,
 );
 export const SavedConsole = mongoose.model<ISavedConsole>(
-  'SavedConsole',
+  "SavedConsole",
   SavedConsoleSchema,
 );
-export const Chat = mongoose.model<IChat>('Chat', ChatSchema);
+export const Chat = mongoose.model<IChat>("Chat", ChatSchema);

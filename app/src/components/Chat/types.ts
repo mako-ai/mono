@@ -1,6 +1,6 @@
 export interface Message {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: Date;
   attachedContext?: AttachedContext[];
@@ -8,7 +8,7 @@ export interface Message {
 
 export interface AttachedContext {
   id: string;
-  type: 'collection' | 'definition' | 'editor' | 'view' | 'console';
+  type: "collection" | "definition" | "editor" | "view" | "console";
   title: string;
   content: string;
   metadata?: {
@@ -42,7 +42,7 @@ export interface View {
 export interface Definition {
   id: string;
   name: string;
-  type: 'function' | 'class' | 'interface' | 'type';
+  type: "function" | "class" | "interface" | "type";
   content: string;
   fileName: string;
   lineNumbers: string;

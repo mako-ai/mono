@@ -10,6 +10,7 @@ module.exports = {
     'plugin:react-hooks/recommended',
     'plugin:react/recommended',
     'plugin:react/jsx-runtime',
+    'plugin:prettier/recommended',
   ],
   ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules'],
   parser: '@typescript-eslint/parser',
@@ -55,7 +56,7 @@ module.exports = {
     
     // Code style
     'semi': ['error', 'always'],
-    'quotes': ['error', 'single', { 'avoidEscape': true }],
+    'quotes': ['error', 'double', { 'avoidEscape': true }],
     'comma-dangle': ['error', 'always-multiline'],
     'indent': ['error', 2, { 'SwitchCase': 1 }],
     'object-curly-spacing': ['error', 'always'],
