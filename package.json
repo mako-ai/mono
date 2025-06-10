@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"pnpm --filter app run dev\" \"pnpm --filter api run dev\"",
-    "build": "tsc",
+    "build": "pnpm run app:build && pnpm run api:build",
     "start": "node dist/index.js",
     "test": "jest",
     "lint": "eslint src/**/*.ts",
@@ -34,9 +34,15 @@
     "app:dev": "pnpm --filter app run dev",
     "app:build": "pnpm --filter app run build",
     "app:preview": "pnpm --filter app run preview",
+    "app:lint": "pnpm --filter app run lint",
+    "app:lint:fix": "pnpm --filter app run lint:fix",
     "api:dev": "pnpm --filter api run dev",
     "api:build": "pnpm --filter api run build",
     "api:start": "pnpm --filter api run start",
+    "api:lint": "pnpm --filter api run lint",
+    "api:lint:fix": "pnpm --filter api run lint:fix",
+    "lint:all": "pnpm run app:lint && pnpm run api:lint",
+    "lint:fix:all": "pnpm run app:lint:fix && pnpm run api:lint:fix",
     "install:all": "pnpm install -r"
   },
   "keywords": [
