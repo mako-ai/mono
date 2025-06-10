@@ -1,6 +1,6 @@
 import { MongoClient, Db, MongoClientOptions } from 'mongodb';
 import dotenv from 'dotenv';
-import { configLoader, MongoDatabase } from './config-loader';
+import { configLoader } from './config-loader';
 
 dotenv.config({ path: '../../.env' });
 
@@ -44,7 +44,7 @@ class MongoDBConnection {
     // Wait if already connecting
     if (this.connectingDatabases.has(dataSourceId)) {
       while (this.connectingDatabases.has(dataSourceId)) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       const connection = this.connections.get(dataSourceId);
       if (connection) {
@@ -109,7 +109,7 @@ class MongoDBConnection {
         this.connections.delete(dataSourceId);
       });
 
-      client.on('error', (error) => {
+      client.on('error', error => {
         console.error(`MongoDB connection error for '${dataSourceId}':`, error);
         this.connections.delete(dataSourceId);
       });
@@ -143,7 +143,7 @@ class MongoDBConnection {
    * Disconnect from all databases
    */
   public async disconnectAll(): Promise<void> {
-    const promises = Array.from(this.connections.keys()).map((id) =>
+    const promises = Array.from(this.connections.keys()).map(id =>
       this.disconnect(id),
     );
     await Promise.all(promises);
@@ -161,8 +161,7 @@ class MongoDBConnection {
 
     // Try to use analytics_db first for backward compatibility
     const primarySource =
-      mongoSources.find((s) => s.id.endsWith('analytics_db')) ||
-      mongoSources[0];
+      mongoSources.find(s => s.id.endsWith('analytics_db')) || mongoSources[0];
     return this.getDatabase(primarySource.id);
   }
 
@@ -176,8 +175,7 @@ class MongoDBConnection {
     }
 
     const primarySource =
-      mongoSources.find((s) => s.id.endsWith('analytics_db')) ||
-      mongoSources[0];
+      mongoSources.find(s => s.id.endsWith('analytics_db')) || mongoSources[0];
     await this.getDatabase(primarySource.id); // Ensure connected
 
     const connection = this.connections.get(primarySource.id);

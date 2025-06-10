@@ -1,4 +1,4 @@
-import { Db, Collection, CreateCollectionOptions } from 'mongodb';
+import { CreateCollectionOptions } from 'mongodb';
 import { mongoConnection } from './mongodb-connection';
 
 export class DatabaseManager {
@@ -10,7 +10,7 @@ export class DatabaseManager {
         .listCollections({ type: 'collection' })
         .toArray();
 
-      return collections.map((col) => ({
+      return collections.map(col => ({
         name: col.name,
         type: col.type,
         options: (col as any).options,
@@ -32,7 +32,7 @@ export class DatabaseManager {
 
       const views = await db.listCollections({ type: 'view' }).toArray();
 
-      return views.map((view) => ({
+      return views.map(view => ({
         name: view.name,
         type: view.type,
         options: (view as any).options,

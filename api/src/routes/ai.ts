@@ -81,7 +81,7 @@ const chatTools: any[] = [
 const listDatabases = () => {
   console.log('DATA BASES LISTING');
   const mongoSources = configLoader.getMongoDBSources();
-  return mongoSources.map((source) => ({
+  return mongoSources.map(source => ({
     id: source.id,
     name: source.name,
     description: source.description || '',
@@ -109,7 +109,9 @@ const executeToolCall = async (fc: any) => {
   let parsedArgs: any = {};
   try {
     parsedArgs = fc.arguments ? JSON.parse(fc.arguments) : {};
-  } catch (_) {}
+  } catch (_) {
+    /* parsedArgs stays empty if JSON.parse fails */
+  }
 
   let result: any;
   try {
@@ -190,7 +192,7 @@ const logChatInvocation = async (params: {
 };
 
 // Streaming SSE endpoint - properly handling tool calls
-aiRoutes.post('/chat/stream', async (c) => {
+aiRoutes.post('/chat/stream', async c => {
   try {
     const body = await c.req.json();
 
@@ -234,7 +236,7 @@ aiRoutes.post('/chat/stream', async (c) => {
       );
     }
 
-    const conversation = messages.map((m) => ({
+    const conversation = messages.map(m => ({
       role: m.role,
       type: 'message',
       content: m.content,
@@ -257,6 +259,7 @@ aiRoutes.post('/chat/stream', async (c) => {
           let prevResponseId: string | undefined;
           let latestAssistantMessage = '';
 
+          // eslint-disable-next-line no-constant-condition
           while (true) {
             // Create a streaming response
             const openaiRequestPayload: any = {
@@ -281,7 +284,6 @@ aiRoutes.post('/chat/stream', async (c) => {
             const functionCalls: any[] = [];
             const functionCallData: Map<string, any> = new Map();
             let textAccumulator = '';
-            let hasSentText = false;
 
             // Process the stream
             const openaiEvents: any[] = []; // Collect every event for full auditing
@@ -296,7 +298,6 @@ aiRoutes.post('/chat/stream', async (c) => {
               if (event.type === 'response.output_text.delta' && event.delta) {
                 textAccumulator += event.delta;
                 sendEvent({ type: 'text', content: event.delta });
-                hasSentText = true;
               }
 
               // Collect function call start info

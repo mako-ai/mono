@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – module will be provided via dependency at runtime
 import { Agent, run as runAgent, tool } from '@openai/agents';
 import { ObjectId, Decimal128 } from 'mongodb';
@@ -6,7 +7,7 @@ import {
   shouldGenerateTitle,
   generateChatTitle,
 } from '../services/title-generator';
-import { Chat, Workspace, Database } from '../database/workspace-schema';
+import { Chat, Database } from '../database/workspace-schema';
 import { databaseConnectionService } from '../services/database-connection.service';
 import { Types } from 'mongoose';
 
@@ -17,10 +18,7 @@ export const agentRoutes = new Hono();
 // Helper functions & shared instances
 // ------------------------------------------------------------------------------------
 
-// Helper to get the default workspace (first one by creation date)
-const getDefaultWorkspace = async () => {
-  return await Workspace.findOne().sort({ createdAt: 1 });
-};
+// (Removed unused getDefaultWorkspace helper to satisfy lint rule)
 
 // ------------------------------------------------------------------------------------
 // Database/Collection helpers - Updated for workspace-scoped operations
@@ -35,7 +33,7 @@ const listDatabases = async (workspaceId: string) => {
     workspaceId: new Types.ObjectId(workspaceId),
   }).sort({ name: 1 });
 
-  return databases.map((db) => ({
+  return databases.map(db => ({
     id: db._id.toString(),
     name: db.name,
     description: '',
@@ -346,11 +344,13 @@ const persistChatSession = async (sessionId: string, messages: any[]) => {
 // POST /   (mounted at /api/agent) – Run the agent once and return the assistant reply
 // ------------------------------------------------------------------------------------
 // Debug version - Add this temporarily to see what events are coming through
-agentRoutes.post('/stream', async (c) => {
+agentRoutes.post('/stream', async c => {
   let body: any = {};
   try {
     body = await c.req.json();
-  } catch (_) {}
+  } catch (e) {
+    console.error('Error parsing request body', e);
+  }
 
   const { message, sessionId, workspaceId } = body as {
     message?: string;
@@ -382,11 +382,13 @@ agentRoutes.post('/stream', async (c) => {
       if (existingChat && Array.isArray(existingChat.messages)) {
         existingMessages = existingChat.messages as any[];
       }
-    } catch (_) {}
+    } catch (_) {
+      // Ignore JSON parse errors – body may legitimately be empty
+    }
   }
 
   const conversationLines: string[] = existingMessages.map(
-    (m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`,
+    m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`,
   );
   conversationLines.push(`User: ${message.trim()}`);
   const agentInput = conversationLines.join('\n\n');
@@ -561,7 +563,7 @@ agentRoutes.post('/stream', async (c) => {
           if (shouldGenerateTitle(updatedMessages)) {
             // Fire-and-forget title generation
             generateChatTitle(updatedMessages)
-              .then((generatedTitle) => {
+              .then(generatedTitle => {
                 return Chat.findByIdAndUpdate(finalSessionId, {
                   title: generatedTitle,
                   titleGenerated: true,
@@ -573,7 +575,7 @@ agentRoutes.post('/stream', async (c) => {
                   `Generated title for new chat: "${finalSessionId}"`,
                 );
               })
-              .catch((error) => {
+              .catch(error => {
                 console.error('Failed to generate title for new chat:', error);
               });
           }
@@ -589,7 +591,7 @@ agentRoutes.post('/stream', async (c) => {
           ) {
             // Fire-and-forget title generation
             generateChatTitle(updatedMessages)
-              .then((generatedTitle) => {
+              .then(generatedTitle => {
                 return Chat.findByIdAndUpdate(sessionId, {
                   title: generatedTitle,
                   titleGenerated: true,
@@ -601,7 +603,7 @@ agentRoutes.post('/stream', async (c) => {
                   `Generated title for existing chat: "${sessionId}"`,
                 );
               })
-              .catch((error) => {
+              .catch(error => {
                 console.error(
                   'Failed to generate title for existing chat:',
                   error,

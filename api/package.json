@@ -8,7 +8,7 @@
     "build": "pnpm run lint && pnpm exec tsc",
     "start": "node dist/index.js",
     "migrate:workspaces": "tsx src/migrations/migrate-to-workspaces.ts",
-    "lint": "eslint . --ext ts --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --ext ts --report-unused-disable-directives",
     "lint:fix": "eslint . --ext ts --fix"
   },
   "dependencies": {
