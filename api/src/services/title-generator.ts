@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – module will be provided via dependency at runtime
 import { Agent, run as runAgent } from "@openai/agents";
 
@@ -38,8 +39,8 @@ export const shouldGenerateTitle = (messages: any[]): boolean => {
   if (messages.length < 2) return false;
 
   // Check that we have at least one user message and one assistant message
-  const userMessages = messages.filter((m) => m.role === "user");
-  const assistantMessages = messages.filter((m) => m.role === "assistant");
+  const userMessages = messages.filter(m => m.role === "user");
+  const assistantMessages = messages.filter(m => m.role === "assistant");
 
   if (userMessages.length < 1 || assistantMessages.length < 1) return false;
 
@@ -91,7 +92,7 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
 
     // Build context string for title generation
     const conversationContext = contextMessages
-      .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .map(m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
       .join("\n\n");
 
     const titlePrompt = `Based on this conversation, generate a concise title (3-8 words) that captures the main topic or task:\n\n${conversationContext}`;
@@ -144,8 +145,8 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
       "general",
     ];
 
-    const isGeneric = genericPhrases.some((phrase) =>
-      title.toLowerCase().includes(phrase)
+    const isGeneric = genericPhrases.some(phrase =>
+      title.toLowerCase().includes(phrase),
     );
 
     if (isGeneric || title.length < 10) {
@@ -153,25 +154,25 @@ export const generateChatTitle = async (messages: any[]): Promise<string> => {
         "Title failed quality check, using fallback. isGeneric:",
         isGeneric,
         "length:",
-        title.length
+        title.length,
       );
 
       // Fallback: try to extract key terms from user messages
       const userContent = contextMessages
-        .filter((m) => m.role === "user")
-        .map((m) => m.content)
+        .filter(m => m.role === "user")
+        .map(m => m.content)
         .join(" ");
 
       // Simple keyword extraction for fallback
       const words = userContent
         .toLowerCase()
         .split(/\s+/)
-        .filter((word) => word.length > 3)
+        .filter(word => word.length > 3)
         .slice(0, 3);
 
       if (words.length >= 2) {
         title =
-          words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") +
+          words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") +
           " Discussion";
       } else {
         title = "Database Query Session";

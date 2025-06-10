@@ -139,7 +139,7 @@ const CodeBlock = React.memo(
         )}
       </Box>
     );
-  }
+  },
 );
 
 CodeBlock.displayName = "CodeBlock";
@@ -209,7 +209,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages }) => {
         pb: 12,
       }}
     >
-      {messages.map((message) => (
+      {messages.map(message => (
         <MessageItem key={message.id} message={message} />
       ))}
     </Box>

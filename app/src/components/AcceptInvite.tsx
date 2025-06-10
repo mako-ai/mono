@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Box,
   Paper,
@@ -7,9 +7,9 @@ import {
   CircularProgress,
   Alert,
   Container,
-} from '@mui/material';
-import { CheckCircle, Error as ErrorIcon } from '@mui/icons-material';
-import { useWorkspace } from '../contexts/workspace-context';
+} from "@mui/material";
+import { CheckCircle, Error as ErrorIcon } from "@mui/icons-material";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface AcceptInviteProps {
   token: string;
@@ -17,23 +17,25 @@ interface AcceptInviteProps {
 
 export function AcceptInvite({ token }: AcceptInviteProps) {
   const { acceptInvite } = useWorkspace();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState<string>('');
+  const [status, setStatus] = useState<"loading" | "success" | "error">(
+    "loading",
+  );
+  const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
     const handleAcceptInvite = async () => {
       try {
         const workspace = await acceptInvite(token);
-        setStatus('success');
+        setStatus("success");
         setMessage(`Successfully joined ${workspace.name}`);
-        
+
         // Redirect to app after a short delay
         setTimeout(() => {
-          window.location.href = '/';
+          window.location.href = "/";
         }, 2000);
       } catch (error: any) {
-        setStatus('error');
-        setMessage(error.message || 'Failed to accept invitation');
+        setStatus("error");
+        setMessage(error.message || "Failed to accept invitation");
       }
     };
 
@@ -44,14 +46,14 @@ export function AcceptInvite({ token }: AcceptInviteProps) {
     <Container maxWidth="sm">
       <Box
         sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <Paper sx={{ p: 4, width: '100%', textAlign: 'center' }}>
-          {status === 'loading' && (
+        <Paper sx={{ p: 4, width: "100%", textAlign: "center" }}>
+          {status === "loading" && (
             <>
               <CircularProgress size={60} sx={{ mb: 3 }} />
               <Typography variant="h5" gutterBottom>
@@ -63,7 +65,7 @@ export function AcceptInvite({ token }: AcceptInviteProps) {
             </>
           )}
 
-          {status === 'success' && (
+          {status === "success" && (
             <>
               <CheckCircle color="success" sx={{ fontSize: 60, mb: 3 }} />
               <Typography variant="h5" gutterBottom>
@@ -78,7 +80,7 @@ export function AcceptInvite({ token }: AcceptInviteProps) {
             </>
           )}
 
-          {status === 'error' && (
+          {status === "error" && (
             <>
               <ErrorIcon color="error" sx={{ fontSize: 60, mb: 3 }} />
               <Typography variant="h5" gutterBottom>
@@ -89,7 +91,7 @@ export function AcceptInvite({ token }: AcceptInviteProps) {
               </Alert>
               <Button
                 variant="contained"
-                onClick={() => window.location.href = '/'}
+                onClick={() => (window.location.href = "/")}
                 sx={{ mt: 2 }}
               >
                 Go to Application

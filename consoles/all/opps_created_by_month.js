@@ -2,48 +2,71 @@
 
 db.ch_close_opportunities.aggregate([
   // Attach country/coll name as field
-  { $project: {
+  {
+    $project: {
       country: { $literal: "CH" },
-      month: { $dateToString: { format: "%Y-%m", date: { $toDate: "$date_created" } } }
-  }},
-  { $unionWith: {
+      month: {
+        $dateToString: { format: "%Y-%m", date: { $toDate: "$date_created" } },
+      },
+    },
+  },
+  {
+    $unionWith: {
       coll: "es_close_opportunities",
       pipeline: [
-        { $project: {
+        {
+          $project: {
             country: { $literal: "ES" },
-            month: { $dateToString: { format: "%Y-%m", date: { $toDate: "$date_created" } } }
-        }}
-      ]
-  }},
-  { $unionWith: {
+            month: {
+              $dateToString: {
+                format: "%Y-%m",
+                date: { $toDate: "$date_created" },
+              },
+            },
+          },
+        },
+      ],
+    },
+  },
+  {
+    $unionWith: {
       coll: "fr_close_opportunities_staging",
       pipeline: [
-        { $project: {
+        {
+          $project: {
             country: { $literal: "FR" },
-            month: { $dateToString: { format: "%Y-%m", date: { $toDate: "$date_created" } } }
-        }}
-      ]
-  }},
+            month: {
+              $dateToString: {
+                format: "%Y-%m",
+                date: { $toDate: "$date_created" },
+              },
+            },
+          },
+        },
+      ],
+    },
+  },
   // Group for pivot: (country, month)
-  { $group: {
+  {
+    $group: {
       _id: { country: "$country", month: "$month" },
-      count: { $sum: 1 }
-  }},
+      count: { $sum: 1 },
+    },
+  },
   // Gather all month-counts for each country
-  { $group: {
+  {
+    $group: {
       _id: "$_id.country",
-      months: { $push: { k: "$_id.month", v: "$count" } }
-  }},
+      months: { $push: { k: "$_id.month", v: "$count" } },
+    },
+  },
   // Pivot, flat: { country: "...", "2024-05": 21, ... }
   { $addFields: { monthsObj: { $arrayToObject: "$months" } } },
   {
     $replaceRoot: {
       newRoot: {
-        $mergeObjects: [
-          { country: "$_id" },
-          "$monthsObj"
-        ]
-      }
-    }
-  }
-])
+        $mergeObjects: [{ country: "$_id" }, "$monthsObj"],
+      },
+    },
+  },
+]);

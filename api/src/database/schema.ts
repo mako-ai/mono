@@ -56,7 +56,7 @@ const UserSchema = new Schema<IUser>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 /**
@@ -112,7 +112,7 @@ const OAuthAccountSchema = new Schema<IOAuthAccount>(
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
-  }
+  },
 );
 
 // Compound index to ensure unique provider accounts
@@ -124,7 +124,7 @@ export const User = mongoose.model<IUser>("User", UserSchema);
 export const Session = mongoose.model<ISession>("Session", SessionSchema);
 export const OAuthAccount = mongoose.model<IOAuthAccount>(
   "OAuthAccount",
-  OAuthAccountSchema
+  OAuthAccountSchema,
 );
 
 /**

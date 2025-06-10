@@ -17,7 +17,7 @@ export class WorkspaceService {
   async createWorkspace(
     userId: string,
     name: string,
-    slug?: string
+    slug?: string,
   ): Promise<IWorkspace> {
     // Generate unique slug if not provided
     if (!slug) {
@@ -34,7 +34,7 @@ export class WorkspaceService {
 
     // Start a session for transaction
     const session = await Workspace.db.startSession();
-    session.startTransaction();
+    await session.startTransaction();
 
     try {
       // Create workspace
@@ -63,7 +63,7 @@ export class WorkspaceService {
       await Session.updateMany(
         { userId },
         { activeWorkspaceId: workspace._id.toString() },
-        { session }
+        { session },
       );
 
       await session.commitTransaction();
@@ -72,7 +72,7 @@ export class WorkspaceService {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -119,7 +119,7 @@ export class WorkspaceService {
    */
   async getMember(
     workspaceId: string,
-    userId: string
+    userId: string,
   ): Promise<IWorkspaceMember | null> {
     return WorkspaceMember.findOne({
       workspaceId: new Types.ObjectId(workspaceId),
@@ -141,7 +141,7 @@ export class WorkspaceService {
   async hasRole(
     workspaceId: string,
     userId: string,
-    roles: string[]
+    roles: string[],
   ): Promise<boolean> {
     const member = await this.getMember(workspaceId, userId);
     return member !== null && roles.includes(member.role);
@@ -152,7 +152,7 @@ export class WorkspaceService {
    */
   async updateWorkspace(
     workspaceId: string,
-    updates: Partial<IWorkspace>
+    updates: Partial<IWorkspace>,
   ): Promise<IWorkspace | null> {
     return Workspace.findByIdAndUpdate(workspaceId, updates, { new: true });
   }
@@ -162,25 +162,25 @@ export class WorkspaceService {
    */
   async deleteWorkspace(workspaceId: string): Promise<boolean> {
     const session = await Workspace.db.startSession();
-    session.startTransaction();
+    await session.startTransaction();
 
     try {
       // Delete workspace
       await Workspace.deleteOne(
         { _id: new Types.ObjectId(workspaceId) },
-        { session }
+        { session },
       );
 
       // Delete all members
       await WorkspaceMember.deleteMany(
         { workspaceId: new Types.ObjectId(workspaceId) },
-        { session }
+        { session },
       );
 
       // Delete all invites
       await WorkspaceInvite.deleteMany(
         { workspaceId: new Types.ObjectId(workspaceId) },
-        { session }
+        { session },
       );
 
       // TODO: Delete all workspace data (databases, consoles, etc.)
@@ -191,7 +191,7 @@ export class WorkspaceService {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -212,7 +212,7 @@ export class WorkspaceService {
   async addMember(
     workspaceId: string,
     userId: string,
-    role: "admin" | "member" | "viewer"
+    role: "admin" | "member" | "viewer",
   ): Promise<IWorkspaceMember> {
     const member = new WorkspaceMember({
       workspaceId: new Types.ObjectId(workspaceId),
@@ -229,7 +229,7 @@ export class WorkspaceService {
   async updateMemberRole(
     workspaceId: string,
     userId: string,
-    newRole: string
+    newRole: string,
   ): Promise<IWorkspaceMember | null> {
     return WorkspaceMember.findOneAndUpdate(
       {
@@ -237,7 +237,7 @@ export class WorkspaceService {
         userId: userId,
       },
       { role: newRole },
-      { new: true }
+      { new: true },
     );
   }
 
@@ -259,7 +259,7 @@ export class WorkspaceService {
     workspaceId: string,
     email: string,
     role: "admin" | "member" | "viewer",
-    invitedBy: string
+    invitedBy: string,
   ): Promise<IWorkspaceInvite> {
     const invite = new WorkspaceInvite({
       workspaceId: new Types.ObjectId(workspaceId),
@@ -296,7 +296,7 @@ export class WorkspaceService {
     }
 
     const session = await WorkspaceMember.db.startSession();
-    session.startTransaction();
+    await session.startTransaction();
 
     try {
       // Mark invite as accepted
@@ -317,7 +317,7 @@ export class WorkspaceService {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -357,7 +357,7 @@ export class WorkspaceService {
     // Update all user sessions
     const result = await Session.updateMany(
       { userId },
-      { activeWorkspaceId: workspaceId }
+      { activeWorkspaceId: workspaceId },
     );
 
     return result.modifiedCount > 0;

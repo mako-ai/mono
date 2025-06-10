@@ -13,12 +13,12 @@ export const lucia = new Lucia(new MongoDBAdapter(), {
     },
   },
   sessionExpiresIn: new TimeSpan(24, "h"), // 24 hours
-  getUserAttributes: (attributes) => {
+  getUserAttributes: attributes => {
     return {
       email: attributes.email,
     };
   },
-  getSessionAttributes: (attributes) => {
+  getSessionAttributes: attributes => {
     return {
       activeWorkspaceId: attributes.activeWorkspaceId,
     };

@@ -116,7 +116,7 @@ class ConfigLoader {
     const servers = this.getMongoServers();
     const databases: MongoDatabase[] = [];
 
-    servers.forEach((server) => {
+    servers.forEach(server => {
       if (server.databases) {
         Object.entries(server.databases).forEach(([dbId, db]) => {
           if (db.active) {
@@ -140,7 +140,7 @@ class ConfigLoader {
    */
   getMongoDBSource(sourceId: string): MongoDatabase | null {
     const databases = this.getMongoDBSources();
-    return databases.find((db) => db.id === sourceId) || null;
+    return databases.find(db => db.id === sourceId) || null;
   }
 
   /**
@@ -148,7 +148,7 @@ class ConfigLoader {
    */
   getDatabasesForServer(serverId: string): MongoDatabase[] {
     const databases = this.getMongoDBSources();
-    return databases.filter((db) => db.serverId === serverId);
+    return databases.filter(db => db.serverId === serverId);
   }
 
   /**
@@ -202,14 +202,14 @@ class ConfigLoader {
         const value = process.env[varName];
         if (!value) {
           console.warn(
-            `Environment variable ${varName} is not set, using placeholder`
+            `Environment variable ${varName} is not set, using placeholder`,
           );
           return match;
         }
         return value;
       });
     } else if (Array.isArray(obj)) {
-      return obj.map((item) => this.processEnvironmentVariables(item));
+      return obj.map(item => this.processEnvironmentVariables(item));
     } else if (typeof obj === "object" && obj !== null) {
       const processed: any = {};
       for (const key in obj) {

@@ -23,7 +23,7 @@ import { WorkspaceMembers } from "../components/WorkspaceMembers";
 
 function Settings() {
   const [openaiApiKey, setOpenaiApiKey] = useState(
-    localStorage.getItem("openai_api_key") || ""
+    localStorage.getItem("openai_api_key") || "",
   );
 
   // Custom prompt state
@@ -55,7 +55,7 @@ function Settings() {
   };
 
   const handleCustomPromptChange = (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     setLocalCustomPrompt(event.target.value);
     setCustomPromptModified(event.target.value !== customPromptContent);
@@ -112,7 +112,7 @@ function Settings() {
               <TextField
                 label="OpenAI API Key"
                 value={openaiApiKey}
-                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                onChange={e => setOpenaiApiKey(e.target.value)}
                 type="password"
                 size="small"
                 fullWidth

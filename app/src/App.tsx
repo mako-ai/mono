@@ -1,17 +1,13 @@
 import { Box, styled } from "@mui/material";
 // import { Routes, Route } from "react-router-dom"; // Remove react-router-dom imports
 import Sidebar from "./components/Sidebar";
-import { useAppStore } from "./store"; // Import the new store
+import { useAppStore, useChatStore } from "./store";
 import { useConsoleStore } from "./store/consoleStore";
-import { useChatStore } from "./store";
-// @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Chat3 from "./components/Chat3";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
-// @ts-ignore file exists
 import DataSourceExplorer from "./components/DataSourceExplorer";
-// @ts-ignore file exists
 import Editor from "./components/Editor";
 import { AuthWrapper } from "./components/AuthWrapper";
 
@@ -35,11 +31,11 @@ function App() {
     content: string,
     databaseId?: string,
     extraContextItems: any[] = [],
-    filePath?: string
+    filePath?: string,
   ) => {
     // Try to find existing tab with same title and initial content path maybe; for simplicity match title.
-    const existing = consoleTabs.find((t) =>
-      filePath ? t.filePath === filePath : t.title === title
+    const existing = consoleTabs.find(t =>
+      filePath ? t.filePath === filePath : t.title === title,
     );
     if (existing) {
       setActiveConsole(existing.id);

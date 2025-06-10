@@ -73,9 +73,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     const allKeys = new Set<string>();
 
     // Collect all unique keys from the sample results
-    sampleResults.forEach((result) => {
+    sampleResults.forEach(result => {
       if (result && typeof result === "object" && !Array.isArray(result)) {
-        Object.keys(result).forEach((key) => allKeys.add(key));
+        Object.keys(result).forEach(key => allKeys.add(key));
       }
     });
 
@@ -88,24 +88,24 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     const allKeysArray = Array.from(allKeys);
     const numericKeys = allKeysArray.filter(startsWithNumber);
     const sortedNumericKeys = numericKeys.sort();
-    const alphabeticKeys = allKeysArray.filter((key) => !startsWithNumber(key));
+    const alphabeticKeys = allKeysArray.filter(key => !startsWithNumber(key));
 
     // Combine alphabetic keys first, then numeric keys
     const orderedKeys = [...alphabeticKeys, ...sortedNumericKeys];
 
-    const cols: GridColDef[] = orderedKeys.map((key) => {
+    const cols: GridColDef[] = orderedKeys.map(key => {
       // Check if this column contains numeric values by sampling the first few rows
       const sampleValues = sampleResults
-        .map((row) => row?.[key])
-        .filter((value) => value !== undefined);
+        .map(row => row?.[key])
+        .filter(value => value !== undefined);
 
       const isNumericColumn = sampleValues.every(
-        (value) =>
+        value =>
           value === null ||
           (typeof value === "number" && !isNaN(value)) ||
           (typeof value === "string" &&
             !isNaN(Number(value)) &&
-            value.trim() !== "")
+            value.trim() !== ""),
       );
 
       return {
@@ -116,7 +116,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         maxWidth: 300,
         align: isNumericColumn ? "right" : "left",
         headerAlign: isNumericColumn ? "right" : "left",
-        renderCell: (params) => {
+        renderCell: params => {
           const value = params.value;
           if (typeof value === "undefined") {
             return undefined;
@@ -155,16 +155,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
     try {
       // Get column headers
-      const headers = columns.map((col) => col.field);
+      const headers = columns.map(col => col.field);
 
       // Create CSV-like format that works well with Google Sheets
       const csvContent = [
         // Header row
         headers.join("\t"),
         // Data rows
-        ...normalizedResults.map((row) =>
+        ...normalizedResults.map(row =>
           headers
-            .map((header) => {
+            .map(header => {
               const value =
                 row && typeof row === "object" && !Array.isArray(row)
                   ? row[header]
@@ -178,7 +178,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
               // Escape tabs and newlines for CSV compatibility
               return String(value).replace(/\t/g, " ").replace(/\n/g, " ");
             })
-            .join("\t")
+            .join("\t"),
         ),
       ].join("\n");
 
@@ -195,7 +195,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         setViewMode(newViewMode);
       }
     },
-    []
+    [],
   );
 
   const jsonContent = JSON.stringify(results, null, 2);

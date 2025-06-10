@@ -1,6 +1,6 @@
 import { MongoClient, Db, MongoClientOptions } from "mongodb";
 import dotenv from "dotenv";
-import { configLoader, MongoDatabase } from "./config-loader";
+import { configLoader } from "./config-loader";
 
 dotenv.config({ path: "../../.env" });
 
@@ -44,7 +44,7 @@ class MongoDBConnection {
     // Wait if already connecting
     if (this.connectingDatabases.has(dataSourceId)) {
       while (this.connectingDatabases.has(dataSourceId)) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       const connection = this.connections.get(dataSourceId);
       if (connection) {
@@ -68,24 +68,24 @@ class MongoDBConnection {
 
       if (!dataSource) {
         throw new Error(
-          `Data source '${dataSourceId}' not found in configuration`
+          `Data source '${dataSourceId}' not found in configuration`,
         );
       }
 
       if (!dataSource.connectionString) {
         throw new Error(
-          `Data source '${dataSourceId}' is missing connection string`
+          `Data source '${dataSourceId}' is missing connection string`,
         );
       }
 
       if (!dataSource.database) {
         throw new Error(
-          `Data source '${dataSourceId}' is missing database name`
+          `Data source '${dataSourceId}' is missing database name`,
         );
       }
 
       console.log(
-        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.database} on ${dataSource.serverName}`
+        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.database} on ${dataSource.serverName}`,
       );
 
       const options: MongoClientOptions = {
@@ -109,7 +109,7 @@ class MongoDBConnection {
         this.connections.delete(dataSourceId);
       });
 
-      client.on("error", (error) => {
+      client.on("error", error => {
         console.error(`MongoDB connection error for '${dataSourceId}':`, error);
         this.connections.delete(dataSourceId);
       });
@@ -120,7 +120,7 @@ class MongoDBConnection {
     } catch (error) {
       console.error(
         `❌ Failed to connect to MongoDB '${dataSourceId}':`,
-        error
+        error,
       );
       throw error;
     } finally {
@@ -143,8 +143,8 @@ class MongoDBConnection {
    * Disconnect from all databases
    */
   public async disconnectAll(): Promise<void> {
-    const promises = Array.from(this.connections.keys()).map((id) =>
-      this.disconnect(id)
+    const promises = Array.from(this.connections.keys()).map(id =>
+      this.disconnect(id),
     );
     await Promise.all(promises);
   }
@@ -161,8 +161,7 @@ class MongoDBConnection {
 
     // Try to use analytics_db first for backward compatibility
     const primarySource =
-      mongoSources.find((s) => s.id.endsWith("analytics_db")) ||
-      mongoSources[0];
+      mongoSources.find(s => s.id.endsWith("analytics_db")) || mongoSources[0];
     return this.getDatabase(primarySource.id);
   }
 
@@ -176,8 +175,7 @@ class MongoDBConnection {
     }
 
     const primarySource =
-      mongoSources.find((s) => s.id.endsWith("analytics_db")) ||
-      mongoSources[0];
+      mongoSources.find(s => s.id.endsWith("analytics_db")) || mongoSources[0];
     await this.getDatabase(primarySource.id); // Ensure connected
 
     const connection = this.connections.get(primarySource.id);

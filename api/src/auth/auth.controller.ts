@@ -27,13 +27,13 @@ const convertCookieAttributes = (attributes: any) => ({
 // Apply rate limiting to auth endpoints
 const authRateLimiter = rateLimitMiddleware(
   parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000"), // 15 minutes
-  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "5")
+  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "5"),
 );
 
 /**
  * Register new user
  */
-authRoutes.post("/register", authRateLimiter, async (c) => {
+authRoutes.post("/register", authRateLimiter, async c => {
   try {
     const { email, password } = await c.req.json();
 
@@ -45,7 +45,7 @@ authRoutes.post("/register", authRateLimiter, async (c) => {
       c,
       sessionCookie.name,
       sessionCookie.value,
-      convertCookieAttributes(sessionCookie.attributes)
+      convertCookieAttributes(sessionCookie.attributes),
     );
 
     return c.json({
@@ -63,7 +63,7 @@ authRoutes.post("/register", authRateLimiter, async (c) => {
 /**
  * Login user
  */
-authRoutes.post("/login", authRateLimiter, async (c) => {
+authRoutes.post("/login", authRateLimiter, async c => {
   try {
     const { email, password } = await c.req.json();
 
@@ -75,7 +75,7 @@ authRoutes.post("/login", authRateLimiter, async (c) => {
       c,
       sessionCookie.name,
       sessionCookie.value,
-      convertCookieAttributes(sessionCookie.attributes)
+      convertCookieAttributes(sessionCookie.attributes),
     );
 
     return c.json({
@@ -93,7 +93,7 @@ authRoutes.post("/login", authRateLimiter, async (c) => {
 /**
  * Logout user
  */
-authRoutes.post("/logout", authMiddleware, async (c) => {
+authRoutes.post("/logout", authMiddleware, async c => {
   try {
     const session = c.get("session");
 
@@ -105,7 +105,7 @@ authRoutes.post("/logout", authMiddleware, async (c) => {
       c,
       sessionCookie.name,
       sessionCookie.value,
-      convertCookieAttributes(sessionCookie.attributes)
+      convertCookieAttributes(sessionCookie.attributes),
     );
 
     return c.json({ message: "Logged out successfully" });
@@ -117,7 +117,7 @@ authRoutes.post("/logout", authMiddleware, async (c) => {
 /**
  * Get current user
  */
-authRoutes.get("/me", authMiddleware, async (c) => {
+authRoutes.get("/me", authMiddleware, async c => {
   try {
     const user = c.get("user");
 
@@ -139,7 +139,7 @@ authRoutes.get("/me", authMiddleware, async (c) => {
 /**
  * Refresh session
  */
-authRoutes.post("/refresh", async (c) => {
+authRoutes.post("/refresh", async c => {
   try {
     const sessionId = lucia.readSessionCookie(c.req.header("Cookie") || "");
 
@@ -160,7 +160,7 @@ authRoutes.post("/refresh", async (c) => {
         c,
         sessionCookie.name,
         sessionCookie.value,
-        convertCookieAttributes(sessionCookie.attributes)
+        convertCookieAttributes(sessionCookie.attributes),
       );
     }
 
@@ -178,7 +178,7 @@ authRoutes.post("/refresh", async (c) => {
 /**
  * Google OAuth initiation
  */
-authRoutes.get("/google", async (c) => {
+authRoutes.get("/google", async c => {
   const state = generateState();
   const codeVerifier = generateCodeVerifier();
 
@@ -207,7 +207,7 @@ authRoutes.get("/google", async (c) => {
 /**
  * Google OAuth callback
  */
-authRoutes.get("/google/callback", async (c) => {
+authRoutes.get("/google/callback", async c => {
   try {
     const code = c.req.query("code");
     const state = c.req.query("state");
@@ -226,7 +226,7 @@ authRoutes.get("/google/callback", async (c) => {
 
     const tokens = await getGoogle().validateAuthorizationCode(
       code,
-      codeVerifier
+      codeVerifier,
     );
 
     // Get user info from Google
@@ -236,15 +236,15 @@ authRoutes.get("/google/callback", async (c) => {
         headers: {
           Authorization: `Bearer ${tokens.accessToken}`,
         },
-      }
+      },
     );
 
     const googleUser: any = await response.json();
 
-    const { user, session, isNewUser } = await authService.handleOAuthCallback(
+    const { session } = await authService.handleOAuthCallback(
       "google",
       googleUser.sub,
-      googleUser.email
+      googleUser.email,
     );
 
     // Set session cookie
@@ -253,7 +253,7 @@ authRoutes.get("/google/callback", async (c) => {
       c,
       sessionCookie.name,
       sessionCookie.value,
-      convertCookieAttributes(sessionCookie.attributes)
+      convertCookieAttributes(sessionCookie.attributes),
     );
 
     // Clear OAuth cookies
@@ -270,7 +270,7 @@ authRoutes.get("/google/callback", async (c) => {
 /**
  * GitHub OAuth initiation
  */
-authRoutes.get("/github", async (c) => {
+authRoutes.get("/github", async c => {
   const state = generateState();
 
   setCookie(c, "github_oauth_state", state, {
@@ -290,7 +290,7 @@ authRoutes.get("/github", async (c) => {
 /**
  * GitHub OAuth callback
  */
-authRoutes.get("/github/callback", async (c) => {
+authRoutes.get("/github/callback", async c => {
   try {
     const code = c.req.query("code");
     const state = c.req.query("state");
@@ -319,12 +319,12 @@ authRoutes.get("/github/callback", async (c) => {
     });
 
     const emails = (await emailResponse.json()) as any[];
-    const primaryEmail = emails.find((e) => e.primary)?.email;
+    const primaryEmail = emails.find(e => e.primary)?.email;
 
-    const { user, session, isNewUser } = await authService.handleOAuthCallback(
+    const { session } = await authService.handleOAuthCallback(
       "github",
       githubUser.id.toString(),
-      primaryEmail || githubUser.email
+      primaryEmail || githubUser.email,
     );
 
     // Set session cookie
@@ -333,7 +333,7 @@ authRoutes.get("/github/callback", async (c) => {
       c,
       sessionCookie.name,
       sessionCookie.value,
-      convertCookieAttributes(sessionCookie.attributes)
+      convertCookieAttributes(sessionCookie.attributes),
     );
 
     // Clear OAuth cookie

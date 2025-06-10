@@ -53,14 +53,14 @@ const Chat: React.FC<ChatProps> = () => {
 
   // Get loading state and dispatch from app store
   const { dispatch } = useAppStore();
-  const isLoading = useAppStore((s) => s.ui.loading.chatGeneration || false);
+  const isLoading = useAppStore(s => s.ui.loading.chatGeneration || false);
 
   // Get current messages from store
   const storedMessages = getCurrentMessages();
 
   // Local state for streaming message (to avoid global state updates during streaming)
   const [streamingMessage, setStreamingMessage] = useState<Message | null>(
-    null
+    null,
   );
 
   // Combine stored messages with streaming message for display
@@ -112,7 +112,7 @@ const Chat: React.FC<ChatProps> = () => {
         setError(null);
       } catch (err) {
         setError(
-          "Failed to initialize OpenAI client. Please check your API key."
+          "Failed to initialize OpenAI client. Please check your API key.",
         );
       }
     } else {
@@ -134,7 +134,7 @@ const Chat: React.FC<ChatProps> = () => {
     try {
       // 1) Get list of databases defined in the backend configuration
       const dbRes = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/databases`
+        `/api/workspaces/${currentWorkspace.id}/databases`,
       );
       const dbData = await dbRes.json();
       if (!dbData.success) return;
@@ -148,7 +148,7 @@ const Chat: React.FC<ChatProps> = () => {
 
         try {
           const colRes = await fetch(
-            `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections`
+            `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections`,
           );
           const colData = await colRes.json();
           if (!colData.success) continue;
@@ -161,7 +161,7 @@ const Chat: React.FC<ChatProps> = () => {
             try {
               // Get stats (count)
               const infoRes = await fetch(
-                `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`
+                `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`,
               );
               const infoData = await infoRes.json();
               if (infoData.success) {
@@ -174,7 +174,7 @@ const Chat: React.FC<ChatProps> = () => {
             try {
               // Get sample docs + schema
               const sampleRes = await fetch(
-                `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`
+                `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`,
               );
               const sampleData = await sampleRes.json();
               if (sampleData.success) {
@@ -184,7 +184,7 @@ const Chat: React.FC<ChatProps> = () => {
             } catch (e) {
               console.error(
                 `Failed to fetch samples for ${dbId}.${col.name}:`,
-                e
+                e,
               );
             }
 
@@ -214,7 +214,7 @@ const Chat: React.FC<ChatProps> = () => {
 
     try {
       const dbRes = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/databases`
+        `/api/workspaces/${currentWorkspace.id}/databases`,
       );
       const dbData = await dbRes.json();
       if (!dbData.success) return;
@@ -226,7 +226,7 @@ const Chat: React.FC<ChatProps> = () => {
         const dbName = db.name || dbId;
         try {
           const viewRes = await fetch(
-            `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/views`
+            `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/views`,
           );
           const viewData = await viewRes.json();
           if (!viewData.success) continue;
@@ -277,7 +277,7 @@ const Chat: React.FC<ChatProps> = () => {
         // List all models available for the provided API key
         const response = await openaiClient.models.list();
         const modelIds = (response.data as any).map(
-          (m: any) => m.id
+          (m: any) => m.id,
         ) as string[];
 
         // Optionally, prioritise chat-capable models (simple heuristic)
@@ -336,13 +336,13 @@ const Chat: React.FC<ChatProps> = () => {
             const examples = info.exampleValues
               .slice(0, 2)
               .map((v: any) =>
-                typeof v === "object" ? JSON.stringify(v) : String(v)
+                typeof v === "object" ? JSON.stringify(v) : String(v),
               )
               .join(", ");
             schemaDescription += ` (e.g., ${examples})`;
           }
           schemaDescription += "\n";
-        }
+        },
       );
     }
 
@@ -390,7 +390,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   const addConsoleContext = (
     consoleId: string,
     content: string,
-    title: string
+    title: string,
   ) => {
     const contextItem: AttachedContext = {
       id: `console-${consoleId}-${Date.now()}`,
@@ -408,7 +408,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   const createAndAttachNewConsole = (
     initialContent: string = "",
-    title: string = "New Console"
+    title: string = "New Console",
   ) => {
     const consoleId = addConsoleTab({
       title,
@@ -422,7 +422,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   // Function to extract code blocks from markdown
   const extractCodeFromMarkdown = (
-    content: string
+    content: string,
   ): { code: string; language: string } | null => {
     const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/;
     const match = content.match(codeBlockRegex);
@@ -438,16 +438,14 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   // Function to update console with code from AI response
   const updateConsoleFromAIResponse = (response: string) => {
     // Check if there's an attached console
-    const attachedConsole = attachedContext.find(
-      (ctx) => ctx.type === "console"
-    );
+    const attachedConsole = attachedContext.find(ctx => ctx.type === "console");
     if (attachedConsole && attachedConsole.metadata?.consoleId) {
       const codeBlock = extractCodeFromMarkdown(response);
       if (codeBlock) {
         // Update the console content
         updateConsoleContent(
           attachedConsole.metadata.consoleId,
-          codeBlock.code
+          codeBlock.code,
         );
       }
     }
@@ -455,15 +453,13 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   // Function to execute console code automatically
   const executeConsoleCode = async (): Promise<any> => {
-    const attachedConsole = attachedContext.find(
-      (ctx) => ctx.type === "console"
-    );
+    const attachedConsole = attachedContext.find(ctx => ctx.type === "console");
     if (!attachedConsole || !attachedConsole.metadata?.consoleId) {
       return null;
     }
 
     const consoleTab = consoleTabs.find(
-      (tab) => tab.id === attachedConsole.metadata!.consoleId
+      tab => tab.id === attachedConsole.metadata!.consoleId,
     );
     if (!consoleTab || !consoleTab.content.trim()) {
       return null;
@@ -486,7 +482,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ query: consoleTab.content }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -526,7 +522,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     addMessage(userMessageObj);
 
     // 1️⃣  Previous chat history (excluding system prompt)
-    const priorMessages = storedMessages.map((msg) => ({
+    const priorMessages = storedMessages.map(msg => ({
       role: msg.role as "user" | "assistant",
       content: msg.content,
     }));
@@ -595,13 +591,13 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         if (delta) {
           fullResponse += delta;
           // Update local streaming message instead of global state
-          setStreamingMessage((prev) =>
+          setStreamingMessage(prev =>
             prev
               ? {
                   ...prev,
                   content: prev.content + delta,
                 }
-              : null
+              : null,
           );
           // Trigger re-render for auto-scroll during streaming
           setLastMessageUpdateTime(Date.now());
@@ -649,13 +645,13 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
               } documents):\n\`\`\`json\n${JSON.stringify(
                 result.data.results,
                 null,
-                2
+                2,
               )}\n\`\`\``;
             } else {
               resultContent = `✅ Execution successful!\n\nResult:\n\`\`\`json\n${JSON.stringify(
                 result.data,
                 null,
-                2
+                2,
               )}\n\`\`\``;
             }
           } else {
@@ -698,13 +694,13 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       setStreamingMessage(null);
       if (err.status === 401) {
         setError(
-          "Invalid API key. Please check your OpenAI API key in Settings."
+          "Invalid API key. Please check your OpenAI API key in Settings.",
         );
       } else if (err.status === 429) {
         setError("Rate limit exceeded. Please try again later.");
       } else {
         setError(
-          `Error: ${err.message || "Failed to get response from OpenAI"}`
+          `Error: ${err.message || "Failed to get response from OpenAI"}`,
         );
       }
     } finally {
@@ -894,10 +890,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         }}
       >
         {chatSessions
-          .filter(
-            (chat) => chat.messages.length > 0 || chat.id === currentChatId
-          )
-          .map((chat) => (
+          .filter(chat => chat.messages.length > 0 || chat.id === currentChatId)
+          .map(chat => (
             <MenuItem
               key={chat.id}
               onClick={() => handleSelectChat(chat.id)}
@@ -926,7 +920,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
               {(chat.messages.length > 0 || chat.id !== currentChatId) && (
                 <IconButton
                   size="small"
-                  onClick={(e) => handleDeleteChat(chat.id, e)}
+                  onClick={e => handleDeleteChat(chat.id, e)}
                   sx={{ ml: 1 }}
                 >
                   <DeleteIcon fontSize="small" />
@@ -934,8 +928,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
               )}
             </MenuItem>
           ))}
-        {chatSessions.filter((chat) => chat.messages.length > 0).length ===
-          0 && (
+        {chatSessions.filter(chat => chat.messages.length > 0).length === 0 && (
           <MenuItem disabled>
             <Typography variant="body2" color="text.secondary">
               No chat history yet

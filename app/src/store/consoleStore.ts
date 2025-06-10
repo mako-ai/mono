@@ -74,7 +74,7 @@ export const useConsoleStore = () => {
   };
 
   const clearAllConsoles = () => {
-    consoleTabs.forEach((tab) => removeConsoleTab(tab.id));
+    consoleTabs.forEach(tab => removeConsoleTab(tab.id));
   };
 
   return {
@@ -157,7 +157,7 @@ useConsoleStore.getState = () => {
   };
 
   const clearAllConsoles = () => {
-    consoleTabs.forEach((tab) => removeConsoleTab(tab.id));
+    consoleTabs.forEach(tab => removeConsoleTab(tab.id));
   };
 
   return {

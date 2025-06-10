@@ -53,7 +53,7 @@ function Consoles() {
   const [selectedConsole, setSelectedConsole] = useState<string>("");
   const [consoleContent, setConsoleContent] = useState<string>("");
   const [consoleResults, setConsoleResults] = useState<ConsoleResult | null>(
-    null
+    null,
   );
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -78,7 +78,7 @@ function Consoles() {
 
       try {
         const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases`
+          `/api/workspaces/${currentWorkspace.id}/databases`,
         );
         const data = await response.json();
 
@@ -120,7 +120,7 @@ function Consoles() {
 
   const handleConsoleExecute = async (
     contentToExecute: string,
-    databaseId?: string
+    databaseId?: string,
   ) => {
     if (!contentToExecute.trim()) return;
 
@@ -146,7 +146,7 @@ function Consoles() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ query: contentToExecute }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -173,7 +173,7 @@ function Consoles() {
 
   const handleConsoleSave = async (
     contentToSave: string,
-    currentPath?: string
+    currentPath?: string,
   ): Promise<boolean> => {
     if (!currentWorkspace) {
       setErrorMessage("No workspace selected");
@@ -192,7 +192,7 @@ function Consoles() {
       if (!savePath) {
         // New console or "Save As" scenario
         const fileName = prompt(
-          "Enter a file name for the console (e.g., myFolder/myConsole). Existing .js extension will be appended if not present."
+          "Enter a file name for the console (e.g., myFolder/myConsole). Existing .js extension will be appended if not present.",
         );
         if (!fileName) {
           setIsSaving(false);
@@ -217,9 +217,9 @@ function Consoles() {
           body: JSON.stringify(
             method === "POST"
               ? { path: savePath, content: contentToSave }
-              : { content: contentToSave }
+              : { content: contentToSave },
           ),
-        }
+        },
       );
 
       const data = await response.json();
@@ -356,7 +356,7 @@ function Consoles() {
             aria-label="close"
             onClick={handleCloseErrorModal}
             sx={{
-              color: (theme) => theme.palette.grey[500],
+              color: theme => theme.palette.grey[500],
             }}
           >
             <CloseIcon />

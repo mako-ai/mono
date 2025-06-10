@@ -11,7 +11,7 @@ interface UserMessageProps {
 
 const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
   // Get loading state from app store and messages from chat store
-  const isLoading = useAppStore((s) => s.ui.loading.chatGeneration || false);
+  const isLoading = useAppStore(s => s.ui.loading.chatGeneration || false);
   const { getCurrentMessages } = useChatStore();
 
   // Check if this is the last user message
@@ -19,7 +19,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
     const currentMessages = getCurrentMessages();
     const lastUserMessage = [...currentMessages]
       .reverse()
-      .find((msg) => msg.role === "user");
+      .find(msg => msg.role === "user");
     return lastUserMessage?.id === message.id;
   }, [message.id, getCurrentMessages]);
 
@@ -65,7 +65,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
         {/* Display attached context as chips above the message */}
         {message.attachedContext && message.attachedContext.length > 0 && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 2 }}>
-            {message.attachedContext.map((context) => (
+            {message.attachedContext.map(context => (
               <Chip
                 key={context.id}
                 label={context.title}

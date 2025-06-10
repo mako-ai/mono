@@ -90,11 +90,11 @@ export class DataSourceManager {
       const dataSources = await this.collection.find({}).toArray();
       return dataSources;
     } catch (error) {
-      console.error(`❌ Error listing data sources:`, error);
+      console.error("❌ Error listing data sources:", error);
       throw new Error(
         `Failed to list data sources: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -109,11 +109,11 @@ export class DataSourceManager {
       });
       return dataSource;
     } catch (error) {
-      console.error(`❌ Error getting data source:`, error);
+      console.error("❌ Error getting data source:", error);
       throw new Error(
         `Failed to get data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -121,7 +121,7 @@ export class DataSourceManager {
   }
 
   async createDataSource(
-    dataSource: Omit<DataSource, "_id" | "created_at" | "updated_at">
+    dataSource: Omit<DataSource, "_id" | "created_at" | "updated_at">,
   ): Promise<DataSource> {
     try {
       await this.connect();
@@ -130,7 +130,7 @@ export class DataSourceManager {
       const existing = await this.collection.findOne({ name: dataSource.name });
       if (existing) {
         throw new Error(
-          `Data source with name '${dataSource.name}' already exists`
+          `Data source with name '${dataSource.name}' already exists`,
         );
       }
 
@@ -142,7 +142,7 @@ export class DataSourceManager {
       };
 
       const result = await this.collection.insertOne(
-        newDataSource as DataSource
+        newDataSource as DataSource,
       );
       const created = await this.collection.findOne({ _id: result.insertedId });
 
@@ -152,11 +152,11 @@ export class DataSourceManager {
 
       return created;
     } catch (error) {
-      console.error(`❌ Error creating data source:`, error);
+      console.error("❌ Error creating data source:", error);
       throw new Error(
         `Failed to create data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -165,7 +165,7 @@ export class DataSourceManager {
 
   async updateDataSource(
     id: string,
-    updates: Partial<Omit<DataSource, "_id" | "created_at">>
+    updates: Partial<Omit<DataSource, "_id" | "created_at">>,
   ): Promise<DataSource> {
     try {
       await this.connect();
@@ -183,7 +183,7 @@ export class DataSourceManager {
         });
         if (nameConflict) {
           throw new Error(
-            `Data source with name '${updates.name}' already exists`
+            `Data source with name '${updates.name}' already exists`,
           );
         }
       }
@@ -195,7 +195,7 @@ export class DataSourceManager {
 
       await this.collection.updateOne(
         { _id: new ObjectId(id) },
-        { $set: updateData }
+        { $set: updateData },
       );
 
       const updated = await this.collection.findOne({ _id: new ObjectId(id) });
@@ -205,11 +205,11 @@ export class DataSourceManager {
 
       return updated;
     } catch (error) {
-      console.error(`❌ Error updating data source:`, error);
+      console.error("❌ Error updating data source:", error);
       throw new Error(
         `Failed to update data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -228,11 +228,11 @@ export class DataSourceManager {
 
       return true;
     } catch (error) {
-      console.error(`❌ Error deleting data source:`, error);
+      console.error("❌ Error deleting data source:", error);
       throw new Error(
         `Failed to delete data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -240,7 +240,7 @@ export class DataSourceManager {
   }
 
   async testConnection(
-    id: string
+    id: string,
   ): Promise<{ success: boolean; message: string }> {
     try {
       await this.connect();
@@ -326,7 +326,7 @@ export class DataSourceManager {
           return { success: false, message: "Unknown data source type" };
       }
     } catch (error) {
-      console.error(`❌ Error testing data source connection:`, error);
+      console.error("❌ Error testing data source connection:", error);
       return {
         success: false,
         message:

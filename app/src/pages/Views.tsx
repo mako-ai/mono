@@ -17,7 +17,7 @@ import ViewExplorer from "../components/ViewExplorer";
 import ViewEditor, { ViewEditorRef } from "../components/ViewEditor";
 import ResultsTable from "../components/ResultsTable";
 import Chat from "../components/Chat/Chat";
-import { useWorkspace } from "../contexts/workspace-context";
+
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -55,11 +55,9 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 }));
 
 function Views() {
-  const { currentWorkspace } = useWorkspace();
-  const [views, setViews] = useState<ViewDefinition[]>([]);
   const [selectedView, setSelectedView] = useState<string>("");
   const [viewDefinition, setViewDefinition] = useState<ViewDefinition | null>(
-    null
+    null,
   );
   const [queryResults, setQueryResults] = useState<QueryResult | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -131,11 +129,11 @@ function Views() {
 db.${definition.viewOn}.aggregate(${JSON.stringify(
         definition.pipeline,
         null,
-        2
+        2,
       )})
       `.trim();
 
-      const response = await fetch(`/api/execute`, {
+      const response = await fetch("/api/execute", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -191,7 +189,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         setSelectedView(definition.name);
         setViewDefinition(definition);
         // Refresh the view explorer
-        setRefreshKey((prev) => prev + 1);
+        setRefreshKey(prev => prev + 1);
       } else {
         console.error("View save failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
@@ -212,7 +210,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         `/api/database/views/${encodeURIComponent(viewName)}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       const data = await response.json();
@@ -225,7 +223,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
         setViewDefinition(null);
         setQueryResults(null);
         // Refresh the view explorer
-        setRefreshKey((prev) => prev + 1);
+        setRefreshKey(prev => prev + 1);
       } else {
         console.error("View delete failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
@@ -358,7 +356,7 @@ db.${definition.viewOn}.aggregate(${JSON.stringify(
             aria-label="close"
             onClick={handleCloseErrorModal}
             sx={{
-              color: (theme) => theme.palette.grey[500],
+              color: theme => theme.palette.grey[500],
             }}
           >
             <CloseIcon />

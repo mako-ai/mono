@@ -64,9 +64,9 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const { currentWorkspace } = useWorkspace();
     const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
     const [loading, setLoading] = useState(true);
-    const dispatch = useAppStore((s) => s.dispatch);
+    const dispatch = useAppStore(s => s.dispatch);
     const expandedFoldersArray = useAppStore(
-      (s) => s.explorers.console.expandedFolders
+      s => s.explorers.console.expandedFolders,
     );
     const expandedFolders = new Set(expandedFoldersArray);
     const [error, setError] = useState<string | null>(null);
@@ -99,7 +99,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
       setError(null);
       try {
         const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/consoles`
+          `/api/workspaces/${currentWorkspace.id}/consoles`,
         );
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -120,7 +120,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
       } catch (e: any) {
         console.error("Failed to fetch console entries:", e);
         setError(
-          `Failed to load consoles. ${e.message || "Please try again later."}`
+          `Failed to load consoles. ${e.message || "Please try again later."}`,
         );
         setConsoleEntries([]);
       } finally {
@@ -153,7 +153,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
 
       try {
         const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/consoles/content?path=${filePath}`
+          `/api/workspaces/${currentWorkspace.id}/consoles/content?path=${filePath}`,
         );
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -208,7 +208,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               parentId: selectedParentFolder || undefined,
               isPrivate: false,
             }),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -323,14 +323,14 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     };
 
     const renderTree = (nodes: ConsoleEntry[], depth = 0) => {
-      return nodes.map((node) => {
+      return nodes.map(node => {
         if (node.isDirectory) {
           const isExpanded = expandedFolders.has(node.path);
           return (
             <div key={node.path}>
               <ListItemButton
                 onClick={() => handleFolderToggle(node.path)}
-                onContextMenu={(e) => handleContextMenu(e, node)}
+                onContextMenu={e => handleContextMenu(e, node)}
                 sx={{ py: 0.5, pl: 1 + depth }}
               >
                 <ListItemIcon sx={{ minWidth: 32 }}>
@@ -363,7 +363,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           <ListItemButton
             key={node.path}
             onClick={() => handleFileClick(node.path)}
-            onContextMenu={(e) => handleContextMenu(e, node)}
+            onContextMenu={e => handleContextMenu(e, node)}
             sx={{ pl: 0.5 + depth }}
           >
             <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
@@ -554,7 +554,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               // Force focus on the text field after dialog animation completes
               setTimeout(() => {
                 const input = document.querySelector(
-                  'input[name="folderName"]'
+                  'input[name="folderName"]',
                 ) as HTMLInputElement;
                 if (input) {
                   input.focus();
@@ -578,8 +578,8 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               fullWidth
               variant="outlined"
               value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
+              onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => {
                 if (e.key === "Enter" && newFolderName.trim()) {
                   handleFolderCreate();
                 }
@@ -614,7 +614,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               // Force focus on the text field after dialog animation completes
               setTimeout(() => {
                 const input = document.querySelector(
-                  'input[name="itemName"]'
+                  'input[name="itemName"]',
                 ) as HTMLInputElement;
                 if (input) {
                   input.focus();
@@ -636,8 +636,8 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               fullWidth
               variant="outlined"
               value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              onKeyDown={(e) => {
+              onChange={e => setNewItemName(e.target.value)}
+              onKeyDown={e => {
                 if (e.key === "Enter" && newItemName.trim()) {
                   handleRenameConfirm();
                 }
@@ -698,7 +698,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
         </Dialog>
       </Box>
     );
-  }
+  },
 );
 
 export default ConsoleExplorer;

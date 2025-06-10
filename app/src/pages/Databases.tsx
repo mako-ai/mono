@@ -104,7 +104,7 @@ function Databases() {
 
   // Initialize refs for existing console tabs
   useEffect(() => {
-    consoleTabs.forEach((tab) => {
+    consoleTabs.forEach(tab => {
       if (!consoleRefs.current[tab.id]) {
         consoleRefs.current[tab.id] = React.createRef<ConsoleRef>();
       }
@@ -114,7 +114,7 @@ function Databases() {
   const openNewConsole = (
     initialContent: string = "",
     title: string = "New Console",
-    databaseId?: string
+    databaseId?: string,
   ) => {
     const id = addConsoleTab({
       title,
@@ -139,7 +139,7 @@ function Databases() {
   // Attach click handler to open console prefilled
   const handleCollectionClick = (
     databaseId: string,
-    collection: CollectionInfo
+    collection: CollectionInfo,
   ) => {
     const prefill = `db.${collection.name}.find({})`;
     openNewConsole(prefill, collection.name, databaseId);
@@ -173,7 +173,7 @@ function Databases() {
 
       try {
         const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases`
+          `/api/workspaces/${currentWorkspace.id}/databases`,
         );
         const data = await response.json();
 
@@ -215,7 +215,7 @@ function Databases() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ query }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -242,7 +242,7 @@ function Databases() {
 
   const handleConsoleSaveInDatabasePage = async (
     contentToSave: string,
-    _currentPath?: string
+    _currentPath?: string,
   ): Promise<boolean> => {
     if (!currentWorkspace) {
       setErrorMessage("No workspace selected");
@@ -255,7 +255,7 @@ function Databases() {
     let success = false;
     try {
       const fileName = prompt(
-        "Enter a file name to save this console (e.g., myFolder/myQuery). Existing .js extension will be appended if not present."
+        "Enter a file name to save this console (e.g., myFolder/myQuery). Existing .js extension will be appended if not present.",
       );
       if (!fileName) {
         setIsSaving(false);
@@ -274,7 +274,7 @@ function Databases() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ path: savePath, content: contentToSave }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -365,7 +365,7 @@ function Databases() {
                         variant="scrollable"
                         scrollButtons="auto"
                       >
-                        {consoleTabs.map((tab) => (
+                        {consoleTabs.map(tab => (
                           <Tab
                             key={tab.id}
                             value={tab.id}
@@ -376,7 +376,7 @@ function Databases() {
                                 <span>{tab.title}</span>
                                 <IconButton
                                   size="small"
-                                  onClick={(e) => {
+                                  onClick={e => {
                                     e.stopPropagation();
                                     closeConsole(tab.id);
                                   }}
@@ -391,7 +391,7 @@ function Databases() {
 
                       {/* Active Console Editor */}
                       <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
-                        {consoleTabs.map((tab) => (
+                        {consoleTabs.map(tab => (
                           <Box
                             key={tab.id}
                             sx={{
@@ -408,7 +408,7 @@ function Databases() {
                               isExecuting={isExecuting}
                               onSave={handleConsoleSaveInDatabasePage}
                               isSaving={isSaving}
-                              onContentChange={(content) =>
+                              onContentChange={content =>
                                 updateConsoleContent(tab.id, content)
                               }
                               databases={availableDatabases}
@@ -493,7 +493,7 @@ function Databases() {
             aria-label="close"
             onClick={handleCloseErrorModal}
             sx={{
-              color: (theme) => theme.palette.grey[500],
+              color: theme => theme.palette.grey[500],
             }}
           >
             <CloseIcon />

@@ -25,14 +25,15 @@ if (fs.existsSync(envPath)) {
   console.log(`✅ Loaded environment variables from ${envPath}`);
 } else {
   console.warn(
-    `⚠️  .env file was not found at ${envPath}. Environment variables must be set another way.`
+    `⚠️  .env file was not found at ${envPath}. Environment variables must be set another way.`,
   );
 }
 
 // Connect to MongoDB
-connectDatabase().catch((error) => {
+connectDatabase().catch(error => {
   console.error("Failed to connect to database:", error);
-  process.exit(1);
+  // Re-throw to allow the unhandled rejection handler (or the runtime) to exit appropriately
+  throw error;
 });
 
 const app = new Hono();
@@ -45,11 +46,11 @@ app.use(
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-  })
+  }),
 );
 
 // Health check
-app.get("/health", (c) => {
+app.get("/health", c => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
@@ -79,7 +80,7 @@ app.use("*", async (c, next) => {
 
   // Try to serve static file
   const publicPath = path.join(process.cwd(), "public");
-  let filePath = path.join(publicPath, requestPath);
+  const filePath = path.join(publicPath, requestPath);
 
   // If path doesn't have extension, try adding .html or serve index.html
   if (!path.extname(filePath)) {
@@ -128,7 +129,7 @@ const port = parseInt(process.env.WEB_API_PORT || process.env.PORT || "8080");
 
 console.log(`🚀 Query API Server starting on port ${port}`);
 console.log(`📁 Environment: ${process.env.NODE_ENV || "development"}`);
-console.log(`🔗 API endpoints available at /api/*`);
+console.log("🔗 API endpoints available at /api/*");
 
 serve({
   fetch: app.fetch,

@@ -67,7 +67,7 @@ const CollectionEditor = forwardRef<CollectionEditorRef, CollectionEditorProps>(
       onDelete,
       isExecuting,
     },
-    ref
+    ref,
   ) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -138,8 +138,8 @@ db.createCollection("new_collection_name", {
         setLoadingDetails(true);
         const response = await fetch(
           `/api/database/collections/${encodeURIComponent(
-            selectedCollection
-          )}/info`
+            selectedCollection,
+          )}/info`,
         );
         const data = await response.json();
 
@@ -247,8 +247,8 @@ db.createCollection("new_collection_name", {
     const displayTitle = isCreatingNew
       ? "New Collection"
       : selectedCollection
-      ? `Collection: ${selectedCollection}`
-      : "No collection selected";
+        ? `Collection: ${selectedCollection}`
+        : "No collection selected";
 
     return (
       <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -339,7 +339,7 @@ db.createCollection("new_collection_name", {
                             Avg Document Size:{" "}
                             <strong>
                               {formatBytes(
-                                collectionDetails.stats?.avgObjSize || 0
+                                collectionDetails.stats?.avgObjSize || 0,
                               )}
                             </strong>
                           </Typography>
@@ -347,7 +347,7 @@ db.createCollection("new_collection_name", {
                             Storage Size:{" "}
                             <strong>
                               {formatBytes(
-                                collectionDetails.stats?.storageSize || 0
+                                collectionDetails.stats?.storageSize || 0,
                               )}
                             </strong>
                           </Typography>
@@ -479,7 +479,7 @@ db.createCollection("new_collection_name", {
         </Dialog>
       </Box>
     );
-  }
+  },
 );
 
 export default CollectionEditor;

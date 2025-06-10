@@ -9,7 +9,7 @@ const CUSTOM_PROMPT_PATH = path.join(
   process.cwd(),
   "..",
   "config",
-  "CustomPrompt.md"
+  "CustomPrompt.md",
 );
 
 // Default content for the custom prompt
@@ -50,7 +50,7 @@ const ensureCustomPromptFile = () => {
 };
 
 // GET /api/custom-prompt - Get the current custom prompt content
-customPromptRoutes.get("/", async (c) => {
+customPromptRoutes.get("/", async c => {
   try {
     ensureCustomPromptFile();
 
@@ -70,13 +70,13 @@ customPromptRoutes.get("/", async (c) => {
             ? error.message
             : "Failed to read custom prompt",
       },
-      500
+      500,
     );
   }
 });
 
 // PUT /api/custom-prompt - Update the custom prompt content
-customPromptRoutes.put("/", async (c) => {
+customPromptRoutes.put("/", async c => {
   try {
     const body = await c.req.json();
 
@@ -86,7 +86,7 @@ customPromptRoutes.put("/", async (c) => {
           success: false,
           error: "Content is required",
         },
-        400
+        400,
       );
     }
 
@@ -109,13 +109,13 @@ customPromptRoutes.put("/", async (c) => {
             ? error.message
             : "Failed to update custom prompt",
       },
-      500
+      500,
     );
   }
 });
 
 // POST /api/custom-prompt/reset - Reset custom prompt to default
-customPromptRoutes.post("/reset", async (c) => {
+customPromptRoutes.post("/reset", async c => {
   try {
     ensureConfigDir();
 
@@ -137,7 +137,7 @@ customPromptRoutes.post("/reset", async (c) => {
             ? error.message
             : "Failed to reset custom prompt",
       },
-      500
+      500,
     );
   }
 });

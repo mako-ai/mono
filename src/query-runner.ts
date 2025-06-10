@@ -19,7 +19,7 @@ class QueryRunner {
   }
 
   private async getConnection(
-    dataSourceId?: string
+    dataSourceId?: string,
   ): Promise<{ client: MongoClient; db: Db }> {
     const sourceId = dataSourceId || this.currentDataSource;
 
@@ -48,7 +48,7 @@ class QueryRunner {
 
   async executeQuery(
     queryFilePath: string,
-    dataSourceId?: string
+    dataSourceId?: string,
   ): Promise<any[]> {
     try {
       const { db } = await this.getConnection(dataSourceId);
@@ -92,7 +92,7 @@ class QueryRunner {
 
       console.log(`Executing query on collection: ${collectionName}`);
       console.log(
-        `Using data source: ${dataSourceId || this.currentDataSource}`
+        `Using data source: ${dataSourceId || this.currentDataSource}`,
       );
 
       // Execute the aggregation pipeline
@@ -111,7 +111,7 @@ class QueryRunner {
     try {
       const { db } = await this.getConnection(dataSourceId);
       const collections = await db.listCollections().toArray();
-      return collections.map((col) => col.name);
+      return collections.map(col => col.name);
     } catch (error) {
       console.error("Failed to list collections:", error);
       throw error;
@@ -120,7 +120,7 @@ class QueryRunner {
 
   async getCollectionStats(
     collectionName: string,
-    dataSourceId?: string
+    dataSourceId?: string,
   ): Promise<any> {
     try {
       const { db } = await this.getConnection(dataSourceId);
@@ -148,7 +148,7 @@ class QueryRunner {
     name: string;
     description?: string;
   }[] {
-    return dataSourceManager.getMongoDBSources().map((source) => ({
+    return dataSourceManager.getMongoDBSources().map(source => ({
       id: source.id,
       name: source.name,
       description: source.description,

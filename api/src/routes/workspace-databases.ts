@@ -20,7 +20,7 @@ function maskPasswordInConnectionString(connectionString: string): string {
   // This handles mongodb://, mongodb+srv://, postgresql://, postgres://, mysql://, etc.
   return connectionString.replace(
     /^([a-z][a-z0-9+.-]*:\/\/[^:]+:)([^@]+)(@)/g,
-    "$1*****$3"
+    "$1*****$3",
   );
 }
 
@@ -43,7 +43,7 @@ workspaceDatabaseRoutes.get(
         let hostKey: string;
         if (db.connection.connectionString) {
           hostKey = maskPasswordInConnectionString(
-            db.connection.connectionString
+            db.connection.connectionString,
           );
         } else {
           hostKey = db.connection.host || "unknown";
@@ -78,10 +78,10 @@ workspaceDatabaseRoutes.get(
           error:
             error instanceof Error ? error.message : "Failed to get databases",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get specific database
@@ -127,10 +127,10 @@ workspaceDatabaseRoutes.get(
           error:
             error instanceof Error ? error.message : "Failed to get database",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Create new database
@@ -149,7 +149,7 @@ workspaceDatabaseRoutes.post(
       if (!body.name || !body.type) {
         return c.json(
           { success: false, error: "Name and type are required" },
-          400
+          400,
         );
       }
 
@@ -163,7 +163,7 @@ workspaceDatabaseRoutes.post(
             success: false,
             error: `Workspace database limit reached (${workspace.settings.maxDatabases})`,
           },
-          403
+          403,
         );
       }
 
@@ -187,7 +187,7 @@ workspaceDatabaseRoutes.post(
             success: false,
             error: `Connection test failed: ${testResult.error}`,
           },
-          400
+          400,
         );
       }
 
@@ -204,7 +204,7 @@ workspaceDatabaseRoutes.post(
           },
           message: "Database created successfully",
         },
-        201
+        201,
       );
     } catch (error) {
       console.error("Error creating database:", error);
@@ -216,10 +216,10 @@ workspaceDatabaseRoutes.post(
               ? error.message
               : "Failed to create database",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Update database
@@ -261,7 +261,7 @@ workspaceDatabaseRoutes.put(
               success: false,
               error: `Connection test failed: ${testResult.error}`,
             },
-            400
+            400,
           );
         }
       }
@@ -289,10 +289,10 @@ workspaceDatabaseRoutes.put(
               ? error.message
               : "Failed to update database",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Delete database
@@ -336,10 +336,10 @@ workspaceDatabaseRoutes.delete(
               ? error.message
               : "Failed to delete database",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Test database connection
@@ -384,10 +384,10 @@ workspaceDatabaseRoutes.post(
               ? error.message
               : "Failed to test connection",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Execute query on database
@@ -421,7 +421,7 @@ workspaceDatabaseRoutes.post(
       const result = await databaseConnectionService.executeQuery(
         database,
         body.query,
-        body.options
+        body.options,
       );
 
       return c.json(result);
@@ -433,10 +433,10 @@ workspaceDatabaseRoutes.post(
           error:
             error instanceof Error ? error.message : "Failed to execute query",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get collections for MongoDB database
@@ -468,7 +468,7 @@ workspaceDatabaseRoutes.get(
             success: false,
             error: "This endpoint is only for MongoDB databases",
           },
-          400
+          400,
         );
       }
 
@@ -495,10 +495,10 @@ workspaceDatabaseRoutes.get(
               ? error.message
               : "Failed to get collections",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get collection info for MongoDB
@@ -531,7 +531,7 @@ workspaceDatabaseRoutes.get(
             success: false,
             error: "This endpoint is only for MongoDB databases",
           },
-          400
+          400,
         );
       }
 
@@ -546,7 +546,7 @@ workspaceDatabaseRoutes.get(
       if (collections.length === 0) {
         return c.json(
           { success: false, error: `Collection '${collectionName}' not found` },
-          404
+          404,
         );
       }
 
@@ -584,10 +584,10 @@ workspaceDatabaseRoutes.get(
               ? error.message
               : "Failed to get collection info",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get views for MongoDB database
@@ -619,7 +619,7 @@ workspaceDatabaseRoutes.get(
             success: false,
             error: "This endpoint is only for MongoDB databases",
           },
-          400
+          400,
         );
       }
 
@@ -643,8 +643,8 @@ workspaceDatabaseRoutes.get(
           success: false,
           error: error instanceof Error ? error.message : "Failed to get views",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );

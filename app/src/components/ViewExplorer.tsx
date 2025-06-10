@@ -46,9 +46,9 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   const [views, setViews] = useState<ViewInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const dispatch = useAppStore((s) => s.dispatch);
+  const dispatch = useAppStore(s => s.dispatch);
   const expandedCollectionsArray = useAppStore(
-    (s) => s.explorers.view.expandedCollections
+    s => s.explorers.view.expandedCollections,
   );
   const expandedCollections = new Set(expandedCollectionsArray);
 
@@ -115,7 +115,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
   const groupViewsByCollection = () => {
     const grouped: { [key: string]: ViewInfo[] } = {};
 
-    views.forEach((view) => {
+    views.forEach(view => {
       const collection = view.options.viewOn || "Unknown Collection";
       if (!grouped[collection]) {
         grouped[collection] = [];
@@ -202,7 +202,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
               const groupedViews = groupViewsByCollection();
               const collections = Object.keys(groupedViews).sort();
 
-              return collections.map((collection) => {
+              return collections.map(collection => {
                 const isExpanded = expandedCollections.has(collection);
                 const collectionViews = groupedViews[collection];
 
@@ -233,7 +233,7 @@ const ViewExplorer: React.FC<ViewExplorerProps> = ({
 
                     {/* Views under this collection */}
                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                      {collectionViews.map((view) => (
+                      {collectionViews.map(view => (
                         <ListItem key={view.name} disablePadding>
                           <ListItemButton
                             selected={selectedView === view.name}

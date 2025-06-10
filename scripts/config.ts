@@ -45,7 +45,7 @@ function validateConfig() {
       console.log(`Inactive data sources: ${totalSources - activeSources}`);
     } else {
       console.error("❌ Configuration validation failed:");
-      validation.errors.forEach((error) => console.error(`  - ${error}`));
+      validation.errors.forEach(error => console.error(`  - ${error}`));
       process.exit(1);
     }
   } catch (error) {
@@ -71,7 +71,7 @@ function listDataSources() {
     const activeDataSources = dataSourceManager.getActiveDataSources();
 
     console.log("Active data sources:");
-    activeDataSources.forEach((source) => {
+    activeDataSources.forEach(source => {
       console.log(`  ${source.id}:`);
       console.log(`    Name: ${source.name}`);
       console.log(`    Type: ${source.type}`);
@@ -91,12 +91,12 @@ function listDataSources() {
     // Also show inactive sources
     const allSourceIds = dataSourceManager.listDataSourceIds();
     const inactiveSourceIds = allSourceIds.filter(
-      (id) => !activeDataSources.find((s) => s.id === id)
+      id => !activeDataSources.find(s => s.id === id),
     );
 
     if (inactiveSourceIds.length > 0) {
       console.log("Inactive data sources:");
-      inactiveSourceIds.forEach((id) => {
+      inactiveSourceIds.forEach(id => {
         const source = dataSourceManager.getDataSource(id);
         if (source) {
           console.log(`  ${id}: ${source.name} (${source.type})`);

@@ -4,10 +4,10 @@ import { ChatSession } from "./appStore";
 import { useMemo } from "react";
 
 export const useChatStore = () => {
-  const dispatch = useAppStore((s) => s.dispatch);
-  const sessions = useAppStore((s) => s.chat.sessions);
-  const currentChatId = useAppStore((s) => s.chat.currentChatId);
-  const selectedModelGlobal = useAppStore((s) => s.settings.modelId);
+  const dispatch = useAppStore(s => s.dispatch);
+  const sessions = useAppStore(s => s.chat.sessions);
+  const currentChatId = useAppStore(s => s.chat.currentChatId);
+  const selectedModelGlobal = useAppStore(s => s.settings.modelId);
 
   const value = useMemo(() => {
     const chatSessions: ChatSession[] = Object.values(sessions);
@@ -76,22 +76,22 @@ export const useChatStore = () => {
         type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.filter((c) => c.id !== id),
+          items: attachedContext.filter(c => c.id !== id),
         },
       } as any);
     };
 
     const updateContextItem = (
       id: string,
-      updates: Partial<AttachedContext>
+      updates: Partial<AttachedContext>,
     ) => {
       if (!currentChatId) return;
       dispatch({
         type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.map((c) =>
-            c.id === id ? { ...c, ...updates } : c
+          items: attachedContext.map(c =>
+            c.id === id ? { ...c, ...updates } : c,
           ),
         },
       } as any);
@@ -192,22 +192,22 @@ useChatStore.getState = () => {
         type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.filter((c) => c.id !== id),
+          items: attachedContext.filter(c => c.id !== id),
         },
       });
     };
 
     const updateContextItem = (
       id: string,
-      updates: Partial<AttachedContext>
+      updates: Partial<AttachedContext>,
     ) => {
       if (!currentChatId) return;
       dispatch({
         type: "SET_ATTACHED_CONTEXT",
         payload: {
           chatId: currentChatId,
-          items: attachedContext.map((c) =>
-            c.id === id ? { ...c, ...updates } : c
+          items: attachedContext.map(c =>
+            c.id === id ? { ...c, ...updates } : c,
           ),
         },
       });

@@ -191,7 +191,7 @@ const CodeBlock = React.memo(
         )}
       </Box>
     );
-  }
+  },
 );
 
 CodeBlock.displayName = "CodeBlock";
@@ -336,7 +336,7 @@ const MessageItem = React.memo(
         )}
       </ListItem>
     );
-  }
+  },
 );
 
 MessageItem.displayName = "MessageItem";
@@ -391,7 +391,7 @@ const Chat3: React.FC = () => {
       }
       try {
         const res = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`
+          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -430,7 +430,7 @@ const Chat3: React.FC = () => {
         const newId = data.chatId as string;
         // Refresh sessions list
         const sessionsRes = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats`
+          `/api/workspaces/${currentWorkspace.id}/chats`,
         );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
@@ -460,7 +460,7 @@ const Chat3: React.FC = () => {
 
   const handleDeleteSession = async (
     sessionIdToDelete: string,
-    event: React.MouseEvent
+    event: React.MouseEvent,
   ) => {
     event.stopPropagation();
     if (!currentWorkspace) return;
@@ -470,12 +470,12 @@ const Chat3: React.FC = () => {
         `/api/workspaces/${currentWorkspace.id}/chats/${sessionIdToDelete}`,
         {
           method: "DELETE",
-        }
+        },
       );
       if (res.ok) {
         // Refresh sessions list
         const sessionsRes = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats`
+          `/api/workspaces/${currentWorkspace.id}/chats`,
         );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
@@ -548,7 +548,7 @@ const Chat3: React.FC = () => {
               assistantContent += parsed.content;
               setStreamingContent(assistantContent);
             } else if (parsed.type === "step" && parsed.name) {
-              setSteps((prev) => [...prev, parsed.name]);
+              setSteps(prev => [...prev, parsed.name]);
             } else if (
               parsed.type === "session" &&
               parsed.sessionId &&
@@ -565,7 +565,7 @@ const Chat3: React.FC = () => {
 
     // After streaming is complete, add the final message to the messages array
     if (assistantContent) {
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         { role: "assistant", content: assistantContent },
       ]);
@@ -581,7 +581,7 @@ const Chat3: React.FC = () => {
     const userMessage = input.trim();
 
     // Optimistically add user message
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setMessages(prev => [...prev, { role: "user", content: userMessage }]);
     setSteps([]);
     setInput("");
     setLoading(true);
@@ -589,7 +589,7 @@ const Chat3: React.FC = () => {
     try {
       await streamResponse(userMessage);
     } catch (err: any) {
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         {
           role: "assistant",
@@ -660,11 +660,11 @@ const Chat3: React.FC = () => {
       >
         {sessions
           .filter(
-            (session) =>
+            session =>
               session._id === sessionId ||
-              (session.title && session.title.length > 0)
+              (session.title && session.title.length > 0),
           )
-          .map((session) => (
+          .map(session => (
             <MenuItem
               key={session._id}
               onClick={() => handleSelectSession(session._id)}
@@ -695,7 +695,7 @@ const Chat3: React.FC = () => {
               {sessions.length > 1 && (
                 <IconButton
                   size="small"
-                  onClick={(e) => handleDeleteSession(session._id, e)}
+                  onClick={e => handleDeleteSession(session._id, e)}
                   sx={{ ml: 1 }}
                 >
                   <DeleteIcon fontSize="small" />
@@ -768,7 +768,7 @@ const Chat3: React.FC = () => {
                           const isInline = !match;
                           const codeString = String(children).replace(
                             /\n$/,
-                            ""
+                            "",
                           );
                           return !isInline ? (
                             <CodeBlock
@@ -873,8 +873,8 @@ const Chat3: React.FC = () => {
           maxRows={6}
           placeholder="Ask Chat3..."
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               sendMessage();

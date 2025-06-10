@@ -51,7 +51,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   });
 
   const [systemTheme, setSystemTheme] = useState<"light" | "dark">(
-    getSystemTheme
+    getSystemTheme,
   );
 
   // Listen for system theme changes
@@ -239,7 +239,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           return {
             // Default (not hovered) state: thumb invisible but space reserved to avoid layout shift
             "*": {
-              scrollbarColor: `transparent transparent`,
+              scrollbarColor: "transparent transparent",
               scrollbarWidth: "thin", // Keep width constant so layout doesn't move (Firefox)
             },
             // When the element itself is hovered, show colored thumb (Firefox uses same width)

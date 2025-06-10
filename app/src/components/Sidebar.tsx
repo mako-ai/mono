@@ -26,7 +26,7 @@ import { useState } from "react";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 
 const NavButton = styled(Button, {
-  shouldForwardProp: (prop) => prop !== "isActive",
+  shouldForwardProp: prop => prop !== "isActive",
 })<{ isActive?: boolean }>(({ theme, isActive }) => ({
   minWidth: 40,
   width: 40,
@@ -66,7 +66,7 @@ function Sidebar() {
   const { activeView, setActiveView } = useAppStore();
   const { user, logout } = useAuth();
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(
-    null
+    null,
   );
   const isUserMenuOpen = Boolean(userMenuAnchorEl);
 
@@ -99,7 +99,7 @@ function Sidebar() {
         useConsoleStore.getState();
 
       const existing = findTabByKind(
-        view === "settings" ? "settings" : "sources"
+        view === "settings" ? "settings" : "sources",
       );
       if (existing) {
         setActiveConsole(existing.id);
@@ -147,7 +147,7 @@ function Sidebar() {
             alignItems: "center",
           }}
         >
-          {topNavigationItems.map((item) => {
+          {topNavigationItems.map(item => {
             const Icon = item.icon;
             const isActive = activeView === item.view;
 
@@ -181,7 +181,7 @@ function Sidebar() {
           </Tooltip>
 
           {/* Settings */}
-          {bottomNavigationItems.map((item) => {
+          {bottomNavigationItems.map(item => {
             const Icon = item.icon;
             const isActive = activeView === item.view;
 

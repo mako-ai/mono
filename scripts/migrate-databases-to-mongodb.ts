@@ -3,14 +3,19 @@ import * as yaml from "yaml";
 import * as fs from "fs";
 import * as path from "path";
 import mongoose, { Types } from "mongoose";
-import { Database, Workspace, WorkspaceMember } from "../api/src/database/workspace-schema";
+import {
+  Database,
+  Workspace,
+  WorkspaceMember,
+} from "../api/src/database/workspace-schema";
 import * as crypto from "crypto";
 
 // Load environment variables from root
 config({ path: path.join(__dirname, "../.env") });
 
 // Encryption helper (matching the one in workspace-schema.ts)
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex");
+const ENCRYPTION_KEY =
+  process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex");
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {
@@ -18,7 +23,7 @@ function encrypt(text: string): string {
   const cipher = crypto.createCipheriv(
     "aes-256-cbc",
     Buffer.from(ENCRYPTION_KEY, "hex"),
-    iv
+    iv,
   );
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
@@ -30,7 +35,13 @@ function encryptObject(obj: any): any {
   for (const key in obj) {
     if (typeof obj[key] === "string" && obj[key]) {
       // Only encrypt sensitive fields
-      const sensitiveFields = ["password", "connectionString", "privateKey", "username", "host"];
+      const sensitiveFields = [
+        "password",
+        "connectionString",
+        "privateKey",
+        "username",
+        "host",
+      ];
       if (sensitiveFields.includes(key)) {
         encrypted[key] = encrypt(obj[key]);
       } else {
@@ -125,23 +136,23 @@ async function migrate(dryRun: boolean = false) {
         settings: {
           maxDatabases: 100,
           maxMembers: 50,
-          billingTier: "pro"
-        }
+          billingTier: "pro",
+        },
       });
 
       // Add the migration user as owner
       await WorkspaceMember.create({
         workspaceId: workspace._id,
         userId: userId,
-        role: "owner"
+        role: "owner",
       });
     }
     console.log("✅ Created default workspace\n");
   } else {
     // Get the first owner of the workspace
-    const owner = await WorkspaceMember.findOne({ 
-      workspaceId: workspace._id, 
-      role: "owner" 
+    const owner = await WorkspaceMember.findOne({
+      workspaceId: workspace._id,
+      role: "owner",
     });
     if (owner) {
       userId = owner.userId;
@@ -166,7 +177,9 @@ async function migrate(dryRun: boolean = false) {
 
       try {
         // Process environment variables in connection string
-        const connectionString = processEnvironmentVariables(server.connection_string);
+        const connectionString = processEnvironmentVariables(
+          server.connection_string,
+        );
 
         // Parse connection string to extract parts
         let parsedUrl: URL;
@@ -180,9 +193,13 @@ async function migrate(dryRun: boolean = false) {
           // Handle mongodb:// and mongodb+srv:// URLs
           if (connectionString.startsWith("mongodb+srv://")) {
             // For SRV connections, we'll store the full connection string
-            parsedUrl = new URL(connectionString.replace("mongodb+srv://", "https://"));
+            parsedUrl = new URL(
+              connectionString.replace("mongodb+srv://", "https://"),
+            );
           } else {
-            parsedUrl = new URL(connectionString.replace("mongodb://", "https://"));
+            parsedUrl = new URL(
+              connectionString.replace("mongodb://", "https://"),
+            );
           }
 
           username = parsedUrl.username || undefined;
@@ -192,10 +209,13 @@ async function migrate(dryRun: boolean = false) {
 
           // Extract database from pathname if present
           if (parsedUrl.pathname && parsedUrl.pathname !== "/") {
-            databaseName = parsedUrl.pathname.substring(1).split("?")[0] || databaseName;
+            databaseName =
+              parsedUrl.pathname.substring(1).split("?")[0] || databaseName;
           }
         } catch (error) {
-          console.warn("    ⚠️  Could not parse connection string, storing as-is");
+          console.warn(
+            "    ⚠️  Could not parse connection string, storing as-is",
+          );
         }
 
         // Prepare connection object
@@ -204,7 +224,10 @@ async function migrate(dryRun: boolean = false) {
         };
 
         // For mongodb+srv or complex connection strings, store the full string
-        if (connectionString.startsWith("mongodb+srv://") || connectionString.includes("replicaSet")) {
+        if (
+          connectionString.startsWith("mongodb+srv://") ||
+          connectionString.includes("replicaSet")
+        ) {
           connection.connectionString = connectionString;
         } else {
           // Store individual connection parameters
@@ -234,14 +257,16 @@ async function migrate(dryRun: boolean = false) {
           console.log(`       Name: ${dbName}`);
           console.log(`       Type: mongodb`);
           console.log(`       Database: ${databaseName}`);
-          console.log(`       Connection: ${connectionString.includes("mongodb+srv") ? "SRV" : "Standard"}`);
+          console.log(
+            `       Connection: ${connectionString.includes("mongodb+srv") ? "SRV" : "Standard"}`,
+          );
           results.push({ name: dbName, status: "Would create" });
         } else {
           // Check if database already exists
           const existing = await Database.findOne({
             workspaceId: workspace!._id,
             name: dbName,
-            type: "mongodb"
+            type: "mongodb",
           });
 
           if (existing) {
@@ -252,7 +277,7 @@ async function migrate(dryRun: boolean = false) {
 
           // Create the database document with encrypted connection details
           const encryptedConnection = encryptObject(connection);
-          
+
           await Database.create({
             workspaceId: workspace!._id,
             name: dbName,
@@ -260,7 +285,7 @@ async function migrate(dryRun: boolean = false) {
             connection: encryptedConnection,
             createdBy: userId,
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
           });
 
           console.log(`    ✅ Successfully migrated`);
@@ -269,10 +294,10 @@ async function migrate(dryRun: boolean = false) {
         }
       } catch (error) {
         console.error(`    ❌ Failed to migrate:`, error);
-        results.push({ 
-          name: dbName, 
-          status: "Failed", 
-          error: error instanceof Error ? error.message : String(error) 
+        results.push({
+          name: dbName,
+          status: "Failed",
+          error: error instanceof Error ? error.message : String(error),
         });
         failed++;
       }
@@ -283,12 +308,14 @@ async function migrate(dryRun: boolean = false) {
   console.log("\n" + "=".repeat(60));
   console.log("📊 Migration Summary");
   console.log("=".repeat(60));
-  
+
   if (dryRun) {
     console.log("\n🔍 DRY RUN MODE - No changes were made\n");
   }
 
-  console.log(`Workspace: ${workspace?.name || "Default Workspace"} (${workspace?._id || "to be created"})`);
+  console.log(
+    `Workspace: ${workspace?.name || "Default Workspace"} (${workspace?._id || "to be created"})`,
+  );
   console.log(`Total databases found: ${results.length}`);
   if (!dryRun) {
     console.log(`Successfully migrated: ${migrated}`);
@@ -297,9 +324,14 @@ async function migrate(dryRun: boolean = false) {
 
   console.log("\nDetails:");
   results.forEach(result => {
-    const icon = result.status === "Migrated" ? "✅" : 
-                 result.status === "Failed" ? "❌" : 
-                 result.status === "Already exists" ? "⚠️" : "ℹ️";
+    const icon =
+      result.status === "Migrated"
+        ? "✅"
+        : result.status === "Failed"
+          ? "❌"
+          : result.status === "Already exists"
+            ? "⚠️"
+            : "ℹ️";
     console.log(`  ${icon} ${result.name}: ${result.status}`);
     if (result.error) {
       console.log(`     Error: ${result.error}`);

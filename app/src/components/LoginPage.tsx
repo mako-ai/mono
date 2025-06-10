@@ -1,4 +1,4 @@
-import React, { useState, FormEvent } from "react";
+import { useState, FormEvent } from "react";
 import {
   Box,
   Paper,
@@ -106,7 +106,7 @@ export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
             label="Email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             error={!!formErrors.email}
             helperText={formErrors.email}
             margin="normal"
@@ -120,7 +120,7 @@ export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
             label="Password"
             type={showPassword ? "text" : "password"}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             error={!!formErrors.password}
             helperText={formErrors.password}
             margin="normal"
@@ -186,7 +186,7 @@ export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
             <Link
               component="button"
               variant="body2"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 onSwitchToRegister();
               }}

@@ -236,7 +236,7 @@ export class ConsoleManager {
       description?: string;
       language?: "sql" | "javascript" | "mongodb";
       isPrivate?: boolean;
-    }
+    },
   ): Promise<ISavedConsole> {
     try {
       const parts = consolePath.split("/");
@@ -251,7 +251,7 @@ export class ConsoleManager {
         folderId = await this.ensureFolderPath(
           folderParts,
           workspaceId,
-          userId
+          userId,
         );
       }
 
@@ -268,11 +268,13 @@ export class ConsoleManager {
         // Update existing console
         console.code = content;
         console.updatedAt = new Date();
-        if (options?.description !== undefined)
+        if (options?.description !== undefined) {
           console.description = options.description;
+        }
         if (options?.language) console.language = options.language;
-        if (options?.isPrivate !== undefined)
+        if (options?.isPrivate !== undefined) {
           console.isPrivate = options.isPrivate;
+        }
 
         await console.save();
       } else {
@@ -308,7 +310,7 @@ export class ConsoleManager {
     workspaceId: string,
     userId: string,
     parentId?: string,
-    isPrivate: boolean = false
+    isPrivate: boolean = false,
   ): Promise<IConsoleFolder> {
     const folder = new ConsoleFolder({
       workspaceId: new Types.ObjectId(workspaceId),
@@ -328,7 +330,7 @@ export class ConsoleManager {
     consoleId: string,
     newName: string,
     workspaceId: string,
-    userId: string
+    userId: string,
   ): Promise<boolean> {
     try {
       // Parse the new name for potential folder path
@@ -343,7 +345,7 @@ export class ConsoleManager {
         folderId = await this.ensureFolderPath(
           folderParts,
           workspaceId,
-          userId
+          userId,
         );
       }
 
@@ -364,7 +366,7 @@ export class ConsoleManager {
         },
         {
           $set: updateFields,
-        }
+        },
       );
 
       return result.modifiedCount > 0;
@@ -379,7 +381,7 @@ export class ConsoleManager {
    */
   async deleteConsole(
     consoleId: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<boolean> {
     try {
       const result = await SavedConsole.deleteOne({
@@ -400,7 +402,7 @@ export class ConsoleManager {
   async renameFolder(
     folderId: string,
     newName: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<boolean> {
     try {
       const result = await ConsoleFolder.updateOne(
@@ -413,7 +415,7 @@ export class ConsoleManager {
             name: newName,
             updatedAt: new Date(),
           },
-        }
+        },
       );
 
       return result.modifiedCount > 0;
@@ -462,7 +464,7 @@ export class ConsoleManager {
    */
   async consoleExists(
     consolePath: string,
-    workspaceId?: string
+    workspaceId?: string,
   ): Promise<boolean> {
     try {
       if (workspaceId) {
@@ -497,7 +499,7 @@ export class ConsoleManager {
    */
   async updateExecutionStats(
     consoleId: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<void> {
     try {
       await SavedConsole.updateOne(
@@ -508,7 +510,7 @@ export class ConsoleManager {
         {
           $inc: { executionCount: 1 },
           $set: { lastExecutedAt: new Date() },
-        }
+        },
       );
     } catch (error) {
       console.error("Error updating execution stats:", error);
@@ -522,7 +524,7 @@ export class ConsoleManager {
   private async ensureFolderPath(
     folderParts: string[],
     workspaceId: string,
-    userId: string
+    userId: string,
   ): Promise<string | undefined> {
     if (folderParts.length === 0) {
       return undefined;
@@ -547,7 +549,7 @@ export class ConsoleManager {
           workspaceId,
           userId,
           currentParentId,
-          false // Default to not private
+          false, // Default to not private
         );
       }
 
@@ -648,7 +650,7 @@ export class ConsoleManager {
    */
   private getFolderPath(
     folderId: string,
-    folderMap: Map<string, ConsoleFile>
+    folderMap: Map<string, ConsoleFile>,
   ): string {
     const folder = folderMap.get(folderId);
     if (!folder) return "";

@@ -23,7 +23,7 @@ function encrypt(text: string): string {
   const cipher = crypto.createCipheriv(
     "aes-256-cbc",
     Buffer.from(getEncryptionKey(), "hex"),
-    iv
+    iv,
   );
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
@@ -37,7 +37,7 @@ function decrypt(text: string): string {
   const decipher = crypto.createDecipheriv(
     "aes-256-cbc",
     Buffer.from(getEncryptionKey(), "hex"),
-    iv
+    iv,
   );
   let decrypted = decipher.update(encryptedText);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
@@ -267,7 +267,7 @@ const WorkspaceSchema = new Schema<IWorkspace>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes
@@ -386,7 +386,7 @@ const DatabaseSchema = new Schema<IDatabase>(
     timestamps: true,
     toJSON: { getters: true },
     toObject: { getters: true },
-  }
+  },
 );
 
 // Indexes
@@ -439,7 +439,7 @@ const DataSourceSchema = new Schema<IDataSource>(
     timestamps: { createdAt: true, updatedAt: false },
     toJSON: { getters: true },
     toObject: { getters: true },
-  }
+  },
 );
 
 // Indexes
@@ -476,7 +476,7 @@ const ConsoleFolderSchema = new Schema<IConsoleFolder>(
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
-  }
+  },
 );
 
 // Indexes
@@ -555,7 +555,7 @@ const SavedConsoleSchema = new Schema<ISavedConsole>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes
@@ -603,7 +603,7 @@ const ChatSchema = new Schema<IChat>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes
@@ -613,27 +613,27 @@ ChatSchema.index({ workspaceId: 1, title: 1 });
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
   "Workspace",
-  WorkspaceSchema
+  WorkspaceSchema,
 );
 export const WorkspaceMember = mongoose.model<IWorkspaceMember>(
   "WorkspaceMember",
-  WorkspaceMemberSchema
+  WorkspaceMemberSchema,
 );
 export const WorkspaceInvite = mongoose.model<IWorkspaceInvite>(
   "WorkspaceInvite",
-  WorkspaceInviteSchema
+  WorkspaceInviteSchema,
 );
 export const Database = mongoose.model<IDatabase>("Database", DatabaseSchema);
 export const DataSource = mongoose.model<IDataSource>(
   "DataSource",
-  DataSourceSchema
+  DataSourceSchema,
 );
 export const ConsoleFolder = mongoose.model<IConsoleFolder>(
   "ConsoleFolder",
-  ConsoleFolderSchema
+  ConsoleFolderSchema,
 );
 export const SavedConsole = mongoose.model<ISavedConsole>(
   "SavedConsole",
-  SavedConsoleSchema
+  SavedConsoleSchema,
 );
 export const Chat = mongoose.model<IChat>("Chat", ChatSchema);

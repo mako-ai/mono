@@ -41,7 +41,7 @@ export class ProgressReporter {
     if (this.totalRecords > 0) {
       // We know the total, show full progress
       const percentage = Math.floor(
-        (this.currentRecords / this.totalRecords) * 100
+        (this.currentRecords / this.totalRecords) * 100,
       );
       const progressBar = this.createProgressBar(percentage);
 
@@ -51,12 +51,12 @@ export class ProgressReporter {
       const remainingStr = this.formatTime(remaining);
 
       process.stdout.write(
-        `\r🟢 Syncing ${this.entityName}: ${progressBar} ${percentage}% (${this.currentRecords.toLocaleString()}/${this.totalRecords.toLocaleString()}) | ⏱️  ${elapsedStr} elapsed | 🕒 ${remainingStr} left`
+        `\r🟢 Syncing ${this.entityName}: ${progressBar} ${percentage}% (${this.currentRecords.toLocaleString()}/${this.totalRecords.toLocaleString()}) | ⏱️  ${elapsedStr} elapsed | 🕒 ${remainingStr} left`,
       );
     } else {
       // We don't know the total, show records fetched
       process.stdout.write(
-        `\r🟢 Syncing ${this.entityName}: ${this.currentRecords.toLocaleString()} records fetched | ⏱️  ${elapsedStr} elapsed`
+        `\r🟢 Syncing ${this.entityName}: ${this.currentRecords.toLocaleString()} records fetched | ⏱️  ${elapsedStr} elapsed`,
       );
     }
   }
@@ -130,7 +130,7 @@ async function main() {
   const validation = dataSourceManager.validateConfig();
   if (!validation.valid) {
     console.error("Configuration validation failed:");
-    validation.errors.forEach((error) => console.error(`  - ${error}`));
+    validation.errors.forEach(error => console.error(`  - ${error}`));
     process.exit(1);
   }
 
@@ -140,9 +140,7 @@ async function main() {
     console.error(`❌ Data source '${dataSourceId}' not found`);
     console.log("\nAvailable data sources:");
     const allSources = dataSourceManager.getActiveDataSources();
-    allSources.forEach((s) =>
-      console.log(`  - ${s.id}: ${s.name} (${s.type})`)
-    );
+    allSources.forEach(s => console.log(`  - ${s.id}: ${s.name} (${s.type})`));
     process.exit(1);
   }
 
@@ -157,7 +155,7 @@ async function main() {
     console.error(`❌ Destination database '${destination}' not found`);
     console.log("\nAvailable MongoDB destinations:");
     const databases = dataSourceManager.listMongoDBDatabases();
-    databases.forEach((db) => console.log(`  - ${db}`));
+    databases.forEach(db => console.log(`  - ${db}`));
     process.exit(1);
   }
 
@@ -174,12 +172,12 @@ async function main() {
       break;
     case "mongodb":
       console.error(
-        `❌ MongoDB data sources cannot be synced (they are sync targets)`
+        "❌ MongoDB data sources cannot be synced (they are sync targets)",
       );
       process.exit(1);
     default:
       console.error(
-        `❌ Sync not implemented for source type: ${dataSource.type}`
+        `❌ Sync not implemented for source type: ${dataSource.type}`,
       );
       process.exit(1);
   }
@@ -191,7 +189,7 @@ async function main() {
 async function syncClose(
   dataSource: any,
   entity?: string,
-  targetDbId?: string
+  targetDbId?: string,
 ) {
   const syncService = new CloseSyncService(dataSource);
 
@@ -241,7 +239,7 @@ async function syncClose(
 async function syncStripe(
   dataSource: any,
   entity?: string,
-  targetDbId?: string
+  targetDbId?: string,
 ) {
   const syncService = new StripeSyncService(dataSource);
 
@@ -291,7 +289,7 @@ async function syncStripe(
 async function syncGraphQL(
   dataSource: any,
   entity?: string,
-  targetDbId?: string
+  targetDbId?: string,
 ) {
   const syncService = new GraphQLSyncService(dataSource);
 
@@ -305,13 +303,13 @@ async function syncGraphQL(
   // For GraphQL, we need to find the query configuration for the specified entity
   const queries = dataSource.connection.queries || [];
   const queryConfig = queries.find(
-    (q: any) => q.name.toLowerCase() === entity.toLowerCase()
+    (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
   );
 
   if (!queryConfig) {
     console.error(`❌ Unknown entity '${entity}' for GraphQL source`);
     console.log(
-      `Available entities: ${queries.map((q: any) => q.name).join(", ")}`
+      `Available entities: ${queries.map((q: any) => q.name).join(", ")}`,
     );
     process.exit(1);
   }
@@ -343,14 +341,14 @@ Available entities by source type:
 Available MongoDB destinations:
 ${dataSourceManager
   .listMongoDBDatabases()
-  .map((db) => `  - ${db}`)
+  .map(db => `  - ${db}`)
   .join("\n")}
 `);
 }
 
 // Execute
 if (require.main === module) {
-  main().catch((error) => {
+  main().catch(error => {
     console.error("Fatal error:", error);
     process.exit(1);
   });
