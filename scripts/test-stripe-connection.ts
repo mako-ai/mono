@@ -23,7 +23,7 @@ async function testStripeConnection() {
 
   console.log(`Testing connection for: ${stripeSpain.name}`);
   console.log(
-    `API key prefix: ${stripeSpain.connection.api_key.substring(0, 10)}...`
+    `API key prefix: ${stripeSpain.connection.api_key.substring(0, 10)}...`,
   );
 
   try {
@@ -41,7 +41,7 @@ async function testStripeConnection() {
     });
 
     console.log(
-      `✅ Success! Found ${subscriptions.data.length} subscription(s)`
+      `✅ Success! Found ${subscriptions.data.length} subscription(s)`,
     );
     console.log(`Has more: ${subscriptions.has_more}`);
 
@@ -61,7 +61,7 @@ async function testStripeConnection() {
         console.error("1. The API key is invalid");
         console.error("2. The API key doesn't have the required permissions");
         console.error(
-          "3. The API key is for the wrong environment (test vs live)"
+          "3. The API key is for the wrong environment (test vs live)",
         );
       }
     } else {

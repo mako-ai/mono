@@ -7,6 +7,7 @@ This document provides a complete guide to the authentication system implemented
 The authentication system consists of:
 
 ### Backend (API)
+
 - **Lucia Auth**: Session management library
 - **Arctic**: OAuth provider integration (Google & GitHub)
 - **MongoDB**: Database for users, sessions, and OAuth accounts
@@ -15,6 +16,7 @@ The authentication system consists of:
 - **Rate limiting**: Protection against brute force attacks
 
 ### Frontend (App)
+
 - **Auth Context**: React context for state management
 - **Auth Client**: API wrapper for authentication endpoints
 - **Protected Routes**: Component for route protection
@@ -88,6 +90,7 @@ RATE_LIMIT_MAX_REQUESTS=5
 ### 2. OAuth Provider Setup
 
 #### Google OAuth Setup
+
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing
 3. Enable Google+ API
@@ -96,6 +99,7 @@ RATE_LIMIT_MAX_REQUESTS=5
 6. Copy Client ID and Client Secret to `.env`
 
 #### GitHub OAuth Setup
+
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Create a new OAuth App
 3. Set Authorization callback URL: `http://localhost:8080/api/auth/github/callback`
@@ -132,21 +136,17 @@ pnpm dev
 In your main app component:
 
 ```tsx
-import { AuthProvider } from './contexts/auth-context';
+import { AuthProvider } from "./contexts/auth-context";
 
 function App() {
-  return (
-    <AuthProvider>
-      {/* Your app components */}
-    </AuthProvider>
-  );
+  return <AuthProvider>{/* Your app components */}</AuthProvider>;
 }
 ```
 
 #### 2. Use Authentication in Components
 
 ```tsx
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from "./hooks/useAuth";
 
 function LoginPage() {
   const { login, loginWithOAuth, error, loading } = useAuth();
@@ -165,7 +165,7 @@ function LoginPage() {
     <form onSubmit={handleLogin}>
       {error && <Alert severity="error">{error}</Alert>}
       {/* Form fields */}
-      <Button onClick={() => loginWithOAuth('google')}>
+      <Button onClick={() => loginWithOAuth("google")}>
         Login with Google
       </Button>
     </form>
@@ -176,7 +176,7 @@ function LoginPage() {
 #### 3. Protect Routes
 
 ```tsx
-import { ProtectedRoute } from './components/ProtectedRoute';
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function AppRoutes() {
   return (
@@ -199,11 +199,11 @@ function AppRoutes() {
 #### 4. Use API Client for Authenticated Requests
 
 ```tsx
-import { apiClient } from './lib/api-client';
+import { apiClient } from "./lib/api-client";
 
 // All requests automatically include authentication
 const fetchUserData = async () => {
-  const data = await apiClient.get('/user/profile');
+  const data = await apiClient.get("/user/profile");
   return data;
 };
 ```
@@ -213,20 +213,20 @@ const fetchUserData = async () => {
 #### 1. Protect API Routes
 
 ```ts
-import { authMiddleware } from './auth/auth.middleware';
+import { authMiddleware } from "./auth/auth.middleware";
 
 // Require authentication
-app.get('/api/protected', authMiddleware, (c) => {
-  const user = c.get('user');
-  return c.json({ message: 'Protected data', userId: user.id });
+app.get("/api/protected", authMiddleware, c => {
+  const user = c.get("user");
+  return c.json({ message: "Protected data", userId: user.id });
 });
 
 // Optional authentication
-app.get('/api/public', optionalAuthMiddleware, (c) => {
-  const user = c.get('user');
-  return c.json({ 
-    message: 'Public data',
-    authenticated: !!user 
+app.get("/api/public", optionalAuthMiddleware, c => {
+  const user = c.get("user");
+  return c.json({
+    message: "Public data",
+    authenticated: !!user,
   });
 });
 ```
@@ -234,15 +234,15 @@ app.get('/api/public', optionalAuthMiddleware, (c) => {
 #### 2. Access User in Routes
 
 ```ts
-app.get('/api/user/profile', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const session = c.get('session');
-  
+app.get("/api/user/profile", authMiddleware, async c => {
+  const user = c.get("user");
+  const session = c.get("session");
+
   // User is guaranteed to exist after authMiddleware
   return c.json({
     id: user.id,
     email: user.attributes.email,
-    sessionExpiresAt: session.expiresAt
+    sessionExpiresAt: session.expiresAt,
   });
 });
 ```
@@ -251,21 +251,22 @@ app.get('/api/user/profile', authMiddleware, async (c) => {
 
 ### Authentication Endpoints
 
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|---------------|
-| POST | `/api/auth/register` | Register new user | No |
-| POST | `/api/auth/login` | Login with email/password | No |
-| POST | `/api/auth/logout` | Logout user | Yes |
-| GET | `/api/auth/me` | Get current user | Yes |
-| POST | `/api/auth/refresh` | Refresh session | No |
-| GET | `/api/auth/google` | Initiate Google OAuth | No |
-| GET | `/api/auth/google/callback` | Google OAuth callback | No |
-| GET | `/api/auth/github` | Initiate GitHub OAuth | No |
-| GET | `/api/auth/github/callback` | GitHub OAuth callback | No |
+| Method | Endpoint                    | Description               | Auth Required |
+| ------ | --------------------------- | ------------------------- | ------------- |
+| POST   | `/api/auth/register`        | Register new user         | No            |
+| POST   | `/api/auth/login`           | Login with email/password | No            |
+| POST   | `/api/auth/logout`          | Logout user               | Yes           |
+| GET    | `/api/auth/me`              | Get current user          | Yes           |
+| POST   | `/api/auth/refresh`         | Refresh session           | No            |
+| GET    | `/api/auth/google`          | Initiate Google OAuth     | No            |
+| GET    | `/api/auth/google/callback` | Google OAuth callback     | No            |
+| GET    | `/api/auth/github`          | Initiate GitHub OAuth     | No            |
+| GET    | `/api/auth/github/callback` | GitHub OAuth callback     | No            |
 
 ### Request/Response Examples
 
 #### Register
+
 ```bash
 POST /api/auth/register
 Content-Type: application/json
@@ -286,6 +287,7 @@ Response:
 ```
 
 #### Login
+
 ```bash
 POST /api/auth/login
 Content-Type: application/json
@@ -308,11 +310,13 @@ Response:
 ## Security Features
 
 ### Password Security
+
 - Passwords hashed with bcrypt (configurable rounds)
 - Minimum 8 character requirement
 - Salted hashes stored in database
 
 ### Session Security
+
 - HTTP-only cookies prevent XSS attacks
 - SameSite=lax prevents CSRF
 - Secure flag in production
@@ -320,11 +324,13 @@ Response:
 - Session invalidation on logout
 
 ### Rate Limiting
+
 - Configurable window and max requests
 - Per-endpoint + IP-based limiting
 - Prevents brute force attacks
 
 ### OAuth Security
+
 - State parameter prevents CSRF
 - PKCE flow for Google OAuth
 - Secure token exchange
@@ -334,13 +340,14 @@ Response:
 ### Adding New OAuth Providers
 
 1. Install the provider in Arctic:
+
 ```ts
-import { Facebook } from 'arctic';
+import { Facebook } from "arctic";
 
 export const facebook = new Facebook(
   process.env.FACEBOOK_APP_ID!,
   process.env.FACEBOOK_APP_SECRET!,
-  `${process.env.BASE_URL}/api/auth/facebook/callback`
+  `${process.env.BASE_URL}/api/auth/facebook/callback`,
 );
 ```
 
@@ -350,6 +357,7 @@ export const facebook = new Facebook(
 ### Customizing Session Duration
 
 Update the `.env` file:
+
 ```env
 SESSION_DURATION=3600000  # 1 hour in milliseconds
 ```
@@ -365,14 +373,17 @@ SESSION_DURATION=3600000  # 1 hour in milliseconds
 ### Common Issues
 
 1. **"Cannot connect to MongoDB"**
+
    - Ensure MongoDB is running
    - Check DATABASE_URL in .env
 
 2. **OAuth redirect errors**
+
    - Verify redirect URIs match in provider console
    - Check BASE_URL and CLIENT_URL
 
 3. **Session not persisting**
+
    - Check cookie settings in browser
    - Ensure credentials: 'include' in fetch
 
@@ -383,16 +394,19 @@ SESSION_DURATION=3600000  # 1 hour in milliseconds
 ## Production Considerations
 
 1. **Environment Variables**
+
    - Use strong SESSION_SECRET (min 32 chars)
    - Set NODE_ENV=production
    - Use HTTPS URLs
 
 2. **Database**
+
    - Add indexes for performance
    - Implement session cleanup job
    - Consider Redis for sessions at scale
 
 3. **Security**
+
    - Enable secure cookies
    - Implement CORS properly
    - Add request validation
@@ -410,6 +424,7 @@ See `AUTH_TESTING_CHECKLIST.md` for comprehensive manual testing instructions.
 ## Support
 
 For issues or questions:
+
 1. Check the troubleshooting section
 2. Review the test checklist
 3. Examine server logs for errors

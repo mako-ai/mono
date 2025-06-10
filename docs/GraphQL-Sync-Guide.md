@@ -99,7 +99,7 @@ const syncService = new GraphQLSyncService(dataSource);
 await syncService.syncAll("atlas.revops");
 
 // Sync specific entity
-const userQuery = dataSource.connection.queries.find((q) => q.name === "users");
+const userQuery = dataSource.connection.queries.find(q => q.name === "users");
 await syncService.syncEntity(userQuery, "atlas.revops");
 ```
 
