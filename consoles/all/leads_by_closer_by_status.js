@@ -2,7 +2,7 @@ db.switzerland_close_leads.aggregate([
   // 0) union with italy_close_leads to combine both collections
   {
     $unionWith: {
-      coll: "italy_close_leads",
+      coll: 'italy_close_leads',
     },
   },
 
@@ -10,8 +10,8 @@ db.switzerland_close_leads.aggregate([
   {
     $group: {
       _id: {
-        owner: "$custom.Lead Owner",
-        status: "$status_label",
+        owner: '$custom.Lead Owner',
+        status: '$status_label',
       },
       count: { $sum: 1 },
     },
@@ -20,11 +20,11 @@ db.switzerland_close_leads.aggregate([
   // 2) regroup by owner: build an array of {k,v} pairs + total
   {
     $group: {
-      _id: "$_id.owner",
+      _id: '$_id.owner',
       statuses: {
-        $push: { k: "$_id.status", v: "$count" },
+        $push: { k: '$_id.status', v: '$count' },
       },
-      total: { $sum: "$count" },
+      total: { $sum: '$count' },
     },
   },
 
@@ -33,9 +33,9 @@ db.switzerland_close_leads.aggregate([
     $replaceRoot: {
       newRoot: {
         $mergeObjects: [
-          { lead_owner: "$_id" },
-          { $arrayToObject: "$statuses" },
-          { "total (all status)": "$total" },
+          { lead_owner: '$_id' },
+          { $arrayToObject: '$statuses' },
+          { 'total (all status)': '$total' },
         ],
       },
     },
@@ -43,6 +43,6 @@ db.switzerland_close_leads.aggregate([
 
   // 4) final sort by total descending
   {
-    $sort: { "total (all status)": -1 },
+    $sort: { 'total (all status)': -1 },
   },
 ]);
