@@ -19,6 +19,13 @@ RUN pnpm run api:build
 FROM node:20-slim
 WORKDIR /app
 
+# Install build tools needed for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install pnpm in production too (this layer will be cached)
 RUN npm install -g pnpm
 
@@ -26,8 +33,9 @@ RUN npm install -g pnpm
 COPY --from=builder /app/api/package.json ./package.json
 COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 
-# Install production dependencies
+# Install production dependencies and rebuild native modules
 RUN pnpm install --prod
+RUN cd node_modules/.pnpm/sqlite3@*/node_modules/sqlite3 && npm run install --target_platform=linux --target_arch=x64
 
 # Copy built files
 COPY --from=builder /app/api/dist ./dist
