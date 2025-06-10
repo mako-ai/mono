@@ -175,6 +175,7 @@ async function main() {
         "❌ MongoDB data sources cannot be synced (they are sync targets)",
       );
       process.exit(1);
+      break;
     default:
       console.error(
         `❌ Sync not implemented for source type: ${dataSource.type}`,
