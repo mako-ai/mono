@@ -300,13 +300,16 @@ const createDbAgent = (workspaceId: string) =>
   1. Decide which database to use (only one!)
   2. Decide which collections to use (one or several)
   3. Inspect the collections to understand the schema
-  4. Write a MongoDB query to answer the question
-  5. Test the query by executing it and reading results
+  4. Write a MongoDB query to answer the question, be careful not to return too many results.
+  5. Test the query by executing it and reading results, unless instructed otherwise.
   6. Send the query back to the user in the chat.
   If you aren't sure, ask clarifying questions before proceeding.
 
-  Always send the full query back to the user, but always test it yourself first.
-  Always add a comment at the top of the query with the database to be used
+  Always send the full query back to the user, but always test it yourself first, unless instructed otherwise.
+  Always wrap your code in a markdown code block with the language set to "javascript" or "json" depending on which it is.
+  Always add a comment at the top of the query with the database to be used.
+  Always add a limit to the query to avoid returning too many results (500 is a good default).
+  When doing markdown tables, make sure that they are valid and that there is enough newlines before and after the table.
   When responding, prefer concise, clear explanations.
   The available tools are:
     - list_databases: List all active MongoDB databases that the system knows about.
