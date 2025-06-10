@@ -1,25 +1,13 @@
 import axios, { AxiosError } from "axios";
 import { MongoClient, Db } from "mongodb";
 import * as dotenv from "dotenv";
-import { dataSourceManager } from "./data-source-manager";
-import type { DataSourceConfig } from "./data-source-manager";
+import {
+  dataSourceManager,
+  type DataSourceConfig,
+} from "./data-source-manager";
 import type { ProgressReporter } from "./sync";
 
 dotenv.config();
-
-interface CloseApiResponse {
-  data: any[];
-  has_more: boolean;
-  total_results?: number;
-}
-
-interface SyncStats {
-  totalRecords: number;
-  batchesProcessed: number;
-  errors: number;
-  startTime: Date;
-  endTime?: Date;
-}
 
 class CloseSyncService {
   private mongoConnections: Map<string, { client: MongoClient; db: Db }> =

@@ -1,19 +1,13 @@
 import Stripe from "stripe";
-import { MongoClient, Db, Collection } from "mongodb";
-import { dataSourceManager } from "./data-source-manager";
-import type { DataSourceConfig } from "./data-source-manager";
+import { MongoClient, Db } from "mongodb";
+import {
+  dataSourceManager,
+  type DataSourceConfig,
+} from "./data-source-manager";
 import type { ProgressReporter } from "./sync";
 import * as dotenv from "dotenv";
 
 dotenv.config();
-
-interface SyncStats {
-  totalRecords: number;
-  batchesProcessed: number;
-  errors: number;
-  startTime: Date;
-  endTime?: Date;
-}
 
 class StripeSyncService {
   private stripe: Stripe;

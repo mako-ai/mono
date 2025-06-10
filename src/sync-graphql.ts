@@ -230,7 +230,6 @@ class GraphQLSyncService {
     let hasMore = true;
     let cursor: string | null = null;
     let offset = 0;
-    let page = 0;
 
     // Determine pagination type based on query
     const usesCursorPagination =
@@ -289,8 +288,6 @@ class GraphQLSyncService {
     }
 
     while (hasMore) {
-      page++;
-
       // Build query variables based on pagination type
       let variables: any = {
         ...queryConfig.variables,

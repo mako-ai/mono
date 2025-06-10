@@ -1,9 +1,20 @@
+#!/bin/bash
+
+# Exit on any error
+set -e
+
 source .env
 
 # Override environment variables for production deployment
 export BASE_URL="https://revops.realadvisor.com"
 export CLIENT_URL="https://revops.realadvisor.com"  
 export VITE_API_URL="https://revops.realadvisor.com/api"
+
+# Run eslint before building - fail on errors, allow warnings
+echo "Running ESLint checks..."
+pnpm run lint
+
+echo "ESLint checks passed. Proceeding with build..."
 
 # Configure Docker authentication for Artifact Registry (only do this once)
 # gcloud auth configure-docker $REGION-docker.pkg.dev
@@ -14,7 +25,13 @@ export VITE_API_URL="https://revops.realadvisor.com/api"
 #   --location=$REGION
 
 # Rebuild and redeploy (explicitly build for linux/amd64 platform)
-docker build --platform linux/amd64 -t $IMAGE_NAME:latest .
+echo "Building Docker image..."
+if ! docker build --platform linux/amd64 -t $IMAGE_NAME:latest .; then
+    echo "❌ Docker build failed!"
+    exit 1
+fi
+
+echo "Tagging and pushing Docker image..."
 docker tag $IMAGE_NAME:latest $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest
 docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest
 

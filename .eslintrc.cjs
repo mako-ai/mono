@@ -45,19 +45,7 @@ module.exports = {
     'no-process-exit': 'off', // CLI tools may need process.exit
     'no-path-concat': 'error',
     
-    // Code style
-    'semi': ['error', 'always'],
-    'quotes': ['error', 'double', { 'avoidEscape': true }],
-    'comma-dangle': ['error', 'always-multiline'],
-    'indent': ['error', 2, { 'SwitchCase': 1 }],
-    'object-curly-spacing': ['error', 'always'],
-    'array-bracket-spacing': ['error', 'never'],
-    'arrow-spacing': ['error', { 'before': true, 'after': true }],
-    'key-spacing': ['error', { 'beforeColon': false, 'afterColon': true }],
-    'space-before-function-paren': ['error', {
-      'anonymous': 'always',
-      'named': 'never',
-      'asyncArrow': 'always'
-    }],
+    // Code style - handled by Prettier
+    // Removed formatting rules to avoid conflicts with Prettier
   },
 };
