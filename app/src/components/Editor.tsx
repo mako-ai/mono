@@ -16,7 +16,6 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon, Add as AddIcon } from "@mui/icons-material";
 import { SquareTerminal as ConsoleIcon } from "lucide-react";
-// @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
@@ -336,6 +335,10 @@ function Editor() {
                       <span
                         style={{
                           fontStyle: tab.isDirty ? "normal" : "italic",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          maxWidth: "150px",
                         }}
                         onDoubleClick={e => {
                           e.stopPropagation();
