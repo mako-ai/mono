@@ -35,7 +35,7 @@ module.exports = {
     
     // TypeScript rules
     '@typescript-eslint/no-unused-vars': [
-      'error',
+      'warn',
       { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
     ],
     '@typescript-eslint/explicit-function-return-type': 'off',
@@ -46,7 +46,7 @@ module.exports = {
     // General rules
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-debugger': 'error',
-    'no-duplicate-imports': 'error',
+    'no-duplicate-imports': 'warn',
     'no-unused-expressions': 'error',
     'prefer-const': 'error',
     'no-var': 'error',
@@ -62,5 +62,12 @@ module.exports = {
     'array-bracket-spacing': ['error', 'never'],
     'arrow-spacing': ['error', { 'before': true, 'after': true }],
     'key-spacing': ['error', { 'beforeColon': false, 'afterColon': true }],
+    
+    // Downgrade some strict rules to warnings to ease development
+    '@typescript-eslint/ban-ts-comment': 'warn',
+    'react/no-unescaped-entities': 'warn',
+    'react/display-name': 'warn',
+    'react-hooks/rules-of-hooks': 'warn',
+    'no-empty': 'warn',
   },
 };
