@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -25,22 +25,22 @@ import {
   TableHead,
   TableRow,
   Paper,
-} from "@mui/material";
+} from '@mui/material';
 import {
   PersonAdd,
   Delete,
   Email,
   ContentCopy,
   Close,
-} from "@mui/icons-material";
-import { useWorkspace } from "../contexts/workspace-context";
-import { useAuth } from "../contexts/auth-context";
+} from '@mui/icons-material';
+import { useWorkspace } from '../contexts/workspace-context';
+import { useAuth } from '../contexts/auth-context';
 
 interface MemberRow {
   id: string;
   email: string;
   role: string;
-  status: "active" | "pending";
+  status: 'active' | 'pending';
   joinedAt?: string;
   expiresAt?: string;
   userId?: string;
@@ -60,9 +60,9 @@ export function WorkspaceMembers() {
   } = useWorkspace();
 
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "member" | "viewer">(
-    "member"
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'member' | 'viewer'>(
+    'member',
   );
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +70,7 @@ export function WorkspaceMembers() {
 
   const handleInviteMember = async () => {
     if (!inviteEmail.trim()) {
-      setError("Email is required");
+      setError('Email is required');
       return;
     }
 
@@ -80,12 +80,12 @@ export function WorkspaceMembers() {
     try {
       await inviteMember({ email: inviteEmail.trim(), role: inviteRole });
       setInviteDialogOpen(false);
-      setInviteEmail("");
-      setInviteRole("member");
-      setSuccessMessage("Invitation sent successfully");
+      setInviteEmail('');
+      setInviteRole('member');
+      setSuccessMessage('Invitation sent successfully');
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (error: any) {
-      setError(error.message || "Failed to send invitation");
+      setError(error.message || 'Failed to send invitation');
     } finally {
       setInviting(false);
     }
@@ -93,21 +93,21 @@ export function WorkspaceMembers() {
 
   const handleRoleChange = async (
     userId: string,
-    newRole: "admin" | "member" | "viewer"
+    newRole: 'admin' | 'member' | 'viewer',
   ) => {
     try {
       await updateMemberRole(userId, newRole);
     } catch (error: any) {
-      setError(error.message || "Failed to update role");
+      setError(error.message || 'Failed to update role');
     }
   };
 
   const handleRemoveMember = async (userId: string) => {
-    if (window.confirm("Are you sure you want to remove this member?")) {
+    if (window.confirm('Are you sure you want to remove this member?')) {
       try {
         await removeMember(userId);
       } catch (error: any) {
-        setError(error.message || "Failed to remove member");
+        setError(error.message || 'Failed to remove member');
       }
     }
   };
@@ -116,35 +116,35 @@ export function WorkspaceMembers() {
     try {
       await cancelInvite(inviteId);
     } catch (error: any) {
-      setError(error.message || "Failed to cancel invitation");
+      setError(error.message || 'Failed to cancel invitation');
     }
   };
 
   const copyInviteLink = (token: string) => {
     const inviteUrl = `${window.location.origin}/invite/${token}`;
     navigator.clipboard.writeText(inviteUrl);
-    setSuccessMessage("Invite link copied to clipboard");
+    setSuccessMessage('Invite link copied to clipboard');
     setTimeout(() => setSuccessMessage(null), 3000);
   };
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
-      case "owner":
-        return "error";
-      case "admin":
-        return "warning";
-      case "member":
-        return "primary";
-      case "viewer":
-        return "default";
+      case 'owner':
+        return 'error';
+      case 'admin':
+        return 'warning';
+      case 'member':
+        return 'primary';
+      case 'viewer':
+        return 'default';
       default:
-        return "default";
+        return 'default';
     }
   };
 
   const currentUserRole = members.find((m) => m.email === user?.email)?.role;
   const canManageMembers =
-    currentUserRole === "owner" || currentUserRole === "admin";
+    currentUserRole === 'owner' || currentUserRole === 'admin';
 
   // Combine members and invites into a single dataset
   const rows: MemberRow[] = useMemo(() => {
@@ -152,7 +152,7 @@ export function WorkspaceMembers() {
       id: member.id,
       email: member.email,
       role: member.role,
-      status: "active" as const,
+      status: 'active' as const,
       joinedAt: member.joinedAt,
       userId: member.userId,
     }));
@@ -161,7 +161,7 @@ export function WorkspaceMembers() {
       id: invite.id,
       email: invite.email,
       role: invite.role,
-      status: "pending" as const,
+      status: 'pending' as const,
       expiresAt: invite.expiresAt,
       token: invite.token,
     }));
@@ -180,9 +180,9 @@ export function WorkspaceMembers() {
       <Box
         sx={{
           mb: 2,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
       >
         <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -218,24 +218,24 @@ export function WorkspaceMembers() {
 
       <TableContainer
         component={Paper}
-        sx={{ boxShadow: "none", border: "1px solid rgba(224, 224, 224, 1)" }}
+        sx={{ boxShadow: 'none', border: '1px solid rgba(224, 224, 224, 1)' }}
       >
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ backgroundColor: "rgba(0, 0, 0, 0.04)" }}>
-              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+            <TableRow sx={{ backgroundColor: 'rgba(0, 0, 0, 0.04)' }}>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                 Email
               </TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                 Role
               </TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                 Status
               </TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                 Date
               </TableCell>
-              <TableCell sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+              <TableCell sx={{ fontWeight: 600, fontSize: '0.875rem' }}>
                 Actions
               </TableCell>
             </TableRow>
@@ -243,17 +243,17 @@ export function WorkspaceMembers() {
           <TableBody>
             {rows.map((row) => {
               const isCurrentUser = row.email === user?.email;
-              const isOwner = row.role === "owner";
+              const isOwner = row.role === 'owner';
               const canEdit = canManageMembers && !isOwner && !isCurrentUser;
 
               return (
                 <TableRow key={row.id} hover>
                   <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Avatar
-                        sx={{ width: 32, height: 32, fontSize: "0.875rem" }}
+                        sx={{ width: 32, height: 32, fontSize: '0.875rem' }}
                       >
-                        {row.status === "pending" ? (
+                        {row.status === 'pending' ? (
                           <Email />
                         ) : (
                           row.email[0].toUpperCase()
@@ -274,20 +274,20 @@ export function WorkspaceMembers() {
                       label={row.status}
                       size="small"
                       variant="outlined"
-                      color={row.status === "active" ? "success" : "warning"}
+                      color={row.status === 'active' ? 'success' : 'warning'}
                     />
                   </TableCell>
                   <TableCell>
                     <Typography variant="caption" color="text.secondary">
-                      {row.status === "active" ? "Joined" : "Expires"}{" "}
+                      {row.status === 'active' ? 'Joined' : 'Expires'}{' '}
                       {new Date(
-                        row.status === "active" ? row.joinedAt! : row.expiresAt!
+                        row.status === 'active' ? row.joinedAt! : row.expiresAt!,
                       ).toLocaleDateString()}
                     </Typography>
                   </TableCell>
                   <TableCell>
-                    {row.status === "pending" && canManageMembers ? (
-                      <Box sx={{ display: "flex", gap: 0.5 }}>
+                    {row.status === 'pending' && canManageMembers ? (
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
                         {row.token && (
                           <Tooltip title="Copy invite link">
                             <IconButton
@@ -310,7 +310,7 @@ export function WorkspaceMembers() {
                       </Box>
                     ) : canEdit ? (
                       <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                        sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
                       >
                         <FormControl size="small" sx={{ minWidth: 80 }}>
                           <Select
@@ -318,7 +318,7 @@ export function WorkspaceMembers() {
                             onChange={(e) =>
                               handleRoleChange(
                                 row.userId!,
-                                e.target.value as any
+                                e.target.value as any,
                               )
                             }
                             size="small"
@@ -389,7 +389,7 @@ export function WorkspaceMembers() {
           <Typography
             variant="caption"
             color="text.secondary"
-            sx={{ mt: 2, display: "block" }}
+            sx={{ mt: 2, display: 'block' }}
           >
             An invitation email will be sent to the provided address.
           </Typography>
@@ -406,7 +406,7 @@ export function WorkspaceMembers() {
             variant="contained"
             disabled={inviting || !inviteEmail.trim()}
           >
-            {inviting ? <CircularProgress size={20} /> : "Send Invitation"}
+            {inviting ? <CircularProgress size={20} /> : 'Send Invitation'}
           </Button>
         </DialogActions>
       </Dialog>

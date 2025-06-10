@@ -1,10 +1,10 @@
-import { MongoClient, Db } from "mongodb";
-import { Client as PgClient } from "pg";
-import * as mysql from "mysql2/promise";
-import { Database as SqliteDatabase } from "sqlite3";
-import { open } from "sqlite";
-import { ConnectionPool } from "mssql";
-import { IDatabase } from "../database/workspace-schema";
+import { MongoClient, Db } from 'mongodb';
+import { Client as PgClient } from 'pg';
+import * as mysql from 'mysql2/promise';
+import { Database as SqliteDatabase } from 'sqlite3';
+import { open } from 'sqlite';
+import { ConnectionPool } from 'mssql';
+import { IDatabase } from '../database/workspace-schema';
 
 export interface QueryResult {
   success: boolean;
@@ -21,19 +21,19 @@ export class DatabaseConnectionService {
    * Test database connection
    */
   async testConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       switch (database.type) {
-        case "mongodb":
+        case 'mongodb':
           return await this.testMongoDBConnection(database);
-        case "postgresql":
+        case 'postgresql':
           return await this.testPostgreSQLConnection(database);
-        case "mysql":
+        case 'mysql':
           return await this.testMySQLConnection(database);
-        case "sqlite":
+        case 'sqlite':
           return await this.testSQLiteConnection(database);
-        case "mssql":
+        case 'mssql':
           return await this.testMSSQLConnection(database);
         default:
           return {
@@ -44,7 +44,7 @@ export class DatabaseConnectionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -55,19 +55,19 @@ export class DatabaseConnectionService {
   async executeQuery(
     database: IDatabase,
     query: any,
-    options?: any
+    options?: any,
   ): Promise<QueryResult> {
     try {
       switch (database.type) {
-        case "mongodb":
+        case 'mongodb':
           return await this.executeMongoDBQuery(database, query, options);
-        case "postgresql":
+        case 'postgresql':
           return await this.executePostgreSQLQuery(database, query);
-        case "mysql":
+        case 'mysql':
           return await this.executeMySQLQuery(database, query);
-        case "sqlite":
+        case 'sqlite':
           return await this.executeSQLiteQuery(database, query);
-        case "mssql":
+        case 'mssql':
           return await this.executeMSSQLQuery(database, query);
         default:
           return {
@@ -78,7 +78,7 @@ export class DatabaseConnectionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -96,19 +96,19 @@ export class DatabaseConnectionService {
     let connection: any;
 
     switch (database.type) {
-      case "mongodb":
+      case 'mongodb':
         connection = await this.createMongoDBConnection(database);
         break;
-      case "postgresql":
+      case 'postgresql':
         connection = await this.createPostgreSQLConnection(database);
         break;
-      case "mysql":
+      case 'mysql':
         connection = await this.createMySQLConnection(database);
         break;
-      case "sqlite":
+      case 'sqlite':
         connection = await this.createSQLiteConnection(database);
         break;
-      case "mssql":
+      case 'mssql':
         connection = await this.createMSSQLConnection(database);
         break;
       default:
@@ -135,7 +135,7 @@ export class DatabaseConnectionService {
         await connection.close();
       }
     } catch (error) {
-      console.error("Error closing connection:", error);
+      console.error('Error closing connection:', error);
     } finally {
       this.connections.delete(databaseId);
     }
@@ -146,14 +146,14 @@ export class DatabaseConnectionService {
    */
   async closeAllConnections(): Promise<void> {
     const promises = Array.from(this.connections.keys()).map((id) =>
-      this.closeConnection(id)
+      this.closeConnection(id),
     );
     await Promise.all(promises);
   }
 
   // MongoDB specific methods
   private async testMongoDBConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let client: MongoClient | null = null;
     try {
@@ -166,7 +166,7 @@ export class DatabaseConnectionService {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "MongoDB connection failed",
+          error instanceof Error ? error.message : 'MongoDB connection failed',
       };
     } finally {
       if (client) {
@@ -176,7 +176,7 @@ export class DatabaseConnectionService {
   }
 
   private async createMongoDBConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<MongoClient> {
     const connectionString = this.buildMongoDBConnectionString(database);
     const client = new MongoClient(connectionString);
@@ -193,13 +193,13 @@ export class DatabaseConnectionService {
     }
 
     // Build connection string from individual parameters
-    let connectionString = "mongodb://";
+    let connectionString = 'mongodb://';
 
     if (conn.username && conn.password) {
       connectionString += `${encodeURIComponent(conn.username)}:${encodeURIComponent(conn.password)}@`;
     }
 
-    connectionString += `${conn.host || "localhost"}:${conn.port || 27017}`;
+    connectionString += `${conn.host || 'localhost'}:${conn.port || 27017}`;
 
     if (conn.database) {
       connectionString += `/${conn.database}`;
@@ -216,11 +216,11 @@ export class DatabaseConnectionService {
     }
 
     if (conn.ssl) {
-      params.push("ssl=true");
+      params.push('ssl=true');
     }
 
     if (params.length > 0) {
-      connectionString += `?${params.join("&")}`;
+      connectionString += `?${params.join('&')}`;
     }
 
     return connectionString;
@@ -229,14 +229,14 @@ export class DatabaseConnectionService {
   private async executeMongoDBQuery(
     database: IDatabase,
     query: any,
-    options?: any
+    options?: any,
   ): Promise<QueryResult> {
     const client = (await this.getConnection(database)) as MongoClient;
     const db = client.db(database.connection.database);
 
     try {
       // Handle different MongoDB operations
-      if (typeof query === "string") {
+      if (typeof query === 'string') {
         // Parse JavaScript-style query
         const result = await this.executeMongoDBJavaScriptQuery(db, query);
         return { success: true, data: result };
@@ -246,52 +246,52 @@ export class DatabaseConnectionService {
         let result: any;
 
         switch (query.operation) {
-          case "find":
+          case 'find':
             result = await collection
               .find(query.filter || {}, query.options || {})
               .toArray();
             break;
-          case "findOne":
+          case 'findOne':
             result = await collection.findOne(
               query.filter || {},
-              query.options || {}
+              query.options || {},
             );
             break;
-          case "aggregate":
+          case 'aggregate':
             result = await collection
               .aggregate(query.pipeline || [], query.options || {})
               .toArray();
             break;
-          case "insertMany":
+          case 'insertMany':
             result = await collection.insertMany(
               query.documents || [],
-              query.options || {}
+              query.options || {},
             );
             break;
-          case "updateMany":
+          case 'updateMany':
             result = await collection.updateMany(
               query.filter || {},
               query.update || {},
-              query.options || {}
+              query.options || {},
             );
             break;
-          case "deleteMany":
+          case 'deleteMany':
             result = await collection.deleteMany(
               query.filter || {},
-              query.options || {}
+              query.options || {},
             );
             break;
-          case "updateOne":
+          case 'updateOne':
             result = await collection.updateOne(
               query.filter || {},
               query.update || {},
-              query.options || {}
+              query.options || {},
             );
             break;
-          case "deleteOne":
+          case 'deleteOne':
             result = await collection.deleteOne(
               query.filter || {},
-              query.options || {}
+              query.options || {},
             );
             break;
           default:
@@ -303,21 +303,21 @@ export class DatabaseConnectionService {
 
         return { success: true, data: result };
       } else {
-        return { success: false, error: "Invalid MongoDB query format" };
+        return { success: false, error: 'Invalid MongoDB query format' };
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "MongoDB query failed",
+        error: error instanceof Error ? error.message : 'MongoDB query failed',
       };
     }
   }
 
   private async executeMongoDBJavaScriptQuery(
     db: Db,
-    query: string
+    query: string,
   ): Promise<any> {
-    console.log("🔍 Executing query:", query.substring(0, 200) + "...");
+    console.log('🔍 Executing query:', query.substring(0, 200) + '...');
 
     // Create a proxy db object that can access any collection dynamically
     const dbProxy = new Proxy(db, {
@@ -326,21 +326,21 @@ export class DatabaseConnectionService {
         if (prop in target) {
           const value = (target as any)[prop];
           // If it's a function, bind it to the target to maintain 'this' context
-          if (typeof value === "function") {
+          if (typeof value === 'function') {
             return value.bind(target);
           }
           return value;
         }
 
         // Mongo-shell helper for db.getCollectionInfos([filter], [options])
-        if (prop === "getCollectionInfos") {
+        if (prop === 'getCollectionInfos') {
           return (filter?: any, options?: any) => {
             return (target as Db).listCollections(filter, options).toArray();
           };
         }
 
         // Mongo-shell helper for db.getCollectionNames([filter])
-        if (prop === "getCollectionNames") {
+        if (prop === 'getCollectionNames') {
           return (filter?: any) => {
             return (target as Db)
               .listCollections(filter, { nameOnly: true })
@@ -350,12 +350,12 @@ export class DatabaseConnectionService {
         }
 
         // Provide backwards-compatibility for Mongo-shell style helper db.getCollection(<n>)
-        if (prop === "getCollection") {
+        if (prop === 'getCollection') {
           return (name: string) => (target as Db).collection(name);
         }
 
         // If it's a string and not a database method, treat it as a collection name
-        if (typeof prop === "string") {
+        if (typeof prop === 'string') {
           console.log(`📋 Accessing collection: ${prop}`);
           return target.collection(prop);
         }
@@ -366,45 +366,45 @@ export class DatabaseConnectionService {
 
     try {
       // Execute the query content directly - much simpler and more reliable
-      console.log(`⚡ Evaluating query...`);
+      console.log('⚡ Evaluating query...');
       const db = dbProxy; // Make db available in eval context
       const result = eval(query);
 
       console.log(`📤 Raw result type: ${typeof result}`);
       console.log(`📤 Raw result constructor: ${result?.constructor?.name}`);
       console.log(
-        `📤 Has toArray method: ${typeof result?.toArray === "function"}`
+        `📤 Has toArray method: ${typeof result?.toArray === 'function'}`,
       );
-      console.log(`📤 Has then method: ${typeof result?.then === "function"}`);
+      console.log(`📤 Has then method: ${typeof result?.then === 'function'}`);
 
       // Handle MongoDB cursors and promises
       let finalResult;
-      if (result && typeof result.then === "function") {
+      if (result && typeof result.then === 'function') {
         // It's a promise, await it
-        console.log(`⏳ Awaiting promise...`);
+        console.log('⏳ Awaiting promise...');
         finalResult = await result;
         console.log(`✅ Promise resolved, result type: ${typeof finalResult}`);
         console.log(
-          `✅ Promise resolved constructor: ${finalResult?.constructor?.name}`
+          `✅ Promise resolved constructor: ${finalResult?.constructor?.name}`,
         );
-      } else if (result && typeof result.toArray === "function") {
+      } else if (result && typeof result.toArray === 'function') {
         // It's a MongoDB cursor, convert to array
-        console.log(`📋 Converting cursor to array...`);
+        console.log('📋 Converting cursor to array...');
         finalResult = await result.toArray();
         console.log(
-          `✅ Cursor converted, array length: ${finalResult?.length}`
+          `✅ Cursor converted, array length: ${finalResult?.length}`,
         );
       } else {
         // It's a direct result
-        console.log(`📋 Using direct result`);
+        console.log('📋 Using direct result');
         finalResult = result;
       }
 
       console.log(`🎯 Final result type: ${typeof finalResult}`);
       console.log(`🎯 Final result is array: ${Array.isArray(finalResult)}`);
       console.log(
-        `🎯 Final result length/value:`,
-        Array.isArray(finalResult) ? finalResult.length : finalResult
+        '🎯 Final result length/value:',
+        Array.isArray(finalResult) ? finalResult.length : finalResult,
       );
 
       // Ensure the result can be safely serialized to JSON (avoid circular refs)
@@ -412,23 +412,23 @@ export class DatabaseConnectionService {
         const seen = new WeakSet();
         return (key: string, value: any) => {
           // Handle BigInt explicitly (convert to string)
-          if (typeof value === "bigint") return value.toString();
+          if (typeof value === 'bigint') return value.toString();
 
-          if (typeof value === "object" && value !== null) {
+          if (typeof value === 'object' && value !== null) {
             // Replace common MongoDB driver objects with descriptive strings
             const ctor = value.constructor?.name;
             if (
-              ctor === "Collection" ||
-              ctor === "Db" ||
-              ctor === "MongoClient" ||
-              ctor === "Cursor" ||
-              ctor === "AggregationCursor" ||
-              ctor === "FindCursor"
+              ctor === 'Collection' ||
+              ctor === 'Db' ||
+              ctor === 'MongoClient' ||
+              ctor === 'Cursor' ||
+              ctor === 'AggregationCursor' ||
+              ctor === 'FindCursor'
             ) {
               // Provide minimal useful info instead of the full object
-              if (ctor === "Collection") {
+              if (ctor === 'Collection') {
                 return {
-                  _type: "Collection",
+                  _type: 'Collection',
                   name: (value as any).collectionName,
                 };
               }
@@ -437,7 +437,7 @@ export class DatabaseConnectionService {
 
             // Handle circular structures
             if (seen.has(value)) {
-              return "[Circular]";
+              return '[Circular]';
             }
             seen.add(value);
           }
@@ -448,25 +448,25 @@ export class DatabaseConnectionService {
       let serializedResult: any;
       try {
         serializedResult = JSON.parse(
-          JSON.stringify(finalResult, getCircularReplacer())
+          JSON.stringify(finalResult, getCircularReplacer()),
         );
       } catch (stringifyError) {
         console.warn(
-          "⚠️ Failed to fully serialize result, falling back to string representation"
+          '⚠️ Failed to fully serialize result, falling back to string representation',
         );
         serializedResult = String(finalResult);
       }
 
       return serializedResult;
     } catch (error) {
-      console.error("❌ Error in executeMongoDBJavaScriptQuery:", error);
+      console.error('❌ Error in executeMongoDBJavaScriptQuery:', error);
       throw error;
     }
   }
 
   // PostgreSQL specific methods
   private async testPostgreSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let client: PgClient | null = null;
     try {
@@ -479,7 +479,7 @@ export class DatabaseConnectionService {
         ssl: database.connection.ssl ? { rejectUnauthorized: false } : false,
       });
       await client.connect();
-      await client.query("SELECT 1");
+      await client.query('SELECT 1');
       return { success: true };
     } catch (error) {
       return {
@@ -487,7 +487,7 @@ export class DatabaseConnectionService {
         error:
           error instanceof Error
             ? error.message
-            : "PostgreSQL connection failed",
+            : 'PostgreSQL connection failed',
       };
     } finally {
       if (client) {
@@ -497,7 +497,7 @@ export class DatabaseConnectionService {
   }
 
   private async createPostgreSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<PgClient> {
     const client = new PgClient({
       host: database.connection.host,
@@ -513,7 +513,7 @@ export class DatabaseConnectionService {
 
   private async executePostgreSQLQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const client = (await this.getConnection(database)) as PgClient;
     try {
@@ -528,14 +528,14 @@ export class DatabaseConnectionService {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "PostgreSQL query failed",
+          error instanceof Error ? error.message : 'PostgreSQL query failed',
       };
     }
   }
 
   // MySQL specific methods
   private async testMySQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let connection: mysql.Connection | null = null;
     try {
@@ -555,7 +555,7 @@ export class DatabaseConnectionService {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "MySQL connection failed",
+          error instanceof Error ? error.message : 'MySQL connection failed',
       };
     } finally {
       if (connection) {
@@ -565,7 +565,7 @@ export class DatabaseConnectionService {
   }
 
   private async createMySQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<mysql.Connection> {
     const connection = await mysql.createConnection({
       host: database.connection.host,
@@ -580,7 +580,7 @@ export class DatabaseConnectionService {
 
   private async executeMySQLQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const connection = (await this.getConnection(database)) as mysql.Connection;
     try {
@@ -593,35 +593,35 @@ export class DatabaseConnectionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "MySQL query failed",
+        error: error instanceof Error ? error.message : 'MySQL query failed',
       };
     }
   }
 
   // SQLite specific methods
   private async testSQLiteConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const db = await open({
-        filename: database.connection.database || ":memory:",
+        filename: database.connection.database || ':memory:',
         driver: SqliteDatabase,
       });
-      await db.get("SELECT 1");
+      await db.get('SELECT 1');
       await db.close();
       return { success: true };
     } catch (error) {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "SQLite connection failed",
+          error instanceof Error ? error.message : 'SQLite connection failed',
       };
     }
   }
 
   private async createSQLiteConnection(database: IDatabase): Promise<any> {
     const db = await open({
-      filename: database.connection.database || ":memory:",
+      filename: database.connection.database || ':memory:',
       driver: SqliteDatabase,
     });
     return db;
@@ -629,7 +629,7 @@ export class DatabaseConnectionService {
 
   private async executeSQLiteQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const db = await this.getConnection(database);
     try {
@@ -641,14 +641,14 @@ export class DatabaseConnectionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "SQLite query failed",
+        error: error instanceof Error ? error.message : 'SQLite query failed',
       };
     }
   }
 
   // MSSQL specific methods
   private async testMSSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let pool: ConnectionPool | null = null;
     try {
@@ -664,13 +664,13 @@ export class DatabaseConnectionService {
         },
       });
       await pool.connect();
-      await pool.request().query("SELECT 1");
+      await pool.request().query('SELECT 1');
       return { success: true };
     } catch (error) {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "MSSQL connection failed",
+          error instanceof Error ? error.message : 'MSSQL connection failed',
       };
     } finally {
       if (pool) {
@@ -680,7 +680,7 @@ export class DatabaseConnectionService {
   }
 
   private async createMSSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<ConnectionPool> {
     const pool = new ConnectionPool({
       server: database.connection.host!,
@@ -699,7 +699,7 @@ export class DatabaseConnectionService {
 
   private async executeMSSQLQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const pool = (await this.getConnection(database)) as ConnectionPool;
     try {
@@ -712,7 +712,7 @@ export class DatabaseConnectionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "MSSQL query failed",
+        error: error instanceof Error ? error.message : 'MSSQL query failed',
       };
     }
   }

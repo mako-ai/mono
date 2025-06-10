@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 
 // Default custom prompt content (fallback)
 const defaultCustomPromptContent = `# Custom Prompt Configuration
@@ -34,20 +34,20 @@ export const useCustomPrompt = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/custom-prompt");
+      const response = await fetch('/api/custom-prompt');
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
           setContent(data.content);
         } else {
-          setError(data.error || "Failed to fetch custom prompt");
+          setError(data.error || 'Failed to fetch custom prompt');
         }
       } else {
-        setError("Failed to fetch custom prompt");
+        setError('Failed to fetch custom prompt');
       }
     } catch (err) {
-      setError("Network error while fetching custom prompt");
-      console.error("Error fetching custom prompt:", err);
+      setError('Network error while fetching custom prompt');
+      console.error('Error fetching custom prompt:', err);
     } finally {
       setIsLoading(false);
     }
@@ -57,10 +57,10 @@ export const useCustomPrompt = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/custom-prompt", {
-        method: "PUT",
+      const response = await fetch('/api/custom-prompt', {
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ content: newContent }),
       });
@@ -71,16 +71,16 @@ export const useCustomPrompt = () => {
           setContent(newContent);
           return true;
         } else {
-          setError(data.error || "Failed to update custom prompt");
+          setError(data.error || 'Failed to update custom prompt');
           return false;
         }
       } else {
-        setError("Failed to update custom prompt");
+        setError('Failed to update custom prompt');
         return false;
       }
     } catch (err) {
-      setError("Network error while updating custom prompt");
-      console.error("Error updating custom prompt:", err);
+      setError('Network error while updating custom prompt');
+      console.error('Error updating custom prompt:', err);
       return false;
     } finally {
       setIsLoading(false);

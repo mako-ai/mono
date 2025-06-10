@@ -1,9 +1,9 @@
-import axios, { AxiosError } from "axios";
-import { MongoClient, Db } from "mongodb";
-import * as dotenv from "dotenv";
-import { dataSourceManager } from "./data-source-manager";
-import type { DataSourceConfig } from "./data-source-manager";
-import type { ProgressReporter } from "./sync";
+import axios, { AxiosError } from 'axios';
+import { MongoClient, Db } from 'mongodb';
+import * as dotenv from 'dotenv';
+import { dataSourceManager } from './data-source-manager';
+import type { DataSourceConfig } from './data-source-manager';
+import type { ProgressReporter } from './sync';
 
 dotenv.config();
 
@@ -39,13 +39,13 @@ class CloseSyncService {
     // Get Close configuration
     if (!dataSource.connection.api_key) {
       throw new Error(
-        `Close API key is required for data source ${dataSource.id}`
+        `Close API key is required for data source ${dataSource.id}`,
       );
     }
 
     this.closeApiKey = dataSource.connection.api_key;
     this.closeApiUrl =
-      dataSource.connection.api_base_url || "https://api.close.com/api/v1";
+      dataSource.connection.api_base_url || 'https://api.close.com/api/v1';
 
     // Get settings with defaults
     const globalConfig = dataSourceManager.getGlobalConfig();
@@ -58,7 +58,7 @@ class CloseSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "local_dev.analytics_db"
+    targetDbId: string = 'local_dev.analytics_db',
   ): Promise<{ client: MongoClient; db: Db }> {
     // Check if connection already exists
     if (this.mongoConnections.has(targetDbId)) {
@@ -67,7 +67,7 @@ class CloseSyncService {
 
     // Get target database configuration
     const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
-    if (!targetDb || targetDb.type !== "mongodb") {
+    if (!targetDb || targetDb.type !== 'mongodb') {
       throw new Error(`MongoDB data source '${targetDbId}' not found`);
     }
 
@@ -80,7 +80,7 @@ class CloseSyncService {
     this.mongoConnections.set(targetDbId, connection);
 
     console.log(
-      `Connected to MongoDB: ${targetDb.name} for Close source: ${this.dataSource.name}`
+      `Connected to MongoDB: ${targetDb.name} for Close source: ${this.dataSource.name}`,
     );
     return connection;
   }
@@ -97,7 +97,7 @@ class CloseSyncService {
     endpoint: string,
     params: any = {},
     progress?: ProgressReporter,
-    onBatch?: (records: any[]) => Promise<void>
+    onBatch?: (records: any[]) => Promise<void>,
   ): Promise<any[]> {
     const results: any[] = [];
     let hasMore = true;
@@ -111,16 +111,16 @@ class CloseSyncService {
           {
             headers: {
               Authorization: `Basic ${Buffer.from(
-                this.closeApiKey + ":"
-              ).toString("base64")}`,
-              Accept: "application/json",
+                this.closeApiKey + ':',
+              ).toString('base64')}`,
+              Accept: 'application/json',
             },
             params: {
               ...params,
               _limit: 0,
-              _fields: "id",
+              _fields: 'id',
             },
-          }
+          },
         );
 
         if (countResponse.data.total_results) {
@@ -129,7 +129,7 @@ class CloseSyncService {
       } catch (error) {
         // If we can't get total, continue without it
         console.log(
-          "Could not fetch total count, continuing without total progress"
+          'Could not fetch total count, continuing without total progress',
         );
       }
     }
@@ -143,9 +143,9 @@ class CloseSyncService {
           const response = await axios.get(`${this.closeApiUrl}/${endpoint}`, {
             headers: {
               Authorization: `Basic ${Buffer.from(
-                this.closeApiKey + ":"
-              ).toString("base64")}`,
-              Accept: "application/json",
+                this.closeApiKey + ':',
+              ).toString('base64')}`,
+              Accept: 'application/json',
             },
             params: {
               ...params,
@@ -184,7 +184,7 @@ class CloseSyncService {
           // Handle HTTP 429 specifically (rate limiting)
           if (axiosError.response?.status === 429) {
             const retryAfterHeader =
-              axiosError.response.headers?.["retry-after"];
+              axiosError.response.headers?.['retry-after'];
             const retryAfterSeconds = retryAfterHeader
               ? parseInt(retryAfterHeader, 10)
               : NaN;
@@ -193,7 +193,7 @@ class CloseSyncService {
               : 1000 * Math.pow(2, attempts);
 
             console.warn(
-              `⏳ Received 429 Too Many Requests from Close API. Waiting ${delayMs}ms before retrying (attempt ${attempts + 1}/${this.settings.maxRetries}).`
+              `⏳ Received 429 Too Many Requests from Close API. Waiting ${delayMs}ms before retrying (attempt ${attempts + 1}/${this.settings.maxRetries}).`,
             );
             await this.delay(delayMs);
             attempts++;
@@ -206,14 +206,14 @@ class CloseSyncService {
           if (!isRetryable || attempts > this.settings.maxRetries) {
             console.error(
               `❌ Failed to fetch from ${endpoint} after ${attempts} attempt(s).`,
-              error
+              error,
             );
             throw error;
           }
 
           const backoff = 500 * Math.pow(2, attempts); // exponential backoff starting at 0.5s
           console.warn(
-            `⚠️  Error fetching from ${endpoint} (attempt ${attempts}/${this.settings.maxRetries}). Retrying in ${backoff}ms …`
+            `⚠️  Error fetching from ${endpoint} (attempt ${attempts}/${this.settings.maxRetries}). Retrying in ${backoff}ms …`,
           );
           await this.delay(backoff);
         }
@@ -236,11 +236,11 @@ class CloseSyncService {
 
     // Network level errors
     const retryableNetworkErrors = [
-      "ECONNRESET",
-      "ETIMEDOUT",
-      "EAI_AGAIN",
-      "ENOTFOUND",
-      "ECONNABORTED",
+      'ECONNRESET',
+      'ETIMEDOUT',
+      'EAI_AGAIN',
+      'ENOTFOUND',
+      'ECONNABORTED',
     ];
     if (retryableNetworkErrors.includes(error.code)) return true;
 
@@ -255,7 +255,7 @@ class CloseSyncService {
 
   async syncLeads(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting leads sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
@@ -271,7 +271,7 @@ class CloseSyncService {
 
     try {
       // Fetch Close data in batches and write each batch directly to staging.
-      await this.fetchCloseData("lead", {}, progress, async (batch) => {
+      await this.fetchCloseData('lead', {}, progress, async (batch) => {
         if (batch.length === 0) return;
         const processedLeads = batch.map((lead) => ({
           ...lead,
@@ -299,10 +299,10 @@ class CloseSyncService {
       await stagingCollection.rename(mainCollectionName, { dropTarget: true });
 
       console.log(
-        `✅ Leads synced and collection swapped successfully (${mainCollectionName})`
+        `✅ Leads synced and collection swapped successfully (${mainCollectionName})`,
       );
     } catch (error) {
-      console.error("Lead sync failed:", error);
+      console.error('Lead sync failed:', error);
       // Keep partially populated staging collection for inspection/resume.
       throw error;
     }
@@ -310,7 +310,7 @@ class CloseSyncService {
 
   async syncOpportunities(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
@@ -325,7 +325,7 @@ class CloseSyncService {
     const stagingCollection = db.collection(stagingName);
 
     try {
-      await this.fetchCloseData("opportunity", {}, progress, async (batch) => {
+      await this.fetchCloseData('opportunity', {}, progress, async (batch) => {
         if (batch.length === 0) return;
         const processed = batch.map((opp) => ({
           ...opp,
@@ -351,17 +351,17 @@ class CloseSyncService {
       await stagingCollection.rename(mainName, { dropTarget: true });
 
       console.log(
-        `✅ Opportunities synced and collection swapped successfully (${mainName})`
+        `✅ Opportunities synced and collection swapped successfully (${mainName})`,
       );
     } catch (error) {
-      console.error("Opportunity sync failed:", error);
+      console.error('Opportunity sync failed:', error);
       throw error;
     }
   }
 
   async syncContacts(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting contacts sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
@@ -375,7 +375,7 @@ class CloseSyncService {
     const stagingCollection = db.collection(stagingName);
 
     try {
-      await this.fetchCloseData("contact", {}, progress, async (batch) => {
+      await this.fetchCloseData('contact', {}, progress, async (batch) => {
         if (batch.length === 0) return;
         const processed = batch.map((contact) => ({
           ...contact,
@@ -401,17 +401,17 @@ class CloseSyncService {
       await stagingCollection.rename(mainName, { dropTarget: true });
 
       console.log(
-        `✅ Contacts synced and collection swapped successfully (${mainName})`
+        `✅ Contacts synced and collection swapped successfully (${mainName})`,
       );
     } catch (error) {
-      console.error("Contact sync failed:", error);
+      console.error('Contact sync failed:', error);
       throw error;
     }
   }
 
   async syncUsers(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting users sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
@@ -425,7 +425,7 @@ class CloseSyncService {
     const stagingCollection = db.collection(stagingName);
 
     try {
-      await this.fetchCloseData("user", {}, progress, async (batch) => {
+      await this.fetchCloseData('user', {}, progress, async (batch) => {
         if (batch.length === 0) return;
         const processed = batch.map((user) => ({
           ...user,
@@ -451,17 +451,17 @@ class CloseSyncService {
       await stagingCollection.rename(mainName, { dropTarget: true });
 
       console.log(
-        `✅ Users synced and collection swapped successfully (${mainName})`
+        `✅ Users synced and collection swapped successfully (${mainName})`,
       );
     } catch (error) {
-      console.error("User sync failed:", error);
+      console.error('User sync failed:', error);
       throw error;
     }
   }
 
   async syncActivities(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting activities sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
@@ -475,7 +475,7 @@ class CloseSyncService {
     const stagingCollection = db.collection(stagingName);
 
     try {
-      await this.fetchCloseData("activity", {}, progress, async (batch) => {
+      await this.fetchCloseData('activity', {}, progress, async (batch) => {
         if (batch.length === 0) return;
         const processed = batch.map((activity) => ({
           ...activity,
@@ -501,17 +501,17 @@ class CloseSyncService {
       await stagingCollection.rename(mainName, { dropTarget: true });
 
       console.log(
-        `✅ Activities synced and collection swapped successfully (${mainName})`
+        `✅ Activities synced and collection swapped successfully (${mainName})`,
       );
     } catch (error) {
-      console.error("Activity sync failed:", error);
+      console.error('Activity sync failed:', error);
       throw error;
     }
   }
 
   async syncCustomFields(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
@@ -526,10 +526,10 @@ class CloseSyncService {
 
     try {
       const customFieldTypes = [
-        "custom_field/lead",
-        "custom_field/contact",
-        "custom_field/opportunity",
-        "custom_field/activity",
+        'custom_field/lead',
+        'custom_field/contact',
+        'custom_field/opportunity',
+        'custom_field/activity',
       ];
 
       for (const fieldType of customFieldTypes) {
@@ -538,7 +538,7 @@ class CloseSyncService {
             if (batch.length === 0) return;
             const processed = batch.map((field: any) => ({
               ...field,
-              field_type: fieldType.replace("custom_field/", ""),
+              field_type: fieldType.replace('custom_field/', ''),
               _dataSourceId: this.dataSource.id,
               _dataSourceName: this.dataSource.name,
               _syncedAt: new Date(),
@@ -574,29 +574,29 @@ class CloseSyncService {
       await stagingCollection.rename(mainName, { dropTarget: true });
 
       console.log(
-        `✅ Custom fields synced and collection swapped successfully (${mainName})`
+        `✅ Custom fields synced and collection swapped successfully (${mainName})`,
       );
 
       if (progress) {
         progress.reportComplete();
       }
     } catch (error) {
-      console.error("Custom fields sync failed:", error);
+      console.error('Custom fields sync failed:', error);
       throw error;
     }
   }
 
   async syncAll(targetDbId?: string): Promise<void> {
     console.log(
-      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`
+      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
     );
-    console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
+    console.log(`Target database: ${targetDbId || 'local_dev.analytics_db'}`);
     const startTime = Date.now();
 
     const failedEntities: string[] = [];
 
     // Import ProgressReporter for creating individual progress
-    const { ProgressReporter } = await import("./sync");
+    const { ProgressReporter } = await import('./sync');
 
     const entityOperations: Array<{
       name: string;
@@ -605,12 +605,12 @@ class CloseSyncService {
         progress: ProgressReporter
       ) => Promise<void>;
     }> = [
-      { name: "leads", fn: this.syncLeads.bind(this) },
-      { name: "opportunities", fn: this.syncOpportunities.bind(this) },
-      { name: "contacts", fn: this.syncContacts.bind(this) },
-      { name: "activities", fn: this.syncActivities.bind(this) },
-      { name: "users", fn: this.syncUsers.bind(this) },
-      { name: "custom_fields", fn: this.syncCustomFields.bind(this) },
+      { name: 'leads', fn: this.syncLeads.bind(this) },
+      { name: 'opportunities', fn: this.syncOpportunities.bind(this) },
+      { name: 'contacts', fn: this.syncContacts.bind(this) },
+      { name: 'activities', fn: this.syncActivities.bind(this) },
+      { name: 'users', fn: this.syncUsers.bind(this) },
+      { name: 'custom_fields', fn: this.syncCustomFields.bind(this) },
     ];
 
     try {
@@ -626,11 +626,11 @@ class CloseSyncService {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       if (failedEntities.length === 0) {
         console.log(
-          `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`
+          `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`,
         );
       } else {
         console.warn(
-          `⚠️  Completed sync for ${this.dataSource.name} with failures in: ${failedEntities.join(", ")}. Duration: ${duration}s`
+          `⚠️  Completed sync for ${this.dataSource.name} with failures in: ${failedEntities.join(', ')}. Duration: ${duration}s`,
         );
       }
     } finally {
@@ -649,16 +649,16 @@ function loadDataSourceConfig(): DataSourceConfig[] {
     // Validate configuration first
     const validation = dataSourceManager.validateConfig();
     if (!validation.valid) {
-      console.error("Configuration validation failed:");
+      console.error('Configuration validation failed:');
       validation.errors.forEach((error) => console.error(`  - ${error}`));
       process.exit(1);
     }
 
-    return dataSourceManager.getDataSourcesByType("close");
+    return dataSourceManager.getDataSourcesByType('close');
   } catch (error) {
-    console.error("Failed to load configuration:", error);
+    console.error('Failed to load configuration:', error);
     console.error(
-      "Make sure config/config.yaml exists and environment variables are set"
+      'Make sure config/config.yaml exists and environment variables are set',
     );
     process.exit(1);
   }
@@ -669,7 +669,7 @@ async function main() {
   const dataSources = loadDataSourceConfig();
 
   if (dataSources.length === 0) {
-    console.log("No active Close.com data sources found.");
+    console.log('No active Close.com data sources found.');
     process.exit(0);
   }
 
@@ -677,17 +677,17 @@ async function main() {
 
   // Check command line arguments
   const args = process.argv.slice(2);
-  const targetDbId = args.find((arg) => arg.startsWith("--db="))?.split("=")[1];
-  const specificSourceId = args.find((arg) => !arg.startsWith("--"));
+  const targetDbId = args.find((arg) => arg.startsWith('--db='))?.split('=')[1];
+  const specificSourceId = args.find((arg) => !arg.startsWith('--'));
 
   if (specificSourceId) {
     // Sync specific data source
     const source = dataSources.find((s) => s.id === specificSourceId);
     if (!source) {
       console.error(
-        `Data source '${specificSourceId}' not found or not active`
+        `Data source '${specificSourceId}' not found or not active`,
       );
-      console.log("\nAvailable Close.com data sources:");
+      console.log('\nAvailable Close.com data sources:');
       dataSources.forEach((s) => console.log(`  - ${s.id}: ${s.name}`));
       process.exit(1);
     }
@@ -702,13 +702,13 @@ async function main() {
     }
   }
 
-  console.log("\n✅ All syncs completed successfully!");
+  console.log('\n✅ All syncs completed successfully!');
 }
 
 // Execute if run directly
 if (require.main === module) {
   main().catch((error) => {
-    console.error("Fatal error:", error);
+    console.error('Fatal error:', error);
     process.exit(1);
   });
 }

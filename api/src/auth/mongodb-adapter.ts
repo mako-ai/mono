@@ -9,7 +9,7 @@ export class MongoDBAdapter implements Adapter {
    * Get session and associated user
    */
   async getSessionAndUser(
-    sessionId: string
+    sessionId: string,
   ): Promise<[session: DatabaseSession | null, user: DatabaseUser | null]> {
     const session = await Session.findById(sessionId).lean();
     if (!session) {

@@ -7,66 +7,66 @@ import {
   MenuItem,
   Typography,
   Divider,
-} from "@mui/material";
+} from '@mui/material';
 import {
   VisibilityOutlined as ViewIcon,
   SettingsOutlined as SettingsIcon,
   CloudUploadOutlined as DataSourceIcon,
   AccountCircleOutlined as UserIcon,
   Logout as LogoutIcon,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 import {
   SquareChevronRight as ConsoleIcon,
   Database as DatabaseIcon,
-} from "lucide-react";
-import { useAppStore, AppView } from "../store";
-import { useConsoleStore } from "../store/consoleStore";
-import { useAuth } from "../contexts/auth-context";
-import { useState } from "react";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+} from 'lucide-react';
+import { useAppStore, AppView } from '../store';
+import { useConsoleStore } from '../store/consoleStore';
+import { useAuth } from '../contexts/auth-context';
+import { useState } from 'react';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 
 const NavButton = styled(Button, {
-  shouldForwardProp: (prop) => prop !== "isActive",
+  shouldForwardProp: (prop) => prop !== 'isActive',
 })<{ isActive?: boolean }>(({ theme, isActive }) => ({
   minWidth: 40,
   width: 40,
   height: 40,
   padding: 0,
   borderRadius: 8,
-  backgroundColor: isActive ? theme.palette.action.selected : "transparent",
+  backgroundColor: isActive ? theme.palette.action.selected : 'transparent',
   color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-  "&:hover": {
+  '&:hover': {
     backgroundColor: isActive
       ? theme.palette.action.selected
       : theme.palette.action.hover,
   },
-  transition: "all 0.2s ease",
+  transition: 'all 0.2s ease',
 }));
 
 // Views that can appear in the sidebar navigation. Extends the core AppView
 // union with additional sidebar-specific entries that don't directly map to
 // a left-pane view managed by the app store.
-type NavigationView = AppView | "views" | "settings";
+type NavigationView = AppView | 'views' | 'settings';
 
 const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
   [
-    { view: "databases", icon: DatabaseIcon, label: "Databases" },
-    { view: "consoles", icon: ConsoleIcon, label: "Consoles" },
-    { view: "views", icon: ViewIcon, label: "Views" },
-    { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
+    { view: 'databases', icon: DatabaseIcon, label: 'Databases' },
+    { view: 'consoles', icon: ConsoleIcon, label: 'Consoles' },
+    { view: 'views', icon: ViewIcon, label: 'Views' },
+    { view: 'sources', icon: DataSourceIcon, label: 'Data Sources' },
   ];
 
 const bottomNavigationItems: {
   view: NavigationView;
   icon: any;
   label: string;
-}[] = [{ view: "settings", icon: SettingsIcon, label: "Settings" }];
+}[] = [{ view: 'settings', icon: SettingsIcon, label: 'Settings' }];
 
 function Sidebar() {
   const { activeView, setActiveView } = useAppStore();
   const { user, logout } = useAuth();
   const [userMenuAnchorEl, setUserMenuAnchorEl] = useState<null | HTMLElement>(
-    null
+    null,
   );
   const isUserMenuOpen = Boolean(userMenuAnchorEl);
 
@@ -83,32 +83,32 @@ function Sidebar() {
     try {
       await logout();
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error('Logout failed:', error);
     }
   };
 
   const handleNavigation = (view: NavigationView) => {
     // Update the left pane only for views that the store recognises.
-    if (view === "databases" || view === "consoles" || view === "sources") {
+    if (view === 'databases' || view === 'consoles' || view === 'sources') {
       setActiveView(view);
     }
 
     // Views that should open (or focus) a tab in the editor
-    if (view === "settings" || view === "sources") {
+    if (view === 'settings' || view === 'sources') {
       const { findTabByKind, addConsoleTab, setActiveConsole } =
         useConsoleStore.getState();
 
       const existing = findTabByKind(
-        view === "settings" ? "settings" : "sources"
+        view === 'settings' ? 'settings' : 'sources',
       );
       if (existing) {
         setActiveConsole(existing.id);
       } else {
         const id = addConsoleTab({
-          title: view === "settings" ? "Settings" : "Data Sources",
-          content: "", // Will be replaced with actual forms later
-          initialContent: "",
-          kind: view === "settings" ? "settings" : "sources",
+          title: view === 'settings' ? 'Settings' : 'Data Sources',
+          content: '', // Will be replaced with actual forms later
+          initialContent: '',
+          kind: view === 'settings' ? 'settings' : 'sources',
         });
         setActiveConsole(id);
       }
@@ -119,32 +119,32 @@ function Sidebar() {
     <Box
       sx={{
         width: 52,
-        height: "100vh",
-        borderRight: "1px solid",
-        borderColor: "divider",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
+        height: '100vh',
+        borderRight: '1px solid',
+        borderColor: 'divider',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       }}
     >
       {/* Navigation Items */}
       <Box
         sx={{
           flex: 1,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          width: "100%",
+          overflowY: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          width: '100%',
         }}
       >
         <Box
           sx={{
-            display: "flex",
-            flexDirection: "column",
+            display: 'flex',
+            flexDirection: 'column',
             p: 0.5,
             gap: 0.5,
-            alignItems: "center",
+            alignItems: 'center',
           }}
         >
           {topNavigationItems.map((item) => {
@@ -166,11 +166,11 @@ function Sidebar() {
 
         <Box
           sx={{
-            display: "flex",
-            flexDirection: "column",
+            display: 'flex',
+            flexDirection: 'column',
             p: 0.25,
             gap: 0.25,
-            alignItems: "center",
+            alignItems: 'center',
           }}
         >
           {/* User Menu */}
@@ -202,12 +202,12 @@ function Sidebar() {
             open={isUserMenuOpen}
             onClose={handleUserMenuClose}
             anchorOrigin={{
-              vertical: "top",
-              horizontal: "right",
+              vertical: 'top',
+              horizontal: 'right',
             }}
             transformOrigin={{
-              vertical: "bottom",
-              horizontal: "right",
+              vertical: 'bottom',
+              horizontal: 'right',
             }}
           >
             {/* Workspace Switcher in User Menu */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -21,13 +21,13 @@ import {
   AccordionDetails,
   Divider,
   InputAdornment,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
   Visibility,
   VisibilityOff,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 
 interface DataSource {
   _id?: string;
@@ -62,13 +62,13 @@ interface DataSourceFormProps {
 }
 
 const sourceTypes = [
-  { value: "close", label: "Close CRM" },
-  { value: "stripe", label: "Stripe" },
-  { value: "postgres", label: "PostgreSQL" },
-  { value: "mysql", label: "MySQL" },
-  { value: "graphql", label: "GraphQL API" },
-  { value: "rest", label: "REST API" },
-  { value: "api", label: "Generic API" },
+  { value: 'close', label: 'Close CRM' },
+  { value: 'stripe', label: 'Stripe' },
+  { value: 'postgres', label: 'PostgreSQL' },
+  { value: 'mysql', label: 'MySQL' },
+  { value: 'graphql', label: 'GraphQL API' },
+  { value: 'rest', label: 'REST API' },
+  { value: 'api', label: 'Generic API' },
 ];
 
 function DataSourceForm({
@@ -78,18 +78,18 @@ function DataSourceForm({
   dataSource,
 }: DataSourceFormProps) {
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    source: "",
+    name: '',
+    description: '',
+    source: '',
     enabled: true,
     config: {
-      api_key: "",
-      api_base_url: "",
-      username: "",
-      password: "",
-      host: "",
-      port: "",
-      database: "",
+      api_key: '',
+      api_base_url: '',
+      username: '',
+      password: '',
+      host: '',
+      port: '',
+      database: '',
     },
     settings: {
       sync_batch_size: 100,
@@ -97,7 +97,7 @@ function DataSourceForm({
       max_retries: 3,
       timeout_ms: 30000,
     },
-    tenant: "",
+    tenant: '',
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -111,18 +111,18 @@ function DataSourceForm({
   useEffect(() => {
     if (dataSource) {
       setFormData({
-        name: dataSource.name || "",
-        description: dataSource.description || "",
-        source: dataSource.source || "",
+        name: dataSource.name || '',
+        description: dataSource.description || '',
+        source: dataSource.source || '',
         enabled: dataSource.enabled ?? true,
         config: {
-          api_key: dataSource.config?.api_key || "",
-          api_base_url: dataSource.config?.api_base_url || "",
-          username: dataSource.config?.username || "",
-          password: dataSource.config?.password || "",
-          host: dataSource.config?.host || "",
-          port: dataSource.config?.port?.toString() || "",
-          database: dataSource.config?.database || "",
+          api_key: dataSource.config?.api_key || '',
+          api_base_url: dataSource.config?.api_base_url || '',
+          username: dataSource.config?.username || '',
+          password: dataSource.config?.password || '',
+          host: dataSource.config?.host || '',
+          port: dataSource.config?.port?.toString() || '',
+          database: dataSource.config?.database || '',
         },
         settings: {
           sync_batch_size: dataSource.settings?.sync_batch_size || 100,
@@ -130,23 +130,23 @@ function DataSourceForm({
           max_retries: dataSource.settings?.max_retries || 3,
           timeout_ms: dataSource.settings?.timeout_ms || 30000,
         },
-        tenant: dataSource.tenant || "",
+        tenant: dataSource.tenant || '',
       });
     } else {
       // Reset form for new data source
       setFormData({
-        name: "",
-        description: "",
-        source: "",
+        name: '',
+        description: '',
+        source: '',
         enabled: true,
         config: {
-          api_key: "",
-          api_base_url: "",
-          username: "",
-          password: "",
-          host: "",
-          port: "",
-          database: "",
+          api_key: '',
+          api_base_url: '',
+          username: '',
+          password: '',
+          host: '',
+          port: '',
+          database: '',
         },
         settings: {
           sync_batch_size: 100,
@@ -154,15 +154,15 @@ function DataSourceForm({
           max_retries: 3,
           timeout_ms: 30000,
         },
-        tenant: "",
+        tenant: '',
       });
     }
     setErrors({});
   }, [dataSource, open]);
 
   const handleInputChange = (field: string, value: any) => {
-    if (field.startsWith("config.")) {
-      const configField = field.replace("config.", "");
+    if (field.startsWith('config.')) {
+      const configField = field.replace('config.', '');
       setFormData((prev) => ({
         ...prev,
         config: {
@@ -170,8 +170,8 @@ function DataSourceForm({
           [configField]: value,
         },
       }));
-    } else if (field.startsWith("settings.")) {
-      const settingsField = field.replace("settings.", "");
+    } else if (field.startsWith('settings.')) {
+      const settingsField = field.replace('settings.', '');
       setFormData((prev) => ({
         ...prev,
         settings: {
@@ -190,7 +190,7 @@ function DataSourceForm({
     if (errors[field]) {
       setErrors((prev) => ({
         ...prev,
-        [field]: "",
+        [field]: '',
       }));
     }
   };
@@ -199,47 +199,47 @@ function DataSourceForm({
     const newErrors: { [key: string]: string } = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = "Name is required";
+      newErrors.name = 'Name is required';
     }
 
     if (!formData.source) {
-      newErrors.source = "Source type is required";
+      newErrors.source = 'Source type is required';
     }
 
     // Source-specific validation
     switch (formData.source) {
-      case "close":
-      case "stripe":
+      case 'close':
+      case 'stripe':
         if (!formData.config.api_key.trim()) {
-          newErrors["config.api_key"] = "API key is required";
+          newErrors['config.api_key'] = 'API key is required';
         }
         break;
-      case "postgres":
-      case "mysql":
+      case 'postgres':
+      case 'mysql':
         if (!formData.config.host.trim()) {
-          newErrors["config.host"] = "Host is required";
+          newErrors['config.host'] = 'Host is required';
         }
         if (!formData.config.database.trim()) {
-          newErrors["config.database"] = "Database name is required";
+          newErrors['config.database'] = 'Database name is required';
         }
         break;
-      case "graphql":
-      case "rest":
-      case "api":
+      case 'graphql':
+      case 'rest':
+      case 'api':
         if (!formData.config.api_base_url.trim()) {
-          newErrors["config.api_base_url"] = "Base URL is required";
+          newErrors['config.api_base_url'] = 'Base URL is required';
         }
         break;
     }
 
     // Settings validation
     if (formData.settings.sync_batch_size < 1) {
-      newErrors["settings.sync_batch_size"] = "Batch size must be at least 1";
+      newErrors['settings.sync_batch_size'] = 'Batch size must be at least 1';
     }
 
     if (formData.settings.rate_limit_delay_ms < 0) {
-      newErrors["settings.rate_limit_delay_ms"] =
-        "Rate limit delay cannot be negative";
+      newErrors['settings.rate_limit_delay_ms'] =
+        'Rate limit delay cannot be negative';
     }
 
     setErrors(newErrors);
@@ -263,7 +263,7 @@ function DataSourceForm({
     // Remove empty strings from config
     const cleanConfig: { [key: string]: any } = {};
     Object.entries(submitData.config).forEach(([key, value]) => {
-      if (value !== "" && value !== undefined) {
+      if (value !== '' && value !== undefined) {
         cleanConfig[key] = value;
       }
     });
@@ -279,20 +279,20 @@ function DataSourceForm({
 
   const renderConfigFields = () => {
     switch (formData.source) {
-      case "close":
-      case "stripe":
+      case 'close':
+      case 'stripe':
         return (
           <>
             <TextField
               fullWidth
               label="API Key"
-              type={showApiKey ? "text" : "password"}
+              type={showApiKey ? 'text' : 'password'}
               value={formData.config.api_key}
               onChange={(e) =>
-                handleInputChange("config.api_key", e.target.value)
+                handleInputChange('config.api_key', e.target.value)
               }
-              error={!!errors["config.api_key"]}
-              helperText={errors["config.api_key"]}
+              error={!!errors['config.api_key']}
+              helperText={errors['config.api_key']}
               margin="normal"
               InputProps={{
                 endAdornment: (
@@ -307,15 +307,15 @@ function DataSourceForm({
                 ),
               }}
             />
-            {formData.source === "close" && (
+            {formData.source === 'close' && (
               <TextField
                 fullWidth
                 label="API Base URL"
                 value={
-                  formData.config.api_base_url || "https://api.close.com/api/v1"
+                  formData.config.api_base_url || 'https://api.close.com/api/v1'
                 }
                 onChange={(e) =>
-                  handleInputChange("config.api_base_url", e.target.value)
+                  handleInputChange('config.api_base_url', e.target.value)
                 }
                 margin="normal"
               />
@@ -323,8 +323,8 @@ function DataSourceForm({
           </>
         );
 
-      case "postgres":
-      case "mysql":
+      case 'postgres':
+      case 'mysql':
         return (
           <>
             <Grid container spacing={2}>
@@ -334,10 +334,10 @@ function DataSourceForm({
                   label="Host"
                   value={formData.config.host}
                   onChange={(e) =>
-                    handleInputChange("config.host", e.target.value)
+                    handleInputChange('config.host', e.target.value)
                   }
-                  error={!!errors["config.host"]}
-                  helperText={errors["config.host"]}
+                  error={!!errors['config.host']}
+                  helperText={errors['config.host']}
                   margin="normal"
                 />
               </Grid>
@@ -348,10 +348,10 @@ function DataSourceForm({
                   type="number"
                   value={formData.config.port}
                   onChange={(e) =>
-                    handleInputChange("config.port", e.target.value)
+                    handleInputChange('config.port', e.target.value)
                   }
                   margin="normal"
-                  placeholder={formData.source === "postgres" ? "5432" : "3306"}
+                  placeholder={formData.source === 'postgres' ? '5432' : '3306'}
                 />
               </Grid>
             </Grid>
@@ -360,10 +360,10 @@ function DataSourceForm({
               label="Database Name"
               value={formData.config.database}
               onChange={(e) =>
-                handleInputChange("config.database", e.target.value)
+                handleInputChange('config.database', e.target.value)
               }
-              error={!!errors["config.database"]}
-              helperText={errors["config.database"]}
+              error={!!errors['config.database']}
+              helperText={errors['config.database']}
               margin="normal"
             />
             <Grid container spacing={2}>
@@ -373,7 +373,7 @@ function DataSourceForm({
                   label="Username"
                   value={formData.config.username}
                   onChange={(e) =>
-                    handleInputChange("config.username", e.target.value)
+                    handleInputChange('config.username', e.target.value)
                   }
                   margin="normal"
                 />
@@ -382,10 +382,10 @@ function DataSourceForm({
                 <TextField
                   fullWidth
                   label="Password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={formData.config.password}
                   onChange={(e) =>
-                    handleInputChange("config.password", e.target.value)
+                    handleInputChange('config.password', e.target.value)
                   }
                   margin="normal"
                   InputProps={{
@@ -406,9 +406,9 @@ function DataSourceForm({
           </>
         );
 
-      case "graphql":
-      case "rest":
-      case "api":
+      case 'graphql':
+      case 'rest':
+      case 'api':
         return (
           <>
             <TextField
@@ -416,20 +416,20 @@ function DataSourceForm({
               label="Base URL"
               value={formData.config.api_base_url}
               onChange={(e) =>
-                handleInputChange("config.api_base_url", e.target.value)
+                handleInputChange('config.api_base_url', e.target.value)
               }
-              error={!!errors["config.api_base_url"]}
-              helperText={errors["config.api_base_url"]}
+              error={!!errors['config.api_base_url']}
+              helperText={errors['config.api_base_url']}
               margin="normal"
               placeholder="https://api.example.com"
             />
             <TextField
               fullWidth
               label="API Key (optional)"
-              type={showApiKeyOptional ? "text" : "password"}
+              type={showApiKeyOptional ? 'text' : 'password'}
               value={formData.config.api_key}
               onChange={(e) =>
-                handleInputChange("config.api_key", e.target.value)
+                handleInputChange('config.api_key', e.target.value)
               }
               margin="normal"
               InputProps={{
@@ -452,7 +452,7 @@ function DataSourceForm({
                   label="Username (optional)"
                   value={formData.config.username}
                   onChange={(e) =>
-                    handleInputChange("config.username", e.target.value)
+                    handleInputChange('config.username', e.target.value)
                   }
                   margin="normal"
                 />
@@ -461,10 +461,10 @@ function DataSourceForm({
                 <TextField
                   fullWidth
                   label="Password (optional)"
-                  type={showPasswordOptional ? "text" : "password"}
+                  type={showPasswordOptional ? 'text' : 'password'}
                   value={formData.config.password}
                   onChange={(e) =>
-                    handleInputChange("config.password", e.target.value)
+                    handleInputChange('config.password', e.target.value)
                   }
                   margin="normal"
                   InputProps={{
@@ -505,12 +505,12 @@ function DataSourceForm({
       <DialogTitle>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}
         >
-          {dataSource ? "Edit Data Source" : "Add Data Source"}
+          {dataSource ? 'Edit Data Source' : 'Add Data Source'}
           <IconButton onClick={onClose}>
             <CloseIcon />
           </IconButton>
@@ -528,7 +528,7 @@ function DataSourceForm({
             fullWidth
             label="Name"
             value={formData.name}
-            onChange={(e) => handleInputChange("name", e.target.value)}
+            onChange={(e) => handleInputChange('name', e.target.value)}
             error={!!errors.name}
             helperText={errors.name}
             margin="normal"
@@ -540,7 +540,7 @@ function DataSourceForm({
             multiline
             rows={2}
             value={formData.description}
-            onChange={(e) => handleInputChange("description", e.target.value)}
+            onChange={(e) => handleInputChange('description', e.target.value)}
             margin="normal"
           />
 
@@ -548,7 +548,7 @@ function DataSourceForm({
             <InputLabel>Source Type</InputLabel>
             <Select
               value={formData.source}
-              onChange={(e) => handleInputChange("source", e.target.value)}
+              onChange={(e) => handleInputChange('source', e.target.value)}
               label="Source Type"
             >
               {sourceTypes.map((type) => (
@@ -568,7 +568,7 @@ function DataSourceForm({
             fullWidth
             label="Tenant (optional)"
             value={formData.tenant}
-            onChange={(e) => handleInputChange("tenant", e.target.value)}
+            onChange={(e) => handleInputChange('tenant', e.target.value)}
             margin="normal"
             helperText="Associate this data source with a specific tenant"
           />
@@ -577,7 +577,7 @@ function DataSourceForm({
             control={
               <Switch
                 checked={formData.enabled}
-                onChange={(e) => handleInputChange("enabled", e.target.checked)}
+                onChange={(e) => handleInputChange('enabled', e.target.checked)}
               />
             }
             label="Enabled"
@@ -607,14 +607,14 @@ function DataSourceForm({
                     value={formData.settings.sync_batch_size}
                     onChange={(e) =>
                       handleInputChange(
-                        "settings.sync_batch_size",
-                        parseInt(e.target.value) || 0
+                        'settings.sync_batch_size',
+                        parseInt(e.target.value) || 0,
                       )
                     }
-                    error={!!errors["settings.sync_batch_size"]}
+                    error={!!errors['settings.sync_batch_size']}
                     helperText={
-                      errors["settings.sync_batch_size"] ||
-                      "Number of records to process at once"
+                      errors['settings.sync_batch_size'] ||
+                      'Number of records to process at once'
                     }
                     margin="normal"
                     inputProps={{ min: 1 }}
@@ -628,14 +628,14 @@ function DataSourceForm({
                     value={formData.settings.rate_limit_delay_ms}
                     onChange={(e) =>
                       handleInputChange(
-                        "settings.rate_limit_delay_ms",
-                        parseInt(e.target.value) || 0
+                        'settings.rate_limit_delay_ms',
+                        parseInt(e.target.value) || 0,
                       )
                     }
-                    error={!!errors["settings.rate_limit_delay_ms"]}
+                    error={!!errors['settings.rate_limit_delay_ms']}
                     helperText={
-                      errors["settings.rate_limit_delay_ms"] ||
-                      "Delay between API calls"
+                      errors['settings.rate_limit_delay_ms'] ||
+                      'Delay between API calls'
                     }
                     margin="normal"
                     inputProps={{ min: 0 }}
@@ -649,8 +649,8 @@ function DataSourceForm({
                     value={formData.settings.max_retries}
                     onChange={(e) =>
                       handleInputChange(
-                        "settings.max_retries",
-                        parseInt(e.target.value) || 0
+                        'settings.max_retries',
+                        parseInt(e.target.value) || 0,
                       )
                     }
                     margin="normal"
@@ -665,8 +665,8 @@ function DataSourceForm({
                     value={formData.settings.timeout_ms}
                     onChange={(e) =>
                       handleInputChange(
-                        "settings.timeout_ms",
-                        parseInt(e.target.value) || 0
+                        'settings.timeout_ms',
+                        parseInt(e.target.value) || 0,
                       )
                     }
                     margin="normal"
@@ -682,7 +682,7 @@ function DataSourceForm({
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button onClick={handleSubmit} variant="contained" disableElevation>
-          {dataSource ? "Update" : "Create"}
+          {dataSource ? 'Update' : 'Create'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,7 +1,7 @@
-import { useAppStore, useAppDispatch } from "./appStore";
-import { ConsoleTab } from "./appStore";
+import { useAppStore, useAppDispatch } from './appStore';
+import { ConsoleTab } from './appStore';
 
-export type TabKind = "console" | "settings" | "sources" | "members";
+export type TabKind = 'console' | 'settings' | 'sources' | 'members';
 
 // Selector helpers
 const selectConsoleState = (state: any) => state.consoles;
@@ -13,10 +13,10 @@ export const useConsoleStore = () => {
   // Helper: convert Record to array for backward compatibility
   const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
-  const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
+  const addConsoleTab = (tab: Omit<ConsoleTab, 'id'>): string => {
     const id = Date.now().toString() + Math.random();
     dispatch({
-      type: "OPEN_CONSOLE_TAB",
+      type: 'OPEN_CONSOLE_TAB',
       payload: {
         id,
         title: tab.title,
@@ -24,21 +24,21 @@ export const useConsoleStore = () => {
         initialContent: tab.initialContent,
         databaseId: tab.databaseId,
         filePath: tab.filePath,
-        kind: (tab as any).kind || "console",
+        kind: (tab as any).kind || 'console',
       },
     } as any);
     return id;
   };
 
   const removeConsoleTab = (id: string) =>
-    dispatch({ type: "CLOSE_CONSOLE_TAB", payload: { id } } as any);
+    dispatch({ type: 'CLOSE_CONSOLE_TAB', payload: { id } } as any);
 
   const setActiveConsole = (id: string | null) =>
-    dispatch({ type: "FOCUS_CONSOLE_TAB", payload: { id } } as any);
+    dispatch({ type: 'FOCUS_CONSOLE_TAB', payload: { id } } as any);
 
   const updateConsoleContent = (id: string, content: string) =>
     dispatch({
-      type: "UPDATE_CONSOLE_CONTENT",
+      type: 'UPDATE_CONSOLE_CONTENT',
       payload: { id, content },
     } as any);
 
@@ -50,7 +50,7 @@ export const useConsoleStore = () => {
     const tab = tabs[id];
     if (tab) {
       dispatch({
-        type: "UPDATE_CONSOLE_CONTENT",
+        type: 'UPDATE_CONSOLE_CONTENT',
         payload: { id, content: tab.content },
       } as any);
       // Extend reducer later for dedicated action
@@ -61,14 +61,14 @@ export const useConsoleStore = () => {
   };
   const updateConsoleTitle = (id: string, title: string) => {
     dispatch({
-      type: "UPDATE_CONSOLE_TITLE",
+      type: 'UPDATE_CONSOLE_TITLE',
       payload: { id, title },
     });
   };
 
   const updateConsoleDirty = (id: string, isDirty: boolean) => {
     dispatch({
-      type: "UPDATE_CONSOLE_DIRTY",
+      type: 'UPDATE_CONSOLE_DIRTY',
       payload: { id, isDirty },
     });
   };
@@ -104,10 +104,10 @@ useConsoleStore.getState = () => {
 
   const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
-  const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
+  const addConsoleTab = (tab: Omit<ConsoleTab, 'id'>): string => {
     const id = Date.now().toString() + Math.random();
     dispatch({
-      type: "OPEN_CONSOLE_TAB",
+      type: 'OPEN_CONSOLE_TAB',
       payload: {
         id,
         title: tab.title,
@@ -115,21 +115,21 @@ useConsoleStore.getState = () => {
         initialContent: tab.initialContent,
         databaseId: tab.databaseId,
         filePath: tab.filePath,
-        kind: (tab as any).kind || "console",
+        kind: (tab as any).kind || 'console',
       },
     });
     return id;
   };
 
   const removeConsoleTab = (id: string) =>
-    dispatch({ type: "CLOSE_CONSOLE_TAB", payload: { id } });
+    dispatch({ type: 'CLOSE_CONSOLE_TAB', payload: { id } });
 
   const setActiveConsole = (id: string | null) =>
-    dispatch({ type: "FOCUS_CONSOLE_TAB", payload: { id } });
+    dispatch({ type: 'FOCUS_CONSOLE_TAB', payload: { id } });
 
   const updateConsoleContent = (id: string, content: string) =>
     dispatch({
-      type: "UPDATE_CONSOLE_CONTENT",
+      type: 'UPDATE_CONSOLE_CONTENT',
       payload: { id, content },
     });
 
@@ -144,14 +144,14 @@ useConsoleStore.getState = () => {
 
   const updateConsoleTitle = (id: string, title: string) => {
     dispatch({
-      type: "UPDATE_CONSOLE_TITLE",
+      type: 'UPDATE_CONSOLE_TITLE',
       payload: { id, title },
     });
   };
 
   const updateConsoleDirty = (id: string, isDirty: boolean) => {
     dispatch({
-      type: "UPDATE_CONSOLE_DIRTY",
+      type: 'UPDATE_CONSOLE_DIRTY',
       payload: { id, isDirty },
     });
   };

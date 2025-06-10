@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -15,11 +15,11 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-} from "@mui/material";
+} from '@mui/material';
 import {
   Close as CloseIcon,
   ExpandMore as ExpandMoreIcon,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 
 interface CreateCollectionDialogProps {
   open: boolean;
@@ -34,7 +34,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
   onCreateCollection,
   isCreating,
 }) => {
-  const [collectionName, setCollectionName] = useState("");
+  const [collectionName, setCollectionName] = useState('');
   const [isCapped, setIsCapped] = useState(false);
   const [cappedSize, setCappedSize] = useState<number>(1000000);
   const [cappedMaxDocs, setCappedMaxDocs] = useState<number>(5000);
@@ -43,7 +43,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
   useEffect(() => {
     if (open) {
       // Reset form when dialog opens
-      setCollectionName("");
+      setCollectionName('');
       setIsCapped(false);
       setCappedSize(1000000);
       setCappedMaxDocs(5000);
@@ -55,7 +55,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
     setError(null);
 
     if (!collectionName.trim()) {
-      setError("Collection name is required");
+      setError('Collection name is required');
       return;
     }
 
@@ -63,18 +63,18 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
     const nameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
     if (!nameRegex.test(collectionName.trim())) {
       setError(
-        "Collection name must start with a letter or underscore and contain only letters, numbers, and underscores"
+        'Collection name must start with a letter or underscore and contain only letters, numbers, and underscores',
       );
       return;
     }
 
     if (isCapped) {
       if (cappedSize <= 0) {
-        setError("Capped collection size must be greater than 0");
+        setError('Capped collection size must be greater than 0');
         return;
       }
       if (cappedMaxDocs <= 0) {
-        setError("Capped collection max documents must be greater than 0");
+        setError('Capped collection max documents must be greater than 0');
         return;
       }
     }
@@ -107,15 +107,15 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
       fullWidth
       PaperProps={{
         sx: {
-          minHeight: "400px",
+          minHeight: '400px',
         },
       }}
     >
       <DialogTitle
         sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}
       >
         <Typography variant="h6">Create New Collection</Typography>
@@ -133,7 +133,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
 
       <DialogContent
         dividers
-        sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+        sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
       >
         {error && (
           <Alert severity="error" onClose={() => setError(null)}>
@@ -162,7 +162,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -228,7 +228,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
           disabled={isCreating || !collectionName.trim()}
           disableElevation
         >
-          {isCreating ? "Creating..." : "Create Collection"}
+          {isCreating ? 'Creating...' : 'Create Collection'}
         </Button>
       </DialogActions>
     </Dialog>

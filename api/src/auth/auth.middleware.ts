@@ -73,7 +73,7 @@ export function rateLimitMiddleware(windowMs: number, maxRequests: number) {
             headers: {
               'Retry-After': retryAfter.toString(),
             },
-          }
+          },
         );
       }
     }

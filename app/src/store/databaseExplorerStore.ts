@@ -1,19 +1,19 @@
-import { useAppStore } from "./appStore";
-import { useMemo } from "react";
+import { useAppStore } from './appStore';
+import { useMemo } from 'react';
 
 export const useDatabaseExplorerStore = () => {
   const dispatch = useAppStore((s) => s.dispatch);
   const expandedServersArray = useAppStore(
-    (s) => s.explorers.database.expandedServers
+    (s) => s.explorers.database.expandedServers,
   );
   const expandedDatabasesArray = useAppStore(
-    (s) => s.explorers.database.expandedDatabases
+    (s) => s.explorers.database.expandedDatabases,
   );
   const expandedCollectionGroupsArray = useAppStore(
-    (s) => s.explorers.database.expandedCollectionGroups
+    (s) => s.explorers.database.expandedCollectionGroups,
   );
   const expandedViewGroupsArray = useAppStore(
-    (s) => s.explorers.database.expandedViewGroups
+    (s) => s.explorers.database.expandedViewGroups,
   );
 
   const value = useMemo(() => {
@@ -32,37 +32,37 @@ export const useDatabaseExplorerStore = () => {
       // Actions
       toggleServer: (serverId: string) =>
         dispatch({
-          type: "TOGGLE_DATABASE_SERVER",
+          type: 'TOGGLE_DATABASE_SERVER',
           payload: { serverId },
         } as any),
 
       toggleDatabase: (databaseId: string) =>
         dispatch({
-          type: "TOGGLE_DATABASE_DATABASE",
+          type: 'TOGGLE_DATABASE_DATABASE',
           payload: { databaseId },
         } as any),
 
       toggleCollectionGroup: (databaseId: string) =>
         dispatch({
-          type: "TOGGLE_DATABASE_COLLECTION_GROUP",
+          type: 'TOGGLE_DATABASE_COLLECTION_GROUP',
           payload: { databaseId },
         } as any),
 
       toggleViewGroup: (databaseId: string) =>
         dispatch({
-          type: "TOGGLE_DATABASE_VIEW_GROUP",
+          type: 'TOGGLE_DATABASE_VIEW_GROUP',
           payload: { databaseId },
         } as any),
 
       expandServer: (serverId: string) =>
         dispatch({
-          type: "EXPAND_DATABASE_SERVER",
+          type: 'EXPAND_DATABASE_SERVER',
           payload: { serverId },
         } as any),
 
       expandDatabase: (databaseId: string) =>
         dispatch({
-          type: "EXPAND_DATABASE_DATABASE",
+          type: 'EXPAND_DATABASE_DATABASE',
           payload: { databaseId },
         } as any),
 

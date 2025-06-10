@@ -1,12 +1,12 @@
-import { Hono } from "hono";
-import { DataSourceManager, DataSource } from "../utils/data-source-manager";
-import { ObjectId } from "mongodb";
+import { Hono } from 'hono';
+import { DataSourceManager, DataSource } from '../utils/data-source-manager';
+import { ObjectId } from 'mongodb';
 
 export const dataSourceRoutes = new Hono();
 const dataSourceManager = new DataSourceManager();
 
 // GET /api/sources - List all data sources
-dataSourceRoutes.get("/", async (c) => {
+dataSourceRoutes.get('/', async (c) => {
   try {
     const dataSources = await dataSourceManager.listDataSources();
     return c.json({ success: true, data: dataSources });
@@ -14,21 +14,21 @@ dataSourceRoutes.get("/", async (c) => {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });
 
 // GET /api/sources/:id - Get specific data source
-dataSourceRoutes.get("/:id", async (c) => {
+dataSourceRoutes.get('/:id', async (c) => {
   try {
-    const id = c.req.param("id");
+    const id = c.req.param('id');
     const dataSource = await dataSourceManager.getDataSource(id);
 
     if (!dataSource) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: 'Data source not found' }, 404);
     }
 
     return c.json({ success: true, data: dataSource });
@@ -36,15 +36,15 @@ dataSourceRoutes.get("/:id", async (c) => {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });
 
 // POST /api/sources - Create new data source
-dataSourceRoutes.post("/", async (c) => {
+dataSourceRoutes.post('/', async (c) => {
   try {
     const body = await c.req.json();
 
@@ -53,9 +53,9 @@ dataSourceRoutes.post("/", async (c) => {
       return c.json(
         {
           success: false,
-          error: "Name and source are required",
+          error: 'Name and source are required',
         },
-        400
+        400,
       );
     }
 
@@ -80,25 +80,25 @@ dataSourceRoutes.post("/", async (c) => {
       {
         success: true,
         data: created,
-        message: "Data source created successfully",
+        message: 'Data source created successfully',
       },
-      201
+      201,
     );
   } catch (error) {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });
 
 // PUT /api/sources/:id - Update existing data source
-dataSourceRoutes.put("/:id", async (c) => {
+dataSourceRoutes.put('/:id', async (c) => {
   try {
-    const id = c.req.param("id");
+    const id = c.req.param('id');
     const body = await c.req.json();
 
     // Remove fields that shouldn't be updated directly
@@ -108,43 +108,43 @@ dataSourceRoutes.put("/:id", async (c) => {
     return c.json({
       success: true,
       data: updated,
-      message: "Data source updated successfully",
+      message: 'Data source updated successfully',
     });
   } catch (error) {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });
 
 // DELETE /api/sources/:id - Delete data source
-dataSourceRoutes.delete("/:id", async (c) => {
+dataSourceRoutes.delete('/:id', async (c) => {
   try {
-    const id = c.req.param("id");
+    const id = c.req.param('id');
     await dataSourceManager.deleteDataSource(id);
     return c.json({
       success: true,
-      message: "Data source deleted successfully",
+      message: 'Data source deleted successfully',
     });
   } catch (error) {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });
 
 // POST /api/sources/:id/test - Test data source connection
-dataSourceRoutes.post("/:id/test", async (c) => {
+dataSourceRoutes.post('/:id/test', async (c) => {
   try {
-    const id = c.req.param("id");
+    const id = c.req.param('id');
     const result = await dataSourceManager.testConnection(id);
     return c.json({
       success: true,
@@ -154,26 +154,26 @@ dataSourceRoutes.post("/:id/test", async (c) => {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });
 
 // PATCH /api/sources/:id/enable - Enable/disable data source
-dataSourceRoutes.patch("/:id/enable", async (c) => {
+dataSourceRoutes.patch('/:id/enable', async (c) => {
   try {
-    const id = c.req.param("id");
+    const id = c.req.param('id');
     const body = await c.req.json();
 
-    if (typeof body.enabled !== "boolean") {
+    if (typeof body.enabled !== 'boolean') {
       return c.json(
         {
           success: false,
-          error: "Enabled field must be a boolean",
+          error: 'Enabled field must be a boolean',
         },
-        400
+        400,
       );
     }
 
@@ -185,16 +185,16 @@ dataSourceRoutes.patch("/:id/enable", async (c) => {
       success: true,
       data: updated,
       message: `Data source ${
-        body.enabled ? "enabled" : "disabled"
+        body.enabled ? 'enabled' : 'disabled'
       } successfully`,
     });
   } catch (error) {
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
       },
-      500
+      500,
     );
   }
 });

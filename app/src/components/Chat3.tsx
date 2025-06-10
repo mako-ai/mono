@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Button,
@@ -13,14 +13,14 @@ import {
   Typography,
   Menu,
   ListItemIcon,
-} from "@mui/material";
-import SendIcon from "@mui/icons-material/Send";
-import BuildIcon from "@mui/icons-material/BuildOutlined";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
+} from '@mui/material';
+import SendIcon from '@mui/icons-material/Send';
+import BuildIcon from '@mui/icons-material/BuildOutlined';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
   ExpandMore,
   ExpandLess,
@@ -30,12 +30,12 @@ import {
   Add as AddIcon,
   Chat as ChatIcon,
   Delete as DeleteIcon,
-} from "@mui/icons-material";
-import { useTheme as useMuiTheme } from "@mui/material/styles";
-import { useWorkspace } from "../contexts/workspace-context";
+} from '@mui/icons-material';
+import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { useWorkspace } from '../contexts/workspace-context';
 
 interface Message {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string;
 }
 
@@ -58,17 +58,17 @@ const CodeBlock = React.memo(
   }) => {
     const muiTheme = useMuiTheme();
     const effectiveMode = muiTheme.palette.mode;
-    const syntaxTheme = effectiveMode === "dark" ? tomorrow : prism;
+    const syntaxTheme = effectiveMode === 'dark' ? tomorrow : prism;
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [isCopied, setIsCopied] = React.useState(false);
 
     // Split code into lines
-    const lines = children.split("\n");
+    const lines = children.split('\n');
     const needsExpansion = lines.length > 12;
 
     // Show only first 12 lines if not expanded
     const displayedCode =
-      needsExpansion && !isExpanded ? lines.slice(0, 12).join("\n") : children;
+      needsExpansion && !isExpanded ? lines.slice(0, 12).join('\n') : children;
 
     const handleCopy = async () => {
       try {
@@ -76,23 +76,23 @@ const CodeBlock = React.memo(
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
       } catch (err) {
-        console.error("Failed to copy code:", err);
+        console.error('Failed to copy code:', err);
       }
     };
 
     return (
       <Box
         sx={{
-          overflow: "hidden",
+          overflow: 'hidden',
           borderRadius: 1,
           my: 1,
-          position: "relative",
+          position: 'relative',
         }}
       >
         {isGenerating && (
           <Box
             sx={{
-              position: "absolute",
+              position: 'absolute',
               top: 0,
               left: 0,
               right: 0,
@@ -108,7 +108,7 @@ const CodeBlock = React.memo(
         {/* Copy button */}
         <Box
           sx={{
-            position: "absolute",
+            position: 'absolute',
             top: 8,
             right: 8,
             zIndex: 1,
@@ -119,20 +119,20 @@ const CodeBlock = React.memo(
             onClick={handleCopy}
             sx={{
               backgroundColor:
-                effectiveMode === "dark"
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(0,0,0,0.1)",
-              "&:hover": {
+                effectiveMode === 'dark'
+                  ? 'rgba(255,255,255,0.1)'
+                  : 'rgba(0,0,0,0.1)',
+              '&:hover': {
                 backgroundColor:
-                  effectiveMode === "dark"
-                    ? "rgba(255,255,255,0.2)"
-                    : "rgba(0,0,0,0.2)",
+                  effectiveMode === 'dark'
+                    ? 'rgba(255,255,255,0.2)'
+                    : 'rgba(0,0,0,0.2)',
               },
-              transition: "all 0.2s",
+              transition: 'all 0.2s',
             }}
           >
             {isCopied ? (
-              <Check sx={{ fontSize: 16, color: "success.main" }} />
+              <Check sx={{ fontSize: 16, color: 'success.main' }} />
             ) : (
               <ContentCopy sx={{ fontSize: 16 }} />
             )}
@@ -144,12 +144,12 @@ const CodeBlock = React.memo(
           language={language}
           PreTag="div"
           customStyle={{
-            fontSize: "0.8rem",
+            fontSize: '0.8rem',
             margin: 0,
-            overflow: "auto",
-            maxWidth: "100%",
-            paddingBottom: needsExpansion ? "2rem" : undefined,
-            paddingTop: "2rem", // Add padding to prevent copy button overlap
+            overflow: 'auto',
+            maxWidth: '100%',
+            paddingBottom: needsExpansion ? '2rem' : undefined,
+            paddingTop: '2rem', // Add padding to prevent copy button overlap
           }}
         >
           {displayedCode}
@@ -158,12 +158,12 @@ const CodeBlock = React.memo(
         {needsExpansion && (
           <Box
             sx={{
-              position: "absolute",
+              position: 'absolute',
               bottom: 0,
               left: 0,
               right: 0,
-              display: "flex",
-              justifyContent: "center",
+              display: 'flex',
+              justifyContent: 'center',
             }}
           >
             <Button
@@ -172,16 +172,16 @@ const CodeBlock = React.memo(
               sx={{
                 borderRadius: 0,
                 flexGrow: 1,
-                color: "text.primary",
+                color: 'text.primary',
                 backgroundColor:
-                  effectiveMode === "dark"
-                    ? "rgba(0, 0, 0, 0.3)"
-                    : "rgba(255, 255, 255, 0.3)",
-                "&:hover": {
+                  effectiveMode === 'dark'
+                    ? 'rgba(0, 0, 0, 0.3)'
+                    : 'rgba(255, 255, 255, 0.3)',
+                '&:hover': {
                   backgroundColor:
-                    effectiveMode === "dark"
-                      ? "rgba(0, 0, 0, 0.1)"
-                      : "rgba(255, 255, 255, 0.1)",
+                    effectiveMode === 'dark'
+                      ? 'rgba(0, 0, 0, 0.1)'
+                      : 'rgba(255, 255, 255, 0.1)',
                 },
               }}
             >
@@ -191,10 +191,10 @@ const CodeBlock = React.memo(
         )}
       </Box>
     );
-  }
+  },
 );
 
-CodeBlock.displayName = "CodeBlock";
+CodeBlock.displayName = 'CodeBlock';
 
 // Rewrite MessageItem component
 const MessageItem = React.memo(
@@ -216,9 +216,9 @@ const MessageItem = React.memo(
           remarkPlugins={[remarkGfm]}
           components={{
             code({ className, children }) {
-              const match = /language-(\w+)/.exec(className || "");
+              const match = /language-(\w+)/.exec(className || '');
               const isInline = !match;
-              const codeString = String(children).replace(/\n$/, "");
+              const codeString = String(children).replace(/\n$/, '');
               return !isInline ? (
                 <CodeBlock
                   language={match![1]}
@@ -228,19 +228,19 @@ const MessageItem = React.memo(
                   {codeString}
                 </CodeBlock>
               ) : (
-                <code className={className} style={{ fontSize: "0.8rem" }}>
+                <code className={className} style={{ fontSize: '0.8rem' }}>
                   {children}
                 </code>
               );
             },
             table({ children }) {
               return (
-                <Box sx={{ overflow: "auto", my: 1 }}>
+                <Box sx={{ overflow: 'auto', my: 1 }}>
                   <table
                     style={{
-                      borderCollapse: "collapse",
-                      width: "100%",
-                      fontSize: "0.875rem",
+                      borderCollapse: 'collapse',
+                      width: '100%',
+                      fontSize: '0.875rem',
                       border: `1px solid ${muiTheme.palette.divider}`,
                     }}
                   >
@@ -253,8 +253,8 @@ const MessageItem = React.memo(
               return (
                 <th
                   style={{
-                    padding: "8px 12px",
-                    textAlign: "left",
+                    padding: '8px 12px',
+                    textAlign: 'left',
                     backgroundColor: muiTheme.palette.background.paper,
                     borderBottom: `2px solid ${muiTheme.palette.divider}`,
                     borderRight: `1px solid ${muiTheme.palette.divider}`,
@@ -269,7 +269,7 @@ const MessageItem = React.memo(
               return (
                 <td
                   style={{
-                    padding: "8px 12px",
+                    padding: '8px 12px',
                     borderBottom: `1px solid ${muiTheme.palette.divider}`,
                     borderRight: `1px solid ${muiTheme.palette.divider}`,
                     backgroundColor: muiTheme.palette.background.paper,
@@ -292,29 +292,29 @@ const MessageItem = React.memo(
 
     return (
       <ListItem alignItems="flex-start" sx={{ p: 0 }}>
-        {message.role === "user" ? (
+        {message.role === 'user' ? (
           <Box sx={{ flex: 1 }}>
             <Paper
               variant="outlined"
               sx={{
                 p: 1,
                 borderRadius: 1,
-                backgroundColor: "background.paper",
+                backgroundColor: 'background.paper',
               }}
             >
               <ListItemText
                 primary={message.content}
                 primaryTypographyProps={{
-                  variant: "body2",
-                  color: "text.primary",
-                  sx: { whiteSpace: "pre-wrap" },
+                  variant: 'body2',
+                  color: 'text.primary',
+                  sx: { whiteSpace: 'pre-wrap' },
                 }}
               />
               {/* Generating notice inside last user message */}
               {isLastUser && loading && (
                 <Typography
                   variant="body2"
-                  sx={{ color: "text.secondary", mt: 0.5 }}
+                  sx={{ color: 'text.secondary', mt: 0.5 }}
                 >
                   Generating...
                 </Typography>
@@ -325,10 +325,10 @@ const MessageItem = React.memo(
           <Box
             sx={{
               flex: 1,
-              overflow: "hidden",
-              fontSize: "0.875rem",
+              overflow: 'hidden',
+              fontSize: '0.875rem',
 
-              "& pre": { margin: 0, overflow: "hidden" },
+              '& pre': { margin: 0, overflow: 'hidden' },
             }}
           >
             {markdownContent}
@@ -336,20 +336,20 @@ const MessageItem = React.memo(
         )}
       </ListItem>
     );
-  }
+  },
 );
 
-MessageItem.displayName = "MessageItem";
+MessageItem.displayName = 'MessageItem';
 
 const Chat3: React.FC = () => {
   const { currentWorkspace } = useWorkspace();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState<ChatSessionMeta[]>([]);
-  const [sessionId, setSessionId] = useState<string | "">("");
+  const [sessionId, setSessionId] = useState<string | ''>('');
   const [steps, setSteps] = useState<string[]>([]);
-  const [streamingContent, setStreamingContent] = useState<string>("");
+  const [streamingContent, setStreamingContent] = useState<string>('');
 
   // History menu state
   const [historyMenuAnchor, setHistoryMenuAnchor] =
@@ -391,7 +391,7 @@ const Chat3: React.FC = () => {
       }
       try {
         const res = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`
+          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -421,16 +421,16 @@ const Chat3: React.FC = () => {
 
     try {
       const res = await fetch(`/api/workspaces/${currentWorkspace.id}/chats`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "New Agent Chat" }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'New Agent Chat' }),
       });
       if (res.ok) {
         const data = await res.json();
         const newId = data.chatId as string;
         // Refresh sessions list
         const sessionsRes = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats`
+          `/api/workspaces/${currentWorkspace.id}/chats`,
         );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
@@ -460,7 +460,7 @@ const Chat3: React.FC = () => {
 
   const handleDeleteSession = async (
     sessionIdToDelete: string,
-    event: React.MouseEvent
+    event: React.MouseEvent,
   ) => {
     event.stopPropagation();
     if (!currentWorkspace) return;
@@ -469,13 +469,13 @@ const Chat3: React.FC = () => {
       const res = await fetch(
         `/api/workspaces/${currentWorkspace.id}/chats/${sessionIdToDelete}`,
         {
-          method: "DELETE",
-        }
+          method: 'DELETE',
+        },
       );
       if (res.ok) {
         // Refresh sessions list
         const sessionsRes = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats`
+          `/api/workspaces/${currentWorkspace.id}/chats`,
         );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
@@ -501,12 +501,12 @@ const Chat3: React.FC = () => {
 
   const streamResponse = async (latestMessage: string) => {
     if (!currentWorkspace) {
-      throw new Error("No workspace selected");
+      throw new Error('No workspace selected');
     }
 
-    const response = await fetch("/api/agent/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch('/api/agent/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionId,
         message: latestMessage,
@@ -520,22 +520,22 @@ const Chat3: React.FC = () => {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let assistantContent = "";
+    let assistantContent = '';
     let done = false;
 
     // Don't add optimistic message while loading, handle streaming separately
-    setStreamingContent("");
+    setStreamingContent('');
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
       done = doneReading;
       const chunkValue = decoder.decode(value || new Uint8Array());
 
-      const lines = chunkValue.split("\n\n").filter(Boolean);
+      const lines = chunkValue.split('\n\n').filter(Boolean);
       for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.replace("data: ", "");
-          if (data === "[DONE]") {
+        if (line.startsWith('data: ')) {
+          const data = line.replace('data: ', '');
+          if (data === '[DONE]') {
             done = true;
             break;
           }
@@ -544,13 +544,13 @@ const Chat3: React.FC = () => {
             const parsed = JSON.parse(data);
 
             // Handle different event types (only text and session for now)
-            if (parsed.type === "text") {
+            if (parsed.type === 'text') {
               assistantContent += parsed.content;
               setStreamingContent(assistantContent);
-            } else if (parsed.type === "step" && parsed.name) {
+            } else if (parsed.type === 'step' && parsed.name) {
               setSteps((prev) => [...prev, parsed.name]);
             } else if (
-              parsed.type === "session" &&
+              parsed.type === 'session' &&
               parsed.sessionId &&
               !sessionId
             ) {
@@ -567,12 +567,12 @@ const Chat3: React.FC = () => {
     if (assistantContent) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: assistantContent },
+        { role: 'assistant', content: assistantContent },
       ]);
     }
 
     setSteps([]);
-    setStreamingContent("");
+    setStreamingContent('');
   };
 
   const sendMessage = async () => {
@@ -581,9 +581,9 @@ const Chat3: React.FC = () => {
     const userMessage = input.trim();
 
     // Optimistically add user message
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
     setSteps([]);
-    setInput("");
+    setInput('');
     setLoading(true);
 
     try {
@@ -592,7 +592,7 @@ const Chat3: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          role: "assistant",
+          role: 'assistant',
           content: `Error: ${err.message}`,
         },
       ]);
@@ -606,35 +606,35 @@ const Chat3: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header with history and new chat */}
-      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: 'divider' }}>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}
         >
           <Box
             sx={{
               flexGrow: 1,
-              overflow: "hidden",
-              maxWidth: "calc(100% - 120px)",
+              overflow: 'hidden',
+              maxWidth: 'calc(100% - 120px)',
             }}
           >
             <Typography
               variant="h6"
               sx={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               Agent Chat
             </Typography>
           </Box>
-          <Box sx={{ display: "flex" }}>
+          <Box sx={{ display: 'flex' }}>
             <IconButton size="small" onClick={createNewSession}>
               <AddIcon />
             </IconButton>
@@ -662,16 +662,16 @@ const Chat3: React.FC = () => {
           .filter(
             (session) =>
               session._id === sessionId ||
-              (session.title && session.title.length > 0)
+              (session.title && session.title.length > 0),
           )
           .map((session) => (
             <MenuItem
               key={session._id}
               onClick={() => handleSelectSession(session._id)}
               selected={session._id === sessionId}
-              sx={{ display: "flex", justifyContent: "space-between" }}
+              sx={{ display: 'flex', justifyContent: 'space-between' }}
             >
-              <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                 <ListItemIcon>
                   <ChatIcon fontSize="small" />
                 </ListItemIcon>
@@ -683,7 +683,7 @@ const Chat3: React.FC = () => {
                         ? new Date(session.updatedAt).toLocaleString()
                         : session.createdAt
                           ? new Date(session.createdAt).toLocaleString()
-                          : ""
+                          : ''
                     }
                     primaryTypographyProps={{
                       noWrap: true,
@@ -713,13 +713,13 @@ const Chat3: React.FC = () => {
       </Menu>
 
       {/* Messages */}
-      <Box sx={{ flex: messages.length > 0 ? 1 : 0, overflow: "auto", p: 1 }}>
+      <Box sx={{ flex: messages.length > 0 ? 1 : 0, overflow: 'auto', p: 1 }}>
         <List dense>
           {messages.map((m, idx) => (
             <MessageItem
               key={idx}
               message={m}
-              isLastUser={idx === messages.length - 1 && m.role === "user"}
+              isLastUser={idx === messages.length - 1 && m.role === 'user'}
               loading={loading}
             />
           ))}
@@ -727,7 +727,7 @@ const Chat3: React.FC = () => {
             <>
               {/* Show step chips first when loading */}
               <ListItem sx={{ p: 0, mt: 1 }}>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {steps.map((s, idx) => (
                     <Chip
                       key={`${s}-${idx}`}
@@ -736,7 +736,7 @@ const Chat3: React.FC = () => {
                       size="small"
                       variant="outlined"
                       sx={{
-                        backgroundColor: "background.paper",
+                        backgroundColor: 'background.paper',
                         borderRadius: 2,
                       }}
                     />
@@ -752,11 +752,11 @@ const Chat3: React.FC = () => {
                   <Box
                     sx={{
                       flex: 1,
-                      overflow: "hidden",
-                      fontSize: "0.875rem",
-                      "& pre": {
+                      overflow: 'hidden',
+                      fontSize: '0.875rem',
+                      '& pre': {
                         margin: 0,
-                        overflow: "hidden",
+                        overflow: 'hidden',
                       },
                     }}
                   >
@@ -764,11 +764,11 @@ const Chat3: React.FC = () => {
                       remarkPlugins={[remarkGfm]}
                       components={{
                         code({ className, children }) {
-                          const match = /language-(\w+)/.exec(className || "");
+                          const match = /language-(\w+)/.exec(className || '');
                           const isInline = !match;
                           const codeString = String(children).replace(
                             /\n$/,
-                            ""
+                            '',
                           );
                           return !isInline ? (
                             <CodeBlock
@@ -781,7 +781,7 @@ const Chat3: React.FC = () => {
                           ) : (
                             <code
                               className={className}
-                              style={{ fontSize: "0.8rem" }}
+                              style={{ fontSize: '0.8rem' }}
                             >
                               {children}
                             </code>
@@ -790,12 +790,12 @@ const Chat3: React.FC = () => {
                         table({ children }) {
                           const muiTheme = useMuiTheme();
                           return (
-                            <Box sx={{ overflow: "auto", my: 1 }}>
+                            <Box sx={{ overflow: 'auto', my: 1 }}>
                               <table
                                 style={{
-                                  borderCollapse: "collapse",
-                                  width: "100%",
-                                  fontSize: "0.875rem",
+                                  borderCollapse: 'collapse',
+                                  width: '100%',
+                                  fontSize: '0.875rem',
                                   border: `1px solid ${muiTheme.palette.divider}`,
                                 }}
                               >
@@ -809,8 +809,8 @@ const Chat3: React.FC = () => {
                           return (
                             <th
                               style={{
-                                padding: "8px 12px",
-                                textAlign: "left",
+                                padding: '8px 12px',
+                                textAlign: 'left',
                                 backgroundColor:
                                   muiTheme.palette.background.paper,
                                 borderBottom: `2px solid ${muiTheme.palette.divider}`,
@@ -827,7 +827,7 @@ const Chat3: React.FC = () => {
                           return (
                             <td
                               style={{
-                                padding: "8px 12px",
+                                padding: '8px 12px',
                                 borderBottom: `1px solid ${muiTheme.palette.divider}`,
                                 borderRight: `1px solid ${muiTheme.palette.divider}`,
                                 backgroundColor:
@@ -855,12 +855,12 @@ const Chat3: React.FC = () => {
         elevation={0}
         sx={{
           border: 1,
-          borderColor: "divider",
+          borderColor: 'divider',
           borderRadius: 2.5,
           p: 1,
           m: 1,
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
           gap: 1,
         }}
       >
@@ -875,7 +875,7 @@ const Chat3: React.FC = () => {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               sendMessage();
             }
@@ -885,24 +885,24 @@ const Chat3: React.FC = () => {
           inputRef={inputRef}
           sx={{
             mb: 0.5,
-            maxHeight: "50vh",
-            overflowY: "auto",
-            "& .MuiInputBase-input": {
+            maxHeight: '50vh',
+            overflowY: 'auto',
+            '& .MuiInputBase-input': {
               fontSize: 14,
             },
-            "& .MuiInputBase-root": {
+            '& .MuiInputBase-root': {
               p: 0,
               fontSize: 14,
             },
-            "& .MuiOutlinedInput-notchedOutline": {
-              border: "none",
+            '& .MuiOutlinedInput-notchedOutline': {
+              border: 'none',
             },
-            "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
-              border: "none",
+            '& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline': {
+              border: 'none',
             },
-            "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
+            '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline':
               {
-                border: "none",
+                border: 'none',
               },
           }}
         />
@@ -910,9 +910,9 @@ const Chat3: React.FC = () => {
         {/* Bottom action bar with Send button on right */}
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
           }}
         >
           {/* Send Button */}
@@ -925,11 +925,11 @@ const Chat3: React.FC = () => {
             sx={{
               color:
                 input.trim() && currentWorkspace
-                  ? "primary.main"
-                  : "text.disabled",
+                  ? 'primary.main'
+                  : 'text.disabled',
               p: 0,
-              "&:hover": {
-                backgroundColor: "action.hover",
+              '&:hover': {
+                backgroundColor: 'action.hover',
               },
             }}
           >

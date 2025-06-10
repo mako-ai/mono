@@ -1,7 +1,7 @@
-import { MongoClient, Db, Collection, ObjectId } from "mongodb";
-import dotenv from "dotenv";
+import { MongoClient, Db, Collection, ObjectId } from 'mongodb';
+import dotenv from 'dotenv';
 
-dotenv.config({ path: "../../.env" });
+dotenv.config({ path: '../../.env' });
 
 // Data source interface
 export interface DataSource {
@@ -9,13 +9,13 @@ export interface DataSource {
   name: string;
   description?: string;
   source:
-    | "close"
-    | "stripe"
-    | "graphql"
-    | "postgres"
-    | "rest"
-    | "mysql"
-    | "api";
+    | 'close'
+    | 'stripe'
+    | 'graphql'
+    | 'postgres'
+    | 'rest'
+    | 'mysql'
+    | 'api';
   enabled: boolean;
   config: {
     api_key?: string;
@@ -52,8 +52,8 @@ export interface DataSource {
 // Simple configuration loader for the web app
 function loadConfig() {
   const connectionString =
-    process.env.MONGODB_CONNECTION_STRING || "mongodb://localhost:27018";
-  const database = process.env.MONGODB_DATABASE || "multi_tenant_analytics";
+    process.env.MONGODB_CONNECTION_STRING || 'mongodb://localhost:27018';
+  const database = process.env.MONGODB_DATABASE || 'multi_tenant_analytics';
 
   return {
     mongodb: {
@@ -77,7 +77,7 @@ export class DataSourceManager {
     await this.client.connect();
     const config = loadConfig();
     this.db = this.client.db(config.mongodb.database);
-    this.collection = this.db.collection<DataSource>("data_sources");
+    this.collection = this.db.collection<DataSource>('data_sources');
   }
 
   private async disconnect(): Promise<void> {
@@ -90,11 +90,11 @@ export class DataSourceManager {
       const dataSources = await this.collection.find({}).toArray();
       return dataSources;
     } catch (error) {
-      console.error(`❌ Error listing data sources:`, error);
+      console.error('❌ Error listing data sources:', error);
       throw new Error(
         `Failed to list data sources: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -109,11 +109,11 @@ export class DataSourceManager {
       });
       return dataSource;
     } catch (error) {
-      console.error(`❌ Error getting data source:`, error);
+      console.error('❌ Error getting data source:', error);
       throw new Error(
         `Failed to get data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -121,7 +121,7 @@ export class DataSourceManager {
   }
 
   async createDataSource(
-    dataSource: Omit<DataSource, "_id" | "created_at" | "updated_at">
+    dataSource: Omit<DataSource, '_id' | 'created_at' | 'updated_at'>,
   ): Promise<DataSource> {
     try {
       await this.connect();
@@ -130,33 +130,33 @@ export class DataSourceManager {
       const existing = await this.collection.findOne({ name: dataSource.name });
       if (existing) {
         throw new Error(
-          `Data source with name '${dataSource.name}' already exists`
+          `Data source with name '${dataSource.name}' already exists`,
         );
       }
 
       const now = new Date();
-      const newDataSource: Omit<DataSource, "_id"> = {
+      const newDataSource: Omit<DataSource, '_id'> = {
         ...dataSource,
         created_at: now,
         updated_at: now,
       };
 
       const result = await this.collection.insertOne(
-        newDataSource as DataSource
+        newDataSource as DataSource,
       );
       const created = await this.collection.findOne({ _id: result.insertedId });
 
       if (!created) {
-        throw new Error("Failed to retrieve created data source");
+        throw new Error('Failed to retrieve created data source');
       }
 
       return created;
     } catch (error) {
-      console.error(`❌ Error creating data source:`, error);
+      console.error('❌ Error creating data source:', error);
       throw new Error(
         `Failed to create data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -165,7 +165,7 @@ export class DataSourceManager {
 
   async updateDataSource(
     id: string,
-    updates: Partial<Omit<DataSource, "_id" | "created_at">>
+    updates: Partial<Omit<DataSource, '_id' | 'created_at'>>,
   ): Promise<DataSource> {
     try {
       await this.connect();
@@ -183,7 +183,7 @@ export class DataSourceManager {
         });
         if (nameConflict) {
           throw new Error(
-            `Data source with name '${updates.name}' already exists`
+            `Data source with name '${updates.name}' already exists`,
           );
         }
       }
@@ -195,21 +195,21 @@ export class DataSourceManager {
 
       await this.collection.updateOne(
         { _id: new ObjectId(id) },
-        { $set: updateData }
+        { $set: updateData },
       );
 
       const updated = await this.collection.findOne({ _id: new ObjectId(id) });
       if (!updated) {
-        throw new Error("Failed to retrieve updated data source");
+        throw new Error('Failed to retrieve updated data source');
       }
 
       return updated;
     } catch (error) {
-      console.error(`❌ Error updating data source:`, error);
+      console.error('❌ Error updating data source:', error);
       throw new Error(
         `Failed to update data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -228,11 +228,11 @@ export class DataSourceManager {
 
       return true;
     } catch (error) {
-      console.error(`❌ Error deleting data source:`, error);
+      console.error('❌ Error deleting data source:', error);
       throw new Error(
         `Failed to delete data source: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     } finally {
       await this.disconnect();
@@ -240,7 +240,7 @@ export class DataSourceManager {
   }
 
   async testConnection(
-    id: string
+    id: string,
   ): Promise<{ success: boolean; message: string }> {
     try {
       await this.connect();
@@ -254,32 +254,32 @@ export class DataSourceManager {
 
       // Basic connection test based on source type
       switch (dataSource.source) {
-        case "close":
+        case 'close':
           // Test Close API connection
           if (!dataSource.config.api_key) {
             return {
               success: false,
-              message: "API key is required for Close integration",
+              message: 'API key is required for Close integration',
             };
           }
-          return { success: true, message: "Close API connection configured" };
+          return { success: true, message: 'Close API connection configured' };
 
-        case "stripe":
+        case 'stripe':
           // Test Stripe API connection
           if (!dataSource.config.api_key) {
             return {
               success: false,
-              message: "API key is required for Stripe integration",
+              message: 'API key is required for Stripe integration',
             };
           }
-          return { success: true, message: "Stripe API connection configured" };
+          return { success: true, message: 'Stripe API connection configured' };
 
-        case "graphql":
+        case 'graphql':
           // Test GraphQL API connection
           if (!dataSource.config.endpoint) {
             return {
               success: false,
-              message: "Endpoint is required for GraphQL integration",
+              message: 'Endpoint is required for GraphQL integration',
             };
           }
           if (
@@ -289,7 +289,7 @@ export class DataSourceManager {
             return {
               success: false,
               message:
-                "At least one query must be configured for GraphQL integration",
+                'At least one query must be configured for GraphQL integration',
             };
           }
 
@@ -300,37 +300,37 @@ export class DataSourceManager {
             message: `GraphQL API connection configured with ${dataSource.config.queries.length} queries`,
           };
 
-        case "postgres":
-        case "mysql":
+        case 'postgres':
+        case 'mysql':
           // Test database connection
           if (!dataSource.config.host || !dataSource.config.database) {
             return {
               success: false,
-              message: "Host and database are required for database connection",
+              message: 'Host and database are required for database connection',
             };
           }
-          return { success: true, message: "Database connection configured" };
+          return { success: true, message: 'Database connection configured' };
 
-        case "rest":
-        case "api":
+        case 'rest':
+        case 'api':
           // Test API connection
           if (!dataSource.config.api_base_url) {
             return {
               success: false,
-              message: "Base URL is required for API connection",
+              message: 'Base URL is required for API connection',
             };
           }
-          return { success: true, message: "API connection configured" };
+          return { success: true, message: 'API connection configured' };
 
         default:
-          return { success: false, message: "Unknown data source type" };
+          return { success: false, message: 'Unknown data source type' };
       }
     } catch (error) {
-      console.error(`❌ Error testing data source connection:`, error);
+      console.error('❌ Error testing data source connection:', error);
       return {
         success: false,
         message:
-          error instanceof Error ? error.message : "Connection test failed",
+          error instanceof Error ? error.message : 'Connection test failed',
       };
     } finally {
       await this.disconnect();

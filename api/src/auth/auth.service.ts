@@ -43,7 +43,7 @@ export class AuthService {
     // Create default workspace for the user
     const workspace = await workspaceService.createWorkspace(
       userId,
-      `${email}'s Workspace`
+      `${email}'s Workspace`,
     );
 
     // Create session with workspace
@@ -98,7 +98,7 @@ export class AuthService {
   async handleOAuthCallback(
     provider: OAuthProvider,
     providerUserId: string,
-    email?: string
+    email?: string,
   ) {
     // Check if OAuth account exists
     const existingAccount = await OAuthAccount.findOne({
@@ -163,7 +163,7 @@ export class AuthService {
       // Create workspace only if user doesn't have any
       const workspace = await workspaceService.createWorkspace(
         user._id,
-        `${user.email}'s Workspace`
+        `${user.email}'s Workspace`,
       );
       activeWorkspaceId = workspace._id.toString();
     } else {
@@ -200,7 +200,7 @@ export class AuthService {
         id: user._id,
         email: user.email,
         createdAt: user.createdAt,
-      }
+      },
     };
   }
 
