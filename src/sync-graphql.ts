@@ -1,7 +1,7 @@
-import { MongoClient, Db } from 'mongodb';
-import axios, { AxiosError } from 'axios';
-import { dataSourceManager, DataSourceConfig } from './data-source-manager';
-import { ProgressReporter } from './sync';
+import { MongoClient, Db } from "mongodb";
+import axios, { AxiosError } from "axios";
+import { dataSourceManager, DataSourceConfig } from "./data-source-manager";
+import { ProgressReporter } from "./sync";
 
 interface GraphQLQuery {
   name: string;
@@ -44,13 +44,13 @@ class GraphQLSyncService {
 
     // Setup headers
     this.headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...dataSource.connection.headers,
     };
 
     // Add authorization if provided
     if (dataSource.connection.api_key) {
-      this.headers['Authorization'] = `Bearer ${dataSource.connection.api_key}`;
+      this.headers["Authorization"] = `Bearer ${dataSource.connection.api_key}`;
     }
 
     // Get settings with defaults
@@ -73,7 +73,7 @@ class GraphQLSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = 'local_dev.analytics_db',
+    targetDbId: string = "local_dev.analytics_db",
   ): Promise<{ client: MongoClient; db: Db }> {
     // Check if connection already exists
     if (this.mongoConnections.has(targetDbId)) {
@@ -82,7 +82,7 @@ class GraphQLSyncService {
 
     // Get target database configuration
     const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
-    if (!targetDb || targetDb.type !== 'mongodb') {
+    if (!targetDb || targetDb.type !== "mongodb") {
       throw new Error(`MongoDB data source '${targetDbId}' not found`);
     }
 
@@ -135,15 +135,15 @@ class GraphQLSyncService {
         if (response.data.errors && response.data.errors.length > 0) {
           const errorMessage = response.data.errors
             .map((err: any) => err.message)
-            .join(', ');
-          console.error('❌ GraphQL errors:', response.data.errors);
+            .join(", ");
+          console.error("❌ GraphQL errors:", response.data.errors);
           throw new Error(`GraphQL errors: ${errorMessage}`);
         }
 
         // Check if data exists
         if (!response.data.data) {
-          console.error('❌ No data in response:', response.data);
-          throw new Error('GraphQL response missing data field');
+          console.error("❌ No data in response:", response.data);
+          throw new Error("GraphQL response missing data field");
         }
 
         return response.data;
@@ -152,8 +152,8 @@ class GraphQLSyncService {
 
         // Log detailed error information for first attempt
         if (attempts === 0) {
-          console.error('❌ GraphQL query failed:', {
-            message: error instanceof Error ? error.message : 'Unknown error',
+          console.error("❌ GraphQL query failed:", {
+            message: error instanceof Error ? error.message : "Unknown error",
             status: axiosError.response?.status,
             statusText: axiosError.response?.statusText,
             endpoint: this.graphqlEndpoint,
@@ -161,13 +161,13 @@ class GraphQLSyncService {
           });
 
           if (axiosError.response?.data) {
-            console.error('📄 Response data:', axiosError.response.data);
+            console.error("📄 Response data:", axiosError.response.data);
           }
         }
 
         // Handle HTTP 429 specifically (rate limiting)
         if (axiosError.response?.status === 429) {
-          const retryAfterHeader = axiosError.response.headers?.['retry-after'];
+          const retryAfterHeader = axiosError.response.headers?.["retry-after"];
           const retryAfterSeconds = retryAfterHeader
             ? parseInt(retryAfterHeader, 10)
             : NaN;
@@ -190,7 +190,7 @@ class GraphQLSyncService {
           axiosError.response?.status === 401 ||
           axiosError.response?.status === 403
         ) {
-          console.error('🔒 Authentication/Authorization error:', {
+          console.error("🔒 Authentication/Authorization error:", {
             status: axiosError.response.status,
             message:
               axiosError.response.data?.message ||
@@ -234,11 +234,11 @@ class GraphQLSyncService {
 
     // Determine pagination type based on query
     const usesCursorPagination =
-      queryConfig.query.includes('$after') ||
-      queryConfig.query.includes('$cursor');
+      queryConfig.query.includes("$after") ||
+      queryConfig.query.includes("$cursor");
     const usesOffsetPagination =
-      queryConfig.query.includes('$offset') ||
-      queryConfig.query.includes('offset:');
+      queryConfig.query.includes("$offset") ||
+      queryConfig.query.includes("offset:");
 
     // Try to get total count first if path is provided
     if (progress && queryConfig.totalCountPath) {
@@ -278,12 +278,12 @@ class GraphQLSyncService {
           countResponse,
           queryConfig.totalCountPath,
         );
-        if (totalCount && typeof totalCount === 'number') {
+        if (totalCount && typeof totalCount === "number") {
           progress.updateTotal(totalCount);
         }
       } catch (error) {
         console.log(
-          'Could not fetch total count, continuing without total progress',
+          "Could not fetch total count, continuing without total progress",
         );
       }
     }
@@ -326,7 +326,7 @@ class GraphQLSyncService {
       );
 
       // Extract data using the configured path
-      const dataPath = queryConfig.dataPath || 'data';
+      const dataPath = queryConfig.dataPath || "data";
       const data = this.getValueByPath(response, dataPath);
 
       if (!Array.isArray(data)) {
@@ -404,10 +404,10 @@ class GraphQLSyncService {
 
     try {
       // Fetch GraphQL data in batches and write each batch directly to staging
-      await this.fetchAllGraphQLData(queryConfig, progress, async (batch) => {
+      await this.fetchAllGraphQLData(queryConfig, progress, async batch => {
         if (batch.length === 0) return;
 
-        const processedRecords = batch.map((record) => ({
+        const processedRecords = batch.map(record => ({
           ...record,
           _dataSourceId: this.dataSource.id,
           _dataSourceName: this.dataSource.name,
@@ -415,7 +415,7 @@ class GraphQLSyncService {
           _entityType: queryConfig.name,
         }));
 
-        const bulkOps = processedRecords.map((record) => ({
+        const bulkOps = processedRecords.map(record => ({
           replaceOne: {
             filter: {
               id: record.id,
@@ -452,19 +452,19 @@ class GraphQLSyncService {
     console.log(
       `\n🔄 Starting full sync for GraphQL source: ${this.dataSource.name}`,
     );
-    console.log(`Target database: ${targetDbId || 'local_dev.analytics_db'}`);
+    console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
     const startTime = Date.now();
 
     try {
       const queries = this.dataSource.connection.queries || [];
 
       if (queries.length === 0) {
-        console.warn('No queries configured for this GraphQL data source');
+        console.warn("No queries configured for this GraphQL data source");
         return;
       }
 
       // Import ProgressReporter for creating individual progress
-      const { ProgressReporter } = await import('./sync');
+      const { ProgressReporter } = await import("./sync");
 
       // Sync all configured queries
       for (const queryConfig of queries) {
@@ -505,19 +505,19 @@ class GraphQLSyncService {
       if (response && response.data && response.data.__schema) {
         return {
           success: true,
-          message: 'GraphQL connection successful',
+          message: "GraphQL connection successful",
         };
       } else {
         return {
           success: false,
-          message: 'GraphQL connection failed: Invalid response',
+          message: "GraphQL connection failed: Invalid response",
         };
       }
     } catch (error) {
       return {
         success: false,
         message: `GraphQL connection failed: ${
-          error instanceof Error ? error.message : 'Unknown error'
+          error instanceof Error ? error.message : "Unknown error"
         }`,
       };
     }
@@ -527,7 +527,7 @@ class GraphQLSyncService {
    * Get value from object using dot notation path
    */
   private getValueByPath(obj: any, path: string): any {
-    return path.split('.').reduce((current, key) => {
+    return path.split(".").reduce((current, key) => {
       return current && current[key] !== undefined ? current[key] : null;
     }, obj);
   }
@@ -538,7 +538,7 @@ class GraphQLSyncService {
   private buildCountQuery(queryConfig: GraphQLQuery): string {
     // This is a simplified approach - in practice, you might need more
     // sophisticated query modification based on your GraphQL schema
-    return queryConfig.query.replace(/first:\s*\$first/, 'first: 0');
+    return queryConfig.query.replace(/first:\s*\$first/, "first: 0");
   }
 
   /**
@@ -560,7 +560,7 @@ class GraphQLSyncService {
    * Delay utility for rate limiting and retries
    */
   private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

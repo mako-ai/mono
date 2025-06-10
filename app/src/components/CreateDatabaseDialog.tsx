@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -19,9 +19,9 @@ import {
   AccordionDetails,
   FormControlLabel,
   Switch,
-} from '@mui/material';
-import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
-import { useWorkspace } from '../contexts/workspace-context';
+} from "@mui/material";
+import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface CreateDatabaseDialogProps {
   open: boolean;
@@ -47,8 +47,8 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
   onSuccess,
 }) => {
   const { currentWorkspace } = useWorkspace();
-  const [name, setName] = useState('');
-  const [type, setType] = useState<string>('');
+  const [name, setName] = useState("");
+  const [type, setType] = useState<string>("");
   const [connection, setConnection] = useState<DatabaseConnection>({
     ssl: false,
   });
@@ -57,8 +57,8 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
-    setName('');
-    setType('');
+    setName("");
+    setType("");
     setConnection({
       ssl: false,
     });
@@ -73,12 +73,12 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
 
   const handleSubmit = async () => {
     if (!name || !type) {
-      setError('Name and database type are required');
+      setError("Name and database type are required");
       return;
     }
 
     if (!currentWorkspace) {
-      setError('No workspace selected');
+      setError("No workspace selected");
       return;
     }
 
@@ -86,11 +86,11 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
 
     if (useConnectionString) {
       if (!connection.connectionString) {
-        setError('Connection string is required');
+        setError("Connection string is required");
         return;
       }
       // Ensure database name is extracted for MongoDB connection strings
-      if (type === 'mongodb' && !finalConnection.database) {
+      if (type === "mongodb" && !finalConnection.database) {
         const dbName = extractDatabaseFromConnectionString(
           connection.connectionString,
         );
@@ -98,14 +98,14 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
           finalConnection.database = dbName;
         } else {
           setError(
-            'Could not extract database name from connection string. Please ensure it includes the database name (e.g., /mydb)',
+            "Could not extract database name from connection string. Please ensure it includes the database name (e.g., /mydb)",
           );
           return;
         }
       }
     } else {
       if (!connection.host || !connection.database) {
-        setError('Host and database name are required');
+        setError("Host and database name are required");
         return;
       }
     }
@@ -117,9 +117,9 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             name,
@@ -132,13 +132,13 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create database');
+        throw new Error(data.error || "Failed to create database");
       }
 
       onSuccess();
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
     } finally {
       setLoading(false);
     }
@@ -146,15 +146,15 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
 
   const getDefaultPort = (dbType: string): number => {
     switch (dbType) {
-      case 'mongodb':
+      case "mongodb":
         return 27017;
-      case 'postgresql':
+      case "postgresql":
         return 5432;
-      case 'mysql':
+      case "mysql":
         return 3306;
-      case 'mssql':
+      case "mssql":
         return 1433;
-      case 'sqlite':
+      case "sqlite":
         return 0;
       default:
         return 0;
@@ -163,11 +163,11 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
 
   const handleTypeChange = (newType: string) => {
     setType(newType);
-    setConnection((prev) => ({
+    setConnection(prev => ({
       ...prev,
       port: getDefaultPort(newType),
     }));
-    setUseConnectionString(newType === 'mongodb');
+    setUseConnectionString(newType === "mongodb");
   };
 
   const extractDatabaseFromConnectionString = (
@@ -177,9 +177,9 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       // Extract database name from MongoDB connection string
       // Format: mongodb://user:pass@host:port/database or mongodb+srv://user:pass@host/database
       const match = connectionString.match(/\/([^/?]+)(\?|$)/);
-      return match ? match[1] : '';
+      return match ? match[1] : "";
     } catch {
-      return '';
+      return "";
     }
   };
 
@@ -187,7 +187,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
     const updatedConnection = { ...connection, connectionString };
 
     // Auto-extract database name for MongoDB
-    if (type === 'mongodb' && connectionString) {
+    if (type === "mongodb" && connectionString) {
       const dbName = extractDatabaseFromConnectionString(connectionString);
       if (dbName) {
         updatedConnection.database = dbName;
@@ -212,7 +212,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
             fullWidth
             label="Database Name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             margin="normal"
             required
             placeholder="My Database"
@@ -223,7 +223,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
             <Select
               value={type}
               label="Database Type"
-              onChange={(e) => handleTypeChange(e.target.value)}
+              onChange={e => handleTypeChange(e.target.value)}
             >
               <MenuItem value="mongodb">MongoDB</MenuItem>
               <MenuItem value="postgresql">PostgreSQL</MenuItem>
@@ -233,17 +233,15 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
             </Select>
           </FormControl>
 
-          {type && type !== 'sqlite' && (
+          {type && type !== "sqlite" && (
             <>
-              {type === 'mongodb' && (
+              {type === "mongodb" && (
                 <Box sx={{ mt: 2 }}>
                   <FormControlLabel
                     control={
                       <Switch
                         checked={useConnectionString}
-                        onChange={(e) =>
-                          setUseConnectionString(e.target.checked)
-                        }
+                        onChange={e => setUseConnectionString(e.target.checked)}
                       />
                     }
                     label="Use Connection String"
@@ -263,10 +261,8 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                   <TextField
                     fullWidth
                     label="Connection String"
-                    value={connection.connectionString || ''}
-                    onChange={(e) =>
-                      handleConnectionStringChange(e.target.value)
-                    }
+                    value={connection.connectionString || ""}
+                    onChange={e => handleConnectionStringChange(e.target.value)}
                     margin="normal"
                     required
                     placeholder="mongodb+srv://username:password@cluster.mongodb.net/database"
@@ -275,7 +271,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                     helperText={
                       connection.database
                         ? `Detected database: ${connection.database}`
-                        : 'Enter a connection string that includes the database name'
+                        : "Enter a connection string that includes the database name"
                     }
                   />
                 </>
@@ -284,9 +280,9 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                   <TextField
                     fullWidth
                     label="Host"
-                    value={connection.host || ''}
-                    onChange={(e) =>
-                      setConnection((prev) => ({
+                    value={connection.host || ""}
+                    onChange={e =>
+                      setConnection(prev => ({
                         ...prev,
                         host: e.target.value,
                       }))
@@ -296,27 +292,27 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                     placeholder="localhost"
                   />
 
-                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                  <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
                     <TextField
                       label="Port"
                       type="number"
-                      value={connection.port || ''}
-                      onChange={(e) =>
-                        setConnection((prev) => ({
+                      value={connection.port || ""}
+                      onChange={e =>
+                        setConnection(prev => ({
                           ...prev,
                           port: parseInt(e.target.value) || undefined,
                         }))
                       }
-                      sx={{ width: '30%' }}
+                      sx={{ width: "30%" }}
                       placeholder={getDefaultPort(type).toString()}
                     />
 
                     <TextField
                       fullWidth
                       label="Database Name"
-                      value={connection.database || ''}
-                      onChange={(e) =>
-                        setConnection((prev) => ({
+                      value={connection.database || ""}
+                      onChange={e =>
+                        setConnection(prev => ({
                           ...prev,
                           database: e.target.value,
                         }))
@@ -326,13 +322,13 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                     />
                   </Box>
 
-                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                  <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
                     <TextField
                       fullWidth
                       label="Username"
-                      value={connection.username || ''}
-                      onChange={(e) =>
-                        setConnection((prev) => ({
+                      value={connection.username || ""}
+                      onChange={e =>
+                        setConnection(prev => ({
                           ...prev,
                           username: e.target.value,
                         }))
@@ -344,9 +340,9 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                       fullWidth
                       label="Password"
                       type="password"
-                      value={connection.password || ''}
-                      onChange={(e) =>
-                        setConnection((prev) => ({
+                      value={connection.password || ""}
+                      onChange={e =>
+                        setConnection(prev => ({
                           ...prev,
                           password: e.target.value,
                         }))
@@ -368,8 +364,8 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                       control={
                         <Switch
                           checked={connection.ssl || false}
-                          onChange={(e) =>
-                            setConnection((prev) => ({
+                          onChange={e =>
+                            setConnection(prev => ({
                               ...prev,
                               ssl: e.target.checked,
                             }))
@@ -379,14 +375,14 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                       label="Use SSL/TLS"
                     />
 
-                    {type === 'mongodb' && !useConnectionString && (
+                    {type === "mongodb" && !useConnectionString && (
                       <>
                         <TextField
                           fullWidth
                           label="Auth Source"
-                          value={connection.authSource || ''}
-                          onChange={(e) =>
-                            setConnection((prev) => ({
+                          value={connection.authSource || ""}
+                          onChange={e =>
+                            setConnection(prev => ({
                               ...prev,
                               authSource: e.target.value,
                             }))
@@ -398,9 +394,9 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                         <TextField
                           fullWidth
                           label="Replica Set"
-                          value={connection.replicaSet || ''}
-                          onChange={(e) =>
-                            setConnection((prev) => ({
+                          value={connection.replicaSet || ""}
+                          onChange={e =>
+                            setConnection(prev => ({
                               ...prev,
                               replicaSet: e.target.value,
                             }))
@@ -416,13 +412,13 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
             </>
           )}
 
-          {type === 'sqlite' && (
+          {type === "sqlite" && (
             <TextField
               fullWidth
               label="Database File Path"
-              value={connection.database || ''}
-              onChange={(e) =>
-                setConnection((prev) => ({
+              value={connection.database || ""}
+              onChange={e =>
+                setConnection(prev => ({
                   ...prev,
                   database: e.target.value,
                 }))
@@ -444,7 +440,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
           disabled={loading}
           startIcon={loading ? <CircularProgress size={16} /> : null}
         >
-          {loading ? 'Creating...' : 'Create Database'}
+          {loading ? "Creating..." : "Create Database"}
         </Button>
       </DialogActions>
     </Dialog>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -16,7 +16,7 @@ import {
   Alert,
   Tooltip,
   CircularProgress,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Add as AddIcon,
   Edit as EditIcon,
@@ -25,8 +25,8 @@ import {
   Pause as DisableIcon,
   CheckCircle as EnableIcon,
   Close as CloseIcon,
-} from '@mui/icons-material';
-import DataSourceForm from '../components/DataSourceForm';
+} from "@mui/icons-material";
+import DataSourceForm from "../components/DataSourceForm";
 
 interface DataSource {
   _id: string;
@@ -63,8 +63,8 @@ function DataSources() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dataSourceToDelete, setDataSourceToDelete] =
     useState<DataSource | null>(null);
-  const [error, setError] = useState<string>('');
-  const [testingId, setTestingId] = useState<string>('');
+  const [error, setError] = useState<string>("");
+  const [testingId, setTestingId] = useState<string>("");
 
   useEffect(() => {
     fetchDataSources();
@@ -73,17 +73,17 @@ function DataSources() {
   const fetchDataSources = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/sources');
+      const response = await fetch("/api/sources");
       const data = await response.json();
 
       if (data.success) {
         setDataSources(data.data);
       } else {
-        setError(data.error || 'Failed to fetch data sources');
+        setError(data.error || "Failed to fetch data sources");
       }
     } catch (err) {
-      setError('Failed to fetch data sources');
-      console.error('Error fetching data sources:', err);
+      setError("Failed to fetch data sources");
+      console.error("Error fetching data sources:", err);
     } finally {
       setLoading(false);
     }
@@ -109,48 +109,48 @@ function DataSources() {
 
     try {
       const response = await fetch(`/api/sources/${dataSourceToDelete._id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
       const data = await response.json();
 
       if (data.success) {
-        setDataSources((prev) =>
-          prev.filter((ds) => ds._id !== dataSourceToDelete._id),
+        setDataSources(prev =>
+          prev.filter(ds => ds._id !== dataSourceToDelete._id),
         );
         setDeleteDialogOpen(false);
         setDataSourceToDelete(null);
       } else {
-        setError(data.error || 'Failed to delete data source');
+        setError(data.error || "Failed to delete data source");
       }
     } catch (err) {
-      setError('Failed to delete data source');
-      console.error('Error deleting data source:', err);
+      setError("Failed to delete data source");
+      console.error("Error deleting data source:", err);
     }
   };
 
   const handleToggleEnabled = async (dataSource: DataSource) => {
     try {
       const response = await fetch(`/api/sources/${dataSource._id}/enable`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ enabled: !dataSource.enabled }),
       });
       const data = await response.json();
 
       if (data.success) {
-        setDataSources((prev) =>
-          prev.map((ds) =>
+        setDataSources(prev =>
+          prev.map(ds =>
             ds._id === dataSource._id ? { ...ds, enabled: !ds.enabled } : ds,
           ),
         );
       } else {
-        setError(data.error || 'Failed to update data source');
+        setError(data.error || "Failed to update data source");
       }
     } catch (err) {
-      setError('Failed to update data source');
-      console.error('Error updating data source:', err);
+      setError("Failed to update data source");
+      console.error("Error updating data source:", err);
     }
   };
 
@@ -158,22 +158,22 @@ function DataSources() {
     setTestingId(dataSource._id);
     try {
       const response = await fetch(`/api/sources/${dataSource._id}/test`, {
-        method: 'POST',
+        method: "POST",
       });
       const data = await response.json();
 
       if (data.success) {
         const result = data.data;
-        setError(result.success ? '' : result.message);
+        setError(result.success ? "" : result.message);
         // You could show a success message here instead
       } else {
-        setError(data.error || 'Failed to test connection');
+        setError(data.error || "Failed to test connection");
       }
     } catch (err) {
-      setError('Failed to test connection');
-      console.error('Error testing connection:', err);
+      setError("Failed to test connection");
+      console.error("Error testing connection:", err);
     } finally {
-      setTestingId('');
+      setTestingId("");
     }
   };
 
@@ -181,14 +181,14 @@ function DataSources() {
     try {
       const url = editingDataSource
         ? `/api/sources/${editingDataSource._id}`
-        : '/api/sources';
+        : "/api/sources";
 
-      const method = editingDataSource ? 'PUT' : 'POST';
+      const method = editingDataSource ? "PUT" : "POST";
 
       const response = await fetch(url, {
         method,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       });
@@ -197,38 +197,36 @@ function DataSources() {
 
       if (data.success) {
         if (editingDataSource) {
-          setDataSources((prev) =>
-            prev.map((ds) =>
-              ds._id === editingDataSource._id ? data.data : ds,
-            ),
+          setDataSources(prev =>
+            prev.map(ds => (ds._id === editingDataSource._id ? data.data : ds)),
           );
         } else {
-          setDataSources((prev) => [...prev, data.data]);
+          setDataSources(prev => [...prev, data.data]);
         }
         setFormOpen(false);
         setEditingDataSource(null);
       } else {
-        setError(data.error || 'Failed to save data source');
+        setError(data.error || "Failed to save data source");
       }
     } catch (err) {
-      setError('Failed to save data source');
-      console.error('Error saving data source:', err);
+      setError("Failed to save data source");
+      console.error("Error saving data source:", err);
     }
   };
 
   const getSourceChipColor = (source: string) => {
     const colors: {
-      [key: string]: 'primary' | 'secondary' | 'success' | 'warning' | 'error';
+      [key: string]: "primary" | "secondary" | "success" | "warning" | "error";
     } = {
-      close: 'primary',
-      stripe: 'secondary',
-      postgres: 'success',
-      mysql: 'success',
-      graphql: 'warning',
-      rest: 'warning',
-      api: 'warning',
+      close: "primary",
+      stripe: "secondary",
+      postgres: "success",
+      mysql: "success",
+      graphql: "warning",
+      rest: "warning",
+      api: "warning",
     };
-    return colors[source] || 'default';
+    return colors[source] || "default";
   };
 
   if (loading) {
@@ -245,12 +243,12 @@ function DataSources() {
   }
 
   return (
-    <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
+    <Box sx={{ p: 3, height: "100%", overflow: "auto" }}>
       <Box
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
           mb: 3,
         }}
       >
@@ -268,26 +266,26 @@ function DataSources() {
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
           {error}
         </Alert>
       )}
 
       <Grid container spacing={3}>
-        {dataSources.map((dataSource) => (
+        {dataSources.map(dataSource => (
           <Grid
             size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2 }}
             key={dataSource._id}
           >
             <Card
-              sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+              sx={{ height: "100%", display: "flex", flexDirection: "column" }}
             >
               <CardContent sx={{ flexGrow: 1 }}>
                 <Box
                   sx={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'flex-start',
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
                     mb: 2,
                   }}
                 >
@@ -313,8 +311,8 @@ function DataSources() {
 
                 <Box sx={{ mb: 2 }}>
                   <Chip
-                    label={dataSource.enabled ? 'Enabled' : 'Disabled'}
-                    color={dataSource.enabled ? 'success' : 'default'}
+                    label={dataSource.enabled ? "Enabled" : "Disabled"}
+                    color={dataSource.enabled ? "success" : "default"}
                     size="small"
                     sx={{ mr: 1 }}
                   />
@@ -334,7 +332,7 @@ function DataSources() {
               </CardContent>
 
               <CardActions
-                sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}
+                sx={{ justifyContent: "space-between", px: 2, pb: 2 }}
               >
                 <Box>
                   <Tooltip title="Edit">
@@ -345,11 +343,11 @@ function DataSources() {
                       <EditIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={dataSource.enabled ? 'Disable' : 'Enable'}>
+                  <Tooltip title={dataSource.enabled ? "Disable" : "Enable"}>
                     <IconButton
                       size="small"
                       onClick={() => handleToggleEnabled(dataSource)}
-                      color={dataSource.enabled ? 'warning' : 'success'}
+                      color={dataSource.enabled ? "warning" : "success"}
                     >
                       {dataSource.enabled ? <DisableIcon /> : <EnableIcon />}
                     </IconButton>
@@ -387,7 +385,7 @@ function DataSources() {
       </Grid>
 
       {dataSources.length === 0 && !loading && (
-        <Box sx={{ textAlign: 'center', mt: 8 }}>
+        <Box sx={{ textAlign: "center", mt: 8 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No data sources configured
           </Typography>
@@ -424,9 +422,9 @@ function DataSources() {
         <DialogTitle>
           <Box
             sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
             Delete Data Source

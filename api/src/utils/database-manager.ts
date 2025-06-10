@@ -1,5 +1,5 @@
-import { CreateCollectionOptions } from 'mongodb';
-import { mongoConnection } from './mongodb-connection';
+import { CreateCollectionOptions } from "mongodb";
+import { mongoConnection } from "./mongodb-connection";
 
 export class DatabaseManager {
   async listCollections(): Promise<any[]> {
@@ -7,7 +7,7 @@ export class DatabaseManager {
       const db = await mongoConnection.getDb();
 
       const collections = await db
-        .listCollections({ type: 'collection' })
+        .listCollections({ type: "collection" })
         .toArray();
 
       return collections.map(col => ({
@@ -17,7 +17,7 @@ export class DatabaseManager {
         info: (col as any).info,
       }));
     } catch (error) {
-      console.error('❌ Error listing collections:', error);
+      console.error("❌ Error listing collections:", error);
       throw new Error(
         `Failed to list collections: ${
           error instanceof Error ? error.message : String(error)
@@ -30,7 +30,7 @@ export class DatabaseManager {
     try {
       const db = await mongoConnection.getDb();
 
-      const views = await db.listCollections({ type: 'view' }).toArray();
+      const views = await db.listCollections({ type: "view" }).toArray();
 
       return views.map(view => ({
         name: view.name,
@@ -39,7 +39,7 @@ export class DatabaseManager {
         info: (view as any).info,
       }));
     } catch (error) {
-      console.error('❌ Error listing views:', error);
+      console.error("❌ Error listing views:", error);
       throw new Error(
         `Failed to list views: ${
           error instanceof Error ? error.message : String(error)
@@ -69,7 +69,7 @@ export class DatabaseManager {
         created: true,
       };
     } catch (error) {
-      console.error('❌ Error creating collection:', error);
+      console.error("❌ Error creating collection:", error);
       throw new Error(
         `Failed to create collection '${name}': ${
           error instanceof Error ? error.message : String(error)
@@ -114,7 +114,7 @@ export class DatabaseManager {
         created: true,
       };
     } catch (error) {
-      console.error('❌ Error creating view:', error);
+      console.error("❌ Error creating view:", error);
       throw new Error(
         `Failed to create view '${name}': ${
           error instanceof Error ? error.message : String(error)
@@ -140,7 +140,7 @@ export class DatabaseManager {
         deleted: result,
       };
     } catch (error) {
-      console.error('❌ Error deleting collection:', error);
+      console.error("❌ Error deleting collection:", error);
       throw new Error(
         `Failed to delete collection '${name}': ${
           error instanceof Error ? error.message : String(error)
@@ -155,7 +155,7 @@ export class DatabaseManager {
 
       // Check if view exists
       const existingViews = await db
-        .listCollections({ name, type: 'view' })
+        .listCollections({ name, type: "view" })
         .toArray();
       if (existingViews.length === 0) {
         throw new Error(`View '${name}' does not exist`);
@@ -168,7 +168,7 @@ export class DatabaseManager {
         deleted: result,
       };
     } catch (error) {
-      console.error('❌ Error deleting view:', error);
+      console.error("❌ Error deleting view:", error);
       throw new Error(
         `Failed to delete view '${name}': ${
           error instanceof Error ? error.message : String(error)
@@ -214,7 +214,7 @@ export class DatabaseManager {
         sampleDocuments: sampleDocs,
       };
     } catch (error) {
-      console.error('❌ Error getting collection info:', error);
+      console.error("❌ Error getting collection info:", error);
       throw new Error(
         `Failed to get collection info for '${name}': ${
           error instanceof Error ? error.message : String(error)
@@ -228,7 +228,7 @@ export class DatabaseManager {
       const db = await mongoConnection.getDb();
 
       // Check if view exists
-      const views = await db.listCollections({ name, type: 'view' }).toArray();
+      const views = await db.listCollections({ name, type: "view" }).toArray();
       if (views.length === 0) {
         throw new Error(`View '${name}' does not exist`);
       }
@@ -256,7 +256,7 @@ export class DatabaseManager {
         sampleDocuments: sampleDocs,
       };
     } catch (error) {
-      console.error('❌ Error getting view info:', error);
+      console.error("❌ Error getting view info:", error);
       throw new Error(
         `Failed to get view info for '${name}': ${
           error instanceof Error ? error.message : String(error)

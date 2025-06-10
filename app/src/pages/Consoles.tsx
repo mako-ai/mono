@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -9,17 +9,17 @@ import {
   DialogActions,
   Button,
   IconButton,
-} from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
+} from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material";
 import ConsoleExplorer, {
   ConsoleExplorerRef,
-} from '../components/ConsoleExplorer';
-import Console, { ConsoleRef } from '../components/Console';
-import ResultsTable from '../components/ResultsTable';
-import Chat from '../components/Chat/Chat';
-import { useWorkspace } from '../contexts/workspace-context';
+} from "../components/ConsoleExplorer";
+import Console, { ConsoleRef } from "../components/Console";
+import ResultsTable from "../components/ResultsTable";
+import Chat from "../components/Chat/Chat";
+import { useWorkspace } from "../contexts/workspace-context";
 // @ts-ignore – types will be available once the package is installed
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 interface ConsoleResult {
   results: any[];
@@ -29,36 +29,36 @@ interface ConsoleResult {
 
 // Styled PanelResizeHandle components
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  width: '4px',
+  width: "4px",
   background: theme.palette.divider,
-  cursor: 'col-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "col-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
 
 const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  height: '4px',
+  height: "4px",
   background: theme.palette.divider,
-  cursor: 'row-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "row-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
 
 function Consoles() {
   const { currentWorkspace } = useWorkspace();
-  const [selectedConsole, setSelectedConsole] = useState<string>('');
-  const [consoleContent, setConsoleContent] = useState<string>('');
+  const [selectedConsole, setSelectedConsole] = useState<string>("");
+  const [consoleContent, setConsoleContent] = useState<string>("");
   const [consoleResults, setConsoleResults] = useState<ConsoleResult | null>(
     null,
   );
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [currentEditorContent, setCurrentEditorContent] = useState<
     | {
         content: string;
@@ -87,7 +87,7 @@ function Consoles() {
           setAvailableDatabases(data.data);
         }
       } catch (error) {
-        console.error('Failed to fetch databases:', error);
+        console.error("Failed to fetch databases:", error);
       }
     };
 
@@ -125,13 +125,13 @@ function Consoles() {
     if (!contentToExecute.trim()) return;
 
     if (!currentWorkspace) {
-      setErrorMessage('No workspace selected');
+      setErrorMessage("No workspace selected");
       setErrorModalOpen(true);
       return;
     }
 
     if (!databaseId) {
-      setErrorMessage('No database selected');
+      setErrorMessage("No database selected");
       setErrorModalOpen(true);
       return;
     }
@@ -141,9 +141,9 @@ function Consoles() {
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ query: contentToExecute }),
         },
@@ -158,12 +158,12 @@ function Consoles() {
           resultCount: Array.isArray(data.data) ? data.data.length : 1,
         });
       } else {
-        console.error('Console execution failed:', data.error);
+        console.error("Console execution failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
       }
     } catch (error) {
-      console.error('Failed to execute console:', error);
+      console.error("Failed to execute console:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
     } finally {
@@ -176,7 +176,7 @@ function Consoles() {
     currentPath?: string,
   ): Promise<boolean> => {
     if (!currentWorkspace) {
-      setErrorMessage('No workspace selected');
+      setErrorMessage("No workspace selected");
       setErrorModalOpen(true);
       return false;
     }
@@ -187,35 +187,35 @@ function Consoles() {
 
     try {
       let savePath = currentPath;
-      let method = 'PUT';
+      let method = "PUT";
 
       if (!savePath) {
         // New console or "Save As" scenario
         const fileName = prompt(
-          'Enter a file name for the console (e.g., myFolder/myConsole). Existing .js extension will be appended if not present.',
+          "Enter a file name for the console (e.g., myFolder/myConsole). Existing .js extension will be appended if not present.",
         );
         if (!fileName) {
           setIsSaving(false);
           return false; // User cancelled
         }
-        savePath = fileName.endsWith('.js')
+        savePath = fileName.endsWith(".js")
           ? fileName.substring(0, fileName.length - 3)
           : fileName; // API expects path without .js
-        method = 'POST';
+        method = "POST";
         newPathCreated = true;
       }
 
       const response = await fetch(
-        method === 'PUT'
+        method === "PUT"
           ? `/api/workspaces/${currentWorkspace.id}/consoles/${savePath}`
           : `/api/workspaces/${currentWorkspace.id}/consoles`,
         {
           method: method,
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(
-            method === 'POST'
+            method === "POST"
               ? { path: savePath, content: contentToSave }
               : { content: contentToSave },
           ),
@@ -227,7 +227,7 @@ function Consoles() {
       if (data.success) {
         // alert("Console saved successfully!"); // Simple feedback, can be improved
         setConsoleContent(contentToSave); // Ensure editor content is up-to-date
-        if (method === 'POST' && data.data && data.data.path) {
+        if (method === "POST" && data.data && data.data.path) {
           setSelectedConsole(data.data.path); // Update selected console to the new path
           // Refresh ConsoleExplorer to show the new file
           if (consoleExplorerRef.current) {
@@ -236,13 +236,13 @@ function Consoles() {
         }
         success = true;
       } else {
-        console.error('Console save failed:', data.error);
+        console.error("Console save failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
         success = false;
       }
     } catch (error) {
-      console.error('Failed to save console:', error);
+      console.error("Failed to save console:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
       success = false;
@@ -254,27 +254,27 @@ function Consoles() {
 
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
-    setErrorMessage('');
+    setErrorMessage("");
   };
 
   return (
     <Box
       sx={{
-        height: '100%',
-        width: '100%',
-        maxWidth: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
+        height: "100%",
+        width: "100%",
+        maxWidth: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
       <PanelGroup
         direction="horizontal"
-        style={{ height: '100%', width: '100%' }}
+        style={{ height: "100%", width: "100%" }}
       >
         {/* Left Panel - Console Explorer */}
         <Panel defaultSize={15}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <ConsoleExplorer
               onConsoleSelect={handleConsoleSelect}
               ref={consoleExplorerRef}
@@ -286,17 +286,17 @@ function Consoles() {
 
         {/* Middle Panel - Editor and Results */}
         <Panel defaultSize={65} minSize={30}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <PanelGroup
               direction="vertical"
-              style={{ height: '100%', width: '100%' }}
+              style={{ height: "100%", width: "100%" }}
             >
               {/* Console Editor */}
               <Panel defaultSize={50} minSize={1}>
-                <Box sx={{ height: '100%', overflow: 'hidden' }}>
+                <Box sx={{ height: "100%", overflow: "hidden" }}>
                   <Console
                     initialContent={consoleContent}
-                    title={selectedConsole ? selectedConsole : 'New Console'}
+                    title={selectedConsole ? selectedConsole : "New Console"}
                     onExecute={handleConsoleExecute}
                     onSave={handleConsoleSave}
                     isExecuting={isExecuting}
@@ -312,7 +312,7 @@ function Consoles() {
 
               {/* Results */}
               <Panel defaultSize={50} minSize={1}>
-                <Box sx={{ height: '100%', overflow: 'hidden' }}>
+                <Box sx={{ height: "100%", overflow: "hidden" }}>
                   <ResultsTable results={consoleResults} />
                 </Box>
               </Panel>
@@ -324,7 +324,7 @@ function Consoles() {
 
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={20} minSize={1}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <Chat currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
@@ -338,15 +338,15 @@ function Consoles() {
         fullWidth
         PaperProps={{
           sx: {
-            maxHeight: '80vh',
+            maxHeight: "80vh",
           },
         }}
       >
         <DialogTitle
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Typography variant="h6" color="error">
@@ -356,7 +356,7 @@ function Consoles() {
             aria-label="close"
             onClick={handleCloseErrorModal}
             sx={{
-              color: (theme) => theme.palette.grey[500],
+              color: theme => theme.palette.grey[500],
             }}
           >
             <CloseIcon />
@@ -366,14 +366,14 @@ function Consoles() {
           <Box
             component="pre"
             sx={{
-              backgroundColor: 'background.default',
+              backgroundColor: "background.default",
               padding: 2,
               borderRadius: 1,
-              overflow: 'auto',
-              fontFamily: 'monospace',
-              fontSize: '0.875rem',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
+              overflow: "auto",
+              fontFamily: "monospace",
+              fontSize: "0.875rem",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
             }}
           >
             {errorMessage}

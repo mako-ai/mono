@@ -4,23 +4,23 @@ db.ch_close_leads.aggregate([
   // Attach country/coll name as field
   {
     $project: {
-      country: { $literal: 'CH' },
+      country: { $literal: "CH" },
       month: {
-        $dateToString: { format: '%Y-%m', date: { $toDate: '$date_created' } },
+        $dateToString: { format: "%Y-%m", date: { $toDate: "$date_created" } },
       },
     },
   },
   {
     $unionWith: {
-      coll: 'es_close_leads',
+      coll: "es_close_leads",
       pipeline: [
         {
           $project: {
-            country: { $literal: 'ES' },
+            country: { $literal: "ES" },
             month: {
               $dateToString: {
-                format: '%Y-%m',
-                date: { $toDate: '$date_created' },
+                format: "%Y-%m",
+                date: { $toDate: "$date_created" },
               },
             },
           },
@@ -30,15 +30,15 @@ db.ch_close_leads.aggregate([
   },
   {
     $unionWith: {
-      coll: 'fr_close_leads',
+      coll: "fr_close_leads",
       pipeline: [
         {
           $project: {
-            country: { $literal: 'FR' },
+            country: { $literal: "FR" },
             month: {
               $dateToString: {
-                format: '%Y-%m',
-                date: { $toDate: '$date_created' },
+                format: "%Y-%m",
+                date: { $toDate: "$date_created" },
               },
             },
           },
@@ -48,21 +48,21 @@ db.ch_close_leads.aggregate([
   },
   {
     $group: {
-      _id: { country: '$country', month: '$month' },
+      _id: { country: "$country", month: "$month" },
       count: { $sum: 1 },
     },
   },
   {
     $group: {
-      _id: '$_id.country',
-      months: { $push: { k: '$_id.month', v: '$count' } },
+      _id: "$_id.country",
+      months: { $push: { k: "$_id.month", v: "$count" } },
     },
   },
-  { $addFields: { monthsObj: { $arrayToObject: '$months' } } },
+  { $addFields: { monthsObj: { $arrayToObject: "$months" } } },
   {
     $replaceRoot: {
       newRoot: {
-        $mergeObjects: [{ country: '$_id' }, '$monthsObj'],
+        $mergeObjects: [{ country: "$_id" }, "$monthsObj"],
       },
     },
   },

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -13,16 +13,16 @@ import {
   Snackbar,
   Tabs,
   Tab,
-} from '@mui/material';
-import { Close as CloseIcon } from '@mui/icons-material';
-import DatabaseExplorer from '../components/DatabaseExplorer';
-import ResultsTable from '../components/ResultsTable';
-import Chat from '../components/Chat/Chat';
+} from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material";
+import DatabaseExplorer from "../components/DatabaseExplorer";
+import ResultsTable from "../components/ResultsTable";
+import Chat from "../components/Chat/Chat";
 // @ts-ignore – types will be available once the package is installed
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import Console, { ConsoleRef } from '../components/Console';
-import { useConsoleStore } from '../store/consoleStore';
-import { useWorkspace } from '../contexts/workspace-context';
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import Console, { ConsoleRef } from "../components/Console";
+import { useConsoleStore } from "../store/consoleStore";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface CollectionInfo {
   name: string;
@@ -51,21 +51,21 @@ interface Database {
 
 // Styled PanelResizeHandle components
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  width: '4px',
+  width: "4px",
   background: theme.palette.divider,
-  cursor: 'col-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "col-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
 
 const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
-  height: '4px',
+  height: "4px",
   background: theme.palette.divider,
-  cursor: 'row-resize',
-  transition: 'background-color 0.2s ease',
-  '&:hover': {
+  cursor: "row-resize",
+  transition: "background-color 0.2s ease",
+  "&:hover": {
     backgroundColor: theme.palette.primary.main,
   },
 }));
@@ -76,9 +76,9 @@ function Databases() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorModalOpen, setErrorModalOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [currentEditorContent, setCurrentEditorContent] = useState<
     | {
         content: string;
@@ -104,7 +104,7 @@ function Databases() {
 
   // Initialize refs for existing console tabs
   useEffect(() => {
-    consoleTabs.forEach((tab) => {
+    consoleTabs.forEach(tab => {
       if (!consoleRefs.current[tab.id]) {
         consoleRefs.current[tab.id] = React.createRef<ConsoleRef>();
       }
@@ -112,8 +112,8 @@ function Databases() {
   }, [consoleTabs]);
 
   const openNewConsole = (
-    initialContent: string = '',
-    title: string = 'New Console',
+    initialContent: string = "",
+    title: string = "New Console",
     databaseId?: string,
   ) => {
     const id = addConsoleTab({
@@ -182,7 +182,7 @@ function Databases() {
           setAvailableDatabases(data.data);
         }
       } catch (error) {
-        console.error('Failed to fetch databases:', error);
+        console.error("Failed to fetch databases:", error);
       }
     };
 
@@ -194,13 +194,13 @@ function Databases() {
     if (!query.trim()) return;
 
     if (!currentWorkspace) {
-      setErrorMessage('No workspace selected');
+      setErrorMessage("No workspace selected");
       setErrorModalOpen(true);
       return;
     }
 
     if (!databaseId) {
-      setErrorMessage('No database selected');
+      setErrorMessage("No database selected");
       setErrorModalOpen(true);
       return;
     }
@@ -210,9 +210,9 @@ function Databases() {
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ query }),
         },
@@ -227,12 +227,12 @@ function Databases() {
           resultCount: Array.isArray(data.data) ? data.data.length : 1,
         });
       } else {
-        console.error('Query execution failed:', data.error);
+        console.error("Query execution failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
       }
     } catch (error) {
-      console.error('Failed to execute query:', error);
+      console.error("Failed to execute query:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
     } finally {
@@ -245,7 +245,7 @@ function Databases() {
     _currentPath?: string,
   ): Promise<boolean> => {
     if (!currentWorkspace) {
-      setErrorMessage('No workspace selected');
+      setErrorMessage("No workspace selected");
       setErrorModalOpen(true);
       return false;
     }
@@ -255,23 +255,23 @@ function Databases() {
     let success = false;
     try {
       const fileName = prompt(
-        'Enter a file name to save this console (e.g., myFolder/myQuery). Existing .js extension will be appended if not present.',
+        "Enter a file name to save this console (e.g., myFolder/myQuery). Existing .js extension will be appended if not present.",
       );
       if (!fileName) {
         setIsSaving(false);
         return false; // User cancelled
       }
       // API expects path without .js, remove if user added it
-      const savePath = fileName.endsWith('.js')
+      const savePath = fileName.endsWith(".js")
         ? fileName.substring(0, fileName.length - 3)
         : fileName;
 
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/consoles`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ path: savePath, content: contentToSave }),
         },
@@ -288,13 +288,13 @@ function Databases() {
         setSnackbarOpen(true);
         success = true;
       } else {
-        console.error('Console save failed:', data.error);
+        console.error("Console save failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
         success = false;
       }
     } catch (error) {
-      console.error('Failed to save console:', error);
+      console.error("Failed to save console:", error);
       setErrorMessage(JSON.stringify(error, null, 2));
       setErrorModalOpen(true);
       success = false;
@@ -308,32 +308,32 @@ function Databases() {
 
   const handleCloseErrorModal = () => {
     setErrorModalOpen(false);
-    setErrorMessage('');
+    setErrorMessage("");
   };
 
   const handleCloseSnackbar = () => {
     setSnackbarOpen(false);
-    setSnackbarMessage('');
+    setSnackbarMessage("");
   };
 
   return (
     <Box
       sx={{
-        height: '100%',
-        width: '100%',
-        maxWidth: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
+        height: "100%",
+        width: "100%",
+        maxWidth: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
       <PanelGroup
         direction="horizontal"
-        style={{ height: '100%', width: '100%' }}
+        style={{ height: "100%", width: "100%" }}
       >
         {/* Left Panel - Database Explorer */}
         <Panel defaultSize={15}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <DatabaseExplorer onCollectionClick={handleCollectionClick} />
           </Box>
         </Panel>
@@ -342,19 +342,19 @@ function Databases() {
 
         {/* Middle Panel - Consoles and Results */}
         <Panel defaultSize={65} minSize={30}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <PanelGroup
               direction="vertical"
-              style={{ height: '100%', width: '100%' }}
+              style={{ height: "100%", width: "100%" }}
             >
               {/* Consoles */}
               <Panel defaultSize={50} minSize={1}>
                 <Box
                   sx={{
-                    height: '100%',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column',
+                    height: "100%",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
                   }}
                 >
                   {consoleTabs.length > 0 ? (
@@ -365,18 +365,18 @@ function Databases() {
                         variant="scrollable"
                         scrollButtons="auto"
                       >
-                        {consoleTabs.map((tab) => (
+                        {consoleTabs.map(tab => (
                           <Tab
                             key={tab.id}
                             value={tab.id}
                             label={
                               <Box
-                                sx={{ display: 'flex', alignItems: 'center' }}
+                                sx={{ display: "flex", alignItems: "center" }}
                               >
                                 <span>{tab.title}</span>
                                 <IconButton
                                   size="small"
-                                  onClick={(e) => {
+                                  onClick={e => {
                                     e.stopPropagation();
                                     closeConsole(tab.id);
                                   }}
@@ -390,14 +390,14 @@ function Databases() {
                       </Tabs>
 
                       {/* Active Console Editor */}
-                      <Box sx={{ flexGrow: 1, overflow: 'hidden' }}>
-                        {consoleTabs.map((tab) => (
+                      <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
+                        {consoleTabs.map(tab => (
                           <Box
                             key={tab.id}
                             sx={{
-                              height: '100%',
+                              height: "100%",
                               display:
-                                activeConsoleId === tab.id ? 'block' : 'none',
+                                activeConsoleId === tab.id ? "block" : "none",
                             }}
                           >
                             <Console
@@ -408,7 +408,7 @@ function Databases() {
                               isExecuting={isExecuting}
                               onSave={handleConsoleSaveInDatabasePage}
                               isSaving={isSaving}
-                              onContentChange={(content) =>
+                              onContentChange={content =>
                                 updateConsoleContent(tab.id, content)
                               }
                               databases={availableDatabases}
@@ -424,11 +424,11 @@ function Databases() {
                   ) : (
                     <Box
                       sx={{
-                        height: '100%',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
                         gap: 2,
                       }}
                     >
@@ -449,7 +449,7 @@ function Databases() {
 
               {/* Results */}
               <Panel defaultSize={50} minSize={1}>
-                <Box sx={{ height: '100%', overflow: 'hidden' }}>
+                <Box sx={{ height: "100%", overflow: "hidden" }}>
                   <ResultsTable results={queryResults} />
                 </Box>
               </Panel>
@@ -461,7 +461,7 @@ function Databases() {
 
         {/* Right Panel - ChatBot */}
         <Panel defaultSize={20} minSize={1}>
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
+          <Box sx={{ height: "100%", overflow: "hidden" }}>
             <Chat currentEditorContent={currentEditorContent} />
           </Box>
         </Panel>
@@ -475,15 +475,15 @@ function Databases() {
         fullWidth
         PaperProps={{
           sx: {
-            maxHeight: '80vh',
+            maxHeight: "80vh",
           },
         }}
       >
         <DialogTitle
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
           <Typography variant="h6" color="error">
@@ -493,7 +493,7 @@ function Databases() {
             aria-label="close"
             onClick={handleCloseErrorModal}
             sx={{
-              color: (theme) => theme.palette.grey[500],
+              color: theme => theme.palette.grey[500],
             }}
           >
             <CloseIcon />
@@ -503,14 +503,14 @@ function Databases() {
           <Box
             component="pre"
             sx={{
-              backgroundColor: 'background.default',
+              backgroundColor: "background.default",
               padding: 2,
               borderRadius: 1,
-              overflow: 'auto',
-              fontFamily: 'monospace',
-              fontSize: '0.875rem',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
+              overflow: "auto",
+              fontFamily: "monospace",
+              fontSize: "0.875rem",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
             }}
           >
             {errorMessage}
@@ -532,12 +532,12 @@ function Databases() {
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={handleCloseSnackbar}
           severity="success"
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {snackbarMessage}
         </Alert>

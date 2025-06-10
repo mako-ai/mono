@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -7,13 +7,13 @@ import {
   Alert,
   ToggleButtonGroup,
   ToggleButton,
-} from '@mui/material';
-import { DataGridPremium, GridColDef } from '@mui/x-data-grid-premium';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import TableViewIcon from '@mui/icons-material/TableView';
-import CodeIcon from '@mui/icons-material/Code';
-import Editor from '@monaco-editor/react';
-import { useTheme } from '../contexts/ThemeContext';
+} from "@mui/material";
+import { DataGridPremium, GridColDef } from "@mui/x-data-grid-premium";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import TableViewIcon from "@mui/icons-material/TableView";
+import CodeIcon from "@mui/icons-material/Code";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface QueryResult {
   results?: any; // Can be anything: array, object, primitive, etc.
@@ -27,13 +27,13 @@ interface ResultsTableProps {
 
 const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   const [snackbarOpen, setSnackbarOpen] = React.useState(false);
-  const [viewMode, setViewMode] = React.useState<'table' | 'json'>('table');
+  const [viewMode, setViewMode] = React.useState<"table" | "json">("table");
   const { effectiveMode } = useTheme();
 
   // Reset to table view whenever new results are received
   useEffect(() => {
     if (results) {
-      setViewMode('table');
+      setViewMode("table");
     }
   }, [results?.executedAt]); // Use executedAt as dependency to detect new query executions
 
@@ -48,7 +48,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     }
 
     // If it's a primitive value (string, number, boolean), wrap it in an object
-    if (typeof data !== 'object') {
+    if (typeof data !== "object") {
       return [{ value: data }];
     }
 
@@ -73,9 +73,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     const allKeys = new Set<string>();
 
     // Collect all unique keys from the sample results
-    sampleResults.forEach((result) => {
-      if (result && typeof result === 'object' && !Array.isArray(result)) {
-        Object.keys(result).forEach((key) => allKeys.add(key));
+    sampleResults.forEach(result => {
+      if (result && typeof result === "object" && !Array.isArray(result)) {
+        Object.keys(result).forEach(key => allKeys.add(key));
       }
     });
 
@@ -88,24 +88,24 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     const allKeysArray = Array.from(allKeys);
     const numericKeys = allKeysArray.filter(startsWithNumber);
     const sortedNumericKeys = numericKeys.sort();
-    const alphabeticKeys = allKeysArray.filter((key) => !startsWithNumber(key));
+    const alphabeticKeys = allKeysArray.filter(key => !startsWithNumber(key));
 
     // Combine alphabetic keys first, then numeric keys
     const orderedKeys = [...alphabeticKeys, ...sortedNumericKeys];
 
-    const cols: GridColDef[] = orderedKeys.map((key) => {
+    const cols: GridColDef[] = orderedKeys.map(key => {
       // Check if this column contains numeric values by sampling the first few rows
       const sampleValues = sampleResults
-        .map((row) => row?.[key])
-        .filter((value) => value !== undefined);
+        .map(row => row?.[key])
+        .filter(value => value !== undefined);
 
       const isNumericColumn = sampleValues.every(
-        (value) =>
+        value =>
           value === null ||
-          (typeof value === 'number' && !isNaN(value)) ||
-          (typeof value === 'string' &&
+          (typeof value === "number" && !isNaN(value)) ||
+          (typeof value === "string" &&
             !isNaN(Number(value)) &&
-            value.trim() !== ''),
+            value.trim() !== ""),
       );
 
       return {
@@ -114,17 +114,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         flex: 1,
         minWidth: 100,
         maxWidth: 300,
-        align: isNumericColumn ? 'right' : 'left',
-        headerAlign: isNumericColumn ? 'right' : 'left',
-        renderCell: (params) => {
+        align: isNumericColumn ? "right" : "left",
+        headerAlign: isNumericColumn ? "right" : "left",
+        renderCell: params => {
           const value = params.value;
-          if (typeof value === 'undefined') {
+          if (typeof value === "undefined") {
             return undefined;
           }
           if (value === null) {
             return null;
           }
-          if (typeof value === 'object' && value !== null) {
+          if (typeof value === "object" && value !== null) {
             return JSON.stringify(value);
           }
           return String(value);
@@ -135,7 +135,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     // Generate rows with unique IDs
     const rowsData = normalizedResults.map((result, index) => ({
       id: index,
-      ...(result && typeof result === 'object' && !Array.isArray(result)
+      ...(result && typeof result === "object" && !Array.isArray(result)
         ? result
         : { value: result }),
     }));
@@ -155,42 +155,42 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
     try {
       // Get column headers
-      const headers = columns.map((col) => col.field);
+      const headers = columns.map(col => col.field);
 
       // Create CSV-like format that works well with Google Sheets
       const csvContent = [
         // Header row
-        headers.join('\t'),
+        headers.join("\t"),
         // Data rows
-        ...normalizedResults.map((row) =>
+        ...normalizedResults.map(row =>
           headers
-            .map((header) => {
+            .map(header => {
               const value =
-                row && typeof row === 'object' && !Array.isArray(row)
+                row && typeof row === "object" && !Array.isArray(row)
                   ? row[header]
                   : row;
               if (value === null || value === undefined) {
-                return '';
+                return "";
               }
-              if (typeof value === 'object') {
+              if (typeof value === "object") {
                 return JSON.stringify(value);
               }
               // Escape tabs and newlines for CSV compatibility
-              return String(value).replace(/\t/g, ' ').replace(/\n/g, ' ');
+              return String(value).replace(/\t/g, " ").replace(/\n/g, " ");
             })
-            .join('\t'),
+            .join("\t"),
         ),
-      ].join('\n');
+      ].join("\n");
 
       await navigator.clipboard.writeText(csvContent);
       setSnackbarOpen(true);
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      console.error("Failed to copy to clipboard:", error);
     }
   }, [results, columns]);
 
   const handleViewModeChange = useCallback(
-    (_event: React.MouseEvent<HTMLElement>, newViewMode: 'table' | 'json') => {
+    (_event: React.MouseEvent<HTMLElement>, newViewMode: "table" | "json") => {
       if (newViewMode !== null) {
         setViewMode(newViewMode);
       }
@@ -204,11 +204,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     return (
       <Box
         sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'text.secondary',
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "text.secondary",
         }}
       >
         <Typography>Execute a query to see results here</Typography>
@@ -222,11 +222,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     return (
       <Box
         sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'text.secondary',
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "text.secondary",
         }}
       >
         <Typography>No results found</Typography>
@@ -237,81 +237,81 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   return (
     <Box
       sx={{
-        height: '100%',
-        width: '100%',
-        maxWidth: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
+        height: "100%",
+        width: "100%",
+        maxWidth: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
       }}
     >
       <Box
         sx={{
           flexGrow: 1,
-          overflow: 'hidden',
-          width: '100%',
-          maxWidth: '100%',
+          overflow: "hidden",
+          width: "100%",
+          maxWidth: "100%",
         }}
       >
-        {viewMode === 'table' ? (
+        {viewMode === "table" ? (
           <DataGridPremium
             rows={rows}
             columns={columns}
             density="compact"
             disableRowSelectionOnClick
             style={{
-              height: '100%',
-              width: '100%',
-              maxWidth: '100%',
+              height: "100%",
+              width: "100%",
+              maxWidth: "100%",
             }}
             sx={{
-              '& .MuiDataGrid-cell': {
-                fontSize: '0.875rem',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
+              "& .MuiDataGrid-cell": {
+                fontSize: "0.875rem",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               },
-              '& .MuiDataGrid-columnHeaders': {
-                backgroundColor: 'background.default',
+              "& .MuiDataGrid-columnHeaders": {
+                backgroundColor: "background.default",
               },
-              '& .MuiDataGrid-columnHeader': {
-                backgroundColor: 'background.default',
+              "& .MuiDataGrid-columnHeader": {
+                backgroundColor: "background.default",
               },
-              '& .MuiDataGrid-root': {
-                overflow: 'hidden',
+              "& .MuiDataGrid-root": {
+                overflow: "hidden",
               },
-              '& .MuiDataGrid-main': {
-                overflow: 'hidden',
-                backgroundColor: 'background.paper',
+              "& .MuiDataGrid-main": {
+                overflow: "hidden",
+                backgroundColor: "background.paper",
               },
-              '& .MuiDataGrid-virtualScroller': {
-                overflow: 'auto',
+              "& .MuiDataGrid-virtualScroller": {
+                overflow: "auto",
               },
               borderRadius: 0,
-              border: 'none',
-              width: '100%',
-              maxWidth: '100%',
+              border: "none",
+              width: "100%",
+              maxWidth: "100%",
             }}
           />
         ) : (
           <Box
             sx={{
-              height: '100%',
-              width: '100%',
-              maxWidth: '100%',
-              overflow: 'hidden',
+              height: "100%",
+              width: "100%",
+              maxWidth: "100%",
+              overflow: "hidden",
             }}
           >
             <Editor
               height="100%"
               defaultLanguage="json"
               value={jsonContent}
-              theme={effectiveMode === 'dark' ? 'vs-dark' : 'vs'}
+              theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
               options={{
                 readOnly: true,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 fontSize: 14,
-                wordWrap: 'on',
+                wordWrap: "on",
                 automaticLayout: true,
               }}
             />
@@ -321,16 +321,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
       <Box
         sx={{
           p: 1,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          {results.resultCount} result(s) • Executed at{' '}
+          {results.resultCount} result(s) • Executed at{" "}
           {new Date(results.executedAt).toLocaleString()}
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <ToggleButtonGroup
             value={viewMode}
             exclusive
@@ -350,7 +350,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             size="small"
             startIcon={<ContentCopyIcon />}
             onClick={copyToClipboard}
-            sx={{ minWidth: 'auto' }}
+            sx={{ minWidth: "auto" }}
           >
             Copy Table
           </Button>
@@ -360,12 +360,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         open={snackbarOpen}
         autoHideDuration={3000}
         onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={() => setSnackbarOpen(false)}
           severity="success"
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           Table copied to clipboard! You can now paste it in Google Sheets.
         </Alert>

@@ -4,7 +4,7 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
-} from 'react';
+} from "react";
 import {
   Box,
   Button,
@@ -14,15 +14,15 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-} from '@mui/material';
+} from "@mui/material";
 import {
   PlayArrow,
   Save as SaveIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
-} from '@mui/icons-material';
-import Editor from '@monaco-editor/react';
-import { useTheme } from '../contexts/ThemeContext';
+} from "@mui/icons-material";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "../contexts/ThemeContext";
 
 interface ViewDefinition {
   name: string;
@@ -68,7 +68,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
-    const [currentContent, setCurrentContent] = useState('');
+    const [currentContent, setCurrentContent] = useState("");
     const [isCreatingNew, setIsCreatingNew] = useState(false);
     const [collections, setCollections] = useState<string[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -78,13 +78,13 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     useEffect(() => {
       const fetchCollections = async () => {
         try {
-          const response = await fetch('/api/database/collections');
+          const response = await fetch("/api/database/collections");
           const data = await response.json();
           if (data.success) {
             setCollections(data.data.map((col: any) => col.name));
           }
         } catch (err) {
-          console.error('Failed to fetch collections:', err);
+          console.error("Failed to fetch collections:", err);
         }
       };
       fetchCollections();
@@ -94,8 +94,8 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     useEffect(() => {
       if (isCreatingNew) {
         const placeholderContent = {
-          name: '',
-          viewOn: 'your_collection',
+          name: "",
+          viewOn: "your_collection",
           pipeline: [
             {
               $match: {
@@ -104,7 +104,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
             },
             {
               $group: {
-                _id: '$field_name',
+                _id: "$field_name",
                 count: { $sum: 1 },
               },
             },
@@ -116,7 +116,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
         const formattedContent = JSON.stringify(viewDefinition, null, 2);
         setCurrentContent(formattedContent);
       } else {
-        setCurrentContent('');
+        setCurrentContent("");
       }
     }, [viewDefinition, isCreatingNew, collections]);
 
@@ -149,18 +149,18 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     };
 
     const handleEditorChange = (value: string | undefined) => {
-      setCurrentContent(value || '');
+      setCurrentContent(value || "");
     };
 
     const parseViewDefinition = (): ViewDefinition | null => {
       try {
         const parsed = JSON.parse(currentContent);
         if (!parsed.name || !parsed.viewOn || !Array.isArray(parsed.pipeline)) {
-          throw new Error('Invalid view definition format');
+          throw new Error("Invalid view definition format");
         }
         return parsed;
       } catch (error) {
-        console.error('Failed to parse view definition:', error);
+        console.error("Failed to parse view definition:", error);
         return null;
       }
     };
@@ -191,7 +191,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
 
     const handleCancelNew = () => {
       setIsCreatingNew(false);
-      setCurrentContent('');
+      setCurrentContent("");
     };
 
     const isValidDefinition = () => {
@@ -200,10 +200,10 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
 
     const isShowingContent = selectedView || viewDefinition || isCreatingNew;
     const displayTitle = isCreatingNew
-      ? 'New View'
+      ? "New View"
       : selectedView
         ? `View: ${selectedView}`
-        : 'No view selected';
+        : "No view selected";
 
     const handleDelete = () => {
       setDeleteDialogOpen(true);
@@ -216,7 +216,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
           await onDelete(selectedView);
           setDeleteDialogOpen(false);
         } catch (error) {
-          console.error('Failed to delete view:', error);
+          console.error("Failed to delete view:", error);
         } finally {
           setIsDeleting(false);
         }
@@ -235,23 +235,23 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
       cancelCreation: () => setIsCreatingNew(false),
       getCurrentContent: () => ({
         content: currentContent,
-        fileName: 'view_definition.json',
-        language: 'json',
+        fileName: "view_definition.json",
+        language: "json",
       }),
     }));
 
     return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
         <Box
           sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             p: 1,
           }}
         >
           <Typography variant="h6">{displayTitle}</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box sx={{ display: "flex", gap: 0.5 }}>
             {isCreatingNew && (
               <Button onClick={handleCancelNew} color="secondary">
                 Cancel
@@ -266,7 +266,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
                     !currentContent.trim() || !isValidDefinition() || isSaving
                   }
                 >
-                  {isSaving ? 'Saving...' : 'Save'}
+                  {isSaving ? "Saving..." : "Save"}
                 </Button>
                 <Button
                   startIcon={<PlayArrow />}
@@ -277,7 +277,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
                     isExecuting
                   }
                 >
-                  {isExecuting ? 'Executing...' : 'Run View'}
+                  {isExecuting ? "Executing..." : "Run View"}
                 </Button>
                 {selectedView && !isCreatingNew && onDelete && (
                   <Button
@@ -296,14 +296,14 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
 
         <Box
           ref={containerRef}
-          sx={{ flexGrow: 1, height: 0, borderTop: 1, borderColor: 'divider' }}
+          sx={{ flexGrow: 1, height: 0, borderTop: 1, borderColor: "divider" }}
         >
           {isShowingContent ? (
             <Editor
               defaultLanguage="json"
               value={currentContent}
               height="100%"
-              theme={effectiveMode === 'dark' ? 'vs-dark' : 'vs'}
+              theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
               onMount={handleEditorDidMount}
               onChange={handleEditorChange}
               options={{
@@ -311,7 +311,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
                 readOnly: false,
                 minimap: { enabled: false },
                 fontSize: 12,
-                wordWrap: 'on',
+                wordWrap: "on",
                 scrollBeyondLastLine: false,
                 formatOnPaste: true,
                 formatOnType: true,
@@ -320,12 +320,12 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
           ) : (
             <Box
               sx={{
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'text.secondary',
-                flexDirection: 'column',
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "text.secondary",
+                flexDirection: "column",
                 gap: 2,
               }}
             >
@@ -370,7 +370,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
               disabled={isDeleting}
               disableElevation
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogActions>
         </Dialog>

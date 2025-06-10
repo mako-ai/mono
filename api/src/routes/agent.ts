@@ -1,15 +1,15 @@
-import { Hono } from 'hono';
+import { Hono } from "hono";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – module will be provided via dependency at runtime
-import { Agent, run as runAgent, tool } from '@openai/agents';
-import { ObjectId, Decimal128 } from 'mongodb';
+import { Agent, run as runAgent, tool } from "@openai/agents";
+import { ObjectId, Decimal128 } from "mongodb";
 import {
   shouldGenerateTitle,
   generateChatTitle,
-} from '../services/title-generator';
-import { Chat, Database } from '../database/workspace-schema';
-import { databaseConnectionService } from '../services/database-connection.service';
-import { Types } from 'mongoose';
+} from "../services/title-generator";
+import { Chat, Database } from "../database/workspace-schema";
+import { databaseConnectionService } from "../services/database-connection.service";
+import { Types } from "mongoose";
 
 // Create a router that will be mounted at /api/agent
 export const agentRoutes = new Hono();
@@ -26,7 +26,7 @@ export const agentRoutes = new Hono();
 
 const listDatabases = async (workspaceId: string) => {
   if (!Types.ObjectId.isValid(workspaceId)) {
-    throw new Error('Invalid workspace ID');
+    throw new Error("Invalid workspace ID");
   }
 
   const databases = await Database.find({
@@ -36,11 +36,11 @@ const listDatabases = async (workspaceId: string) => {
   return databases.map(db => ({
     id: db._id.toString(),
     name: db.name,
-    description: '',
+    description: "",
     database: db.connection.database,
     type: db.type,
     active: true,
-    displayName: db.connection.database || db.name || 'Unknown Database',
+    displayName: db.connection.database || db.name || "Unknown Database",
   }));
 };
 
@@ -49,7 +49,7 @@ const listCollections = async (databaseId: string, workspaceId: string) => {
     !Types.ObjectId.isValid(databaseId) ||
     !Types.ObjectId.isValid(workspaceId)
   ) {
-    throw new Error('Invalid database ID or workspace ID');
+    throw new Error("Invalid database ID or workspace ID");
   }
 
   // Ensure database belongs to the workspace for security
@@ -59,17 +59,17 @@ const listCollections = async (databaseId: string, workspaceId: string) => {
   });
 
   if (!database) {
-    throw new Error('Database not found or access denied');
+    throw new Error("Database not found or access denied");
   }
 
-  if (database.type !== 'mongodb') {
-    throw new Error('Collection listing only supported for MongoDB databases');
+  if (database.type !== "mongodb") {
+    throw new Error("Collection listing only supported for MongoDB databases");
   }
 
   const connection = await databaseConnectionService.getConnection(database);
   const db = connection.db(database.connection.database);
   const collections = await db
-    .listCollections({ type: 'collection' })
+    .listCollections({ type: "collection" })
     .toArray();
 
   return collections.map((col: any) => ({
@@ -81,12 +81,12 @@ const listCollections = async (databaseId: string, workspaceId: string) => {
 
 // Infer a simple BSON type string for a given value
 const inferBsonType = (value: any): string => {
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  if (value instanceof ObjectId) return 'objectId';
-  if (value instanceof Date) return 'date';
-  if (value instanceof Decimal128) return 'decimal';
-  if (typeof value === 'object') return 'object';
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (value instanceof ObjectId) return "objectId";
+  if (value instanceof Date) return "date";
+  if (value instanceof Decimal128) return "decimal";
+  if (typeof value === "object") return "object";
   return typeof value; // string, number, boolean, undefined, etc.
 };
 
@@ -103,7 +103,7 @@ const inspectCollection = async (
     !Types.ObjectId.isValid(databaseId) ||
     !Types.ObjectId.isValid(workspaceId)
   ) {
-    throw new Error('Invalid database ID or workspace ID');
+    throw new Error("Invalid database ID or workspace ID");
   }
 
   // Ensure database belongs to the workspace for security
@@ -113,12 +113,12 @@ const inspectCollection = async (
   });
 
   if (!database) {
-    throw new Error('Database not found or access denied');
+    throw new Error("Database not found or access denied");
   }
 
-  if (database.type !== 'mongodb') {
+  if (database.type !== "mongodb") {
     throw new Error(
-      'Collection inspection only supported for MongoDB databases',
+      "Collection inspection only supported for MongoDB databases",
     );
   }
 
@@ -167,7 +167,7 @@ const executeQuery = async (
     !Types.ObjectId.isValid(databaseId) ||
     !Types.ObjectId.isValid(workspaceId)
   ) {
-    throw new Error('Invalid database ID or workspace ID');
+    throw new Error("Invalid database ID or workspace ID");
   }
 
   // Ensure database belongs to the workspace for security
@@ -177,7 +177,7 @@ const executeQuery = async (
   });
 
   if (!database) {
-    throw new Error('Database not found or access denied');
+    throw new Error("Database not found or access denied");
   }
 
   const result = await databaseConnectionService.executeQuery(database, query);
@@ -197,11 +197,11 @@ const executeQuery = async (
 // We'll need to pass workspaceId to tools via context. Let's create a factory function.
 const createWorkspaceTools = (workspaceId: string) => {
   const listDatabasesTool = tool({
-    name: 'list_databases',
+    name: "list_databases",
     description:
-      'Return a list of all active MongoDB databases that the system knows about for the current workspace.',
+      "Return a list of all active MongoDB databases that the system knows about for the current workspace.",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {},
       required: [],
       additionalProperties: false,
@@ -210,19 +210,19 @@ const createWorkspaceTools = (workspaceId: string) => {
   });
 
   const listCollectionsTool = tool({
-    name: 'list_collections',
+    name: "list_collections",
     description:
-      'Return a list of collections for the provided database identifier.',
+      "Return a list of collections for the provided database identifier.",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {
         databaseId: {
-          type: 'string',
+          type: "string",
           description:
-            'The id of the database to list collections for (e.g. 68470cf77091aab932a69c81)',
+            "The id of the database to list collections for (e.g. 68470cf77091aab932a69c81)",
         },
       },
-      required: ['databaseId'],
+      required: ["databaseId"],
       additionalProperties: false,
     },
     execute: async (input: any) =>
@@ -230,24 +230,24 @@ const createWorkspaceTools = (workspaceId: string) => {
   });
 
   const executeQueryTool = tool({
-    name: 'execute_query',
+    name: "execute_query",
     description:
-      'Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.',
+      "Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {
         query: {
-          type: 'string',
+          type: "string",
           description:
             "The MongoDB query to execute in JavaScript syntax (e.g., 'db.users.find({})').",
         },
         databaseId: {
-          type: 'string',
+          type: "string",
           description:
-            'The database identifier to execute the query against (e.g. 68470cf77091aab932a69c81)',
+            "The database identifier to execute the query against (e.g. 68470cf77091aab932a69c81)",
         },
       },
-      required: ['query', 'databaseId'],
+      required: ["query", "databaseId"],
       additionalProperties: false,
     },
     execute: async (input: any) =>
@@ -255,23 +255,23 @@ const createWorkspaceTools = (workspaceId: string) => {
   });
 
   const inspectCollectionTool = tool({
-    name: 'inspect_collection',
+    name: "inspect_collection",
     description:
-      'Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.',
+      "Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.",
     parameters: {
-      type: 'object',
+      type: "object",
       properties: {
         databaseId: {
-          type: 'string',
+          type: "string",
           description:
-            'The database identifier to inspect (e.g. 68470cf77091aab932a69c81)',
+            "The database identifier to inspect (e.g. 68470cf77091aab932a69c81)",
         },
         collectionName: {
-          type: 'string',
-          description: 'The name of the collection to inspect (e.g. users)',
+          type: "string",
+          description: "The name of the collection to inspect (e.g. users)",
         },
       },
-      required: ['databaseId', 'collectionName'],
+      required: ["databaseId", "collectionName"],
       additionalProperties: false,
     },
     execute: async (input: any) =>
@@ -292,7 +292,7 @@ const createWorkspaceTools = (workspaceId: string) => {
 
 const createDbAgent = (workspaceId: string) =>
   new Agent({
-    name: 'Database Assistant',
+    name: "Database Assistant",
     instructions: `You are an expert MongoDB assistant.
   Your goal is to help the user write MongoDB queries (mostly aggregation) to answer their questions.
   Use the available tools to inspect the available databases, list their collections, inspect collections schemas and execute queries.
@@ -324,7 +324,7 @@ const createDbAgent = (workspaceId: string) =>
 
     `,
     tools: createWorkspaceTools(workspaceId),
-    model: 'o3',
+    model: "o3",
   });
 
 // ------------------------------------------------------------------------------------
@@ -344,12 +344,12 @@ const persistChatSession = async (sessionId: string, messages: any[]) => {
 // POST /   (mounted at /api/agent) – Run the agent once and return the assistant reply
 // ------------------------------------------------------------------------------------
 // Debug version - Add this temporarily to see what events are coming through
-agentRoutes.post('/stream', async c => {
+agentRoutes.post("/stream", async c => {
   let body: any = {};
   try {
     body = await c.req.json();
   } catch (e) {
-    console.error('Error parsing request body', e);
+    console.error("Error parsing request body", e);
   }
 
   const { message, sessionId, workspaceId } = body as {
@@ -358,7 +358,7 @@ agentRoutes.post('/stream', async c => {
     workspaceId?: string;
   };
 
-  if (!message || typeof message !== 'string' || message.trim().length === 0) {
+  if (!message || typeof message !== "string" || message.trim().length === 0) {
     return c.json({ error: "'message' is required" }, 400);
   }
 
@@ -370,7 +370,7 @@ agentRoutes.post('/stream', async c => {
   }
 
   // Load existing messages...
-  let existingMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+  let existingMessages: { role: "user" | "assistant"; content: string }[] = [];
   let existingChat: any = null;
 
   if (sessionId) {
@@ -388,10 +388,10 @@ agentRoutes.post('/stream', async c => {
   }
 
   const conversationLines: string[] = existingMessages.map(
-    m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`,
+    m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`,
   );
   conversationLines.push(`User: ${message.trim()}`);
-  const agentInput = conversationLines.join('\n\n');
+  const agentInput = conversationLines.join("\n\n");
 
   const encoder = new TextEncoder();
 
@@ -410,7 +410,7 @@ agentRoutes.post('/stream', async c => {
           },
         );
 
-        let assistantReply = '';
+        let assistantReply = "";
         let eventCount = 0;
         let textDeltaCount = 0;
 
@@ -428,47 +428,47 @@ agentRoutes.post('/stream', async c => {
               deltaType: typeof event?.data?.delta,
               // Log a sample of the delta if it exists
               deltaSample: event?.data?.delta
-                ? typeof event?.data?.delta === 'string'
+                ? typeof event?.data?.delta === "string"
                   ? event?.data?.delta.substring(0, 50)
-                  : 'non-string'
-                : 'no-delta',
+                  : "non-string"
+                : "no-delta",
             });
           }
 
           // Check all possible text delta patterns
-          if (event?.type === 'raw_model_stream_event') {
+          if (event?.type === "raw_model_stream_event") {
             const data = event.data;
 
             // Try different field names that might contain text
             let textDelta = null;
-            if (data?.type === 'output_text_delta') {
+            if (data?.type === "output_text_delta") {
               textDelta = data.delta;
-            } else if (data?.type === 'response.output_text.delta') {
+            } else if (data?.type === "response.output_text.delta") {
               textDelta = data.delta;
-            } else if (data?.type === 'text_delta') {
+            } else if (data?.type === "text_delta") {
               textDelta = data.delta;
-            } else if (data?.type === 'content.delta') {
+            } else if (data?.type === "content.delta") {
               textDelta = data.text || data.delta;
             }
 
-            if (textDelta && typeof textDelta === 'string') {
+            if (textDelta && typeof textDelta === "string") {
               textDeltaCount++;
               assistantReply += textDelta;
-              sendEvent({ type: 'text', content: textDelta });
+              sendEvent({ type: "text", content: textDelta });
             }
           }
 
           // Process other events as before...
-          if (event?.type === 'run_item_stream_event') {
+          if (event?.type === "run_item_stream_event") {
             const itemEvent = event;
             const item = itemEvent.item;
 
             // Tool call started - debug the structure
             if (
-              item?.type === 'tool_call_item' &&
-              itemEvent.name === 'tool_called'
+              item?.type === "tool_call_item" &&
+              itemEvent.name === "tool_called"
             ) {
-              console.log('Tool call item full structure:', {
+              console.log("Tool call item full structure:", {
                 itemType: item.type,
                 hasRawItem: !!item.rawItem,
                 rawItemType: item.rawItem?.type,
@@ -482,19 +482,19 @@ agentRoutes.post('/stream', async c => {
               const toolName =
                 item.rawItem?.function?.name ||
                 item.rawItem?.name ||
-                'unknown_tool';
+                "unknown_tool";
 
               sendEvent({
-                type: 'step',
+                type: "step",
                 name: `tool_called:${toolName}`,
-                status: 'started',
+                status: "started",
               });
             }
 
             // Tool call completed
             if (
-              item?.type === 'tool_call_output_item' &&
-              itemEvent.name === 'output_added'
+              item?.type === "tool_call_output_item" &&
+              itemEvent.name === "output_added"
             ) {
               // For output items, we need to track which tool was called
               // This might require correlating with the tool_call_id
@@ -502,20 +502,20 @@ agentRoutes.post('/stream', async c => {
                 item.rawItem?.function?.name ||
                 item.rawItem?.name ||
                 item.tool_call_name ||
-                'completed_tool';
+                "completed_tool";
 
               sendEvent({
-                type: 'step',
+                type: "step",
                 name: `tool_output:${toolName}`,
-                status: 'completed',
+                status: "completed",
               });
             }
 
-            if (itemEvent.name === 'message_output_created') {
+            if (itemEvent.name === "message_output_created") {
               sendEvent({
-                type: 'step',
-                name: 'message_generation',
-                status: 'started',
+                type: "step",
+                name: "message_generation",
+                status: "started",
               });
             }
           }
@@ -529,16 +529,16 @@ agentRoutes.post('/stream', async c => {
         await runStream.completed;
 
         if (!assistantReply && runStream.finalOutput) {
-          console.log('No streamed text, using finalOutput');
+          console.log("No streamed text, using finalOutput");
           assistantReply = runStream.finalOutput;
-          sendEvent({ type: 'text', content: assistantReply });
+          sendEvent({ type: "text", content: assistantReply });
         }
 
         // Persist messages with smart title generation...
         const updatedMessages = [
           ...existingMessages,
-          { role: 'user', content: message.trim() },
-          { role: 'assistant', content: assistantReply },
+          { role: "user", content: message.trim() },
+          { role: "assistant", content: assistantReply },
         ];
 
         let finalSessionId = sessionId;
@@ -548,9 +548,9 @@ agentRoutes.post('/stream', async c => {
           // New conversation - start with a temporary title
           const newChat = new Chat({
             workspaceId: new ObjectId(workspaceId),
-            title: 'New Chat', // Temporary title
+            title: "New Chat", // Temporary title
             messages: updatedMessages,
-            createdBy: 'system', // TODO: Get from auth context when available
+            createdBy: "system", // TODO: Get from auth context when available
             titleGenerated: false, // Flag to track if we've generated a proper title
             createdAt: now,
             updatedAt: now,
@@ -576,7 +576,7 @@ agentRoutes.post('/stream', async c => {
                 );
               })
               .catch(error => {
-                console.error('Failed to generate title for new chat:', error);
+                console.error("Failed to generate title for new chat:", error);
               });
           }
         } else {
@@ -605,23 +605,23 @@ agentRoutes.post('/stream', async c => {
               })
               .catch(error => {
                 console.error(
-                  'Failed to generate title for existing chat:',
+                  "Failed to generate title for existing chat:",
                   error,
                 );
               });
           }
         }
 
-        sendEvent({ type: 'session', sessionId: finalSessionId });
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        sendEvent({ type: "session", sessionId: finalSessionId });
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       } catch (err: any) {
-        console.error('/api/agent/stream error', err);
+        console.error("/api/agent/stream error", err);
         sendEvent({
-          type: 'error',
-          message: err.message || 'Unexpected error',
+          type: "error",
+          message: err.message || "Unexpected error",
         });
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();
       }
     },
@@ -629,10 +629,10 @@ agentRoutes.post('/stream', async c => {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 });

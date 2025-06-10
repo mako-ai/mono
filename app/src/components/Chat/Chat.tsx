@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -9,24 +9,24 @@ import {
   ListItemText,
   ListItemIcon,
   MenuItem,
-} from '@mui/material';
-import OpenAI from 'openai';
-import UserInput from './UserInput';
-import MessageList from './MessageList';
-import AttachmentSelector from './AttachmentSelector';
-import { ChatProps, Message, AttachedContext, Collection, View } from './types';
-import { systemPromptContent } from './SystemPrompt';
-import { useChatStore } from '../../store/chatStore';
-import { useConsoleStore } from '../../store/consoleStore';
-import { useAppStore } from '../../store/appStore';
+} from "@mui/material";
+import OpenAI from "openai";
+import UserInput from "./UserInput";
+import MessageList from "./MessageList";
+import AttachmentSelector from "./AttachmentSelector";
+import { ChatProps, Message, AttachedContext, Collection, View } from "./types";
+import { systemPromptContent } from "./SystemPrompt";
+import { useChatStore } from "../../store/chatStore";
+import { useConsoleStore } from "../../store/consoleStore";
+import { useAppStore } from "../../store/appStore";
 import {
   History as HistoryIcon,
   Add as AddIcon,
   Chat as ChatIcon,
   Delete as DeleteIcon,
-} from '@mui/icons-material';
-import { useCustomPrompt } from './CustomPrompt';
-import { useWorkspace } from '../../contexts/workspace-context';
+} from "@mui/icons-material";
+import { useCustomPrompt } from "./CustomPrompt";
+import { useWorkspace } from "../../contexts/workspace-context";
 
 const Chat: React.FC<ChatProps> = () => {
   // Get state and actions from Zustand store
@@ -53,7 +53,7 @@ const Chat: React.FC<ChatProps> = () => {
 
   // Get loading state and dispatch from app store
   const { dispatch } = useAppStore();
-  const isLoading = useAppStore((s) => s.ui.loading.chatGeneration || false);
+  const isLoading = useAppStore(s => s.ui.loading.chatGeneration || false);
 
   // Get current messages from store
   const storedMessages = getCurrentMessages();
@@ -68,7 +68,7 @@ const Chat: React.FC<ChatProps> = () => {
     ? [...storedMessages, streamingMessage]
     : storedMessages;
 
-  const [inputMessage, setInputMessage] = useState('');
+  const [inputMessage, setInputMessage] = useState("");
   const [openaiClient, setOpenaiClient] = useState<OpenAI | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -101,7 +101,7 @@ const Chat: React.FC<ChatProps> = () => {
 
   // Initialize OpenAI client
   useEffect(() => {
-    const apiKey = localStorage.getItem('openai_api_key');
+    const apiKey = localStorage.getItem("openai_api_key");
     if (apiKey) {
       try {
         const client = new OpenAI({
@@ -112,12 +112,12 @@ const Chat: React.FC<ChatProps> = () => {
         setError(null);
       } catch (err) {
         setError(
-          'Failed to initialize OpenAI client. Please check your API key.',
+          "Failed to initialize OpenAI client. Please check your API key.",
         );
       }
     } else {
       setOpenaiClient(null);
-      setError('No OpenAI API key found. Please configure it in Settings.');
+      setError("No OpenAI API key found. Please configure it in Settings.");
     }
   }, []);
 
@@ -205,7 +205,7 @@ const Chat: React.FC<ChatProps> = () => {
 
       setAvailableCollections(allCollections);
     } catch (error) {
-      console.error('Failed to fetch collections:', error);
+      console.error("Failed to fetch collections:", error);
     }
   }, [currentWorkspace]);
 
@@ -232,7 +232,7 @@ const Chat: React.FC<ChatProps> = () => {
           if (!viewData.success) continue;
 
           for (const view of viewData.data as any[]) {
-            const viewOn = (view.options && view.options.viewOn) || '';
+            const viewOn = (view.options && view.options.viewOn) || "";
             const pipeline = (view.options && view.options.pipeline) || [];
 
             allViews.push({
@@ -250,7 +250,7 @@ const Chat: React.FC<ChatProps> = () => {
 
       setAvailableViews(allViews);
     } catch (error) {
-      console.error('Failed to fetch views:', error);
+      console.error("Failed to fetch views:", error);
     }
   }, [currentWorkspace]);
 
@@ -289,7 +289,7 @@ const Chat: React.FC<ChatProps> = () => {
           setSelectedModel(sorted[0]);
         }
       } catch (err) {
-        console.error('Failed to fetch available OpenAI models:', err);
+        console.error("Failed to fetch available OpenAI models:", err);
       }
     };
 
@@ -323,31 +323,31 @@ const Chat: React.FC<ChatProps> = () => {
 
   const addCollectionContext = (collection: Collection) => {
     // Build schema description
-    let schemaDescription = '';
+    let schemaDescription = "";
     if (
       collection.schemaInfo &&
       Object.keys(collection.schemaInfo).length > 0
     ) {
-      schemaDescription = '\n\nSchema Analysis:\n';
+      schemaDescription = "\n\nSchema Analysis:\n";
       Object.entries(collection.schemaInfo).forEach(
         ([field, info]: [string, any]) => {
-          schemaDescription += `- ${field}: ${info.types.join(' | ')}`;
+          schemaDescription += `- ${field}: ${info.types.join(" | ")}`;
           if (info.exampleValues.length > 0) {
             const examples = info.exampleValues
               .slice(0, 2)
               .map((v: any) =>
-                typeof v === 'object' ? JSON.stringify(v) : String(v),
+                typeof v === "object" ? JSON.stringify(v) : String(v),
               )
-              .join(', ');
+              .join(", ");
             schemaDescription += ` (e.g., ${examples})`;
           }
-          schemaDescription += '\n';
+          schemaDescription += "\n";
         },
       );
     }
 
     // Include multiple sample documents
-    let sampleDocumentsStr = '';
+    let sampleDocumentsStr = "";
     if (collection.sampleDocuments && collection.sampleDocuments.length > 0) {
       sampleDocumentsStr = `\n\nSample Documents (${collection.sampleDocuments.length} shown):\n`;
       collection.sampleDocuments.forEach((doc, index) => {
@@ -359,7 +359,7 @@ const Chat: React.FC<ChatProps> = () => {
 
     const contextItem: AttachedContext = {
       id: `collection-${collection.id}-${Date.now()}`,
-      type: 'collection',
+      type: "collection",
       title: collection.name,
       content: `Collection: ${collection.name}
 Description: ${collection.description}
@@ -374,14 +374,14 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   const addViewContext = (view: View) => {
     const contextItem: AttachedContext = {
       id: `view-${view.id}-${Date.now()}`,
-      type: 'view',
+      type: "view",
       title: `${view.name} (View)`,
       content: `View Name: ${view.name}\nView On: ${
         view.viewOn
       }\n\nPipeline:\n${JSON.stringify(view.pipeline, null, 2)}`,
       metadata: {
         fileName: `${view.name}.view.json`,
-        language: 'json',
+        language: "json",
       },
     };
     addContextItem(contextItem);
@@ -394,12 +394,12 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   ) => {
     const contextItem: AttachedContext = {
       id: `console-${consoleId}-${Date.now()}`,
-      type: 'console',
+      type: "console",
       title: `${title} (Console)`,
       content: `Console: ${title}\n\nCurrent Content:\n${content}`,
       metadata: {
         fileName: `${title}.js`,
-        language: 'javascript',
+        language: "javascript",
         consoleId: consoleId,
       },
     };
@@ -407,8 +407,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   };
 
   const createAndAttachNewConsole = (
-    initialContent: string = '',
-    title: string = 'New Console',
+    initialContent: string = "",
+    title: string = "New Console",
   ) => {
     const consoleId = addConsoleTab({
       title,
@@ -428,7 +428,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     const match = content.match(codeBlockRegex);
     if (match) {
       return {
-        language: match[1] || 'javascript',
+        language: match[1] || "javascript",
         code: match[2].trim(),
       };
     }
@@ -438,9 +438,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   // Function to update console with code from AI response
   const updateConsoleFromAIResponse = (response: string) => {
     // Check if there's an attached console
-    const attachedConsole = attachedContext.find(
-      (ctx) => ctx.type === 'console',
-    );
+    const attachedConsole = attachedContext.find(ctx => ctx.type === "console");
     if (attachedConsole && attachedConsole.metadata?.consoleId) {
       const codeBlock = extractCodeFromMarkdown(response);
       if (codeBlock) {
@@ -455,35 +453,33 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   // Function to execute console code automatically
   const executeConsoleCode = async (): Promise<any> => {
-    const attachedConsole = attachedContext.find(
-      (ctx) => ctx.type === 'console',
-    );
+    const attachedConsole = attachedContext.find(ctx => ctx.type === "console");
     if (!attachedConsole || !attachedConsole.metadata?.consoleId) {
       return null;
     }
 
     const consoleTab = consoleTabs.find(
-      (tab) => tab.id === attachedConsole.metadata!.consoleId,
+      tab => tab.id === attachedConsole.metadata!.consoleId,
     );
     if (!consoleTab || !consoleTab.content.trim()) {
       return null;
     }
 
     if (!currentWorkspace) {
-      return { success: false, error: 'No workspace selected' };
+      return { success: false, error: "No workspace selected" };
     }
 
     if (!consoleTab.databaseId) {
-      return { success: false, error: 'No database selected for this console' };
+      return { success: false, error: "No database selected for this console" };
     }
 
     try {
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases/${consoleTab.databaseId}/execute`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ query: consoleTab.content }),
         },
@@ -492,7 +488,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error('Failed to execute query:', error);
+      console.error("Failed to execute query:", error);
       return { success: false, error: String(error) };
     }
   };
@@ -502,11 +498,11 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
     const userMessage = inputMessage.trim();
     const currentContext = [...attachedContext];
-    setInputMessage('');
+    setInputMessage("");
     setError(null);
     dispatch({
-      type: 'SET_LOADING',
-      payload: { key: 'chatGeneration', value: true },
+      type: "SET_LOADING",
+      payload: { key: "chatGeneration", value: true },
     });
 
     // Reset user scroll state when sending a new message
@@ -518,7 +514,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     // 0️⃣  Persist the user's message locally so it appears immediately in the UI
     const userMessageObj: Message = {
       id: Date.now().toString() + Math.random(),
-      role: 'user',
+      role: "user",
       content: userMessage,
       timestamp: new Date(),
       attachedContext: currentContext,
@@ -526,20 +522,20 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     addMessage(userMessageObj);
 
     // 1️⃣  Previous chat history (excluding system prompt)
-    const priorMessages = storedMessages.map((msg) => ({
-      role: msg.role as 'user' | 'assistant',
+    const priorMessages = storedMessages.map(msg => ({
+      role: msg.role as "user" | "assistant",
       content: msg.content,
     }));
 
     // 2️⃣  Convert each attached context item into its own system message so it is
     //     clearly separated and always included in the prompt.
     const contextSystemMessages = currentContext.map((ctx, idx) => ({
-      role: 'system' as const,
+      role: "system" as const,
       content: `Attached Context #${idx + 1}: ${ctx.title}\n\n${ctx.content}`,
     }));
 
     // 3️⃣  The actual user question (without the context embedded)
-    const userPromptMessage = { role: 'user' as const, content: userMessage };
+    const userPromptMessage = { role: "user" as const, content: userMessage };
 
     // Combine everything for the OpenAI request
     const conversationHistory = [
@@ -552,8 +548,8 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     const assistantStreamingId = `assistant-${Date.now()}-${Math.random()}`;
     const initialStreamingMessage: Message = {
       id: assistantStreamingId,
-      role: 'assistant',
-      content: '',
+      role: "assistant",
+      content: "",
       timestamp: new Date(),
       attachedContext: [],
     };
@@ -572,35 +568,35 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         model: selectedModel,
         messages: [
           {
-            role: 'system',
+            role: "system",
             content: combinedSystemPrompt,
           },
           ...conversationHistory,
         ],
-        ...(selectedModel.toLowerCase().startsWith('o3') ||
-        selectedModel.toLowerCase().includes('gpt-4o')
+        ...(selectedModel.toLowerCase().startsWith("o3") ||
+        selectedModel.toLowerCase().includes("gpt-4o")
           ? { max_completion_tokens: 10000 }
           : { max_tokens: 10000 }),
-        ...(!selectedModel.toLowerCase().startsWith('o3') &&
-        !selectedModel.toLowerCase().includes('gpt-4o')
+        ...(!selectedModel.toLowerCase().startsWith("o3") &&
+        !selectedModel.toLowerCase().includes("gpt-4o")
           ? { temperature: 0.7 }
           : {}),
         stream: true,
       });
 
       // 5. Iterate over the streamed chunks and update the local streaming message
-      let fullResponse = '';
+      let fullResponse = "";
       for await (const chunk of completionStream) {
-        const delta: string = chunk?.choices?.[0]?.delta?.content || '';
+        const delta: string = chunk?.choices?.[0]?.delta?.content || "";
         if (delta) {
           fullResponse += delta;
           // Update local streaming message instead of global state
-          setStreamingMessage((prev) =>
+          setStreamingMessage(prev =>
             prev
               ? {
-                ...prev,
-                content: prev.content + delta,
-              }
+                  ...prev,
+                  content: prev.content + delta,
+                }
               : null,
           );
           // Trigger re-render for auto-scroll during streaming
@@ -624,7 +620,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       // 6. After streaming is complete, save the final message to global state
       const finalMessage: Message = {
         id: assistantStreamingId,
-        role: 'assistant',
+        role: "assistant",
         content: fullResponse,
         timestamp: new Date(),
         attachedContext: [],
@@ -635,13 +631,13 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       updateConsoleFromAIResponse(fullResponse);
 
       // Check for execution marker and handle automatic execution
-      if (fullResponse.includes('[[EXECUTE_CONSOLE]]')) {
+      if (fullResponse.includes("[[EXECUTE_CONSOLE]]")) {
         // Execute the console code after a short delay
         setTimeout(async () => {
           const result = await executeConsoleCode();
 
           // Format the results
-          let resultContent = '';
+          let resultContent = "";
           if (result?.success) {
             if (result.data?.results) {
               resultContent = `✅ Execution successful!\n\nResults (${
@@ -660,14 +656,14 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
             }
           } else {
             resultContent = `❌ Execution failed:\n\`\`\`\n${
-              result?.error || 'Unknown error'
+              result?.error || "Unknown error"
             }\n\`\`\``;
           }
 
           // Add execution results as a new message
           const executionResultMessage: Message = {
             id: `exec-result-${Date.now()}-${Math.random()}`,
-            role: 'assistant',
+            role: "assistant",
             content: resultContent,
             timestamp: new Date(),
             attachedContext: [],
@@ -677,7 +673,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
           // Add a system message prompting for analysis
           const analysisPromptMessage: Message = {
             id: `analysis-prompt-${Date.now()}-${Math.random()}`,
-            role: 'user',
+            role: "user",
             content:
               "Please analyze the execution results above. If they don't meet the requirements, feel free to modify the code and add [[EXECUTE_CONSOLE]] to run it again.",
             timestamp: new Date(),
@@ -693,24 +689,24 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       // Clear the temporary streaming message
       setStreamingMessage(null);
     } catch (err: any) {
-      console.error('OpenAI API error:', err);
+      console.error("OpenAI API error:", err);
       // Clear streaming message on error
       setStreamingMessage(null);
       if (err.status === 401) {
         setError(
-          'Invalid API key. Please check your OpenAI API key in Settings.',
+          "Invalid API key. Please check your OpenAI API key in Settings.",
         );
       } else if (err.status === 429) {
-        setError('Rate limit exceeded. Please try again later.');
+        setError("Rate limit exceeded. Please try again later.");
       } else {
         setError(
-          `Error: ${err.message || 'Failed to get response from OpenAI'}`,
+          `Error: ${err.message || "Failed to get response from OpenAI"}`,
         );
       }
     } finally {
       dispatch({
-        type: 'SET_LOADING',
-        payload: { key: 'chatGeneration', value: false },
+        type: "SET_LOADING",
+        payload: { key: "chatGeneration", value: false },
       });
     }
   };
@@ -741,18 +737,18 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
 
   // Discrete loading notice shown while assistant is generating a response
   const LoadingNotice: React.FC = () => (
-    <Box sx={{ display: 'flex', justifyContent: 'flex-start', m: 0.5 }}>
-      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+    <Box sx={{ display: "flex", justifyContent: "flex-start", m: 0.5 }}>
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
         Generating...
       </Typography>
     </Box>
   );
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
     if (scrollContainerRef.current && !isUserScrolledUp) {
       const scrollContainer = scrollContainerRef.current;
       // Use instant scrolling during streaming for better responsiveness
-      const scrollBehavior = isLoading ? 'instant' : behavior;
+      const scrollBehavior = isLoading ? "instant" : behavior;
 
       requestAnimationFrame(() => {
         isAutoScrollingRef.current = true;
@@ -782,15 +778,15 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       setIsUserScrolledUp(!isAtBottom);
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll);
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    scrollContainer.addEventListener("scroll", handleScroll);
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Auto-scroll to bottom when new messages are added (not during streaming)
   useEffect(() => {
     // Only auto-scroll for new messages if user hasn't scrolled up
     if (!isLoading && !isUserScrolledUp && messages.length > 0) {
-      scrollToBottom('smooth');
+      scrollToBottom("smooth");
     }
   }, [messages.length, isLoading, isUserScrolledUp]);
 
@@ -798,7 +794,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   useEffect(() => {
     // Only scroll during streaming if user hasn't scrolled up
     if (isLoading && !isUserScrolledUp) {
-      scrollToBottom('instant');
+      scrollToBottom("instant");
     }
   }, [lastMessageUpdateTime, isLoading, isUserScrolledUp]);
 
@@ -831,10 +827,10 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
     return (
       <Box
         sx={{
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           p: 3,
         }}
       >
@@ -854,23 +850,23 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
   return (
     <Box
       sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        height: '100%',
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        height: "100%",
         p: 1,
       }}
     >
       <Box
         sx={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
           mb: 1,
         }}
       >
         <Typography variant="h6">AI Assistant</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: "flex", gap: 1 }}>
           <IconButton
             size="small"
             onClick={handleHistoryMenuOpen}
@@ -894,17 +890,15 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         }}
       >
         {chatSessions
-          .filter(
-            (chat) => chat.messages.length > 0 || chat.id === currentChatId,
-          )
-          .map((chat) => (
+          .filter(chat => chat.messages.length > 0 || chat.id === currentChatId)
+          .map(chat => (
             <MenuItem
               key={chat.id}
               onClick={() => handleSelectChat(chat.id)}
               selected={chat.id === currentChatId}
-              sx={{ display: 'flex', justifyContent: 'space-between' }}
+              sx={{ display: "flex", justifyContent: "space-between" }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
                 <ListItemIcon>
                   <ChatIcon fontSize="small" />
                 </ListItemIcon>
@@ -926,7 +920,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
               {(chat.messages.length > 0 || chat.id !== currentChatId) && (
                 <IconButton
                   size="small"
-                  onClick={(e) => handleDeleteChat(chat.id, e)}
+                  onClick={e => handleDeleteChat(chat.id, e)}
                   sx={{ ml: 1 }}
                 >
                   <DeleteIcon fontSize="small" />
@@ -934,8 +928,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
               )}
             </MenuItem>
           ))}
-        {chatSessions.filter((chat) => chat.messages.length > 0).length ===
-          0 && (
+        {chatSessions.filter(chat => chat.messages.length > 0).length === 0 && (
           <MenuItem disabled>
             <Typography variant="body2" color="text.secondary">
               No chat history yet
@@ -958,9 +951,9 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         ref={scrollContainerRef}
         sx={{
           flex: messages.length > 0 ? 1 : 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'auto',
+          display: "flex",
+          flexDirection: "column",
+          overflow: "auto",
           pb: 2,
         }}
       >
@@ -995,7 +988,7 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
         onAttachCollection={addCollectionContext}
         onAttachView={addViewContext}
         onAttachConsole={addConsoleContext}
-        onCreateNewConsole={() => createAndAttachNewConsole('', 'New Console')}
+        onCreateNewConsole={() => createAndAttachNewConsole("", "New Console")}
       />
     </Box>
   );

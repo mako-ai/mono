@@ -1,14 +1,14 @@
-import { MongoClient, Db } from 'mongodb';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as dotenv from 'dotenv';
-import { dataSourceManager } from './data-source-manager';
+import { MongoClient, Db } from "mongodb";
+import * as fs from "fs";
+import * as path from "path";
+import * as dotenv from "dotenv";
+import { dataSourceManager } from "./data-source-manager";
 
 dotenv.config();
 
 class QueryRunner {
   private connections: Map<string, { client: MongoClient; db: Db }> = new Map();
-  private currentDataSource: string = 'analytics_db';
+  private currentDataSource: string = "analytics_db";
 
   constructor() {
     // Initialize with primary database
@@ -30,7 +30,7 @@ class QueryRunner {
 
     // Get data source configuration
     const dataSource = dataSourceManager.getDataSource(sourceId);
-    if (!dataSource || dataSource.type !== 'mongodb') {
+    if (!dataSource || dataSource.type !== "mongodb") {
       throw new Error(`MongoDB data source '${sourceId}' not found`);
     }
 
@@ -62,13 +62,13 @@ class QueryRunner {
         throw new Error(`Query file not found: ${absolutePath}`);
       }
 
-      const queryContent = fs.readFileSync(absolutePath, 'utf8');
+      const queryContent = fs.readFileSync(absolutePath, "utf8");
 
       // Parse the MongoDB aggregation pipeline
       let pipeline;
       try {
         // Remove any JavaScript comments and parse
-        const cleanedQuery = queryContent.replace(/\/\/.*$/gm, '').trim();
+        const cleanedQuery = queryContent.replace(/\/\/.*$/gm, "").trim();
         pipeline = JSON.parse(cleanedQuery);
       } catch (parseError) {
         throw new Error(`Failed to parse query JSON: ${parseError}`);
@@ -80,11 +80,11 @@ class QueryRunner {
       }
 
       // Extract collection name from the first stage if it's a $from stage
-      let collectionName = 'leads'; // default collection
+      let collectionName = "leads"; // default collection
       if (
         pipeline.length > 0 &&
         pipeline[0].$from &&
-        typeof pipeline[0].$from === 'string'
+        typeof pipeline[0].$from === "string"
       ) {
         collectionName = pipeline[0].$from;
         pipeline.shift(); // Remove the $from stage
@@ -102,7 +102,7 @@ class QueryRunner {
       console.log(`Query returned ${results.length} results`);
       return results;
     } catch (error) {
-      console.error('Query execution failed:', error);
+      console.error("Query execution failed:", error);
       throw error;
     }
   }
@@ -111,9 +111,9 @@ class QueryRunner {
     try {
       const { db } = await this.getConnection(dataSourceId);
       const collections = await db.listCollections().toArray();
-      return collections.map((col) => col.name);
+      return collections.map(col => col.name);
     } catch (error) {
-      console.error('Failed to list collections:', error);
+      console.error("Failed to list collections:", error);
       throw error;
     }
   }
@@ -127,7 +127,7 @@ class QueryRunner {
       const stats = await db.command({ collStats: collectionName });
       return stats;
     } catch (error) {
-      console.error('Failed to get collection stats:', error);
+      console.error("Failed to get collection stats:", error);
       throw error;
     }
   }
@@ -148,7 +148,7 @@ class QueryRunner {
     name: string;
     description?: string;
   }[] {
-    return dataSourceManager.getMongoDBSources().map((source) => ({
+    return dataSourceManager.getMongoDBSources().map(source => ({
       id: source.id,
       name: source.name,
       description: source.description,
@@ -160,7 +160,7 @@ class QueryRunner {
    */
   setDefaultDataSource(dataSourceId: string): void {
     const source = dataSourceManager.getDataSource(dataSourceId);
-    if (!source || source.type !== 'mongodb') {
+    if (!source || source.type !== "mongodb") {
       throw new Error(`MongoDB data source '${dataSourceId}' not found`);
     }
     this.currentDataSource = dataSourceId;

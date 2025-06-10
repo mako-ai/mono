@@ -1,4 +1,4 @@
-import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import {
   Box,
   List,
@@ -19,7 +19,7 @@ import {
   Button,
   Tooltip,
   Alert,
-} from '@mui/material';
+} from "@mui/material";
 import {
   FolderOutlined as FolderIcon,
   ExpandMore as ExpandMoreIcon,
@@ -29,10 +29,10 @@ import {
   CreateNewFolder as CreateFolderIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-} from '@mui/icons-material';
-import { SquareTerminal as ConsoleIcon } from 'lucide-react';
-import { useAppStore } from '../store/appStore';
-import { useWorkspace } from '../contexts/workspace-context';
+} from "@mui/icons-material";
+import { SquareTerminal as ConsoleIcon } from "lucide-react";
+import { useAppStore } from "../store/appStore";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface ConsoleEntry {
   name: string;
@@ -43,7 +43,7 @@ interface ConsoleEntry {
   id?: string; // Database ID for saved consoles/folders
   folderId?: string; // Database ID for folders
   databaseId?: string; // Associated database ID
-  language?: 'sql' | 'javascript' | 'mongodb';
+  language?: "sql" | "javascript" | "mongodb";
   description?: string;
   isPrivate?: boolean;
   lastExecutedAt?: Date;
@@ -64,15 +64,15 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const { currentWorkspace } = useWorkspace();
     const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
     const [loading, setLoading] = useState(true);
-    const dispatch = useAppStore((s) => s.dispatch);
+    const dispatch = useAppStore(s => s.dispatch);
     const expandedFoldersArray = useAppStore(
-      (s) => s.explorers.console.expandedFolders,
+      s => s.explorers.console.expandedFolders,
     );
     const expandedFolders = new Set(expandedFoldersArray);
     const [error, setError] = useState<string | null>(null);
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [folderDialogOpen, setFolderDialogOpen] = useState(false);
-    const [newFolderName, setNewFolderName] = useState('');
+    const [newFolderName, setNewFolderName] = useState("");
     const [selectedParentFolder, setSelectedParentFolder] = useState<
       string | null
     >(null);
@@ -84,13 +84,13 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const [renameDialogOpen, setRenameDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedItem, setSelectedItem] = useState<ConsoleEntry | null>(null);
-    const [newItemName, setNewItemName] = useState('');
+    const [newItemName, setNewItemName] = useState("");
 
     const fetchConsoleEntries = async () => {
       // Don't fetch if no workspace is selected
       if (!currentWorkspace) {
         setConsoleEntries([]);
-        setError('No workspace selected');
+        setError("No workspace selected");
         setLoading(false);
         return;
       }
@@ -118,9 +118,9 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           setConsoleEntries([]);
         }
       } catch (e: any) {
-        console.error('Failed to fetch console entries:', e);
+        console.error("Failed to fetch console entries:", e);
         setError(
-          `Failed to load consoles. ${e.message || 'Please try again later.'}`,
+          `Failed to load consoles. ${e.message || "Please try again later."}`,
         );
         setConsoleEntries([]);
       } finally {
@@ -140,14 +140,14 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
 
     const handleFolderToggle = (folderPath: string) => {
       dispatch({
-        type: 'TOGGLE_CONSOLE_FOLDER',
+        type: "TOGGLE_CONSOLE_FOLDER",
         payload: { folderPath },
       } as any);
     };
 
     const handleFileClick = async (filePath: string) => {
       if (!currentWorkspace) {
-        console.error('No workspace selected');
+        console.error("No workspace selected");
         return;
       }
 
@@ -161,7 +161,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
         const data = await response.json();
         onConsoleSelect(filePath, data.content);
       } catch (e: any) {
-        console.error('Failed to fetch console content:', e);
+        console.error("Failed to fetch console content:", e);
       }
     };
 
@@ -186,7 +186,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
 
     const handleFolderDialogClose = () => {
       setFolderDialogOpen(false);
-      setNewFolderName('');
+      setNewFolderName("");
       setSelectedParentFolder(null);
     };
 
@@ -199,9 +199,9 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
         const response = await fetch(
           `/api/workspaces/${currentWorkspace.id}/consoles/folders`,
           {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               name: newFolderName.trim(),
@@ -220,10 +220,10 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           handleFolderDialogClose();
           fetchConsoleEntries(); // Refresh the tree
         } else {
-          console.error('Failed to create folder:', data.error);
+          console.error("Failed to create folder:", data.error);
         }
       } catch (e: any) {
-        console.error('Failed to create folder:', e);
+        console.error("Failed to create folder:", e);
       }
     };
 
@@ -264,9 +264,9 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           : `/api/workspaces/${currentWorkspace.id}/consoles/${selectedItem.id}/rename`;
 
         const response = await fetch(endpoint, {
-          method: 'PATCH',
+          method: "PATCH",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             name: newItemName.trim(),
@@ -281,13 +281,13 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
         if (data.success) {
           setRenameDialogOpen(false);
           setSelectedItem(null);
-          setNewItemName('');
+          setNewItemName("");
           fetchConsoleEntries(); // Refresh the tree
         } else {
-          console.error('Failed to rename item:', data.error);
+          console.error("Failed to rename item:", data.error);
         }
       } catch (e: any) {
-        console.error('Failed to rename item:', e);
+        console.error("Failed to rename item:", e);
       }
     };
 
@@ -302,7 +302,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           : `/api/workspaces/${currentWorkspace.id}/consoles/${selectedItem.id}`;
 
         const response = await fetch(endpoint, {
-          method: 'DELETE',
+          method: "DELETE",
         });
 
         if (!response.ok) {
@@ -315,22 +315,22 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           setSelectedItem(null);
           fetchConsoleEntries(); // Refresh the tree
         } else {
-          console.error('Failed to delete item:', data.error);
+          console.error("Failed to delete item:", data.error);
         }
       } catch (e: any) {
-        console.error('Failed to delete item:', e);
+        console.error("Failed to delete item:", e);
       }
     };
 
     const renderTree = (nodes: ConsoleEntry[], depth = 0) => {
-      return nodes.map((node) => {
+      return nodes.map(node => {
         if (node.isDirectory) {
           const isExpanded = expandedFolders.has(node.path);
           return (
             <div key={node.path}>
               <ListItemButton
                 onClick={() => handleFolderToggle(node.path)}
-                onContextMenu={(e) => handleContextMenu(e, node)}
+                onContextMenu={e => handleContextMenu(e, node)}
                 sx={{ py: 0.5, pl: 1 + depth }}
               >
                 <ListItemIcon sx={{ minWidth: 32 }}>
@@ -342,11 +342,11 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
                 <ListItemText
                   primary={node.name}
                   primaryTypographyProps={{
-                    variant: 'body2',
+                    variant: "body2",
                     style: {
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     },
                   }}
                 />
@@ -363,22 +363,22 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           <ListItemButton
             key={node.path}
             onClick={() => handleFileClick(node.path)}
-            onContextMenu={(e) => handleContextMenu(e, node)}
+            onContextMenu={e => handleContextMenu(e, node)}
             sx={{ pl: 0.5 + depth }}
           >
-            <ListItemIcon sx={{ minWidth: 32, visibility: 'hidden' }} />
+            <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
             <ListItemIcon sx={{ minWidth: 28 }}>
               <ConsoleIcon size={20} />
             </ListItemIcon>
             <ListItemText
               primary={node.name}
               primaryTypographyProps={{
-                variant: 'body2',
-                fontSize: '0.9rem',
+                variant: "body2",
+                fontSize: "0.9rem",
                 style: {
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 },
               }}
             />
@@ -390,7 +390,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const renderSkeletonItems = () => {
       return Array.from({ length: 3 }).map((_, index) => (
         <ListItemButton key={`skeleton-${index}`} sx={{ pl: 0.5 }}>
-          <ListItemIcon sx={{ minWidth: 32, visibility: 'hidden' }} />
+          <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
           <ListItemIcon sx={{ minWidth: 28 }}>
             <Skeleton variant="circular" width={20} height={20} />
           </ListItemIcon>
@@ -408,34 +408,34 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     };
 
     return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+        <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
           <Box
             sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
             <Box
               sx={{
                 flexGrow: 1,
-                overflow: 'hidden',
-                maxWidth: 'calc(100% - 80px)',
+                overflow: "hidden",
+                maxWidth: "calc(100% - 80px)",
               }}
             >
               <Typography
                 variant="h6"
                 sx={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
                 Saved Consoles
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Box sx={{ display: "flex", gap: 0.5 }}>
               <Tooltip title="Add new folder">
                 <IconButton onClick={handleMenuOpen} size="small">
                   <AddIcon />
@@ -461,17 +461,17 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           dense
           sx={{
             flexGrow: 1,
-            overflowY: 'auto',
-            '&::-webkit-scrollbar': {
-              width: '0.4em',
+            overflowY: "auto",
+            "&::-webkit-scrollbar": {
+              width: "0.4em",
             },
-            '&::-webkit-scrollbar-track': {
-              boxShadow: 'inset 0 0 6px rgba(0,0,0,0.00)',
-              webkitBoxShadow: 'inset 0 0 6px rgba(0,0,0,0.00)',
+            "&::-webkit-scrollbar-track": {
+              boxShadow: "inset 0 0 6px rgba(0,0,0,0.00)",
+              webkitBoxShadow: "inset 0 0 6px rgba(0,0,0,0.00)",
             },
-            '&::-webkit-scrollbar-thumb': {
-              backgroundColor: 'rgba(0,0,0,.1)',
-              outline: '1px solid slategrey',
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: "rgba(0,0,0,.1)",
+              outline: "1px solid slategrey",
             },
           }}
         >
@@ -480,13 +480,13 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
             : consoleEntries.length > 0
               ? renderTree(consoleEntries)
               : !error && (
-                <Typography
-                  sx={{ p: 2, textAlign: 'center' }}
-                  variant="body2"
-                >
+                  <Typography
+                    sx={{ p: 2, textAlign: "center" }}
+                    variant="body2"
+                  >
                     No consoles found.
-                </Typography>
-              )}
+                  </Typography>
+                )}
         </List>
 
         {/* Add Menu */}
@@ -495,12 +495,12 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           open={Boolean(menuAnchor)}
           onClose={handleMenuClose}
           anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
+            vertical: "bottom",
+            horizontal: "right",
           }}
           transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
+            vertical: "top",
+            horizontal: "right",
           }}
         >
           <MenuItem onClick={handleCreateFolder}>
@@ -566,8 +566,8 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
         >
           <DialogTitle>
             {selectedParentFolder
-              ? 'Create New Subfolder'
-              : 'Create New Folder'}
+              ? "Create New Subfolder"
+              : "Create New Folder"}
           </DialogTitle>
           <DialogContent>
             <TextField
@@ -578,9 +578,9 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               fullWidth
               variant="outlined"
               value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newFolderName.trim()) {
+              onChange={e => setNewFolderName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && newFolderName.trim()) {
                   handleFolderCreate();
                 }
               }}
@@ -625,7 +625,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           }}
         >
           <DialogTitle>
-            Rename {selectedItem?.isDirectory ? 'Folder' : 'Console'}
+            Rename {selectedItem?.isDirectory ? "Folder" : "Console"}
           </DialogTitle>
           <DialogContent>
             <TextField
@@ -636,9 +636,9 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               fullWidth
               variant="outlined"
               value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && newItemName.trim()) {
+              onChange={e => setNewItemName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && newItemName.trim()) {
                   handleRenameConfirm();
                 }
               }}
@@ -648,7 +648,7 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
               spellCheck="false"
               helperText={
                 selectedItem?.isDirectory
-                  ? 'Enter the new folder name'
+                  ? "Enter the new folder name"
                   : "Enter the new console name. Use 'folder/name' to move to a folder."
               }
             />
@@ -673,13 +673,13 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
           fullWidth
         >
           <DialogTitle>
-            Delete {selectedItem?.isDirectory ? 'Folder' : 'Console'}
+            Delete {selectedItem?.isDirectory ? "Folder" : "Console"}
           </DialogTitle>
           <DialogContent>
             <Alert severity="warning" sx={{ mb: 2 }}>
               {selectedItem?.isDirectory
-                ? 'This will permanently delete the folder and all its contents (subfolders and consoles).'
-                : 'This will permanently delete the console.'}
+                ? "This will permanently delete the folder and all its contents (subfolders and consoles)."
+                : "This will permanently delete the console."}
             </Alert>
             <Typography>
               Are you sure you want to delete "{selectedItem?.name}"?
