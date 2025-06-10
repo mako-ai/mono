@@ -1,0 +1,62 @@
+module.exports = {
+  root: true,
+  env: {
+    node: true,
+    es2020: true,
+  },
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+  ],
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules'],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+    project: './tsconfig.json',
+    tsconfigRootDir: __dirname,
+  },
+  plugins: ['@typescript-eslint'],
+  rules: {
+    // TypeScript rules
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-non-null-assertion': 'warn',
+    '@typescript-eslint/no-floating-promises': 'error',
+    '@typescript-eslint/no-misused-promises': 'error',
+    
+    // General rules
+    'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+    'no-debugger': 'error',
+    'no-duplicate-imports': 'error',
+    'no-unused-expressions': 'error',
+    'prefer-const': 'error',
+    'no-var': 'error',
+    'eqeqeq': ['error', 'smart'],
+    'curly': ['error', 'multi-line'],
+    
+    // Node.js specific
+    'no-process-exit': 'error',
+    'no-path-concat': 'error',
+    
+    // Code style
+    'semi': ['error', 'always'],
+    'quotes': ['error', 'single', { 'avoidEscape': true }],
+    'comma-dangle': ['error', 'always-multiline'],
+    'indent': ['error', 2, { 'SwitchCase': 1 }],
+    'object-curly-spacing': ['error', 'always'],
+    'array-bracket-spacing': ['error', 'never'],
+    'arrow-spacing': ['error', { 'before': true, 'after': true }],
+    'key-spacing': ['error', { 'beforeColon': false, 'afterColon': true }],
+    'space-before-function-paren': ['error', {
+      'anonymous': 'always',
+      'named': 'never',
+      'asyncArrow': 'always'
+    }],
+  },
+};

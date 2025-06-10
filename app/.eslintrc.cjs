@@ -1,0 +1,66 @@
+module.exports = {
+  root: true,
+  env: {
+    browser: true,
+    es2020: true,
+  },
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:react-hooks/recommended',
+    'plugin:react/recommended',
+    'plugin:react/jsx-runtime',
+  ],
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules'],
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'module',
+    project: ['./tsconfig.json', './tsconfig.node.json'],
+    tsconfigRootDir: __dirname,
+  },
+  plugins: ['react-refresh', '@typescript-eslint', 'react'],
+  settings: {
+    react: {
+      version: 'detect',
+    },
+  },
+  rules: {
+    // React rules
+    'react-refresh/only-export-components': [
+      'warn',
+      { allowConstantExport: true },
+    ],
+    'react/prop-types': 'off', // We use TypeScript for prop validation
+    
+    // TypeScript rules
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-non-null-assertion': 'warn',
+    
+    // General rules
+    'no-console': ['warn', { allow: ['warn', 'error'] }],
+    'no-debugger': 'error',
+    'no-duplicate-imports': 'error',
+    'no-unused-expressions': 'error',
+    'prefer-const': 'error',
+    'no-var': 'error',
+    'eqeqeq': ['error', 'smart'],
+    'curly': ['error', 'multi-line'],
+    
+    // Code style
+    'semi': ['error', 'always'],
+    'quotes': ['error', 'single', { 'avoidEscape': true }],
+    'comma-dangle': ['error', 'always-multiline'],
+    'indent': ['error', 2, { 'SwitchCase': 1 }],
+    'object-curly-spacing': ['error', 'always'],
+    'array-bracket-spacing': ['error', 'never'],
+    'arrow-spacing': ['error', { 'before': true, 'after': true }],
+    'key-spacing': ['error', { 'beforeColon': false, 'afterColon': true }],
+  },
+};
