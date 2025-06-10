@@ -4,7 +4,7 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
-} from "react";
+} from 'react';
 import {
   Box,
   Button,
@@ -12,10 +12,10 @@ import {
   MenuItem,
   FormControl,
   Tooltip,
-} from "@mui/material";
-import { PlayArrow, SaveOutlined } from "@mui/icons-material";
-import Editor from "@monaco-editor/react";
-import { useTheme } from "../contexts/ThemeContext";
+} from '@mui/material';
+import { PlayArrow, SaveOutlined } from '@mui/icons-material';
+import Editor from '@monaco-editor/react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface Database {
   id: string;
@@ -67,17 +67,17 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
       onDatabaseChange,
       filePath,
     },
-    ref
+    ref,
   ) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
     const [currentContent, setCurrentContent] = useState(initialContent);
     const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>(
-      initialDatabaseId || ""
+      initialDatabaseId || '',
     );
     // Keep a ref of the latest selected database so closures (e.g. Monaco keybindings) always see the up-to-date value
-    const selectedDatabaseIdRef = useRef<string>("");
+    const selectedDatabaseIdRef = useRef<string>('');
 
     // Whenever selectedDatabaseId changes, update the ref
     useEffect(() => {
@@ -151,7 +151,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
         if (!model) return;
 
         const selection = editor.getSelection();
-        let textToExecute = "";
+        let textToExecute = '';
 
         if (selection && !selection.isEmpty()) {
           textToExecute = model.getValueInRange(selection);
@@ -187,7 +187,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
     };
 
     const handleEditorChange = (value: string | undefined) => {
-      const newContent = value || "";
+      const newContent = value || '';
       setCurrentContent(newContent);
       // Notify parent of content change
       if (onContentChange) {
@@ -201,7 +201,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
         const model = editorRef.current.getModel();
         if (model) {
           const selection = editorRef.current.getSelection();
-          let textToExecute = "";
+          let textToExecute = '';
 
           if (selection && !selection.isEmpty()) {
             textToExecute = model.getValueInRange(selection);
@@ -221,20 +221,20 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
     useImperativeHandle(ref, () => ({
       getCurrentContent: () => ({
         content: currentContent,
-        fileName: title ? `${title}.js` : "console.js",
-        language: "javascript",
+        fileName: title ? `${title}.js` : 'console.js',
+        language: 'javascript',
       }),
     }));
 
     return (
-      <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             p: 1,
-            backgroundColor: "background.paper",
+            backgroundColor: 'background.paper',
             gap: 1,
           }}
         >
@@ -249,12 +249,12 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
               }
               disableElevation
             >
-              {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
+              {isExecuting ? 'Executing...' : 'Run (⌘/Ctrl+Enter)'}
             </Button>
 
             {onSave && (
               <Tooltip
-                title={filePath ? "Save (⌘/Ctrl+S)" : "Save As... (⌘/Ctrl+S)"}
+                title={filePath ? 'Save (⌘/Ctrl+S)' : 'Save As... (⌘/Ctrl+S)'}
               >
                 <Button
                   variant="text"
@@ -264,9 +264,9 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
                   disableElevation
                   sx={{
                     ml: 1,
-                    minWidth: "32px",
-                    width: "32px",
-                    height: "32px",
+                    minWidth: '32px',
+                    width: '32px',
+                    height: '32px',
                     p: 0,
                   }}
                 >
@@ -296,7 +296,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
               ) : (
                 databases.map((db) => (
                   <MenuItem key={db.id} value={db.id}>
-                    {db.displayName || db.name || "Unknown Database"}
+                    {db.displayName || db.name || 'Unknown Database'}
                   </MenuItem>
                 ))
               )}
@@ -309,7 +309,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
             defaultLanguage="javascript"
             value={currentContent}
             height="100%"
-            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+            theme={effectiveMode === 'dark' ? 'vs-dark' : 'vs'}
             onMount={handleEditorDidMount}
             onChange={handleEditorChange}
             options={{
@@ -317,14 +317,14 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
               readOnly: false,
               minimap: { enabled: false },
               fontSize: 12,
-              wordWrap: "on",
+              wordWrap: 'on',
               scrollBeyondLastLine: false,
             }}
           />
         </Box>
       </Box>
     );
-  }
+  },
 );
 
 export default Console;

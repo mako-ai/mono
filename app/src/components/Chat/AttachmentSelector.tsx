@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   Autocomplete,
   TextField,
@@ -10,10 +10,10 @@ import {
   Popper,
   Button,
   Divider,
-} from "@mui/material";
-import { Storage, TableView, Code, Add } from "@mui/icons-material";
-import { Collection, View } from "./types";
-import { useConsoleStore } from "../../store/consoleStore";
+} from '@mui/material';
+import { Storage, TableView, Code, Add } from '@mui/icons-material';
+import { Collection, View } from './types';
+import { useConsoleStore } from '../../store/consoleStore';
 
 interface AttachmentSelectorProps {
   open: boolean;
@@ -30,13 +30,13 @@ interface AttachmentSelectorProps {
 interface AttachmentOption {
   id: string;
   name: string;
-  type: "collection" | "view" | "console";
+  type: 'collection' | 'view' | 'console';
   data: Collection | View | { id: string; content: string; title: string };
 }
 
 // Helper to escape regex special characters when building the dynamic pattern
 const escapeRegExp = (str: string): string =>
-  str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
   open,
@@ -49,7 +49,7 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
   onAttachConsole,
   onCreateNewConsole,
 }) => {
-  const [inputValue, setInputValue] = useState("");
+  const [inputValue, setInputValue] = useState('');
   const { consoleTabs } = useConsoleStore();
 
   // Combine collections, views, and consoles into a single options array
@@ -57,28 +57,28 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
     ...availableCollections.map((col) => ({
       id: col.id,
       name: col.name,
-      type: "collection" as const,
+      type: 'collection' as const,
       data: col,
     })),
     ...availableViews.map((view) => ({
       id: view.id,
       name: view.name,
-      type: "view" as const,
+      type: 'view' as const,
       data: view,
     })),
     ...consoleTabs.map((console) => ({
       id: console.id,
       name: console.title,
-      type: "console" as const,
+      type: 'console' as const,
       data: { id: console.id, content: console.content, title: console.title },
     })),
   ];
 
   const handleSelect = (option: AttachmentOption | null) => {
     if (option) {
-      if (option.type === "collection") {
+      if (option.type === 'collection') {
         onAttachCollection(option.data as Collection);
-      } else if (option.type === "view") {
+      } else if (option.type === 'view') {
         onAttachView(option.data as View);
       } else {
         const consoleData = option.data as {
@@ -88,7 +88,7 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
         };
         onAttachConsole(consoleData.id, consoleData.content, consoleData.title);
       }
-      setInputValue("");
+      setInputValue('');
       onClose();
     }
   };
@@ -116,17 +116,17 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
               .trim()
               .split(/\s+/)
               .map(escapeRegExp)
-              .join(".*");
+              .join('.*');
 
-            const regex = new RegExp(pattern, "i");
+            const regex = new RegExp(pattern, 'i');
             return opts.filter((opt) => regex.test(opt.name));
           }}
           groupBy={(option) =>
-            option.type === "collection"
-              ? "Collections"
-              : option.type === "view"
-                ? "Views"
-                : "Consoles"
+            option.type === 'collection'
+              ? 'Collections'
+              : option.type === 'view'
+                ? 'Views'
+                : 'Consoles'
           }
           getOptionLabel={(option) => option.name}
           inputValue={inputValue}
@@ -145,9 +145,9 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
           renderOption={(props, option) => (
             <Box component="li" {...props}>
               <ListItemIcon sx={{ minWidth: 36 }}>
-                {option.type === "collection" ? (
+                {option.type === 'collection' ? (
                   <Storage fontSize="small" color="primary" />
-                ) : option.type === "view" ? (
+                ) : option.type === 'view' ? (
                   <TableView fontSize="small" color="secondary" />
                 ) : (
                   <Code fontSize="small" color="action" />
@@ -163,10 +163,10 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
                 sx={{
                   px: 2,
                   py: 0.5,
-                  display: "block",
+                  display: 'block',
                   fontWeight: 600,
-                  color: "text.secondary",
-                  backgroundColor: "grey.100",
+                  color: 'text.secondary',
+                  backgroundColor: 'grey.100',
                 }}
               >
                 {params.group}
@@ -175,7 +175,7 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
             </Box>
           )}
           sx={{
-            "& .MuiAutocomplete-listbox": {
+            '& .MuiAutocomplete-listbox': {
               maxHeight: 300,
             },
           }}
@@ -187,10 +187,10 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
           startIcon={<Add />}
           onClick={() => {
             onCreateNewConsole();
-            setInputValue("");
+            setInputValue('');
             onClose();
           }}
-          sx={{ justifyContent: "flex-start", textTransform: "none" }}
+          sx={{ justifyContent: 'flex-start', textTransform: 'none' }}
         >
           Create New Console
         </Button>

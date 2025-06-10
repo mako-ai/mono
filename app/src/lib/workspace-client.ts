@@ -121,7 +121,7 @@ class WorkspaceClient {
    */
   async getMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     const response = await apiClient.get<{ success: boolean; data: WorkspaceMember[] }>(
-      `/workspaces/${workspaceId}/members`
+      `/workspaces/${workspaceId}/members`,
     );
     return response.data;
   }
@@ -132,7 +132,7 @@ class WorkspaceClient {
   async addMember(workspaceId: string, userId: string, role: 'admin' | 'member' | 'viewer'): Promise<WorkspaceMember> {
     const response = await apiClient.post<{ success: boolean; data: WorkspaceMember }>(
       `/workspaces/${workspaceId}/members`,
-      { userId, role }
+      { userId, role },
     );
     return response.data;
   }
@@ -143,11 +143,11 @@ class WorkspaceClient {
   async updateMemberRole(
     workspaceId: string,
     userId: string,
-    data: UpdateMemberRoleData
+    data: UpdateMemberRoleData,
   ): Promise<WorkspaceMember> {
     const response = await apiClient.put<{ success: boolean; data: WorkspaceMember }>(
       `/workspaces/${workspaceId}/members/${userId}`,
-      data
+      data,
     );
     return response.data;
   }
@@ -165,7 +165,7 @@ class WorkspaceClient {
   async createInvite(workspaceId: string, data: InviteMemberData): Promise<WorkspaceInvite> {
     const response = await apiClient.post<{ success: boolean; data: WorkspaceInvite }>(
       `/workspaces/${workspaceId}/invites`,
-      data
+      data,
     );
     return response.data;
   }
@@ -175,7 +175,7 @@ class WorkspaceClient {
    */
   async getPendingInvites(workspaceId: string): Promise<WorkspaceInvite[]> {
     const response = await apiClient.get<{ success: boolean; data: WorkspaceInvite[] }>(
-      `/workspaces/${workspaceId}/invites`
+      `/workspaces/${workspaceId}/invites`,
     );
     return response.data;
   }
@@ -192,7 +192,7 @@ class WorkspaceClient {
    */
   async acceptInvite(token: string): Promise<Workspace> {
     const response = await apiClient.post<{ success: boolean; data: Workspace }>(
-      `/workspaces/invites/${token}/accept`
+      `/workspaces/invites/${token}/accept`,
     );
     return response.data;
   }
@@ -202,7 +202,7 @@ class WorkspaceClient {
    */
   async getDatabases(workspaceId: string): Promise<WorkspaceDatabase[]> {
     const response = await apiClient.get<{ success: boolean; data: WorkspaceDatabase[] }>(
-      `/workspaces/${workspaceId}/databases`
+      `/workspaces/${workspaceId}/databases`,
     );
     return response.data;
   }

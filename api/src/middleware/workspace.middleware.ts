@@ -19,7 +19,7 @@ export interface AuthenticatedContext extends Context {
  */
 export async function requireWorkspace(
   c: Context,
-  next: Next
+  next: Next,
 ) {
   try {
     const user = c.get('user');
@@ -38,7 +38,7 @@ export async function requireWorkspace(
       
       if (workspaces.length === 0) {
         return c.json({ 
-          error: 'No workspace found. Please create a workspace first.' 
+          error: 'No workspace found. Please create a workspace first.', 
         }, 400);
       }
 
@@ -74,7 +74,7 @@ export async function requireWorkspace(
   } catch (error) {
     console.error('Workspace middleware error:', error);
     return c.json({ 
-      error: 'Failed to validate workspace access' 
+      error: 'Failed to validate workspace access', 
     }, 500);
   }
 }
@@ -85,20 +85,20 @@ export async function requireWorkspace(
 export function requireWorkspaceRole(roles: string[]) {
   return async (
     c: Context,
-    next: Next
+    next: Next,
   ) => {
     try {
       const memberRole = c.get('memberRole');
 
       if (!memberRole) {
         return c.json({ 
-          error: 'Workspace role not determined' 
+          error: 'Workspace role not determined', 
         }, 403);
       }
 
       if (!roles.includes(memberRole)) {
         return c.json({ 
-          error: 'Insufficient permissions in workspace' 
+          error: 'Insufficient permissions in workspace', 
         }, 403);
       }
 
@@ -106,7 +106,7 @@ export function requireWorkspaceRole(roles: string[]) {
     } catch (error) {
       console.error('Workspace role middleware error:', error);
       return c.json({ 
-        error: 'Failed to validate workspace role' 
+        error: 'Failed to validate workspace role', 
       }, 500);
     }
   };
@@ -117,7 +117,7 @@ export function requireWorkspaceRole(roles: string[]) {
  */
 export async function optionalWorkspace(
   c: Context,
-  next: Next
+  next: Next,
 ) {
   try {
     const user = c.get('user');

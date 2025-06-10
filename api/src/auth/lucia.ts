@@ -1,5 +1,5 @@
-import { Lucia, TimeSpan } from "lucia";
-import { MongoDBAdapter } from "./mongodb-adapter";
+import { Lucia, TimeSpan } from 'lucia';
+import { MongoDBAdapter } from './mongodb-adapter';
 
 /**
  * Lucia authentication instance configuration
@@ -7,12 +7,12 @@ import { MongoDBAdapter } from "./mongodb-adapter";
 export const lucia = new Lucia(new MongoDBAdapter(), {
   sessionCookie: {
     attributes: {
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
     },
   },
-  sessionExpiresIn: new TimeSpan(24, "h"), // 24 hours
+  sessionExpiresIn: new TimeSpan(24, 'h'), // 24 hours
   getUserAttributes: (attributes) => {
     return {
       email: attributes.email,
@@ -28,7 +28,7 @@ export const lucia = new Lucia(new MongoDBAdapter(), {
 /**
  * Type declarations for Lucia
  */
-declare module "lucia" {
+declare module 'lucia' {
   interface Register {
     Lucia: typeof lucia;
     DatabaseUserAttributes: DatabaseUserAttributes;

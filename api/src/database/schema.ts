@@ -1,5 +1,5 @@
-import mongoose, { Schema, Document } from "mongoose";
-import { nanoid } from "nanoid";
+import mongoose, { Schema, Document } from 'mongoose';
+import { nanoid } from 'nanoid';
 
 /**
  * User model interface
@@ -27,7 +27,7 @@ export interface ISession extends Document {
  */
 export interface IOAuthAccount extends Document {
   userId: string;
-  provider: "google" | "github";
+  provider: 'google' | 'github';
   providerUserId: string;
   email?: string;
   createdAt: Date;
@@ -56,7 +56,7 @@ const UserSchema = new Schema<IUser>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 /**
@@ -70,7 +70,7 @@ const SessionSchema = new Schema<ISession>({
   userId: {
     type: String,
     required: true,
-    ref: "User",
+    ref: 'User',
   },
   expiresAt: {
     type: Date,
@@ -79,7 +79,7 @@ const SessionSchema = new Schema<ISession>({
   activeWorkspaceId: {
     type: String,
     required: false,
-    ref: "Workspace",
+    ref: 'Workspace',
   },
 });
 
@@ -94,12 +94,12 @@ const OAuthAccountSchema = new Schema<IOAuthAccount>(
     userId: {
       type: String,
       required: true,
-      ref: "User",
+      ref: 'User',
     },
     provider: {
       type: String,
       required: true,
-      enum: ["google", "github"],
+      enum: ['google', 'github'],
     },
     providerUserId: {
       type: String,
@@ -112,7 +112,7 @@ const OAuthAccountSchema = new Schema<IOAuthAccount>(
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
-  }
+  },
 );
 
 // Compound index to ensure unique provider accounts
@@ -120,11 +120,11 @@ OAuthAccountSchema.index({ provider: 1, providerUserId: 1 }, { unique: true });
 OAuthAccountSchema.index({ userId: 1 });
 
 // Models
-export const User = mongoose.model<IUser>("User", UserSchema);
-export const Session = mongoose.model<ISession>("Session", SessionSchema);
+export const User = mongoose.model<IUser>('User', UserSchema);
+export const Session = mongoose.model<ISession>('Session', SessionSchema);
 export const OAuthAccount = mongoose.model<IOAuthAccount>(
-  "OAuthAccount",
-  OAuthAccountSchema
+  'OAuthAccount',
+  OAuthAccountSchema,
 );
 
 /**
@@ -133,14 +133,14 @@ export const OAuthAccount = mongoose.model<IOAuthAccount>(
 export async function connectDatabase(): Promise<void> {
   const mongoUri = process.env.DATABASE_URL;
   if (!mongoUri) {
-    throw new Error("DATABASE_URL is not set");
+    throw new Error('DATABASE_URL is not set');
   }
 
   try {
     await mongoose.connect(mongoUri);
-    console.log("✅ Connected to MongoDB");
+    console.log('✅ Connected to MongoDB');
   } catch (error) {
-    console.error("❌ MongoDB connection error:", error);
+    console.error('❌ MongoDB connection error:', error);
     throw error;
   }
 }

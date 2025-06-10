@@ -1,12 +1,12 @@
-import * as fs from "fs";
-import * as path from "path";
-import { Types } from "mongoose";
+import * as fs from 'fs';
+import * as path from 'path';
+import { Types } from 'mongoose';
 import {
   SavedConsole,
   ConsoleFolder,
   ISavedConsole,
   IConsoleFolder,
-} from "../database/workspace-schema";
+} from '../database/workspace-schema';
 
 export interface ConsoleFile {
   path: string;
@@ -17,7 +17,7 @@ export interface ConsoleFile {
   id?: string; // Database ID for saved consoles
   folderId?: string; // Database ID for folders
   databaseId?: string; // Associated database ID
-  language?: "sql" | "javascript" | "mongodb";
+  language?: 'sql' | 'javascript' | 'mongodb';
   description?: string;
   isPrivate?: boolean;
   lastExecutedAt?: Date;
@@ -31,10 +31,10 @@ export class ConsoleManager {
     // Allow overriding via environment variable
     const envDir = process.env.CONSOLES_DIR;
 
-    const cwdDir = path.join(process.cwd(), "consoles");
+    const cwdDir = path.join(process.cwd(), 'consoles');
 
     // Secondary candidate – parent directory (useful when the server is started from a sub-folder like /api)
-    const parentDir = path.join(process.cwd(), "..", "consoles");
+    const parentDir = path.join(process.cwd(), '..', 'consoles');
 
     // Determine which directory actually exists AND contains at least one entry
     let resolvedDir: string | undefined = undefined;
@@ -95,7 +95,7 @@ export class ConsoleManager {
         const folderItem: ConsoleFile = {
           path: folder.name,
           name: folder.name,
-          content: "",
+          content: '',
           isDirectory: true,
           children: [],
           id: folder._id.toString(),
@@ -177,7 +177,7 @@ export class ConsoleManager {
 
       return rootItems;
     } catch (error) {
-      console.error("Error listing consoles from database:", error);
+      console.error('Error listing consoles from database:', error);
       // Fallback to filesystem if database fails
       return this.listConsolesFromFilesystem();
     }
@@ -200,7 +200,7 @@ export class ConsoleManager {
           });
         } else {
           // Try to find by name (for backward compatibility)
-          const parts = consolePath.split("/");
+          const parts = consolePath.split('/');
           const consoleName = parts[parts.length - 1];
           console = await SavedConsole.findOne({
             name: consoleName,
@@ -216,7 +216,7 @@ export class ConsoleManager {
       // Fallback to filesystem
       return this.getConsoleFromFilesystem(consolePath);
     } catch (error) {
-      console.error("Error getting console from database:", error);
+      console.error('Error getting console from database:', error);
       // Fallback to filesystem
       return this.getConsoleFromFilesystem(consolePath);
     }
@@ -234,12 +234,12 @@ export class ConsoleManager {
     options?: {
       folderId?: string;
       description?: string;
-      language?: "sql" | "javascript" | "mongodb";
+      language?: 'sql' | 'javascript' | 'mongodb';
       isPrivate?: boolean;
-    }
+    },
   ): Promise<ISavedConsole> {
     try {
-      const parts = consolePath.split("/");
+      const parts = consolePath.split('/');
       const consoleName = parts[parts.length - 1];
 
       // Handle folder path from consolePath if not provided in options
@@ -251,7 +251,7 @@ export class ConsoleManager {
         folderId = await this.ensureFolderPath(
           folderParts,
           workspaceId,
-          userId
+          userId,
         );
       }
 
@@ -269,10 +269,10 @@ export class ConsoleManager {
         console.code = content;
         console.updatedAt = new Date();
         if (options?.description !== undefined)
-          console.description = options.description;
+        {console.description = options.description;}
         if (options?.language) console.language = options.language;
         if (options?.isPrivate !== undefined)
-          console.isPrivate = options.isPrivate;
+        {console.isPrivate = options.isPrivate;}
 
         await console.save();
       } else {
@@ -282,7 +282,7 @@ export class ConsoleManager {
           folderId: folderId ? new Types.ObjectId(folderId) : undefined,
           databaseId: databaseId ? new Types.ObjectId(databaseId) : undefined,
           name: consoleName,
-          description: options?.description || "",
+          description: options?.description || '',
           code: content,
           language: options?.language || this.detectLanguage(content),
           createdBy: userId,
@@ -295,7 +295,7 @@ export class ConsoleManager {
 
       return console;
     } catch (error) {
-      console.error("Error saving console to database:", error);
+      console.error('Error saving console to database:', error);
       throw error;
     }
   }
@@ -308,7 +308,7 @@ export class ConsoleManager {
     workspaceId: string,
     userId: string,
     parentId?: string,
-    isPrivate: boolean = false
+    isPrivate: boolean = false,
   ): Promise<IConsoleFolder> {
     const folder = new ConsoleFolder({
       workspaceId: new Types.ObjectId(workspaceId),
@@ -328,11 +328,11 @@ export class ConsoleManager {
     consoleId: string,
     newName: string,
     workspaceId: string,
-    userId: string
+    userId: string,
   ): Promise<boolean> {
     try {
       // Parse the new name for potential folder path
-      const parts = newName.split("/");
+      const parts = newName.split('/');
       const consoleName = parts[parts.length - 1];
 
       let folderId: string | undefined = undefined;
@@ -343,7 +343,7 @@ export class ConsoleManager {
         folderId = await this.ensureFolderPath(
           folderParts,
           workspaceId,
-          userId
+          userId,
         );
       }
 
@@ -364,12 +364,12 @@ export class ConsoleManager {
         },
         {
           $set: updateFields,
-        }
+        },
       );
 
       return result.modifiedCount > 0;
     } catch (error) {
-      console.error("Error renaming console:", error);
+      console.error('Error renaming console:', error);
       return false;
     }
   }
@@ -379,7 +379,7 @@ export class ConsoleManager {
    */
   async deleteConsole(
     consoleId: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<boolean> {
     try {
       const result = await SavedConsole.deleteOne({
@@ -389,7 +389,7 @@ export class ConsoleManager {
 
       return result.deletedCount > 0;
     } catch (error) {
-      console.error("Error deleting console:", error);
+      console.error('Error deleting console:', error);
       return false;
     }
   }
@@ -400,7 +400,7 @@ export class ConsoleManager {
   async renameFolder(
     folderId: string,
     newName: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<boolean> {
     try {
       const result = await ConsoleFolder.updateOne(
@@ -413,12 +413,12 @@ export class ConsoleManager {
             name: newName,
             updatedAt: new Date(),
           },
-        }
+        },
       );
 
       return result.modifiedCount > 0;
     } catch (error) {
-      console.error("Error renaming folder:", error);
+      console.error('Error renaming folder:', error);
       return false;
     }
   }
@@ -452,7 +452,7 @@ export class ConsoleManager {
 
       return result.deletedCount > 0;
     } catch (error) {
-      console.error("Error deleting folder:", error);
+      console.error('Error deleting folder:', error);
       return false;
     }
   }
@@ -462,7 +462,7 @@ export class ConsoleManager {
    */
   async consoleExists(
     consolePath: string,
-    workspaceId?: string
+    workspaceId?: string,
   ): Promise<boolean> {
     try {
       if (workspaceId) {
@@ -473,7 +473,7 @@ export class ConsoleManager {
           });
           return !!console;
         } else {
-          const parts = consolePath.split("/");
+          const parts = consolePath.split('/');
           const consoleName = parts[parts.length - 1];
           const console = await SavedConsole.findOne({
             name: consoleName,
@@ -487,7 +487,7 @@ export class ConsoleManager {
       const fullPath = path.join(this.consolesDir, `${consolePath}.js`);
       return fs.existsSync(fullPath);
     } catch (error) {
-      console.error("Error checking console existence:", error);
+      console.error('Error checking console existence:', error);
       return false;
     }
   }
@@ -497,7 +497,7 @@ export class ConsoleManager {
    */
   async updateExecutionStats(
     consoleId: string,
-    workspaceId: string
+    workspaceId: string,
   ): Promise<void> {
     try {
       await SavedConsole.updateOne(
@@ -508,10 +508,10 @@ export class ConsoleManager {
         {
           $inc: { executionCount: 1 },
           $set: { lastExecutedAt: new Date() },
-        }
+        },
       );
     } catch (error) {
-      console.error("Error updating execution stats:", error);
+      console.error('Error updating execution stats:', error);
     }
   }
 
@@ -522,7 +522,7 @@ export class ConsoleManager {
   private async ensureFolderPath(
     folderParts: string[],
     workspaceId: string,
-    userId: string
+    userId: string,
   ): Promise<string | undefined> {
     if (folderParts.length === 0) {
       return undefined;
@@ -547,7 +547,7 @@ export class ConsoleManager {
           workspaceId,
           userId,
           currentParentId,
-          false // Default to not private
+          false, // Default to not private
         );
       }
 
@@ -563,7 +563,7 @@ export class ConsoleManager {
    * Get all consoles in a tree structure from filesystem (fallback)
    */
   private listConsolesFromFilesystem(): ConsoleFile[] {
-    const results = this.scanDirectory("");
+    const results = this.scanDirectory('');
     return results;
   }
 
@@ -577,7 +577,7 @@ export class ConsoleManager {
       throw new Error(`Console file not found: ${consolePath}`);
     }
 
-    return fs.readFileSync(fullPath, "utf8");
+    return fs.readFileSync(fullPath, 'utf8');
   }
 
   /**
@@ -592,7 +592,7 @@ export class ConsoleManager {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(fullPath, content, "utf8");
+    fs.writeFileSync(fullPath, content, 'utf8');
   }
 
   /**
@@ -619,15 +619,15 @@ export class ConsoleManager {
         result.push({
           path: relativeItemPath,
           name: item,
-          content: "", // Directories don't have direct content in this model
+          content: '', // Directories don't have direct content in this model
           isDirectory: true,
           children,
         });
-      } else if (item.endsWith(".js")) {
-        const content = fs.readFileSync(itemPath, "utf8");
-        const nameWithoutExt = item.replace(".js", "");
+      } else if (item.endsWith('.js')) {
+        const content = fs.readFileSync(itemPath, 'utf8');
+        const nameWithoutExt = item.replace('.js', '');
         result.push({
-          path: relativeItemPath.replace(".js", ""), // Store path without .js extension
+          path: relativeItemPath.replace('.js', ''), // Store path without .js extension
           name: nameWithoutExt,
           content,
           isDirectory: false,
@@ -648,10 +648,10 @@ export class ConsoleManager {
    */
   private getFolderPath(
     folderId: string,
-    folderMap: Map<string, ConsoleFile>
+    folderMap: Map<string, ConsoleFile>,
   ): string {
     const folder = folderMap.get(folderId);
-    if (!folder) return "";
+    if (!folder) return '';
 
     // If folder has parent, get full path recursively
     return folder.path;
@@ -660,32 +660,32 @@ export class ConsoleManager {
   /**
    * Detect language from content
    */
-  private detectLanguage(content: string): "sql" | "javascript" | "mongodb" {
+  private detectLanguage(content: string): 'sql' | 'javascript' | 'mongodb' {
     const lowerContent = content.toLowerCase().trim();
 
     // Check for MongoDB patterns
     if (
-      lowerContent.includes("db.") ||
-      lowerContent.includes("collection.") ||
-      lowerContent.includes("aggregate(") ||
-      lowerContent.includes("find(")
+      lowerContent.includes('db.') ||
+      lowerContent.includes('collection.') ||
+      lowerContent.includes('aggregate(') ||
+      lowerContent.includes('find(')
     ) {
-      return "mongodb";
+      return 'mongodb';
     }
 
     // Check for SQL patterns
     if (
-      lowerContent.includes("select ") ||
-      lowerContent.includes("insert ") ||
-      lowerContent.includes("update ") ||
-      lowerContent.includes("delete ") ||
-      lowerContent.includes("create ") ||
-      lowerContent.includes("alter ")
+      lowerContent.includes('select ') ||
+      lowerContent.includes('insert ') ||
+      lowerContent.includes('update ') ||
+      lowerContent.includes('delete ') ||
+      lowerContent.includes('create ') ||
+      lowerContent.includes('alter ')
     ) {
-      return "sql";
+      return 'sql';
     }
 
     // Default to javascript
-    return "javascript";
+    return 'javascript';
   }
 }

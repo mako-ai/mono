@@ -4,19 +4,19 @@ import React, {
   useState,
   useEffect,
   ReactNode,
-} from "react";
+} from 'react';
 import {
   ThemeProvider as MuiThemeProvider,
   createTheme,
   alpha,
-} from "@mui/material/styles";
+} from '@mui/material/styles';
 
-export type ThemeMode = "light" | "dark" | "system";
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;
-  effectiveMode: "light" | "dark";
+  effectiveMode: 'light' | 'dark';
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -24,7 +24,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
+    throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
 };
@@ -34,124 +34,124 @@ interface ThemeProviderProps {
 }
 
 // Function to detect system theme preference
-const getSystemTheme = (): "light" | "dark" => {
-  if (typeof window !== "undefined" && window.matchMedia) {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+const getSystemTheme = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
   }
-  return "light";
+  return 'light';
 };
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => {
     // Get saved theme from localStorage or default to 'system'
-    const savedMode = localStorage.getItem("themeMode") as ThemeMode;
-    return savedMode || "system";
+    const savedMode = localStorage.getItem('themeMode') as ThemeMode;
+    return savedMode || 'system';
   });
 
-  const [systemTheme, setSystemTheme] = useState<"light" | "dark">(
-    getSystemTheme
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(
+    getSystemTheme,
   );
 
   // Listen for system theme changes
   useEffect(() => {
-    if (typeof window !== "undefined" && window.matchMedia) {
-      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handleChange = (e: MediaQueryListEvent) => {
-        setSystemTheme(e.matches ? "dark" : "light");
+        setSystemTheme(e.matches ? 'dark' : 'light');
       };
 
-      mediaQuery.addEventListener("change", handleChange);
-      return () => mediaQuery.removeEventListener("change", handleChange);
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
     }
   }, []);
 
   // Save theme preference to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("themeMode", mode);
+    localStorage.setItem('themeMode', mode);
   }, [mode]);
 
   // Determine the effective theme mode
-  const effectiveMode: "light" | "dark" =
-    mode === "system" ? systemTheme : mode;
+  const effectiveMode: 'light' | 'dark' =
+    mode === 'system' ? systemTheme : mode;
 
   // Create theme based on effective mode
   const theme = createTheme({
     palette: {
       mode: effectiveMode,
-      ...(effectiveMode === "light"
+      ...(effectiveMode === 'light'
         ? {
-            background: {
-              default: "#fafafafa",
-              paper: "#ffffff",
-            },
-            primary: {
-              main: "#1976d2",
-            },
-            secondary: {
-              main: "#dc004e",
-            },
-          }
+          background: {
+            default: '#fafafafa',
+            paper: '#ffffff',
+          },
+          primary: {
+            main: '#1976d2',
+          },
+          secondary: {
+            main: '#dc004e',
+          },
+        }
         : {
-            background: {
-              default: "#121212",
-              paper: "#1e1e1e",
-            },
-            primary: {
-              main: "#90caf9",
-            },
-            secondary: {
-              main: "#f48fb1",
-            },
-          }),
+          background: {
+            default: '#121212',
+            paper: '#1e1e1e',
+          },
+          primary: {
+            main: '#90caf9',
+          },
+          secondary: {
+            main: '#f48fb1',
+          },
+        }),
     },
     typography: {
       fontFamily: [
-        "-apple-system",
-        "BlinkMacSystemFont",
+        '-apple-system',
+        'BlinkMacSystemFont',
         '"Segoe UI"',
-        "Roboto",
+        'Roboto',
         '"Helvetica Neue"',
-        "Arial",
-        "sans-serif",
-      ].join(","),
+        'Arial',
+        'sans-serif',
+      ].join(','),
       h1: {
-        fontSize: "2rem",
+        fontSize: '2rem',
         fontWeight: 700,
       },
       h2: {
-        fontSize: "1.75rem",
+        fontSize: '1.75rem',
         fontWeight: 600,
       },
       h3: {
-        fontSize: "1.5rem",
+        fontSize: '1.5rem',
         fontWeight: 500,
       },
       h4: {
-        fontSize: "1.25rem",
+        fontSize: '1.25rem',
         fontWeight: 400,
       },
       h5: {
-        fontSize: "1rem",
+        fontSize: '1rem',
         fontWeight: 300,
       },
       h6: {
-        fontSize: "0.875rem",
+        fontSize: '0.875rem',
         fontWeight: 600,
       },
       body1: {
-        fontSize: "1rem",
+        fontSize: '1rem',
       },
       body2: {
-        fontSize: "0.875rem",
+        fontSize: '0.875rem',
       },
     },
     components: {
       MuiButton: {
         styleOverrides: {
           root: {
-            textTransform: "none",
+            textTransform: 'none',
           },
           sizeSmall: {
             py: 1,
@@ -162,24 +162,24 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       MuiAppBar: {
         styleOverrides: {
           root: {
-            transition: "background-color 0.2s ease, color 0.2s ease",
+            transition: 'background-color 0.2s ease, color 0.2s ease',
           },
         },
       },
       MuiSelect: {
         styleOverrides: {
           root: ({ ownerState }) => ({
-            fontSize: "0.9em",
-            "& .MuiSelect-select": {
-              fontSize: "0.9em",
+            fontSize: '0.9em',
+            '& .MuiSelect-select': {
+              fontSize: '0.9em',
             },
             // Remove underline for the "standard" variant only
-            ...(ownerState.variant === "standard" && {
-              "&:before, &:after": {
-                display: "none",
+            ...(ownerState.variant === 'standard' && {
+              '&:before, &:after': {
+                display: 'none',
               },
             }),
-            transition: "background-color 0.2s ease, border-color 0.2s ease",
+            transition: 'background-color 0.2s ease, border-color 0.2s ease',
           }),
         },
       },
@@ -187,7 +187,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         styleOverrides: {
           // Ensure font-size cascades to any InputBase that is part of a small Select
           root: ({ ownerState }) => ({
-            ...(ownerState.size === "small" && {
+            ...(ownerState.size === 'small' && {
               fontSize: 12,
             }),
           }),
@@ -203,21 +203,21 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
             minHeight: 0,
           },
           indicator: {
-            transition: "none",
+            transition: 'none',
           },
         },
       },
       MuiTab: {
         styleOverrides: {
           root: ({ theme }: any) => ({
-            textTransform: "none",
+            textTransform: 'none',
             minHeight: 0,
             padding: theme.spacing(0.5, 1),
             color: theme.palette.text.secondary,
-            "&:hover": {
+            '&:hover': {
               color: theme.palette.text.primary,
             },
-            "&.Mui-selected": {
+            '&.Mui-selected': {
               backgroundColor: theme.palette.background.paper,
               color: theme.palette.text.primary,
             },
@@ -238,54 +238,54 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
           return {
             // Default (not hovered) state: thumb invisible but space reserved to avoid layout shift
-            "*": {
-              scrollbarColor: `transparent transparent`,
-              scrollbarWidth: "thin", // Keep width constant so layout doesn't move (Firefox)
+            '*': {
+              scrollbarColor: 'transparent transparent',
+              scrollbarWidth: 'thin', // Keep width constant so layout doesn't move (Firefox)
             },
             // When the element itself is hovered, show colored thumb (Firefox uses same width)
-            "*:hover": {
+            '*:hover': {
               scrollbarColor: `${thumbColor} transparent`,
             },
-            "*::-webkit-scrollbar": {
+            '*::-webkit-scrollbar': {
               width: 8,
               height: 8,
             },
-            "*::-webkit-scrollbar-track": {
-              background: "transparent",
+            '*::-webkit-scrollbar-track': {
+              background: 'transparent',
             },
             // Thumb hidden by default
-            "*::-webkit-scrollbar-thumb": {
+            '*::-webkit-scrollbar-thumb': {
               borderRadius: 0,
-              backgroundColor: "transparent",
+              backgroundColor: 'transparent',
               minHeight: 24,
             },
             // Thumb when container is hovered
-            "*:hover::-webkit-scrollbar-thumb": {
+            '*:hover::-webkit-scrollbar-thumb': {
               backgroundColor: thumbColor,
             },
             // Thumb when actively hovered/dragged
-            "*:hover::-webkit-scrollbar-thumb:hover, *:hover::-webkit-scrollbar-thumb:active":
+            '*:hover::-webkit-scrollbar-thumb:hover, *:hover::-webkit-scrollbar-thumb:active':
               {
                 backgroundColor: thumbHoverColor,
               },
             // Link styling
             a: {
               color: theme.palette.primary.main,
-              textDecoration: "none",
-              transition: "color 0.2s ease, text-decoration 0.2s ease",
-              "&:hover": {
+              textDecoration: 'none',
+              transition: 'color 0.2s ease, text-decoration 0.2s ease',
+              '&:hover': {
                 color:
-                  theme.palette.mode === "dark"
+                  theme.palette.mode === 'dark'
                     ? theme.palette.primary.light
                     : theme.palette.primary.dark,
-                textDecoration: "underline",
+                textDecoration: 'underline',
               },
-              "&:active": {
+              '&:active': {
                 color: theme.palette.secondary.main,
               },
-              "&:visited": {
+              '&:visited': {
                 color:
-                  theme.palette.mode === "dark"
+                  theme.palette.mode === 'dark'
                     ? alpha(theme.palette.primary.main, 0.8)
                     : alpha(theme.palette.primary.main, 0.7),
               },

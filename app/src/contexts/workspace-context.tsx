@@ -125,7 +125,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setError(null);
       const updated = await workspaceClient.updateWorkspace(id, data);
       setWorkspaces((prev) =>
-        prev.map((ws) => (ws.id === id ? updated : ws))
+        prev.map((ws) => (ws.id === id ? updated : ws)),
       );
       if (currentWorkspace?.id === id) {
         setCurrentWorkspace(updated);
@@ -206,7 +206,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setError(null);
       const updated = await workspaceClient.updateMemberRole(currentWorkspace.id, userId, { role });
       setMembers((prev) =>
-        prev.map((member) => (member.userId === userId ? updated : member))
+        prev.map((member) => (member.userId === userId ? updated : member)),
       );
     } catch (err: any) {
       setError(err.message || 'Failed to update member role');

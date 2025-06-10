@@ -4,7 +4,7 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
-} from "react";
+} from 'react';
 import {
   Box,
   Button,
@@ -20,16 +20,16 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-} from "@mui/material";
+} from '@mui/material';
 import {
   PlayArrow,
   Info as InfoIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   ExpandMore as ExpandMoreIcon,
-} from "@mui/icons-material";
-import Editor from "@monaco-editor/react";
-import { useTheme } from "../contexts/ThemeContext";
+} from '@mui/icons-material';
+import Editor from '@monaco-editor/react';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface CollectionInfo {
   name: string;
@@ -67,12 +67,12 @@ const CollectionEditor = forwardRef<CollectionEditorRef, CollectionEditorProps>(
       onDelete,
       isExecuting,
     },
-    ref
+    ref,
   ) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
-    const [currentQuery, setCurrentQuery] = useState("");
+    const [currentQuery, setCurrentQuery] = useState('');
     const [isCreatingNew, setIsCreatingNew] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,14 +82,14 @@ const CollectionEditor = forwardRef<CollectionEditorRef, CollectionEditorProps>(
     // Default query templates
     const queryTemplates = {
       findAll: `// Find all documents in the collection
-db.${selectedCollection || "collection_name"}.find({})`,
+db.${selectedCollection || 'collection_name'}.find({})`,
       findWithFilter: `// Find documents with filter
-db.${selectedCollection || "collection_name"}.find({
+db.${selectedCollection || 'collection_name'}.find({
   // Add your filter criteria here
   // Example: { status: "active" }
 })`,
       aggregate: `// Aggregation pipeline
-db.${selectedCollection || "collection_name"}.aggregate([
+db.${selectedCollection || 'collection_name'}.aggregate([
   {
     $match: {
       // Add your match criteria here
@@ -103,7 +103,7 @@ db.${selectedCollection || "collection_name"}.aggregate([
   }
 ])`,
       count: `// Count documents
-db.${selectedCollection || "collection_name"}.countDocuments({
+db.${selectedCollection || 'collection_name'}.countDocuments({
   // Add filter criteria here if needed
 })`,
     };
@@ -138,8 +138,8 @@ db.createCollection("new_collection_name", {
         setLoadingDetails(true);
         const response = await fetch(
           `/api/database/collections/${encodeURIComponent(
-            selectedCollection
-          )}/info`
+            selectedCollection,
+          )}/info`,
         );
         const data = await response.json();
 
@@ -147,7 +147,7 @@ db.createCollection("new_collection_name", {
           setCollectionDetails(data.data);
         }
       } catch (error) {
-        console.error("Failed to fetch collection details:", error);
+        console.error('Failed to fetch collection details:', error);
       } finally {
         setLoadingDetails(false);
       }
@@ -175,7 +175,7 @@ db.createCollection("new_collection_name", {
     };
 
     const handleEditorChange = (value: string | undefined) => {
-      setCurrentQuery(value || "");
+      setCurrentQuery(value || '');
     };
 
     const handleExecute = () => {
@@ -197,7 +197,7 @@ db.createCollection("new_collection_name", {
       if (selectedCollection) {
         setCurrentQuery(queryTemplates.findAll);
       } else {
-        setCurrentQuery("");
+        setCurrentQuery('');
       }
     };
 
@@ -212,7 +212,7 @@ db.createCollection("new_collection_name", {
           await onDelete(selectedCollection);
           setDeleteDialogOpen(false);
         } catch (error) {
-          console.error("Failed to delete collection:", error);
+          console.error('Failed to delete collection:', error);
         }
       }
       setIsDeleting(false);
@@ -225,11 +225,11 @@ db.createCollection("new_collection_name", {
     };
 
     const formatBytes = (bytes: number) => {
-      if (bytes === 0) return "0 Bytes";
+      if (bytes === 0) return '0 Bytes';
       const k = 1024;
-      const sizes = ["Bytes", "KB", "MB", "GB"];
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
     useImperativeHandle(ref, () => ({
@@ -238,30 +238,30 @@ db.createCollection("new_collection_name", {
       getCurrentContent: () => ({
         content: currentQuery,
         fileName: selectedCollection,
-        language: "javascript",
+        language: 'javascript',
       }),
     }));
 
     const isShowingContent =
       selectedCollection || collectionInfo || isCreatingNew;
     const displayTitle = isCreatingNew
-      ? "New Collection"
+      ? 'New Collection'
       : selectedCollection
-      ? `Collection: ${selectedCollection}`
-      : "No collection selected";
+        ? `Collection: ${selectedCollection}`
+        : 'No collection selected';
 
     return (
-      <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             p: 1,
           }}
         >
           <Typography variant="h6">{displayTitle}</Typography>
-          <Box sx={{ display: "flex", gap: 0.5 }}>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
             {isCreatingNew && (
               <Button onClick={handleCancelNew} color="secondary">
                 Cancel
@@ -274,7 +274,7 @@ db.createCollection("new_collection_name", {
                   onClick={handleExecute}
                   disabled={!currentQuery.trim() || isExecuting}
                 >
-                  {isExecuting ? "Executing..." : "Run Query"}
+                  {isExecuting ? 'Executing...' : 'Run Query'}
                 </Button>
                 {selectedCollection && !isCreatingNew && onDelete && (
                   <Button
@@ -300,7 +300,7 @@ db.createCollection("new_collection_name", {
                 aria-controls="collection-info-content"
                 id="collection-info-header"
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <InfoIcon fontSize="small" />
                   <Typography variant="subtitle2">
                     Collection Information
@@ -308,51 +308,51 @@ db.createCollection("new_collection_name", {
                 </Box>
               </AccordionSummary>
               <AccordionDetails>
-                <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                   <Box sx={{ flex: 1, minWidth: 300 }}>
                     <Card variant="outlined">
-                      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                         <Typography variant="subtitle2" gutterBottom>
                           Statistics
                         </Typography>
                         <Box
                           sx={{
-                            display: "flex",
-                            flexDirection: "column",
+                            display: 'flex',
+                            flexDirection: 'column',
                             gap: 0.5,
                           }}
                         >
                           <Typography variant="body2">
-                            Documents:{" "}
+                            Documents:{' '}
                             <strong>
                               {collectionDetails.stats?.count?.toLocaleString() ||
                                 0}
                             </strong>
                           </Typography>
                           <Typography variant="body2">
-                            Size:{" "}
+                            Size:{' '}
                             <strong>
                               {formatBytes(collectionDetails.stats?.size || 0)}
                             </strong>
                           </Typography>
                           <Typography variant="body2">
-                            Avg Document Size:{" "}
+                            Avg Document Size:{' '}
                             <strong>
                               {formatBytes(
-                                collectionDetails.stats?.avgObjSize || 0
+                                collectionDetails.stats?.avgObjSize || 0,
                               )}
                             </strong>
                           </Typography>
                           <Typography variant="body2">
-                            Storage Size:{" "}
+                            Storage Size:{' '}
                             <strong>
                               {formatBytes(
-                                collectionDetails.stats?.storageSize || 0
+                                collectionDetails.stats?.storageSize || 0,
                               )}
                             </strong>
                           </Typography>
                           <Typography variant="body2">
-                            Indexes:{" "}
+                            Indexes:{' '}
                             <strong>
                               {collectionDetails.stats?.indexes || 0}
                             </strong>
@@ -363,12 +363,12 @@ db.createCollection("new_collection_name", {
                   </Box>
                   <Box sx={{ flex: 1, minWidth: 300 }}>
                     <Card variant="outlined">
-                      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                         <Typography variant="subtitle2" gutterBottom>
                           Options
                         </Typography>
                         <Box
-                          sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}
+                          sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
                         >
                           {collectionDetails.options?.capped && (
                             <Chip label="Capped" size="small" color="warning" />
@@ -382,13 +382,13 @@ db.createCollection("new_collection_name", {
                           )}
                           {!collectionDetails.options?.capped &&
                             !collectionDetails.type && (
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                            >
                                 No special options
-                              </Typography>
-                            )}
+                            </Typography>
+                          )}
                         </Box>
                       </CardContent>
                     </Card>
@@ -405,7 +405,7 @@ db.createCollection("new_collection_name", {
               defaultLanguage="javascript"
               value={currentQuery}
               height="100%"
-              theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+              theme={effectiveMode === 'dark' ? 'vs-dark' : 'vs'}
               onMount={handleEditorDidMount}
               onChange={handleEditorChange}
               options={{
@@ -413,7 +413,7 @@ db.createCollection("new_collection_name", {
                 readOnly: false,
                 minimap: { enabled: false },
                 fontSize: 12,
-                wordWrap: "on",
+                wordWrap: 'on',
                 scrollBeyondLastLine: false,
                 formatOnPaste: true,
                 formatOnType: true,
@@ -422,12 +422,12 @@ db.createCollection("new_collection_name", {
           ) : (
             <Box
               sx={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "text.secondary",
-                flexDirection: "column",
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'text.secondary',
+                flexDirection: 'column',
                 gap: 2,
               }}
             >
@@ -473,13 +473,13 @@ db.createCollection("new_collection_name", {
               disabled={isDeleting}
               disableElevation
             >
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogActions>
         </Dialog>
       </Box>
     );
-  }
+  },
 );
 
 export default CollectionEditor;

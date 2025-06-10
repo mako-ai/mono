@@ -1,13 +1,13 @@
-import { Hono } from "hono";
-import { authMiddleware } from "../auth/auth.middleware";
+import { Hono } from 'hono';
+import { authMiddleware } from '../auth/auth.middleware';
 import {
   requireWorkspace,
   requireWorkspaceRole,
   AuthenticatedContext,
-} from "../middleware/workspace.middleware";
-import { Database, IDatabase } from "../database/workspace-schema";
-import { databaseConnectionService } from "../services/database-connection.service";
-import { Types } from "mongoose";
+} from '../middleware/workspace.middleware';
+import { Database, IDatabase } from '../database/workspace-schema';
+import { databaseConnectionService } from '../services/database-connection.service';
+import { Types } from 'mongoose';
 
 export const workspaceDatabaseRoutes = new Hono();
 
@@ -20,18 +20,18 @@ function maskPasswordInConnectionString(connectionString: string): string {
   // This handles mongodb://, mongodb+srv://, postgresql://, postgres://, mysql://, etc.
   return connectionString.replace(
     /^([a-z][a-z0-9+.-]*:\/\/[^:]+:)([^@]+)(@)/g,
-    "$1*****$3"
+    '$1*****$3',
   );
 }
 
 // Get all databases for workspace
 workspaceDatabaseRoutes.get(
-  "/",
+  '/',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
+      const workspace = c.get('workspace');
 
       const databases = await Database.find({
         workspaceId: workspace._id,
@@ -43,26 +43,26 @@ workspaceDatabaseRoutes.get(
         let hostKey: string;
         if (db.connection.connectionString) {
           hostKey = maskPasswordInConnectionString(
-            db.connection.connectionString
+            db.connection.connectionString,
           );
         } else {
-          hostKey = db.connection.host || "unknown";
+          hostKey = db.connection.host || 'unknown';
         }
 
         return {
           id: db._id.toString(),
           name: db.name,
-          description: "",
+          description: '',
           database: db.connection.database,
           type: db.type,
           active: true,
           lastConnectedAt: db.lastConnectedAt,
           // Helper fields for easier access (connection object removed for security)
-          displayName: db.connection.database || db.name || "Unknown Database",
+          displayName: db.connection.database || db.name || 'Unknown Database',
           hostKey,
           hostName: db.connection.connectionString
-            ? "MongoDB Atlas"
-            : `MongoDB (${db.connection.host || "localhost"})`,
+            ? 'MongoDB Atlas'
+            : `MongoDB (${db.connection.host || 'localhost'})`,
         };
       });
 
@@ -71,31 +71,31 @@ workspaceDatabaseRoutes.get(
         data: transformedDatabases,
       });
     } catch (error) {
-      console.error("Error getting databases:", error);
+      console.error('Error getting databases:', error);
       return c.json(
         {
           success: false,
           error:
-            error instanceof Error ? error.message : "Failed to get databases",
+            error instanceof Error ? error.message : 'Failed to get databases',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get specific database
 workspaceDatabaseRoutes.get(
-  "/:id",
+  '/:id',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -104,7 +104,7 @@ workspaceDatabaseRoutes.get(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
       return c.json({
@@ -120,36 +120,36 @@ workspaceDatabaseRoutes.get(
         },
       });
     } catch (error) {
-      console.error("Error getting database:", error);
+      console.error('Error getting database:', error);
       return c.json(
         {
           success: false,
           error:
-            error instanceof Error ? error.message : "Failed to get database",
+            error instanceof Error ? error.message : 'Failed to get database',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Create new database
 workspaceDatabaseRoutes.post(
-  "/",
+  '/',
   authMiddleware,
   requireWorkspace,
-  requireWorkspaceRole(["owner", "admin", "member"]),
+  requireWorkspaceRole(['owner', 'admin', 'member']),
   async (c: AuthenticatedContext) => {
     try {
-      const user = c.get("user");
-      const workspace = c.get("workspace");
+      const user = c.get('user');
+      const workspace = c.get('workspace');
       const body = await c.req.json();
 
       // Validate required fields
       if (!body.name || !body.type) {
         return c.json(
-          { success: false, error: "Name and type are required" },
-          400
+          { success: false, error: 'Name and type are required' },
+          400,
         );
       }
 
@@ -163,7 +163,7 @@ workspaceDatabaseRoutes.post(
             success: false,
             error: `Workspace database limit reached (${workspace.settings.maxDatabases})`,
           },
-          403
+          403,
         );
       }
 
@@ -187,7 +187,7 @@ workspaceDatabaseRoutes.post(
             success: false,
             error: `Connection test failed: ${testResult.error}`,
           },
-          400
+          400,
         );
       }
 
@@ -202,40 +202,40 @@ workspaceDatabaseRoutes.post(
             type: database.type,
             createdAt: database.createdAt,
           },
-          message: "Database created successfully",
+          message: 'Database created successfully',
         },
-        201
+        201,
       );
     } catch (error) {
-      console.error("Error creating database:", error);
+      console.error('Error creating database:', error);
       return c.json(
         {
           success: false,
           error:
             error instanceof Error
               ? error.message
-              : "Failed to create database",
+              : 'Failed to create database',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Update database
 workspaceDatabaseRoutes.put(
-  "/:id",
+  '/:id',
   authMiddleware,
   requireWorkspace,
-  requireWorkspaceRole(["owner", "admin", "member"]),
+  requireWorkspaceRole(['owner', 'admin', 'member']),
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
       const body = await c.req.json();
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -244,7 +244,7 @@ workspaceDatabaseRoutes.put(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
       // Update fields
@@ -261,7 +261,7 @@ workspaceDatabaseRoutes.put(
               success: false,
               error: `Connection test failed: ${testResult.error}`,
             },
-            400
+            400,
           );
         }
       }
@@ -277,37 +277,37 @@ workspaceDatabaseRoutes.put(
           type: database.type,
           updatedAt: database.updatedAt,
         },
-        message: "Database updated successfully",
+        message: 'Database updated successfully',
       });
     } catch (error) {
-      console.error("Error updating database:", error);
+      console.error('Error updating database:', error);
       return c.json(
         {
           success: false,
           error:
             error instanceof Error
               ? error.message
-              : "Failed to update database",
+              : 'Failed to update database',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Delete database
 workspaceDatabaseRoutes.delete(
-  "/:id",
+  '/:id',
   authMiddleware,
   requireWorkspace,
-  requireWorkspaceRole(["owner", "admin"]),
+  requireWorkspaceRole(['owner', 'admin']),
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const result = await Database.deleteOne({
@@ -316,7 +316,7 @@ workspaceDatabaseRoutes.delete(
       });
 
       if (result.deletedCount === 0) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
       // Close any open connections
@@ -324,36 +324,36 @@ workspaceDatabaseRoutes.delete(
 
       return c.json({
         success: true,
-        message: "Database deleted successfully",
+        message: 'Database deleted successfully',
       });
     } catch (error) {
-      console.error("Error deleting database:", error);
+      console.error('Error deleting database:', error);
       return c.json(
         {
           success: false,
           error:
             error instanceof Error
               ? error.message
-              : "Failed to delete database",
+              : 'Failed to delete database',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Test database connection
 workspaceDatabaseRoutes.post(
-  "/:id/test",
+  '/:id/test',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -362,7 +362,7 @@ workspaceDatabaseRoutes.post(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
       const result = await databaseConnectionService.testConnection(database);
@@ -375,34 +375,34 @@ workspaceDatabaseRoutes.post(
 
       return c.json(result);
     } catch (error) {
-      console.error("Error testing database connection:", error);
+      console.error('Error testing database connection:', error);
       return c.json(
         {
           success: false,
           error:
             error instanceof Error
               ? error.message
-              : "Failed to test connection",
+              : 'Failed to test connection',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Execute query on database
 workspaceDatabaseRoutes.post(
-  "/:id/execute",
+  '/:id/execute',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
       const body = await c.req.json();
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -411,46 +411,46 @@ workspaceDatabaseRoutes.post(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
       if (!body.query) {
-        return c.json({ success: false, error: "Query is required" }, 400);
+        return c.json({ success: false, error: 'Query is required' }, 400);
       }
 
       const result = await databaseConnectionService.executeQuery(
         database,
         body.query,
-        body.options
+        body.options,
       );
 
       return c.json(result);
     } catch (error) {
-      console.error("Error executing query:", error);
+      console.error('Error executing query:', error);
       return c.json(
         {
           success: false,
           error:
-            error instanceof Error ? error.message : "Failed to execute query",
+            error instanceof Error ? error.message : 'Failed to execute query',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get collections for MongoDB database
 workspaceDatabaseRoutes.get(
-  "/:id/collections",
+  '/:id/collections',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -459,16 +459,16 @@ workspaceDatabaseRoutes.get(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
-      if (database.type !== "mongodb") {
+      if (database.type !== 'mongodb') {
         return c.json(
           {
             success: false,
-            error: "This endpoint is only for MongoDB databases",
+            error: 'This endpoint is only for MongoDB databases',
           },
-          400
+          400,
         );
       }
 
@@ -486,34 +486,34 @@ workspaceDatabaseRoutes.get(
         })),
       });
     } catch (error) {
-      console.error("Error getting collections:", error);
+      console.error('Error getting collections:', error);
       return c.json(
         {
           success: false,
           error:
             error instanceof Error
               ? error.message
-              : "Failed to get collections",
+              : 'Failed to get collections',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get collection info for MongoDB
 workspaceDatabaseRoutes.get(
-  "/:id/collections/:name",
+  '/:id/collections/:name',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
-      const collectionName = c.req.param("name");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
+      const collectionName = c.req.param('name');
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -522,16 +522,16 @@ workspaceDatabaseRoutes.get(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
-      if (database.type !== "mongodb") {
+      if (database.type !== 'mongodb') {
         return c.json(
           {
             success: false,
-            error: "This endpoint is only for MongoDB databases",
+            error: 'This endpoint is only for MongoDB databases',
           },
-          400
+          400,
         );
       }
 
@@ -546,7 +546,7 @@ workspaceDatabaseRoutes.get(
       if (collections.length === 0) {
         return c.json(
           { success: false, error: `Collection '${collectionName}' not found` },
-          404
+          404,
         );
       }
 
@@ -575,33 +575,33 @@ workspaceDatabaseRoutes.get(
         },
       });
     } catch (error) {
-      console.error("Error getting collection info:", error);
+      console.error('Error getting collection info:', error);
       return c.json(
         {
           success: false,
           error:
             error instanceof Error
               ? error.message
-              : "Failed to get collection info",
+              : 'Failed to get collection info',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get views for MongoDB database
 workspaceDatabaseRoutes.get(
-  "/:id/views",
+  '/:id/views',
   authMiddleware,
   requireWorkspace,
   async (c: AuthenticatedContext) => {
     try {
-      const workspace = c.get("workspace");
-      const databaseId = c.req.param("id");
+      const workspace = c.get('workspace');
+      const databaseId = c.req.param('id');
 
       if (!Types.ObjectId.isValid(databaseId)) {
-        return c.json({ success: false, error: "Invalid database ID" }, 400);
+        return c.json({ success: false, error: 'Invalid database ID' }, 400);
       }
 
       const database = await Database.findOne({
@@ -610,23 +610,23 @@ workspaceDatabaseRoutes.get(
       });
 
       if (!database) {
-        return c.json({ success: false, error: "Database not found" }, 404);
+        return c.json({ success: false, error: 'Database not found' }, 404);
       }
 
-      if (database.type !== "mongodb") {
+      if (database.type !== 'mongodb') {
         return c.json(
           {
             success: false,
-            error: "This endpoint is only for MongoDB databases",
+            error: 'This endpoint is only for MongoDB databases',
           },
-          400
+          400,
         );
       }
 
       const connection =
         await databaseConnectionService.getConnection(database);
       const db = connection.db(database.connection.database);
-      const views = await db.listCollections({ type: "view" }).toArray();
+      const views = await db.listCollections({ type: 'view' }).toArray();
 
       return c.json({
         success: true,
@@ -637,14 +637,14 @@ workspaceDatabaseRoutes.get(
         })),
       });
     } catch (error) {
-      console.error("Error getting views:", error);
+      console.error('Error getting views:', error);
       return c.json(
         {
           success: false,
-          error: error instanceof Error ? error.message : "Failed to get views",
+          error: error instanceof Error ? error.message : 'Failed to get views',
         },
-        500
+        500,
       );
     }
-  }
+  },
 );

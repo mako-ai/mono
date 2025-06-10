@@ -1,7 +1,7 @@
-import { create } from "zustand";
-import { immer } from "zustand/middleware/immer";
-import { persist } from "zustand/middleware";
-import { Message, AttachedContext } from "../components/Chat/types";
+import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
+import { persist } from 'zustand/middleware';
+import { Message, AttachedContext } from '../components/Chat/types';
 
 /*********************
  * State definitions *
@@ -23,20 +23,20 @@ export interface ConsoleTab {
   initialContent: string;
   databaseId?: string;
   filePath?: string;
-  kind?: "console" | "settings" | "sources" | "members";
+  kind?: 'console' | 'settings' | 'sources' | 'members';
   isDirty?: boolean; // false/undefined = pristine (replaceable), true = dirty (persistent)
 }
 
 export interface GlobalState {
   // Backward-compatibility top-level view props
-  activeView?: "databases" | "consoles" | "sources";
+  activeView?: 'databases' | 'consoles' | 'sources';
   activeEditorContent?: {
     content: string;
     fileName?: string;
     language?: string;
   };
   ui: {
-    leftPane: "databases" | "consoles" | "sources";
+    leftPane: 'databases' | 'consoles' | 'sources';
     loading: Record<string, boolean>; // keyed by request name
   };
   explorers: {
@@ -67,19 +67,19 @@ export interface GlobalState {
   };
 }
 
-export type AppView = "databases" | "consoles" | "sources";
+export type AppView = 'databases' | 'consoles' | 'sources';
 
 /*********************
  * Initial state     *
  *********************/
-const createDefaultChatId = () => "default-" + Date.now();
+const createDefaultChatId = () => 'default-' + Date.now();
 const defaultChatId = createDefaultChatId();
 
 export const initialState: GlobalState = {
-  activeView: "consoles",
+  activeView: 'consoles',
   activeEditorContent: undefined,
   ui: {
-    leftPane: "databases",
+    leftPane: 'databases',
     loading: {},
   },
   explorers: {
@@ -97,7 +97,7 @@ export const initialState: GlobalState = {
     },
   },
   settings: {
-    modelId: "gpt-3.5-turbo",
+    modelId: 'gpt-3.5-turbo',
   },
   consoles: {
     tabs: {},
@@ -107,7 +107,7 @@ export const initialState: GlobalState = {
     sessions: {
       [defaultChatId]: {
         id: defaultChatId,
-        title: "New Chat",
+        title: 'New Chat',
         messages: [],
         attachedContext: [],
         createdAt: new Date(),
@@ -122,62 +122,62 @@ export const initialState: GlobalState = {
  *********************/
 export type Action =
   | {
-      type: "OPEN_CONSOLE_TAB";
-      payload: Omit<ConsoleTab, "initialContent"> & { initialContent: string };
+      type: 'OPEN_CONSOLE_TAB';
+      payload: Omit<ConsoleTab, 'initialContent'> & { initialContent: string };
     }
-  | { type: "CLOSE_CONSOLE_TAB"; payload: { id: string } }
-  | { type: "FOCUS_CONSOLE_TAB"; payload: { id: string | null } }
-  | { type: "UPDATE_CONSOLE_CONTENT"; payload: { id: string; content: string } }
-  | { type: "UPDATE_CONSOLE_TITLE"; payload: { id: string; title: string } }
-  | { type: "UPDATE_CONSOLE_DIRTY"; payload: { id: string; isDirty: boolean } }
+  | { type: 'CLOSE_CONSOLE_TAB'; payload: { id: string } }
+  | { type: 'FOCUS_CONSOLE_TAB'; payload: { id: string | null } }
+  | { type: 'UPDATE_CONSOLE_CONTENT'; payload: { id: string; content: string } }
+  | { type: 'UPDATE_CONSOLE_TITLE'; payload: { id: string; title: string } }
+  | { type: 'UPDATE_CONSOLE_DIRTY'; payload: { id: string; isDirty: boolean } }
   | {
-      type: "SET_ATTACHED_CONTEXT";
+      type: 'SET_ATTACHED_CONTEXT';
       payload: { chatId: string; items: AttachedContext[] };
     }
-  | { type: "ADD_MESSAGE"; payload: { chatId: string; message: Message } }
+  | { type: 'ADD_MESSAGE'; payload: { chatId: string; message: Message } }
   | {
-      type: "UPDATE_MESSAGE_PARTIAL";
+      type: 'UPDATE_MESSAGE_PARTIAL';
       payload: { chatId: string; messageId: string; delta: string };
     }
-  | { type: "CREATE_CHAT"; payload: { id: string } }
-  | { type: "FOCUS_CHAT"; payload: { id: string } }
-  | { type: "SET_LOADING"; payload: { key: string; value: boolean } }
+  | { type: 'CREATE_CHAT'; payload: { id: string } }
+  | { type: 'FOCUS_CHAT'; payload: { id: string } }
+  | { type: 'SET_LOADING'; payload: { key: string; value: boolean } }
   | {
-      type: "NAVIGATE_LEFT_PANE";
-      payload: { pane: "databases" | "consoles" | "sources" };
+      type: 'NAVIGATE_LEFT_PANE';
+      payload: { pane: 'databases' | 'consoles' | 'sources' };
     }
   | {
-      type: "SET_ACTIVE_EDITOR_CONTENT";
+      type: 'SET_ACTIVE_EDITOR_CONTENT';
       payload: {
         content?: { content: string; fileName?: string; language?: string };
       };
     }
-  | { type: "TOGGLE_DATABASE_SERVER"; payload: { serverId: string } }
-  | { type: "TOGGLE_DATABASE_DATABASE"; payload: { databaseId: string } }
+  | { type: 'TOGGLE_DATABASE_SERVER'; payload: { serverId: string } }
+  | { type: 'TOGGLE_DATABASE_DATABASE'; payload: { databaseId: string } }
   | {
-      type: "TOGGLE_DATABASE_COLLECTION_GROUP";
+      type: 'TOGGLE_DATABASE_COLLECTION_GROUP';
       payload: { databaseId: string };
     }
-  | { type: "TOGGLE_DATABASE_VIEW_GROUP"; payload: { databaseId: string } }
-  | { type: "EXPAND_DATABASE_SERVER"; payload: { serverId: string } }
-  | { type: "EXPAND_DATABASE_DATABASE"; payload: { databaseId: string } }
-  | { type: "TOGGLE_CONSOLE_FOLDER"; payload: { folderPath: string } }
-  | { type: "TOGGLE_VIEW_COLLECTION"; payload: { collectionName: string } }
-  | { type: "EXPAND_VIEW_COLLECTION"; payload: { collectionName: string } }
-  | { type: "SET_SELECTED_MODEL"; payload: { model: string } };
+  | { type: 'TOGGLE_DATABASE_VIEW_GROUP'; payload: { databaseId: string } }
+  | { type: 'EXPAND_DATABASE_SERVER'; payload: { serverId: string } }
+  | { type: 'EXPAND_DATABASE_DATABASE'; payload: { databaseId: string } }
+  | { type: 'TOGGLE_CONSOLE_FOLDER'; payload: { folderPath: string } }
+  | { type: 'TOGGLE_VIEW_COLLECTION'; payload: { collectionName: string } }
+  | { type: 'EXPAND_VIEW_COLLECTION'; payload: { collectionName: string } }
+  | { type: 'SET_SELECTED_MODEL'; payload: { model: string } };
 
 /*********************
  * Reducer           *
  *********************/
 export const reducer = (state: GlobalState, action: Action): void => {
   switch (action.type) {
-    case "OPEN_CONSOLE_TAB": {
+    case 'OPEN_CONSOLE_TAB': {
       const { id, title, content, initialContent, databaseId, filePath, kind } =
         action.payload;
 
       // Check if there's an existing pristine tab to replace
       const pristineTabId = Object.keys(state.consoles.tabs).find(
-        (tabId) => !state.consoles.tabs[tabId].isDirty
+        (tabId) => !state.consoles.tabs[tabId].isDirty,
       );
 
       // If there's a pristine tab, remove it first
@@ -193,7 +193,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         initialContent,
         databaseId,
         filePath,
-        kind: kind || "console",
+        kind: kind || 'console',
         isDirty: false, // New tabs start as pristine
       };
       state.consoles.activeTabId = id;
@@ -205,7 +205,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
           chat.attachedContext = [
             {
               id,
-              type: "console",
+              type: 'console',
               title,
               content,
               metadata: { consoleId: id },
@@ -215,7 +215,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "CLOSE_CONSOLE_TAB": {
+    case 'CLOSE_CONSOLE_TAB': {
       delete state.consoles.tabs[action.payload.id];
       if (state.consoles.activeTabId === action.payload.id) {
         state.consoles.activeTabId =
@@ -234,7 +234,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
               chat.attachedContext = [
                 {
                   id: newActiveTab.id,
-                  type: "console",
+                  type: 'console',
                   title: newActiveTab.title,
                   content: newActiveTab.content,
                   metadata: { consoleId: newActiveTab.id },
@@ -249,7 +249,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "FOCUS_CONSOLE_TAB": {
+    case 'FOCUS_CONSOLE_TAB': {
       state.consoles.activeTabId = action.payload.id;
 
       // Handle chat context attachment for virgin chats
@@ -263,7 +263,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
               chat.attachedContext = [
                 {
                   id: tab.id,
-                  type: "console",
+                  type: 'console',
                   title: tab.title,
                   content: tab.content,
                   metadata: { consoleId: tab.id },
@@ -278,7 +278,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "UPDATE_CONSOLE_CONTENT": {
+    case 'UPDATE_CONSOLE_CONTENT': {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.content = action.payload.content;
 
@@ -288,8 +288,8 @@ export const reducer = (state: GlobalState, action: Action): void => {
         if (chat && tab) {
           const contextIndex = chat.attachedContext.findIndex(
             (ctx) =>
-              ctx.type === "console" &&
-              ctx.metadata?.consoleId === action.payload.id
+              ctx.type === 'console' &&
+              ctx.metadata?.consoleId === action.payload.id,
           );
           if (contextIndex !== -1) {
             chat.attachedContext[contextIndex] = {
@@ -301,17 +301,17 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "UPDATE_CONSOLE_TITLE": {
+    case 'UPDATE_CONSOLE_TITLE': {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.title = action.payload.title;
       break;
     }
-    case "UPDATE_CONSOLE_DIRTY": {
+    case 'UPDATE_CONSOLE_DIRTY': {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.isDirty = action.payload.isDirty;
       break;
     }
-    case "CREATE_CHAT": {
+    case 'CREATE_CHAT': {
       const { id } = action.payload;
       // If current chat is empty with no context, reuse it
       if (state.chat.currentChatId) {
@@ -330,7 +330,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       // Create new chat
       state.chat.sessions[id] = {
         id,
-        title: "New Chat",
+        title: 'New Chat',
         messages: [],
         attachedContext: [],
         createdAt: new Date(),
@@ -338,11 +338,11 @@ export const reducer = (state: GlobalState, action: Action): void => {
       state.chat.currentChatId = id;
       break;
     }
-    case "FOCUS_CHAT": {
+    case 'FOCUS_CHAT': {
       state.chat.currentChatId = action.payload.id;
       break;
     }
-    case "ADD_MESSAGE": {
+    case 'ADD_MESSAGE': {
       const { chatId, message } = action.payload;
       const chat = state.chat.sessions[chatId];
       if (chat) {
@@ -352,7 +352,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "UPDATE_MESSAGE_PARTIAL": {
+    case 'UPDATE_MESSAGE_PARTIAL': {
       const { chatId, messageId, delta } = action.payload;
       const chat = state.chat.sessions[chatId];
       if (chat) {
@@ -361,54 +361,54 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "SET_ATTACHED_CONTEXT": {
+    case 'SET_ATTACHED_CONTEXT': {
       const { chatId, items } = action.payload;
       const chat = state.chat.sessions[chatId];
       if (chat) chat.attachedContext = items;
       break;
     }
-    case "SET_LOADING": {
+    case 'SET_LOADING': {
       state.ui.loading[action.payload.key] = action.payload.value;
       break;
     }
-    case "SET_SELECTED_MODEL": {
+    case 'SET_SELECTED_MODEL': {
       state.settings.modelId = action.payload.model;
       break;
     }
-    case "NAVIGATE_LEFT_PANE": {
+    case 'NAVIGATE_LEFT_PANE': {
       state.ui.leftPane = action.payload.pane;
       state.activeView = action.payload.pane; // sync legacy field
       break;
     }
-    case "SET_ACTIVE_EDITOR_CONTENT": {
+    case 'SET_ACTIVE_EDITOR_CONTENT': {
       state.activeEditorContent = action.payload.content;
       break;
     }
-    case "TOGGLE_DATABASE_SERVER": {
+    case 'TOGGLE_DATABASE_SERVER': {
       const { serverId } = action.payload;
       const expandedServers = state.explorers.database.expandedServers;
       if (expandedServers.includes(serverId)) {
         state.explorers.database.expandedServers = expandedServers.filter(
-          (id) => id !== serverId
+          (id) => id !== serverId,
         );
       } else {
         state.explorers.database.expandedServers.push(serverId);
       }
       break;
     }
-    case "TOGGLE_DATABASE_DATABASE": {
+    case 'TOGGLE_DATABASE_DATABASE': {
       const { databaseId } = action.payload;
       const expandedDatabases = state.explorers.database.expandedDatabases;
       if (expandedDatabases.includes(databaseId)) {
         state.explorers.database.expandedDatabases = expandedDatabases.filter(
-          (id) => id !== databaseId
+          (id) => id !== databaseId,
         );
       } else {
         state.explorers.database.expandedDatabases.push(databaseId);
       }
       break;
     }
-    case "TOGGLE_DATABASE_COLLECTION_GROUP": {
+    case 'TOGGLE_DATABASE_COLLECTION_GROUP': {
       const { databaseId } = action.payload;
       const expandedCollectionGroups =
         state.explorers.database.expandedCollectionGroups;
@@ -420,19 +420,19 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "TOGGLE_DATABASE_VIEW_GROUP": {
+    case 'TOGGLE_DATABASE_VIEW_GROUP': {
       const { databaseId } = action.payload;
       const expandedViewGroups = state.explorers.database.expandedViewGroups;
       if (expandedViewGroups.includes(databaseId)) {
         state.explorers.database.expandedViewGroups = expandedViewGroups.filter(
-          (id) => id !== databaseId
+          (id) => id !== databaseId,
         );
       } else {
         state.explorers.database.expandedViewGroups.push(databaseId);
       }
       break;
     }
-    case "EXPAND_DATABASE_SERVER": {
+    case 'EXPAND_DATABASE_SERVER': {
       const { serverId } = action.payload;
       const expandedServers = state.explorers.database.expandedServers;
       if (!expandedServers.includes(serverId)) {
@@ -440,7 +440,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "EXPAND_DATABASE_DATABASE": {
+    case 'EXPAND_DATABASE_DATABASE': {
       const { databaseId } = action.payload;
       const expandedDatabases = state.explorers.database.expandedDatabases;
       if (!expandedDatabases.includes(databaseId)) {
@@ -448,31 +448,31 @@ export const reducer = (state: GlobalState, action: Action): void => {
       }
       break;
     }
-    case "TOGGLE_CONSOLE_FOLDER": {
+    case 'TOGGLE_CONSOLE_FOLDER': {
       const { folderPath } = action.payload;
       const expandedFolders = state.explorers.console.expandedFolders;
       if (expandedFolders.includes(folderPath)) {
         state.explorers.console.expandedFolders = expandedFolders.filter(
-          (path) => path !== folderPath
+          (path) => path !== folderPath,
         );
       } else {
         state.explorers.console.expandedFolders.push(folderPath);
       }
       break;
     }
-    case "TOGGLE_VIEW_COLLECTION": {
+    case 'TOGGLE_VIEW_COLLECTION': {
       const { collectionName } = action.payload;
       const expandedCollections = state.explorers.view.expandedCollections;
       if (expandedCollections.includes(collectionName)) {
         state.explorers.view.expandedCollections = expandedCollections.filter(
-          (name) => name !== collectionName
+          (name) => name !== collectionName,
         );
       } else {
         state.explorers.view.expandedCollections.push(collectionName);
       }
       break;
     }
-    case "EXPAND_VIEW_COLLECTION": {
+    case 'EXPAND_VIEW_COLLECTION': {
       const { collectionName } = action.payload;
       const expandedCollections = state.explorers.view.expandedCollections;
       if (!expandedCollections.includes(collectionName)) {
@@ -489,7 +489,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
 export const useAppStore = create<
   GlobalState & {
     dispatch: (a: Action) => void;
-    setActiveView: (view: "databases" | "consoles" | "sources") => void;
+    setActiveView: (view: 'databases' | 'consoles' | 'sources') => void;
     setActiveEditorContent: (
       content:
         | { content: string; fileName?: string; language?: string }
@@ -512,15 +512,15 @@ export const useAppStore = create<
         }),
     })),
     {
-      name: "app-store",
+      name: 'app-store',
       partialize: (state) => ({
         // Persist chat sessions, console tabs, and settings
         activeView: state.activeView,
         chat: {
           sessions: Object.fromEntries(
             Object.entries(state.chat.sessions).filter(
-              ([_, session]) => session.messages.length > 0
-            )
+              ([_, session]) => session.messages.length > 0,
+            ),
           ),
           currentChatId: state.chat.currentChatId,
         },
@@ -554,10 +554,10 @@ export const useAppStore = create<
             !data.state?.chat?.sessions ||
             Object.keys(data.state.chat.sessions).length === 0
           ) {
-            const newChatId = "restored-" + Date.now();
+            const newChatId = 'restored-' + Date.now();
             const newChat = {
               id: newChatId,
-              title: "New Chat",
+              title: 'New Chat',
               messages: [],
               attachedContext: [],
               createdAt: new Date(),
@@ -588,8 +588,8 @@ export const useAppStore = create<
           localStorage.removeItem(name);
         },
       },
-    }
-  )
+    },
+  ),
 );
 
 export const useAppDispatch = () => useAppStore((s) => s.dispatch);

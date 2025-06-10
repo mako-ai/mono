@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -11,12 +11,12 @@ import {
   Alert,
   IconButton,
   Chip,
-} from "@mui/material";
+} from '@mui/material';
 import {
   TableChartOutlined as CollectionIcon,
   Refresh as RefreshIcon,
   Add as AddIcon,
-} from "@mui/icons-material";
+} from '@mui/icons-material';
 
 interface CollectionInfo {
   name: string;
@@ -50,22 +50,22 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/database/collections");
+      const response = await fetch('/api/database/collections');
       const data = await response.json();
 
       if (data.success) {
         // Debug: raw collections data can be inspected here if needed
         // Sort collections alphabetically by name
         const sortedCollections = data.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name)
+          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name),
         );
         setCollections(sortedCollections);
       } else {
-        setError(data.error || "Failed to fetch collections");
+        setError(data.error || 'Failed to fetch collections');
       }
     } catch (err) {
-      setError("Failed to connect to the database API");
-      console.error("Error fetching collections:", err);
+      setError('Failed to connect to the database API');
+      console.error('Error fetching collections:', err);
     } finally {
       setLoading(false);
     }
@@ -88,10 +88,10 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
     return (
       <Box
         sx={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
         <CircularProgress size={24} />
@@ -105,7 +105,7 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}
         </Alert>
-        <Box sx={{ textAlign: "center" }}>
+        <Box sx={{ textAlign: 'center' }}>
           <IconButton onClick={handleRefresh} color="primary">
             <RefreshIcon />
           </IconButton>
@@ -115,39 +115,39 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
   }
 
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
           }}
         >
           <Box
             sx={{
               flexGrow: 1,
-              overflow: "hidden",
-              maxWidth: "calc(100% - 70px)",
-              "& .MuiTypography-root": {
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+              overflow: 'hidden',
+              maxWidth: 'calc(100% - 70px)',
+              '& .MuiTypography-root': {
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               },
             }}
           >
             <Typography variant="h6">Collections</Typography>
             <Typography variant="body2" color="text.secondary">
               {collections.length} collection
-              {collections.length !== 1 ? "s" : ""} found
+              {collections.length !== 1 ? 's' : ''} found
             </Typography>
           </Box>
           <Box
             sx={{
-              display: "flex",
-              flexDirection: "row",
+              display: 'flex',
+              flexDirection: 'row',
               gap: 0,
-              width: "70px",
+              width: '70px',
             }}
           >
             <IconButton size="small" onClick={onCreateNew} color="primary">
@@ -160,13 +160,13 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
         </Box>
       </Box>
 
-      <Box sx={{ flexGrow: 1, overflow: "auto" }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
         {collections.length === 0 ? (
           <Box
             sx={{
               p: 3,
-              textAlign: "center",
-              color: "text.secondary",
+              textAlign: 'center',
+              color: 'text.secondary',
             }}
           >
             <Typography variant="body2">
@@ -189,14 +189,14 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
                   <ListItemText
                     primary={
                       <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
                       >
                         <Typography
                           variant="body2"
                           sx={{
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
                             flexGrow: 1,
                           }}
                         >
@@ -208,7 +208,7 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
                             size="small"
                             variant="outlined"
                             color="warning"
-                            sx={{ fontSize: "0.7rem", height: 16 }}
+                            sx={{ fontSize: '0.7rem', height: 16 }}
                           />
                         )}
                       </Box>

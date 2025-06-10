@@ -4,13 +4,13 @@ import React, {
   useState,
   useEffect,
   useCallback,
-} from "react";
+} from 'react';
 import {
   authClient,
   type User,
   type LoginCredentials,
   type RegisterCredentials,
-} from "../lib/auth-client";
+} from '../lib/auth-client';
 
 /**
  * Auth context state interface
@@ -22,7 +22,7 @@ interface AuthContextState {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
-  loginWithOAuth: (provider: "google" | "github") => void;
+  loginWithOAuth: (provider: 'google' | 'github') => void;
   clearError: () => void;
 }
 
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentUser = await authClient.getMe();
       setUser(currentUser);
     } catch (err) {
-      console.error("Auth check failed:", err);
+      console.error('Auth check failed:', err);
       setUser(null);
     } finally {
       setLoading(false);
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const user = await authClient.login(credentials);
       setUser(user);
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || 'Login failed');
       throw err;
     } finally {
       setLoading(false);
@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const user = await authClient.register(credentials);
       setUser(user);
     } catch (err: any) {
-      setError(err.message || "Registration failed");
+      setError(err.message || 'Registration failed');
       throw err;
     } finally {
       setLoading(false);
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await authClient.logout();
       setUser(null);
     } catch (err: any) {
-      setError(err.message || "Logout failed");
+      setError(err.message || 'Logout failed');
       throw err;
     } finally {
       setLoading(false);
@@ -116,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * Login with OAuth provider
    */
-  const loginWithOAuth = useCallback((provider: "google" | "github") => {
+  const loginWithOAuth = useCallback((provider: 'google' | 'github') => {
     authClient.initiateOAuth(provider);
   }, []);
 
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }

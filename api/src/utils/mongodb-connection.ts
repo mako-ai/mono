@@ -1,8 +1,8 @@
-import { MongoClient, Db, MongoClientOptions } from "mongodb";
-import dotenv from "dotenv";
-import { configLoader, MongoDatabase } from "./config-loader";
+import { MongoClient, Db, MongoClientOptions } from 'mongodb';
+import dotenv from 'dotenv';
+import { configLoader, MongoDatabase } from './config-loader';
 
-dotenv.config({ path: "../../.env" });
+dotenv.config({ path: '../../.env' });
 
 export interface MongoConfig {
   connectionString: string;
@@ -33,7 +33,7 @@ class MongoDBConnection {
     if (existing) {
       try {
         // Verify connection is still alive
-        await existing.client.db("admin").command({ ping: 1 });
+        await existing.client.db('admin').command({ ping: 1 });
         return existing.db;
       } catch (error) {
         console.log(`Connection lost for ${dataSourceId}, reconnecting...`);
@@ -68,24 +68,24 @@ class MongoDBConnection {
 
       if (!dataSource) {
         throw new Error(
-          `Data source '${dataSourceId}' not found in configuration`
+          `Data source '${dataSourceId}' not found in configuration`,
         );
       }
 
       if (!dataSource.connectionString) {
         throw new Error(
-          `Data source '${dataSourceId}' is missing connection string`
+          `Data source '${dataSourceId}' is missing connection string`,
         );
       }
 
       if (!dataSource.database) {
         throw new Error(
-          `Data source '${dataSourceId}' is missing database name`
+          `Data source '${dataSourceId}' is missing database name`,
         );
       }
 
       console.log(
-        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.database} on ${dataSource.serverName}`
+        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.database} on ${dataSource.serverName}`,
       );
 
       const options: MongoClientOptions = {
@@ -104,12 +104,12 @@ class MongoDBConnection {
       this.connections.set(dataSourceId, { client, db });
 
       // Set up connection monitoring
-      client.on("close", () => {
+      client.on('close', () => {
         console.log(`MongoDB connection closed for '${dataSourceId}'`);
         this.connections.delete(dataSourceId);
       });
 
-      client.on("error", (error) => {
+      client.on('error', (error) => {
         console.error(`MongoDB connection error for '${dataSourceId}':`, error);
         this.connections.delete(dataSourceId);
       });
@@ -120,7 +120,7 @@ class MongoDBConnection {
     } catch (error) {
       console.error(
         `❌ Failed to connect to MongoDB '${dataSourceId}':`,
-        error
+        error,
       );
       throw error;
     } finally {
@@ -144,7 +144,7 @@ class MongoDBConnection {
    */
   public async disconnectAll(): Promise<void> {
     const promises = Array.from(this.connections.keys()).map((id) =>
-      this.disconnect(id)
+      this.disconnect(id),
     );
     await Promise.all(promises);
   }
@@ -156,12 +156,12 @@ class MongoDBConnection {
   public async getDb(): Promise<Db> {
     const mongoSources = configLoader.getMongoDBSources();
     if (mongoSources.length === 0) {
-      throw new Error("No MongoDB data sources configured");
+      throw new Error('No MongoDB data sources configured');
     }
 
     // Try to use analytics_db first for backward compatibility
     const primarySource =
-      mongoSources.find((s) => s.id.endsWith("analytics_db")) ||
+      mongoSources.find((s) => s.id.endsWith('analytics_db')) ||
       mongoSources[0];
     return this.getDatabase(primarySource.id);
   }
@@ -172,17 +172,17 @@ class MongoDBConnection {
   public async getClient(): Promise<MongoClient> {
     const mongoSources = configLoader.getMongoDBSources();
     if (mongoSources.length === 0) {
-      throw new Error("No MongoDB data sources configured");
+      throw new Error('No MongoDB data sources configured');
     }
 
     const primarySource =
-      mongoSources.find((s) => s.id.endsWith("analytics_db")) ||
+      mongoSources.find((s) => s.id.endsWith('analytics_db')) ||
       mongoSources[0];
     await this.getDatabase(primarySource.id); // Ensure connected
 
     const connection = this.connections.get(primarySource.id);
     if (!connection) {
-      throw new Error("MongoDB client not connected");
+      throw new Error('MongoDB client not connected');
     }
 
     return connection.client;
