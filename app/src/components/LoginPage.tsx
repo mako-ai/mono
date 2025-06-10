@@ -11,8 +11,9 @@ import {
   IconButton,
   InputAdornment,
 } from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
+  Visibility,
+  VisibilityOff,
   Google as GoogleIcon,
   GitHub as GitHubIcon,
 } from "@mui/icons-material";

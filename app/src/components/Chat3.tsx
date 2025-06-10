@@ -19,8 +19,10 @@ import BuildIcon from "@mui/icons-material/BuildOutlined";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  prism,
+  tomorrow,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
   ExpandMore,
   ExpandLess,

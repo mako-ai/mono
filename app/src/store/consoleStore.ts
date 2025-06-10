@@ -1,5 +1,4 @@
-import { useAppStore, useAppDispatch } from "./appStore";
-import { ConsoleTab } from "./appStore";
+import { useAppStore, useAppDispatch, ConsoleTab } from "./appStore";
 
 export type TabKind = "console" | "settings" | "sources" | "members";
 
