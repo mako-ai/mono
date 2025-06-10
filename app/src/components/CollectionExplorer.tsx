@@ -28,7 +28,7 @@ interface CollectionInfo {
 interface CollectionExplorerProps {
   onCollectionSelect: (
     collectionName: string,
-    collectionInfo: CollectionInfo
+    collectionInfo: CollectionInfo,
   ) => void;
   selectedCollection?: string;
   onCreateNew?: () => void;
@@ -57,7 +57,8 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
         // Debug: raw collections data can be inspected here if needed
         // Sort collections alphabetically by name
         const sortedCollections = data.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name)
+          (a: CollectionInfo, b: CollectionInfo) =>
+            a.name.localeCompare(b.name),
         );
         setCollections(sortedCollections);
       } else {
@@ -175,7 +176,7 @@ const CollectionExplorer: React.FC<CollectionExplorerProps> = ({
           </Box>
         ) : (
           <List dense>
-            {collections.map((collection) => (
+            {collections.map(collection => (
               <ListItem key={collection.name} disablePadding>
                 <ListItemButton
                   selected={selectedCollection === collection.name}

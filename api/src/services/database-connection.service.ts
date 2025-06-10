@@ -21,7 +21,7 @@ export class DatabaseConnectionService {
    * Test database connection
    */
   async testConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       switch (database.type) {
@@ -55,7 +55,7 @@ export class DatabaseConnectionService {
   async executeQuery(
     database: IDatabase,
     query: any,
-    options?: any
+    options?: any,
   ): Promise<QueryResult> {
     try {
       switch (database.type) {
@@ -145,15 +145,15 @@ export class DatabaseConnectionService {
    * Close all connections
    */
   async closeAllConnections(): Promise<void> {
-    const promises = Array.from(this.connections.keys()).map((id) =>
-      this.closeConnection(id)
+    const promises = Array.from(this.connections.keys()).map(id =>
+      this.closeConnection(id),
     );
     await Promise.all(promises);
   }
 
   // MongoDB specific methods
   private async testMongoDBConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let client: MongoClient | null = null;
     try {
@@ -176,7 +176,7 @@ export class DatabaseConnectionService {
   }
 
   private async createMongoDBConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<MongoClient> {
     const connectionString = this.buildMongoDBConnectionString(database);
     const client = new MongoClient(connectionString);
@@ -229,7 +229,7 @@ export class DatabaseConnectionService {
   private async executeMongoDBQuery(
     database: IDatabase,
     query: any,
-    options?: any
+    _options?: any,
   ): Promise<QueryResult> {
     const client = (await this.getConnection(database)) as MongoClient;
     const db = client.db(database.connection.database);
@@ -254,7 +254,7 @@ export class DatabaseConnectionService {
           case "findOne":
             result = await collection.findOne(
               query.filter || {},
-              query.options || {}
+              query.options || {},
             );
             break;
           case "aggregate":
@@ -265,33 +265,33 @@ export class DatabaseConnectionService {
           case "insertMany":
             result = await collection.insertMany(
               query.documents || [],
-              query.options || {}
+              query.options || {},
             );
             break;
           case "updateMany":
             result = await collection.updateMany(
               query.filter || {},
               query.update || {},
-              query.options || {}
+              query.options || {},
             );
             break;
           case "deleteMany":
             result = await collection.deleteMany(
               query.filter || {},
-              query.options || {}
+              query.options || {},
             );
             break;
           case "updateOne":
             result = await collection.updateOne(
               query.filter || {},
               query.update || {},
-              query.options || {}
+              query.options || {},
             );
             break;
           case "deleteOne":
             result = await collection.deleteOne(
               query.filter || {},
-              query.options || {}
+              query.options || {},
             );
             break;
           default:
@@ -315,7 +315,7 @@ export class DatabaseConnectionService {
 
   private async executeMongoDBJavaScriptQuery(
     db: Db,
-    query: string
+    query: string,
   ): Promise<any> {
     console.log("🔍 Executing query:", query.substring(0, 200) + "...");
 
@@ -345,7 +345,7 @@ export class DatabaseConnectionService {
             return (target as Db)
               .listCollections(filter, { nameOnly: true })
               .toArray()
-              .then((infos) => infos.map((info) => info.name));
+              .then(infos => infos.map(info => info.name));
           };
         }
 
@@ -366,14 +366,15 @@ export class DatabaseConnectionService {
 
     try {
       // Execute the query content directly - much simpler and more reliable
-      console.log(`⚡ Evaluating query...`);
-      const db = dbProxy; // Make db available in eval context
+      console.log("⚡ Evaluating query...");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const db = dbProxy; // Make db available in eval context for evaluated queries
       const result = eval(query);
 
       console.log(`📤 Raw result type: ${typeof result}`);
       console.log(`📤 Raw result constructor: ${result?.constructor?.name}`);
       console.log(
-        `📤 Has toArray method: ${typeof result?.toArray === "function"}`
+        `📤 Has toArray method: ${typeof result?.toArray === "function"}`,
       );
       console.log(`📤 Has then method: ${typeof result?.then === "function"}`);
 
@@ -381,30 +382,30 @@ export class DatabaseConnectionService {
       let finalResult;
       if (result && typeof result.then === "function") {
         // It's a promise, await it
-        console.log(`⏳ Awaiting promise...`);
+        console.log("⏳ Awaiting promise...");
         finalResult = await result;
         console.log(`✅ Promise resolved, result type: ${typeof finalResult}`);
         console.log(
-          `✅ Promise resolved constructor: ${finalResult?.constructor?.name}`
+          `✅ Promise resolved constructor: ${finalResult?.constructor?.name}`,
         );
       } else if (result && typeof result.toArray === "function") {
         // It's a MongoDB cursor, convert to array
-        console.log(`📋 Converting cursor to array...`);
+        console.log("📋 Converting cursor to array...");
         finalResult = await result.toArray();
         console.log(
-          `✅ Cursor converted, array length: ${finalResult?.length}`
+          `✅ Cursor converted, array length: ${finalResult?.length}`,
         );
       } else {
         // It's a direct result
-        console.log(`📋 Using direct result`);
+        console.log("📋 Using direct result");
         finalResult = result;
       }
 
       console.log(`🎯 Final result type: ${typeof finalResult}`);
       console.log(`🎯 Final result is array: ${Array.isArray(finalResult)}`);
       console.log(
-        `🎯 Final result length/value:`,
-        Array.isArray(finalResult) ? finalResult.length : finalResult
+        "🎯 Final result length/value:",
+        Array.isArray(finalResult) ? finalResult.length : finalResult,
       );
 
       // Ensure the result can be safely serialized to JSON (avoid circular refs)
@@ -448,11 +449,11 @@ export class DatabaseConnectionService {
       let serializedResult: any;
       try {
         serializedResult = JSON.parse(
-          JSON.stringify(finalResult, getCircularReplacer())
+          JSON.stringify(finalResult, getCircularReplacer()),
         );
       } catch (stringifyError) {
         console.warn(
-          "⚠️ Failed to fully serialize result, falling back to string representation"
+          "⚠️ Failed to fully serialize result, falling back to string representation",
         );
         serializedResult = String(finalResult);
       }
@@ -466,7 +467,7 @@ export class DatabaseConnectionService {
 
   // PostgreSQL specific methods
   private async testPostgreSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let client: PgClient | null = null;
     try {
@@ -497,7 +498,7 @@ export class DatabaseConnectionService {
   }
 
   private async createPostgreSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<PgClient> {
     const client = new PgClient({
       host: database.connection.host,
@@ -513,7 +514,7 @@ export class DatabaseConnectionService {
 
   private async executePostgreSQLQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const client = (await this.getConnection(database)) as PgClient;
     try {
@@ -535,7 +536,7 @@ export class DatabaseConnectionService {
 
   // MySQL specific methods
   private async testMySQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let connection: mysql.Connection | null = null;
     try {
@@ -565,7 +566,7 @@ export class DatabaseConnectionService {
   }
 
   private async createMySQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<mysql.Connection> {
     const connection = await mysql.createConnection({
       host: database.connection.host,
@@ -580,7 +581,7 @@ export class DatabaseConnectionService {
 
   private async executeMySQLQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const connection = (await this.getConnection(database)) as mysql.Connection;
     try {
@@ -600,7 +601,7 @@ export class DatabaseConnectionService {
 
   // SQLite specific methods
   private async testSQLiteConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const db = await open({
@@ -629,7 +630,7 @@ export class DatabaseConnectionService {
 
   private async executeSQLiteQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const db = await this.getConnection(database);
     try {
@@ -648,7 +649,7 @@ export class DatabaseConnectionService {
 
   // MSSQL specific methods
   private async testMSSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
     let pool: ConnectionPool | null = null;
     try {
@@ -680,7 +681,7 @@ export class DatabaseConnectionService {
   }
 
   private async createMSSQLConnection(
-    database: IDatabase
+    database: IDatabase,
   ): Promise<ConnectionPool> {
     const pool = new ConnectionPool({
       server: database.connection.host!,
@@ -699,7 +700,7 @@ export class DatabaseConnectionService {
 
   private async executeMSSQLQuery(
     database: IDatabase,
-    query: string
+    query: string,
   ): Promise<QueryResult> {
     const pool = (await this.getConnection(database)) as ConnectionPool;
     try {

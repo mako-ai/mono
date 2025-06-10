@@ -8,16 +8,16 @@ interface ApiRequestOptions extends RequestInit {
 
 class ApiClient {
   private baseUrl: string;
-  
+
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || '/api';
+    this.baseUrl = import.meta.env.VITE_API_URL || "/api";
   }
 
   /**
    * Get active workspace ID from localStorage
    */
   private getActiveWorkspaceId(): string | null {
-    return localStorage.getItem('activeWorkspaceId');
+    return localStorage.getItem("activeWorkspaceId");
   }
 
   /**
@@ -25,13 +25,13 @@ class ApiClient {
    */
   private buildUrl(path: string, params?: Record<string, string>): string {
     const url = new URL(`${this.baseUrl}${path}`, window.location.origin);
-    
+
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value);
       });
     }
-    
+
     return url.toString();
   }
 
@@ -42,13 +42,15 @@ class ApiClient {
     // Handle 401 Unauthorized - redirect to login
     if (response.status === 401) {
       // Clear any stored auth state
-      localStorage.removeItem('activeWorkspaceId');
-      window.location.href = '/login';
-      throw new Error('Unauthorized');
+      localStorage.removeItem("activeWorkspaceId");
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
     }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+      const error = await response
+        .json()
+        .catch(() => ({ error: "An error occurred" }));
       throw new Error(error.error || `HTTP error! status: ${response.status}`);
     }
 
@@ -70,24 +72,24 @@ class ApiClient {
    */
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
     const { params, headers = {}, ...restOptions } = options;
-    
+
     const url = this.buildUrl(path, params);
-    
+
     // Add workspace header if available
     const workspaceId = this.getActiveWorkspaceId();
     const workspaceHeaders: Record<string, string> = {};
     if (workspaceId) {
-      workspaceHeaders['x-workspace-id'] = workspaceId;
+      workspaceHeaders["x-workspace-id"] = workspaceId;
     }
-    
+
     const response = await fetch(url, {
       ...restOptions,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...workspaceHeaders,
         ...headers,
       },
-      credentials: 'include', // Always include credentials for cookie-based auth
+      credentials: "include", // Always include credentials for cookie-based auth
     });
 
     return this.handleResponse<T>(response);
@@ -97,7 +99,7 @@ class ApiClient {
    * GET request
    */
   async get<T>(path: string, params?: Record<string, string>): Promise<T> {
-    return this.request<T>(path, { method: 'GET', params });
+    return this.request<T>(path, { method: "GET", params });
   }
 
   /**
@@ -105,7 +107,7 @@ class ApiClient {
    */
   async post<T>(path: string, data?: any): Promise<T> {
     return this.request<T>(path, {
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -115,7 +117,7 @@ class ApiClient {
    */
   async put<T>(path: string, data?: any): Promise<T> {
     return this.request<T>(path, {
-      method: 'PUT',
+      method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -124,7 +126,7 @@ class ApiClient {
    * DELETE request
    */
   async delete<T>(path: string): Promise<T> {
-    return this.request<T>(path, { method: 'DELETE' });
+    return this.request<T>(path, { method: "DELETE" });
   }
 
   /**
@@ -132,7 +134,7 @@ class ApiClient {
    */
   async patch<T>(path: string, data?: any): Promise<T> {
     return this.request<T>(path, {
-      method: 'PATCH',
+      method: "PATCH",
       body: data ? JSON.stringify(data) : undefined,
     });
   }

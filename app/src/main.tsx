@@ -9,7 +9,7 @@ import { AuthProvider } from "./contexts/auth-context.tsx";
 
 // Set MUI X Premium license key
 LicenseInfo.setLicenseKey(
-  "***REMOVED***"
+  "***REMOVED***",
 );
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -22,5 +22,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       </AuthProvider>
     </ThemeProvider>
     {/* </BrowserRouter> */}
-  </React.StrictMode>
+  </React.StrictMode>,
 );

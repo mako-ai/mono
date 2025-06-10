@@ -63,7 +63,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
     const nameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
     if (!nameRegex.test(collectionName.trim())) {
       setError(
-        "Collection name must start with a letter or underscore and contain only letters, numbers, and underscores"
+        "Collection name must start with a letter or underscore and contain only letters, numbers, and underscores",
       );
       return;
     }
@@ -124,7 +124,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
           onClick={handleClose}
           disabled={isCreating}
           sx={{
-            color: (theme) => theme.palette.grey[500],
+            color: theme => theme.palette.grey[500],
           }}
         >
           <CloseIcon />
@@ -144,7 +144,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
         <TextField
           label="Collection Name"
           value={collectionName}
-          onChange={(e) => setCollectionName(e.target.value)}
+          onChange={e => setCollectionName(e.target.value)}
           fullWidth
           required
           disabled={isCreating}
@@ -167,7 +167,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
                 control={
                   <Switch
                     checked={isCapped}
-                    onChange={(e) => setIsCapped(e.target.checked)}
+                    onChange={e => setIsCapped(e.target.checked)}
                     disabled={isCreating}
                   />
                 }
@@ -190,9 +190,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
                     label="Size (bytes)"
                     type="number"
                     value={cappedSize}
-                    onChange={(e) =>
-                      setCappedSize(parseInt(e.target.value) || 0)
-                    }
+                    onChange={e => setCappedSize(parseInt(e.target.value) || 0)}
                     fullWidth
                     disabled={isCreating}
                     helperText="Maximum size of the collection in bytes"
@@ -203,7 +201,7 @@ const CreateCollectionDialog: React.FC<CreateCollectionDialogProps> = ({
                     label="Max Documents"
                     type="number"
                     value={cappedMaxDocs}
-                    onChange={(e) =>
+                    onChange={e =>
                       setCappedMaxDocs(parseInt(e.target.value) || 0)
                     }
                     fullWidth

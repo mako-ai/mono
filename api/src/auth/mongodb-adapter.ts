@@ -1,5 +1,5 @@
-import type { Adapter, DatabaseSession, DatabaseUser } from 'lucia';
-import { Session, User } from '../database/schema';
+import type { Adapter, DatabaseSession, DatabaseUser } from "lucia";
+import { Session, User } from "../database/schema";
 
 /**
  * MongoDB adapter for Lucia authentication
@@ -9,7 +9,7 @@ export class MongoDBAdapter implements Adapter {
    * Get session and associated user
    */
   async getSessionAndUser(
-    sessionId: string
+    sessionId: string,
   ): Promise<[session: DatabaseSession | null, user: DatabaseUser | null]> {
     const session = await Session.findById(sessionId).lean();
     if (!session) {
@@ -44,7 +44,7 @@ export class MongoDBAdapter implements Adapter {
    */
   async getUserSessions(userId: string): Promise<DatabaseSession[]> {
     const sessions = await Session.find({ userId }).lean();
-    return sessions.map((session) => ({
+    return sessions.map(session => ({
       id: session._id,
       userId: session.userId,
       expiresAt: session.expiresAt,
@@ -69,7 +69,10 @@ export class MongoDBAdapter implements Adapter {
   /**
    * Update session expiration
    */
-  async updateSessionExpiration(sessionId: string, expiresAt: Date): Promise<void> {
+  async updateSessionExpiration(
+    sessionId: string,
+    expiresAt: Date,
+  ): Promise<void> {
     await Session.updateOne({ _id: sessionId }, { expiresAt });
   }
 

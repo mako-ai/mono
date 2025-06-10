@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   TextField,
@@ -15,27 +15,10 @@ import {
   MenuItem,
   InputLabel,
   Button,
-  Menu,
-  ListItemIcon,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import BuildIcon from "@mui/icons-material/BuildOutlined";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
-import {
-  ExpandMore,
-  ExpandLess,
-  ContentCopy,
-  Check,
-  History as HistoryIcon,
-  Add as AddIcon,
-  Chat as ChatIcon,
-  Delete as DeleteIcon,
-} from "@mui/icons-material";
-import { useTheme as useMuiTheme } from "@mui/material/styles";
+
 import { useWorkspace } from "../contexts/workspace-context";
 
 interface Message {
@@ -99,7 +82,7 @@ const Chat2: React.FC = () => {
       }
       try {
         const res = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`
+          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -126,7 +109,7 @@ const Chat2: React.FC = () => {
         const newId = data.chatId as string;
         // Refresh sessions list
         const sessionsRes = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/chats`
+          `/api/workspaces/${currentWorkspace.id}/chats`,
         );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
@@ -156,8 +139,8 @@ const Chat2: React.FC = () => {
 
     // optimistically append empty assistant message
     setMessages(
-      (prev) =>
-        [...prev, { role: "assistant", content: "" } as Message] as Message[]
+      prev =>
+        [...prev, { role: "assistant", content: "" } as Message] as Message[],
     );
 
     while (!done) {
@@ -181,7 +164,7 @@ const Chat2: React.FC = () => {
             switch (parsed.type) {
               case "text":
                 assistantContent += parsed.content;
-                setMessages((prev) => {
+                setMessages(prev => {
                   const updated = [...prev];
                   const last = updated[updated.length - 1];
                   if (last && last.role === "assistant") {
@@ -217,7 +200,7 @@ const Chat2: React.FC = () => {
                 // For backward compatibility, treat as text if no type
                 if (typeof parsed === "string") {
                   assistantContent += parsed;
-                  setMessages((prev) => {
+                  setMessages(prev => {
                     const updated = [...prev];
                     const last = updated[updated.length - 1];
                     if (last && last.role === "assistant") {
@@ -276,9 +259,9 @@ const Chat2: React.FC = () => {
             labelId="session-select-label"
             value={sessionId}
             label="Session"
-            onChange={(e) => setSessionId(e.target.value as string)}
+            onChange={e => setSessionId(e.target.value as string)}
           >
-            {sessions.map((s) => (
+            {sessions.map(s => (
               <MenuItem key={s._id} value={s._id}>
                 {s.title || s._id.substring(0, 6)}
               </MenuItem>
@@ -346,8 +329,8 @@ const Chat2: React.FC = () => {
           variant="outlined"
           placeholder="Ask Chat2…"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               sendMessage();

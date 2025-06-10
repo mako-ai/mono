@@ -2,18 +2,18 @@ import { useAppStore } from "./appStore";
 import { useMemo } from "react";
 
 export const useDatabaseExplorerStore = () => {
-  const dispatch = useAppStore((s) => s.dispatch);
+  const dispatch = useAppStore(s => s.dispatch);
   const expandedServersArray = useAppStore(
-    (s) => s.explorers.database.expandedServers
+    s => s.explorers.database.expandedServers,
   );
   const expandedDatabasesArray = useAppStore(
-    (s) => s.explorers.database.expandedDatabases
+    s => s.explorers.database.expandedDatabases,
   );
   const expandedCollectionGroupsArray = useAppStore(
-    (s) => s.explorers.database.expandedCollectionGroups
+    s => s.explorers.database.expandedCollectionGroups,
   );
   const expandedViewGroupsArray = useAppStore(
-    (s) => s.explorers.database.expandedViewGroups
+    s => s.explorers.database.expandedViewGroups,
   );
 
   const value = useMemo(() => {

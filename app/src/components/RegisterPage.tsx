@@ -1,4 +1,4 @@
-import React, { useState, FormEvent } from "react";
+import { useState, FormEvent } from "react";
 import {
   Box,
   Paper,
@@ -116,7 +116,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             label="Email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             error={!!formErrors.email}
             helperText={formErrors.email}
             margin="normal"
@@ -130,7 +130,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             label="Password"
             type={showPassword ? "text" : "password"}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             error={!!formErrors.password}
             helperText={formErrors.password}
             margin="normal"
@@ -156,7 +156,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             label="Confirm Password"
             type={showConfirmPassword ? "text" : "password"}
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={e => setConfirmPassword(e.target.value)}
             error={!!formErrors.confirmPassword}
             helperText={formErrors.confirmPassword}
             margin="normal"
@@ -222,7 +222,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
             <Link
               component="button"
               variant="body2"
-              onClick={(e) => {
+              onClick={e => {
                 e.preventDefault();
                 onSwitchToLogin();
               }}

@@ -63,7 +63,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
       isExecuting,
       isSaving,
     },
-    ref
+    ref,
   ) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -202,8 +202,8 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
     const displayTitle = isCreatingNew
       ? "New View"
       : selectedView
-      ? `View: ${selectedView}`
-      : "No view selected";
+        ? `View: ${selectedView}`
+        : "No view selected";
 
     const handleDelete = () => {
       setDeleteDialogOpen(true);
@@ -376,7 +376,7 @@ const ViewEditor = forwardRef<ViewEditorRef, ViewEditorProps>(
         </Dialog>
       </Box>
     );
-  }
+  },
 );
 
 export default ViewEditor;

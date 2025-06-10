@@ -177,7 +177,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
 
       // Check if there's an existing pristine tab to replace
       const pristineTabId = Object.keys(state.consoles.tabs).find(
-        (tabId) => !state.consoles.tabs[tabId].isDirty
+        tabId => !state.consoles.tabs[tabId].isDirty,
       );
 
       // If there's a pristine tab, remove it first
@@ -287,9 +287,9 @@ export const reducer = (state: GlobalState, action: Action): void => {
         const chat = state.chat.sessions[state.chat.currentChatId];
         if (chat && tab) {
           const contextIndex = chat.attachedContext.findIndex(
-            (ctx) =>
+            ctx =>
               ctx.type === "console" &&
-              ctx.metadata?.consoleId === action.payload.id
+              ctx.metadata?.consoleId === action.payload.id,
           );
           if (contextIndex !== -1) {
             chat.attachedContext[contextIndex] = {
@@ -356,7 +356,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       const { chatId, messageId, delta } = action.payload;
       const chat = state.chat.sessions[chatId];
       if (chat) {
-        const msg = chat.messages.find((m) => m.id === messageId);
+        const msg = chat.messages.find(m => m.id === messageId);
         if (msg) msg.content += delta;
       }
       break;
@@ -389,7 +389,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       const expandedServers = state.explorers.database.expandedServers;
       if (expandedServers.includes(serverId)) {
         state.explorers.database.expandedServers = expandedServers.filter(
-          (id) => id !== serverId
+          id => id !== serverId,
         );
       } else {
         state.explorers.database.expandedServers.push(serverId);
@@ -401,7 +401,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       const expandedDatabases = state.explorers.database.expandedDatabases;
       if (expandedDatabases.includes(databaseId)) {
         state.explorers.database.expandedDatabases = expandedDatabases.filter(
-          (id) => id !== databaseId
+          id => id !== databaseId,
         );
       } else {
         state.explorers.database.expandedDatabases.push(databaseId);
@@ -414,7 +414,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         state.explorers.database.expandedCollectionGroups;
       if (expandedCollectionGroups.includes(databaseId)) {
         state.explorers.database.expandedCollectionGroups =
-          expandedCollectionGroups.filter((id) => id !== databaseId);
+          expandedCollectionGroups.filter(id => id !== databaseId);
       } else {
         state.explorers.database.expandedCollectionGroups.push(databaseId);
       }
@@ -425,7 +425,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       const expandedViewGroups = state.explorers.database.expandedViewGroups;
       if (expandedViewGroups.includes(databaseId)) {
         state.explorers.database.expandedViewGroups = expandedViewGroups.filter(
-          (id) => id !== databaseId
+          id => id !== databaseId,
         );
       } else {
         state.explorers.database.expandedViewGroups.push(databaseId);
@@ -453,7 +453,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       const expandedFolders = state.explorers.console.expandedFolders;
       if (expandedFolders.includes(folderPath)) {
         state.explorers.console.expandedFolders = expandedFolders.filter(
-          (path) => path !== folderPath
+          path => path !== folderPath,
         );
       } else {
         state.explorers.console.expandedFolders.push(folderPath);
@@ -465,7 +465,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
       const expandedCollections = state.explorers.view.expandedCollections;
       if (expandedCollections.includes(collectionName)) {
         state.explorers.view.expandedCollections = expandedCollections.filter(
-          (name) => name !== collectionName
+          name => name !== collectionName,
         );
       } else {
         state.explorers.view.expandedCollections.push(collectionName);
@@ -493,34 +493,34 @@ export const useAppStore = create<
     setActiveEditorContent: (
       content:
         | { content: string; fileName?: string; language?: string }
-        | undefined
+        | undefined,
     ) => void;
   }
 >()(
   persist(
-    immer((set) => ({
+    immer(set => ({
       ...initialState,
-      dispatch: (action: Action) => set((state) => reducer(state, action)),
-      setActiveView: (view) =>
-        set((state) => {
+      dispatch: (action: Action) => set(state => reducer(state, action)),
+      setActiveView: view =>
+        set(state => {
           state.activeView = view;
           state.ui.leftPane = view;
         }),
-      setActiveEditorContent: (content) =>
-        set((state) => {
+      setActiveEditorContent: content =>
+        set(state => {
           state.activeEditorContent = content;
         }),
     })),
     {
       name: "app-store",
-      partialize: (state) => ({
+      partialize: state => ({
         // Persist chat sessions, console tabs, and settings
         activeView: state.activeView,
         chat: {
           sessions: Object.fromEntries(
             Object.entries(state.chat.sessions).filter(
-              ([_, session]) => session.messages.length > 0
-            )
+              ([_, session]) => session.messages.length > 0,
+            ),
           ),
           currentChatId: state.chat.currentChatId,
         },
@@ -531,7 +531,7 @@ export const useAppStore = create<
       }),
       // Handle Date serialization/deserialization
       storage: {
-        getItem: (name) => {
+        getItem: name => {
           const str = localStorage.getItem(name);
           if (!str) return null;
 
@@ -584,12 +584,12 @@ export const useAppStore = create<
         setItem: (name, value) => {
           localStorage.setItem(name, JSON.stringify(value));
         },
-        removeItem: (name) => {
+        removeItem: name => {
           localStorage.removeItem(name);
         },
       },
-    }
-  )
+    },
+  ),
 );
 
-export const useAppDispatch = () => useAppStore((s) => s.dispatch);
+export const useAppDispatch = () => useAppStore(s => s.dispatch);

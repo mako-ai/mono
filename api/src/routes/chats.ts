@@ -1,13 +1,15 @@
 import { Hono } from "hono";
-import { Chat, Workspace } from "../database/workspace-schema";
+import { Chat } from "../database/workspace-schema";
 import { ObjectId } from "mongodb";
 
 export const chatsRoutes = new Hono();
 
 // List chat sessions (most recent first)
-chatsRoutes.get("/", async (c) => {
+chatsRoutes.get("/", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const workspaceId = c.req.param("workspaceId") as string;
 
     if (!ObjectId.isValid(workspaceId)) {
       return c.json({ error: "Invalid workspace id" }, 400);
@@ -15,11 +17,11 @@ chatsRoutes.get("/", async (c) => {
 
     const chats = await Chat.find(
       { workspaceId: new ObjectId(workspaceId) },
-      { messages: 0 }
+      { messages: 0 },
     ).sort({ updatedAt: -1 });
 
     // Convert ObjectId to string for frontend convenience
-    const mapped = chats.map((chat) => ({
+    const mapped = chats.map(chat => ({
       ...chat.toObject(),
       _id: chat._id.toString(),
     }));
@@ -32,9 +34,11 @@ chatsRoutes.get("/", async (c) => {
 });
 
 // Create a new chat session
-chatsRoutes.post("/", async (c) => {
+chatsRoutes.post("/", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const workspaceId = c.req.param("workspaceId") as string;
 
     if (!ObjectId.isValid(workspaceId)) {
       return c.json({ error: "Invalid workspace id" }, 400);
@@ -43,7 +47,9 @@ chatsRoutes.post("/", async (c) => {
     let body: any = {};
     try {
       body = await c.req.json();
-    } catch (_) {}
+    } catch (_) {
+      // Ignore JSON parse errors – request body can be empty for this endpoint
+    }
 
     const title = (body?.title as string) || "New Chat";
 
@@ -68,9 +74,11 @@ chatsRoutes.post("/", async (c) => {
 });
 
 // Get a single chat session with messages
-chatsRoutes.get("/:id", async (c) => {
+chatsRoutes.get("/:id", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const workspaceId = c.req.param("workspaceId") as string;
     const id = c.req.param("id");
 
     if (!ObjectId.isValid(workspaceId)) {
@@ -101,9 +109,11 @@ chatsRoutes.get("/:id", async (c) => {
 });
 
 // Update chat title (optional future use)
-chatsRoutes.put("/:id", async (c) => {
+chatsRoutes.put("/:id", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const workspaceId = c.req.param("workspaceId") as string;
     const id = c.req.param("id");
 
     if (!ObjectId.isValid(workspaceId)) {
@@ -117,7 +127,9 @@ chatsRoutes.put("/:id", async (c) => {
     let body: any = {};
     try {
       body = await c.req.json();
-    } catch (_) {}
+    } catch (_) {
+      // Ignore JSON parse errors – request body can be empty for this endpoint
+    }
 
     const { title } = body;
     if (!title) {
@@ -127,7 +139,7 @@ chatsRoutes.put("/:id", async (c) => {
     const result = await Chat.findOneAndUpdate(
       { _id: new ObjectId(id), workspaceId: new ObjectId(workspaceId) },
       { title, updatedAt: new Date() },
-      { new: true }
+      { new: true },
     );
 
     if (!result) {
@@ -142,9 +154,11 @@ chatsRoutes.put("/:id", async (c) => {
 });
 
 // Delete a chat session
-chatsRoutes.delete("/:id", async (c) => {
+chatsRoutes.delete("/:id", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const workspaceId = c.req.param("workspaceId") as string;
     const id = c.req.param("id");
 
     if (!ObjectId.isValid(workspaceId)) {

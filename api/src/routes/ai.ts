@@ -81,7 +81,7 @@ const chatTools: any[] = [
 const listDatabases = () => {
   console.log("DATA BASES LISTING");
   const mongoSources = configLoader.getMongoDBSources();
-  return mongoSources.map((source) => ({
+  return mongoSources.map(source => ({
     id: source.id,
     name: source.name,
     description: source.description || "",
@@ -109,7 +109,9 @@ const executeToolCall = async (fc: any) => {
   let parsedArgs: any = {};
   try {
     parsedArgs = fc.arguments ? JSON.parse(fc.arguments) : {};
-  } catch (_) {}
+  } catch (_) {
+    /* parsedArgs stays empty if JSON.parse fails */
+  }
 
   let result: any;
   try {
@@ -132,7 +134,7 @@ const executeToolCall = async (fc: any) => {
         }
         result = await queryExecutor.executeQuery(
           parsedArgs.query,
-          parsedArgs.databaseId
+          parsedArgs.databaseId,
         );
         console.log("PARSED ARGS", parsedArgs);
         console.log("RESULT", result);
@@ -150,7 +152,7 @@ const executeToolCall = async (fc: any) => {
 // Helper to update chat session with new messages
 const updateChatSession = async (
   sessionId: string,
-  messages: { role: string; content: string }[]
+  messages: { role: string; content: string }[],
 ) => {
   try {
     const db = await mongoConnection.getDb();
@@ -159,7 +161,7 @@ const updateChatSession = async (
       {
         $set: { messages, updatedAt: new Date() },
       },
-      { upsert: false }
+      { upsert: false },
     );
   } catch (err) {
     console.error("Failed to update chat session", err);
@@ -190,7 +192,7 @@ const logChatInvocation = async (params: {
 };
 
 // Streaming SSE endpoint - properly handling tool calls
-aiRoutes.post("/chat/stream", async (c) => {
+aiRoutes.post("/chat/stream", async c => {
   try {
     const body = await c.req.json();
 
@@ -230,11 +232,11 @@ aiRoutes.post("/chat/stream", async (c) => {
           success: false,
           error: "No messages provided and no existing chat history found.",
         },
-        400
+        400,
       );
     }
 
-    const conversation = messages.map((m) => ({
+    const conversation = messages.map(m => ({
       role: m.role,
       type: "message",
       content: m.content,
@@ -248,7 +250,7 @@ aiRoutes.post("/chat/stream", async (c) => {
       async start(controller) {
         const sendEvent = (data: any) => {
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(data)}\n\n`)
+            encoder.encode(`data: ${JSON.stringify(data)}\n\n`),
           );
         };
 
@@ -257,6 +259,7 @@ aiRoutes.post("/chat/stream", async (c) => {
           let prevResponseId: string | undefined;
           let latestAssistantMessage = "";
 
+          // eslint-disable-next-line no-constant-condition
           while (true) {
             // Create a streaming response
             const openaiRequestPayload: any = {
@@ -281,7 +284,6 @@ aiRoutes.post("/chat/stream", async (c) => {
             const functionCalls: any[] = [];
             const functionCallData: Map<string, any> = new Map();
             let textAccumulator = "";
-            let hasSentText = false;
 
             // Process the stream
             const openaiEvents: any[] = []; // Collect every event for full auditing
@@ -296,7 +298,6 @@ aiRoutes.post("/chat/stream", async (c) => {
               if (event.type === "response.output_text.delta" && event.delta) {
                 textAccumulator += event.delta;
                 sendEvent({ type: "text", content: event.delta });
-                hasSentText = true;
               }
 
               // Collect function call start info
@@ -414,7 +415,7 @@ aiRoutes.post("/chat/stream", async (c) => {
     console.error("/api/ai/chat/stream error", error);
     return c.json(
       { success: false, error: error.message || "Unknown error" },
-      500
+      500,
     );
   }
 });

@@ -37,7 +37,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
   const [viewOn, setViewOn] = useState("");
   const [collections, setCollections] = useState<string[]>([]);
   const [pipeline, setPipeline] = useState(
-    '[\n  {\n    "$match": {\n      // Add your match criteria here\n    }\n  }\n]'
+    '[\n  {\n    "$match": {\n      // Add your match criteria here\n    }\n  }\n]',
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +48,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
       setViewName("");
       setViewOn("");
       setPipeline(
-        '[\n  {\n    "$match": {\n      // Add your match criteria here\n    }\n  }\n]'
+        '[\n  {\n    "$match": {\n      // Add your match criteria here\n    }\n  }\n]',
       );
       setError(null);
     }
@@ -138,7 +138,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           onClick={handleClose}
           disabled={isCreating}
           sx={{
-            color: (theme) => theme.palette.grey[500],
+            color: theme => theme.palette.grey[500],
           }}
         >
           <CloseIcon />
@@ -158,7 +158,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
         <TextField
           label="View Name"
           value={viewName}
-          onChange={(e) => setViewName(e.target.value)}
+          onChange={e => setViewName(e.target.value)}
           fullWidth
           required
           disabled={isCreating}
@@ -168,10 +168,10 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
           <InputLabel>Source Collection</InputLabel>
           <Select
             value={viewOn}
-            onChange={(e) => setViewOn(e.target.value)}
+            onChange={e => setViewOn(e.target.value)}
             label="Source Collection"
           >
-            {collections.map((collection) => (
+            {collections.map(collection => (
               <MenuItem key={collection} value={collection}>
                 {collection}
               </MenuItem>
@@ -196,7 +196,7 @@ const CreateViewDialog: React.FC<CreateViewDialogProps> = ({
               value={pipeline}
               height="100%"
               theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
-              onChange={(value) => setPipeline(value || "")}
+              onChange={value => setPipeline(value || "")}
               options={{
                 automaticLayout: true,
                 readOnly: isCreating,

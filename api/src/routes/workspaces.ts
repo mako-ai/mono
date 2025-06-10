@@ -36,7 +36,7 @@ workspaceRoutes.get("/", authMiddleware, async (c: AuthenticatedContext) => {
         error:
           error instanceof Error ? error.message : "Failed to get workspaces",
       },
-      500
+      500,
     );
   }
 });
@@ -51,14 +51,14 @@ workspaceRoutes.post("/", authMiddleware, async (c: AuthenticatedContext) => {
     if (!name || typeof name !== "string") {
       return c.json(
         { success: false, error: "Workspace name is required" },
-        400
+        400,
       );
     }
 
     const workspace = await workspaceService.createWorkspace(
       user!.id,
       name,
-      slug
+      slug,
     );
 
     return c.json(
@@ -72,7 +72,7 @@ workspaceRoutes.post("/", authMiddleware, async (c: AuthenticatedContext) => {
           settings: workspace.settings,
         },
       },
-      201
+      201,
     );
   } catch (error) {
     console.error("Error creating workspace:", error);
@@ -82,7 +82,7 @@ workspaceRoutes.post("/", authMiddleware, async (c: AuthenticatedContext) => {
         error:
           error instanceof Error ? error.message : "Failed to create workspace",
       },
-      500
+      500,
     );
   }
 });
@@ -126,10 +126,10 @@ workspaceRoutes.get(
               ? error.message
               : "Failed to get current workspace",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get specific workspace
@@ -175,7 +175,7 @@ workspaceRoutes.get("/:id", authMiddleware, async (c: AuthenticatedContext) => {
         error:
           error instanceof Error ? error.message : "Failed to get workspace",
       },
-      500
+      500,
     );
   }
 });
@@ -198,12 +198,13 @@ workspaceRoutes.put(
 
       const updates: any = {};
       if (body.name) updates.name = body.name;
-      if (body.settings)
+      if (body.settings) {
         updates.settings = { ...workspace.settings, ...body.settings };
+      }
 
       const updatedWorkspace = await workspaceService.updateWorkspace(
         workspaceId,
-        updates
+        updates,
       );
 
       return c.json({
@@ -226,10 +227,10 @@ workspaceRoutes.put(
               ? error.message
               : "Failed to update workspace",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Delete workspace
@@ -263,10 +264,10 @@ workspaceRoutes.delete(
               ? error.message
               : "Failed to delete workspace",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Switch active workspace
@@ -298,10 +299,10 @@ workspaceRoutes.post(
               ? error.message
               : "Failed to switch workspace",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get workspace members
@@ -338,10 +339,10 @@ workspaceRoutes.get(
           error:
             error instanceof Error ? error.message : "Failed to get members",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Add member to workspace
@@ -364,7 +365,7 @@ workspaceRoutes.post(
       if (!userId || typeof userId !== "string") {
         return c.json(
           { success: false, error: "Valid user ID is required" },
-          400
+          400,
         );
       }
 
@@ -374,14 +375,14 @@ workspaceRoutes.post(
             success: false,
             error: "Valid role is required (admin, member, or viewer)",
           },
-          400
+          400,
         );
       }
 
       const member = await workspaceService.addMember(
         workspaceId,
         userId,
-        role
+        role,
       );
 
       return c.json(
@@ -394,7 +395,7 @@ workspaceRoutes.post(
             joinedAt: member.joinedAt,
           },
         },
-        201
+        201,
       );
     } catch (error) {
       console.error("Error adding member:", error);
@@ -404,10 +405,10 @@ workspaceRoutes.post(
           error:
             error instanceof Error ? error.message : "Failed to add member",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Update member role
@@ -434,26 +435,26 @@ workspaceRoutes.put(
             success: false,
             error: "Valid role is required (admin, member, or viewer)",
           },
-          400
+          400,
         );
       }
 
       // Don't allow changing owner role
       const currentMember = await workspaceService.getMember(
         workspaceId,
-        userId
+        userId,
       );
       if (currentMember?.role === "owner") {
         return c.json(
           { success: false, error: "Cannot change owner role" },
-          403
+          403,
         );
       }
 
       const updatedMember = await workspaceService.updateMemberRole(
         workspaceId,
         userId,
-        role
+        role,
       );
 
       if (!updatedMember) {
@@ -479,10 +480,10 @@ workspaceRoutes.put(
               ? error.message
               : "Failed to update member role",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Remove member from workspace
@@ -506,7 +507,7 @@ workspaceRoutes.delete(
       if (member?.role === "owner") {
         return c.json(
           { success: false, error: "Cannot remove workspace owner" },
-          403
+          403,
         );
       }
 
@@ -528,10 +529,10 @@ workspaceRoutes.delete(
           error:
             error instanceof Error ? error.message : "Failed to remove member",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Create workspace invite
@@ -562,7 +563,7 @@ workspaceRoutes.post(
             success: false,
             error: "Valid role is required (admin, member, or viewer)",
           },
-          400
+          400,
         );
       }
 
@@ -570,7 +571,7 @@ workspaceRoutes.post(
         workspaceId,
         email,
         role,
-        user!.id
+        user!.id,
       );
 
       return c.json(
@@ -584,7 +585,7 @@ workspaceRoutes.post(
             expiresAt: invite.expiresAt,
           },
         },
-        201
+        201,
       );
     } catch (error) {
       console.error("Error creating invite:", error);
@@ -594,10 +595,10 @@ workspaceRoutes.post(
           error:
             error instanceof Error ? error.message : "Failed to create invite",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Get pending invites
@@ -635,10 +636,10 @@ workspaceRoutes.get(
           error:
             error instanceof Error ? error.message : "Failed to get invites",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Cancel invite
@@ -675,10 +676,10 @@ workspaceRoutes.delete(
           error:
             error instanceof Error ? error.message : "Failed to cancel invite",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );
 
 // Accept invite (public endpoint)
@@ -709,8 +710,8 @@ workspaceRoutes.post(
           error:
             error instanceof Error ? error.message : "Failed to accept invite",
         },
-        500
+        500,
       );
     }
-  }
+  },
 );

@@ -26,10 +26,6 @@ interface AuthResponse {
   user: User;
 }
 
-interface ErrorResponse {
-  error: string;
-}
-
 class AuthClient {
   private baseUrl: string;
 

@@ -58,7 +58,7 @@ function DataSources() {
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingDataSource, setEditingDataSource] = useState<DataSource | null>(
-    null
+    null,
   );
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [dataSourceToDelete, setDataSourceToDelete] =
@@ -114,8 +114,8 @@ function DataSources() {
       const data = await response.json();
 
       if (data.success) {
-        setDataSources((prev) =>
-          prev.filter((ds) => ds._id !== dataSourceToDelete._id)
+        setDataSources(prev =>
+          prev.filter(ds => ds._id !== dataSourceToDelete._id),
         );
         setDeleteDialogOpen(false);
         setDataSourceToDelete(null);
@@ -140,10 +140,10 @@ function DataSources() {
       const data = await response.json();
 
       if (data.success) {
-        setDataSources((prev) =>
-          prev.map((ds) =>
-            ds._id === dataSource._id ? { ...ds, enabled: !ds.enabled } : ds
-          )
+        setDataSources(prev =>
+          prev.map(ds =>
+            ds._id === dataSource._id ? { ...ds, enabled: !ds.enabled } : ds,
+          ),
         );
       } else {
         setError(data.error || "Failed to update data source");
@@ -197,13 +197,11 @@ function DataSources() {
 
       if (data.success) {
         if (editingDataSource) {
-          setDataSources((prev) =>
-            prev.map((ds) =>
-              ds._id === editingDataSource._id ? data.data : ds
-            )
+          setDataSources(prev =>
+            prev.map(ds => (ds._id === editingDataSource._id ? data.data : ds)),
           );
         } else {
-          setDataSources((prev) => [...prev, data.data]);
+          setDataSources(prev => [...prev, data.data]);
         }
         setFormOpen(false);
         setEditingDataSource(null);
@@ -274,7 +272,7 @@ function DataSources() {
       )}
 
       <Grid container spacing={3}>
-        {dataSources.map((dataSource) => (
+        {dataSources.map(dataSource => (
           <Grid
             size={{ xs: 12, sm: 6, md: 4, lg: 3, xl: 2 }}
             key={dataSource._id}

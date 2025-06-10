@@ -163,7 +163,7 @@ function DataSourceForm({
   const handleInputChange = (field: string, value: any) => {
     if (field.startsWith("config.")) {
       const configField = field.replace("config.", "");
-      setFormData((prev) => ({
+      setFormData(prev => ({
         ...prev,
         config: {
           ...prev.config,
@@ -172,7 +172,7 @@ function DataSourceForm({
       }));
     } else if (field.startsWith("settings.")) {
       const settingsField = field.replace("settings.", "");
-      setFormData((prev) => ({
+      setFormData(prev => ({
         ...prev,
         settings: {
           ...prev.settings,
@@ -180,7 +180,7 @@ function DataSourceForm({
         },
       }));
     } else {
-      setFormData((prev) => ({
+      setFormData(prev => ({
         ...prev,
         [field]: value,
       }));
@@ -188,7 +188,7 @@ function DataSourceForm({
 
     // Clear error when user starts typing
     if (errors[field]) {
-      setErrors((prev) => ({
+      setErrors(prev => ({
         ...prev,
         [field]: "",
       }));
@@ -288,7 +288,7 @@ function DataSourceForm({
               label="API Key"
               type={showApiKey ? "text" : "password"}
               value={formData.config.api_key}
-              onChange={(e) =>
+              onChange={e =>
                 handleInputChange("config.api_key", e.target.value)
               }
               error={!!errors["config.api_key"]}
@@ -314,7 +314,7 @@ function DataSourceForm({
                 value={
                   formData.config.api_base_url || "https://api.close.com/api/v1"
                 }
-                onChange={(e) =>
+                onChange={e =>
                   handleInputChange("config.api_base_url", e.target.value)
                 }
                 margin="normal"
@@ -333,7 +333,7 @@ function DataSourceForm({
                   fullWidth
                   label="Host"
                   value={formData.config.host}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleInputChange("config.host", e.target.value)
                   }
                   error={!!errors["config.host"]}
@@ -347,7 +347,7 @@ function DataSourceForm({
                   label="Port"
                   type="number"
                   value={formData.config.port}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleInputChange("config.port", e.target.value)
                   }
                   margin="normal"
@@ -359,7 +359,7 @@ function DataSourceForm({
               fullWidth
               label="Database Name"
               value={formData.config.database}
-              onChange={(e) =>
+              onChange={e =>
                 handleInputChange("config.database", e.target.value)
               }
               error={!!errors["config.database"]}
@@ -372,7 +372,7 @@ function DataSourceForm({
                   fullWidth
                   label="Username"
                   value={formData.config.username}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleInputChange("config.username", e.target.value)
                   }
                   margin="normal"
@@ -384,7 +384,7 @@ function DataSourceForm({
                   label="Password"
                   type={showPassword ? "text" : "password"}
                   value={formData.config.password}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleInputChange("config.password", e.target.value)
                   }
                   margin="normal"
@@ -415,7 +415,7 @@ function DataSourceForm({
               fullWidth
               label="Base URL"
               value={formData.config.api_base_url}
-              onChange={(e) =>
+              onChange={e =>
                 handleInputChange("config.api_base_url", e.target.value)
               }
               error={!!errors["config.api_base_url"]}
@@ -428,7 +428,7 @@ function DataSourceForm({
               label="API Key (optional)"
               type={showApiKeyOptional ? "text" : "password"}
               value={formData.config.api_key}
-              onChange={(e) =>
+              onChange={e =>
                 handleInputChange("config.api_key", e.target.value)
               }
               margin="normal"
@@ -451,7 +451,7 @@ function DataSourceForm({
                   fullWidth
                   label="Username (optional)"
                   value={formData.config.username}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleInputChange("config.username", e.target.value)
                   }
                   margin="normal"
@@ -463,7 +463,7 @@ function DataSourceForm({
                   label="Password (optional)"
                   type={showPasswordOptional ? "text" : "password"}
                   value={formData.config.password}
-                  onChange={(e) =>
+                  onChange={e =>
                     handleInputChange("config.password", e.target.value)
                   }
                   margin="normal"
@@ -528,7 +528,7 @@ function DataSourceForm({
             fullWidth
             label="Name"
             value={formData.name}
-            onChange={(e) => handleInputChange("name", e.target.value)}
+            onChange={e => handleInputChange("name", e.target.value)}
             error={!!errors.name}
             helperText={errors.name}
             margin="normal"
@@ -540,7 +540,7 @@ function DataSourceForm({
             multiline
             rows={2}
             value={formData.description}
-            onChange={(e) => handleInputChange("description", e.target.value)}
+            onChange={e => handleInputChange("description", e.target.value)}
             margin="normal"
           />
 
@@ -548,10 +548,10 @@ function DataSourceForm({
             <InputLabel>Source Type</InputLabel>
             <Select
               value={formData.source}
-              onChange={(e) => handleInputChange("source", e.target.value)}
+              onChange={e => handleInputChange("source", e.target.value)}
               label="Source Type"
             >
-              {sourceTypes.map((type) => (
+              {sourceTypes.map(type => (
                 <MenuItem key={type.value} value={type.value}>
                   {type.label}
                 </MenuItem>
@@ -568,7 +568,7 @@ function DataSourceForm({
             fullWidth
             label="Tenant (optional)"
             value={formData.tenant}
-            onChange={(e) => handleInputChange("tenant", e.target.value)}
+            onChange={e => handleInputChange("tenant", e.target.value)}
             margin="normal"
             helperText="Associate this data source with a specific tenant"
           />
@@ -577,7 +577,7 @@ function DataSourceForm({
             control={
               <Switch
                 checked={formData.enabled}
-                onChange={(e) => handleInputChange("enabled", e.target.checked)}
+                onChange={e => handleInputChange("enabled", e.target.checked)}
               />
             }
             label="Enabled"
@@ -605,10 +605,10 @@ function DataSourceForm({
                     label="Sync Batch Size"
                     type="number"
                     value={formData.settings.sync_batch_size}
-                    onChange={(e) =>
+                    onChange={e =>
                       handleInputChange(
                         "settings.sync_batch_size",
-                        parseInt(e.target.value) || 0
+                        parseInt(e.target.value) || 0,
                       )
                     }
                     error={!!errors["settings.sync_batch_size"]}
@@ -626,10 +626,10 @@ function DataSourceForm({
                     label="Rate Limit Delay (ms)"
                     type="number"
                     value={formData.settings.rate_limit_delay_ms}
-                    onChange={(e) =>
+                    onChange={e =>
                       handleInputChange(
                         "settings.rate_limit_delay_ms",
-                        parseInt(e.target.value) || 0
+                        parseInt(e.target.value) || 0,
                       )
                     }
                     error={!!errors["settings.rate_limit_delay_ms"]}
@@ -647,10 +647,10 @@ function DataSourceForm({
                     label="Max Retries"
                     type="number"
                     value={formData.settings.max_retries}
-                    onChange={(e) =>
+                    onChange={e =>
                       handleInputChange(
                         "settings.max_retries",
-                        parseInt(e.target.value) || 0
+                        parseInt(e.target.value) || 0,
                       )
                     }
                     margin="normal"
@@ -663,10 +663,10 @@ function DataSourceForm({
                     label="Timeout (ms)"
                     type="number"
                     value={formData.settings.timeout_ms}
-                    onChange={(e) =>
+                    onChange={e =>
                       handleInputChange(
                         "settings.timeout_ms",
-                        parseInt(e.target.value) || 0
+                        parseInt(e.target.value) || 0,
                       )
                     }
                     margin="normal"

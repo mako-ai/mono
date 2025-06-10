@@ -54,19 +54,19 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
 
   // Combine collections, views, and consoles into a single options array
   const options: AttachmentOption[] = [
-    ...availableCollections.map((col) => ({
+    ...availableCollections.map(col => ({
       id: col.id,
       name: col.name,
       type: "collection" as const,
       data: col,
     })),
-    ...availableViews.map((view) => ({
+    ...availableViews.map(view => ({
       id: view.id,
       name: view.name,
       type: "view" as const,
       data: view,
     })),
-    ...consoleTabs.map((console) => ({
+    ...consoleTabs.map(console => ({
       id: console.id,
       name: console.title,
       type: "console" as const,
@@ -119,21 +119,21 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
               .join(".*");
 
             const regex = new RegExp(pattern, "i");
-            return opts.filter((opt) => regex.test(opt.name));
+            return opts.filter(opt => regex.test(opt.name));
           }}
-          groupBy={(option) =>
+          groupBy={option =>
             option.type === "collection"
               ? "Collections"
               : option.type === "view"
                 ? "Views"
                 : "Consoles"
           }
-          getOptionLabel={(option) => option.name}
+          getOptionLabel={option => option.name}
           inputValue={inputValue}
           onInputChange={(_, value) => setInputValue(value)}
           onChange={(_, value) => handleSelect(value)}
           onClose={onClose}
-          renderInput={(params) => (
+          renderInput={params => (
             <TextField
               {...params}
               placeholder="Search collections, views, or consoles..."
@@ -156,7 +156,7 @@ const AttachmentSelector: React.FC<AttachmentSelectorProps> = ({
               <ListItemText primary={option.name} />
             </Box>
           )}
-          renderGroup={(params) => (
+          renderGroup={params => (
             <Box key={params.key}>
               <Typography
                 variant="caption"

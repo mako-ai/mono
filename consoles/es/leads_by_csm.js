@@ -5,18 +5,18 @@ db.spain_close_leads.aggregate([
   {
     $match: {
       "opportunities.date_won": { $regex: "^2024-06" },
-      status_label:          { $regex: "Customer" }
-    }
+      status_label: { $regex: "Customer" },
+    },
   },
 
   /* 1) Bring in the user document that matches the CSM Owner id */
   {
     $lookup: {
-      from:         "spain_close_users",
-      localField:   "custom.CSM Owner",   // id stored in the lead
-      foreignField: "id",                 // id stored in the users collection
-      as:           "user"
-    }
+      from: "spain_close_users",
+      localField: "custom.CSM Owner", // id stored in the lead
+      foreignField: "id", // id stored in the users collection
+      as: "user",
+    },
   },
   { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
 
@@ -33,40 +33,42 @@ db.spain_close_leads.aggregate([
                   $concat: [
                     { $ifNull: ["$user.first_name", ""] },
                     " ",
-                    { $ifNull: ["$user.last_name",  ""] }
-                  ]
-                }
-              }
+                    { $ifNull: ["$user.last_name", ""] },
+                  ],
+                },
+              },
             },
             email: "$user.email",
-            rawId: "$custom.CSM Owner"
+            rawId: "$custom.CSM Owner",
           },
           in: {
             $ifNull: [
               {
                 $cond: [
-                  { $ne: ["$$fullName", ""] },  // full name present?
+                  { $ne: ["$$fullName", ""] }, // full name present?
                   "$$fullName",
-                  "$$email"
-                ]
+                  "$$email",
+                ],
               },
-              { $ifNull: ["$$rawId", "Unknown CSM"] }
-            ]
-          }
-        }
-      }
-    }
+              { $ifNull: ["$$rawId", "Unknown CSM"] },
+            ],
+          },
+        },
+      },
+    },
   },
 
   /* 3) Count per CSM owner + renewal probability */
   {
     $group: {
       _id: {
-        owner:              { $ifNull: ["$csm_owner_name", "Unknown CSM"] },
-        renewalProbability: { $ifNull: ["$custom.Renewal Probability", "Unknown"] }
+        owner: { $ifNull: ["$csm_owner_name", "Unknown CSM"] },
+        renewalProbability: {
+          $ifNull: ["$custom.Renewal Probability", "Unknown"],
+        },
       },
-      count: { $sum: 1 }
-    }
+      count: { $sum: 1 },
+    },
   },
 
   /* 4) Regroup by CSM owner – build {k,v} array + total */
@@ -74,10 +76,10 @@ db.spain_close_leads.aggregate([
     $group: {
       _id: "$_id.owner",
       renewalProbabilities: {
-        $push: { k: { $toString: "$_id.renewalProbability" }, v: "$count" }
+        $push: { k: { $toString: "$_id.renewalProbability" }, v: "$count" },
       },
-      total: { $sum: "$count" }
-    }
+      total: { $sum: "$count" },
+    },
   },
 
   /* 5) Pivot into a single document per CSM owner */
@@ -87,12 +89,12 @@ db.spain_close_leads.aggregate([
         $mergeObjects: [
           { csm_owner: "$_id" },
           { $arrayToObject: "$renewalProbabilities" },
-          { "total (all renewal probabilities)": "$total" }
-        ]
-      }
-    }
+          { "total (all renewal probabilities)": "$total" },
+        ],
+      },
+    },
   },
 
   /* 6) Sort – most customers first */
-  { $sort: { "total (all renewal probabilities)": -1 } }
+  { $sort: { "total (all renewal probabilities)": -1 } },
 ]);

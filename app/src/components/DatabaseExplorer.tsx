@@ -85,7 +85,7 @@ interface DatabaseExplorerProps {
   onCollectionSelect?: (
     databaseId: string,
     collectionName: string,
-    collectionInfo: CollectionInfo
+    collectionInfo: CollectionInfo,
   ) => void;
   onCollectionClick?: (databaseId: string, collection: CollectionInfo) => void;
 }
@@ -134,7 +134,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
       setError(null);
 
       const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/databases`
+        `/api/workspaces/${currentWorkspace.id}/databases`,
       );
       const data = await response.json();
 
@@ -198,15 +198,15 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     if (!currentWorkspace) return;
 
     try {
-      setLoadingData((prev) => new Set(prev).add(databaseId));
+      setLoadingData(prev => new Set(prev).add(databaseId));
 
       // Fetch both collections and views in parallel
       const [collectionsResponse, viewsResponse] = await Promise.all([
         fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/collections`
+          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/collections`,
         ),
         fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/views`
+          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/views`,
         ),
       ]);
 
@@ -215,9 +215,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
       if (collectionsData.success) {
         const sortedCollections = collectionsData.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name)
+          (a: CollectionInfo, b: CollectionInfo) =>
+            a.name.localeCompare(b.name),
         );
-        setCollections((prev) => ({
+        setCollections(prev => ({
           ...prev,
           [databaseId]: sortedCollections,
         }));
@@ -225,9 +226,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
       if (viewsData.success) {
         const sortedViews = viewsData.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) => a.name.localeCompare(b.name)
+          (a: CollectionInfo, b: CollectionInfo) =>
+            a.name.localeCompare(b.name),
         );
-        setViews((prev) => ({
+        setViews(prev => ({
           ...prev,
           [databaseId]: sortedViews,
         }));
@@ -235,7 +237,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     } catch (err) {
       console.error(`Error fetching data for ${databaseId}:`, err);
     } finally {
-      setLoadingData((prev) => {
+      setLoadingData(prev => {
         const next = new Set(prev);
         next.delete(databaseId);
         return next;
@@ -269,7 +271,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   const handleCollectionClick = (
     databaseId: string,
-    collection: CollectionInfo
+    collection: CollectionInfo,
   ) => {
     onCollectionSelect?.(databaseId, collection.name, collection);
     onCollectionClick?.(databaseId, collection);
@@ -405,7 +407,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
               </Typography>
             </Box>
           ) : (
-            servers.map((server) => {
+            servers.map(server => {
               const isServerExpanded = expandedServers.has(server.id);
 
               return (
@@ -459,9 +461,9 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
                   <Collapse in={isServerExpanded} timeout="auto" unmountOnExit>
                     <List dense disablePadding>
-                      {server.databases.map((database) => {
+                      {server.databases.map(database => {
                         const isDatabaseExpanded = expandedDatabases.has(
-                          database.id
+                          database.id,
                         );
                         const isLoadingData = loadingData.has(database.id);
                         const dbCollections = collections[database.id] || [];
@@ -529,7 +531,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   >
                                     <ListItemIcon sx={{ minWidth: 32 }}>
                                       {expandedCollectionGroups.has(
-                                        database.id
+                                        database.id,
                                       ) ? (
                                         <ExpandMoreIcon />
                                       ) : (
@@ -581,7 +583,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         </Typography>
                                       </Box>
                                     ) : (
-                                      dbCollections.map((collection) => (
+                                      dbCollections.map(collection => (
                                         <ListItem
                                           key={collection.name}
                                           disablePadding
@@ -590,7 +592,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                             onClick={() =>
                                               handleCollectionClick(
                                                 database.id,
-                                                collection
+                                                collection,
                                               )
                                             }
                                             sx={{ py: 0.25, pl: 7.5 }}
@@ -703,7 +705,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                         </Typography>
                                       </Box>
                                     ) : (
-                                      dbViews.map((view) => (
+                                      dbViews.map(view => (
                                         <ListItem
                                           key={view.name}
                                           disablePadding

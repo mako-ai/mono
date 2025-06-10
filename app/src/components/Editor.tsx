@@ -93,7 +93,7 @@ function Editor() {
 
   // Ensure refs exist for every tab
   useEffect(() => {
-    consoleTabs.forEach((tab) => {
+    consoleTabs.forEach(tab => {
       if (!consoleRefs.current[tab.id]) {
         consoleRefs.current[tab.id] = React.createRef<ConsoleRef>();
       }
@@ -102,7 +102,7 @@ function Editor() {
 
   // Keep activeEditorContent in app store updated so Chat can use it
   const setActiveEditorContent = useAppStore(
-    (state) => state.setActiveEditorContent
+    state => state.setActiveEditorContent,
   );
 
   useEffect(() => {
@@ -128,7 +128,7 @@ function Editor() {
 
       try {
         const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases`
+          `/api/workspaces/${currentWorkspace.id}/databases`,
         );
         const data = await response.json();
         if (data.success) {
@@ -163,7 +163,7 @@ function Editor() {
   const handleConsoleExecute = async (
     tabId: string,
     contentToExecute: string,
-    databaseId?: string
+    databaseId?: string,
   ) => {
     if (!contentToExecute.trim()) return;
 
@@ -187,11 +187,11 @@ function Editor() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query: contentToExecute }),
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
-        setTabResults((prev) => ({
+        setTabResults(prev => ({
           ...prev,
           [tabId]: {
             results: data.data,
@@ -202,12 +202,12 @@ function Editor() {
       } else {
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
-        setTabResults((prev) => ({ ...prev, [tabId]: null }));
+        setTabResults(prev => ({ ...prev, [tabId]: null }));
       }
     } catch (e: any) {
       setErrorMessage(JSON.stringify(e, null, 2));
       setErrorModalOpen(true);
-      setTabResults((prev) => ({ ...prev, [tabId]: null }));
+      setTabResults(prev => ({ ...prev, [tabId]: null }));
     } finally {
       setIsExecuting(false);
     }
@@ -216,7 +216,7 @@ function Editor() {
   const handleConsoleSave = async (
     tabId: string,
     contentToSave: string,
-    currentPath?: string
+    currentPath?: string,
   ): Promise<boolean> => {
     if (!currentWorkspace) {
       setErrorMessage("No workspace selected");
@@ -231,7 +231,7 @@ function Editor() {
       let method = "PUT";
       if (!savePath) {
         const fileName = prompt(
-          "Enter a file name to save (e.g., myFolder/myConsole). .js will be appended if absent."
+          "Enter a file name to save (e.g., myFolder/myConsole). .js will be appended if absent.",
         );
         if (!fileName) {
           setIsSaving(false);
@@ -250,9 +250,9 @@ function Editor() {
           body: JSON.stringify(
             method === "POST"
               ? { path: savePath, content: contentToSave }
-              : { content: contentToSave }
+              : { content: contentToSave },
           ),
-        }
+        },
       );
       const data = await response.json();
       if (data.success) {
@@ -271,7 +271,7 @@ function Editor() {
         updateConsoleDirty(tabId, true);
 
         setSnackbarMessage(
-          `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`
+          `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`,
         );
         setSnackbarOpen(true);
         success = true;
@@ -324,7 +324,7 @@ function Editor() {
               variant="scrollable"
               scrollButtons="auto"
             >
-              {consoleTabs.map((tab) => (
+              {consoleTabs.map(tab => (
                 <Tab
                   key={tab.id}
                   value={tab.id}
@@ -337,7 +337,7 @@ function Editor() {
                         style={{
                           fontStyle: tab.isDirty ? "normal" : "italic",
                         }}
-                        onDoubleClick={(e) => {
+                        onDoubleClick={e => {
                           e.stopPropagation();
                           updateConsoleDirty(tab.id, true);
                         }}
@@ -346,7 +346,7 @@ function Editor() {
                       </span>
                       <IconButton
                         size="small"
-                        onClick={(e) => {
+                        onClick={e => {
                           e.stopPropagation();
                           closeConsole(tab.id);
                         }}
@@ -371,9 +371,7 @@ function Editor() {
           {/* Editor + Results vertical split */}
           <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
             {(() => {
-              const activeTab = consoleTabs.find(
-                (t) => t.id === activeConsoleId
-              );
+              const activeTab = consoleTabs.find(t => t.id === activeConsoleId);
               const isConsoleTab =
                 activeTab?.kind !== "settings" &&
                 activeTab?.kind !== "sources" &&
@@ -386,7 +384,7 @@ function Editor() {
                     style={{ height: "100%", width: "100%" }}
                   >
                     <Panel defaultSize={60} minSize={1}>
-                      {consoleTabs.map((tab) => (
+                      {consoleTabs.map(tab => (
                         <Box
                           key={tab.id}
                           sx={{
@@ -407,7 +405,7 @@ function Editor() {
                             }
                             isExecuting={isExecuting}
                             isSaving={isSaving}
-                            onContentChange={(content) => {
+                            onContentChange={content => {
                               updateConsoleContent(tab.id, content);
                               // Mark tab as dirty when content changes from initial
                               if (

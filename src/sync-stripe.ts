@@ -32,16 +32,16 @@ class StripeSyncService {
     // Get Stripe configuration
     if (!dataSource.connection.api_key) {
       throw new Error(
-        `Stripe API key is required for data source ${dataSource.id}`
+        `Stripe API key is required for data source ${dataSource.id}`,
       );
     }
 
     console.log(`Initializing Stripe client for ${dataSource.name}`);
     console.log(
-      `API key loaded: ${dataSource.connection.api_key ? "Yes" : "No"}`
+      `API key loaded: ${dataSource.connection.api_key ? "Yes" : "No"}`,
     );
     console.log(
-      `API key prefix: ${dataSource.connection.api_key?.substring(0, 10)}...`
+      `API key prefix: ${dataSource.connection.api_key?.substring(0, 10)}...`,
     );
 
     this.stripe = new Stripe(dataSource.connection.api_key, {
@@ -61,7 +61,7 @@ class StripeSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "local_dev.analytics_db"
+    targetDbId: string = "local_dev.analytics_db",
   ): Promise<{ client: MongoClient; db: Db }> {
     // Check if connection already exists
     if (this.mongoConnections.has(targetDbId)) {
@@ -83,7 +83,7 @@ class StripeSyncService {
     this.mongoConnections.set(targetDbId, connection);
 
     console.log(
-      `Connected to MongoDB: ${targetDb.name} for Stripe source: ${this.dataSource.name}`
+      `Connected to MongoDB: ${targetDb.name} for Stripe source: ${this.dataSource.name}`,
     );
     return connection;
   }
@@ -99,14 +99,14 @@ class StripeSyncService {
   private async fetchAllStripeData<T>(
     listMethod: (params: any) => Stripe.ApiListPromise<T>,
     params: any = {},
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<T[]> {
     const results: T[] = [];
     let hasMore = true;
     let startingAfter: string | undefined = undefined;
     let page = 0;
 
-    console.log(`Starting to fetch Stripe data with params:`, params);
+    console.log("Starting to fetch Stripe data with params:", params);
 
     while (hasMore) {
       try {
@@ -119,7 +119,7 @@ class StripeSyncService {
           ...(startingAfter && { starting_after: startingAfter }),
         };
 
-        console.log(`Request params:`, requestParams);
+        console.log("Request params:", requestParams);
 
         const response = await listMethod(requestParams);
 
@@ -137,7 +137,7 @@ class StripeSyncService {
         if (hasMore && response.data.length > 0) {
           startingAfter = (response.data[response.data.length - 1] as any).id;
           console.log(
-            `More data available, waiting ${this.settings.rateLimitDelay}ms before next request...`
+            `More data available, waiting ${this.settings.rateLimitDelay}ms before next request...`,
           );
           // Apply rate limiting
           await this.delay(this.settings.rateLimitDelay);
@@ -153,10 +153,10 @@ class StripeSyncService {
           // Check for specific error types
           if (error.type === "StripeAuthenticationError") {
             console.error(
-              `Authentication failed. Please check your Stripe API key.`
+              "Authentication failed. Please check your Stripe API key.",
             );
             console.error(
-              `Current API key starts with: ${this.dataSource.connection.api_key?.substring(0, 10)}...`
+              `Current API key starts with: ${this.dataSource.connection.api_key?.substring(0, 10)}...`,
             );
           }
         }
@@ -176,16 +176,16 @@ class StripeSyncService {
 
   async syncCustomers(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting customers sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const customers = await this.fetchAllStripeData(
-        (params) => this.stripe.customers.list(params),
+        params => this.stripe.customers.list(params),
         {},
-        progress
+        progress,
       );
       console.log(`Fetched ${customers.length} customers from Stripe`);
 
@@ -194,7 +194,7 @@ class StripeSyncService {
       const collection = db.collection(collectionName);
 
       // Process customers with data source reference
-      const processedCustomers = customers.map((customer) => ({
+      const processedCustomers = customers.map(customer => ({
         ...customer,
         _dataSourceId: this.dataSource.id,
         _dataSourceName: this.dataSource.name,
@@ -202,7 +202,7 @@ class StripeSyncService {
       }));
 
       if (processedCustomers.length > 0) {
-        const bulkOps = processedCustomers.map((customer) => ({
+        const bulkOps = processedCustomers.map(customer => ({
           replaceOne: {
             filter: { id: customer.id, _dataSourceId: this.dataSource.id },
             replacement: customer,
@@ -212,7 +212,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} customers in collection ${collectionName}`
+          `Upserted ${result.upsertedCount + result.modifiedCount} customers in collection ${collectionName}`,
         );
       }
     } catch (error) {
@@ -223,16 +223,16 @@ class StripeSyncService {
 
   async syncSubscriptions(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting subscriptions sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const subscriptions = await this.fetchAllStripeData(
-        (params) => this.stripe.subscriptions.list(params),
+        params => this.stripe.subscriptions.list(params),
         { status: "all" },
-        progress
+        progress,
       );
       console.log(`Fetched ${subscriptions.length} subscriptions from Stripe`);
 
@@ -241,7 +241,7 @@ class StripeSyncService {
       const collection = db.collection(collectionName);
 
       // Process subscriptions with data source reference
-      const processedSubscriptions = subscriptions.map((subscription) => ({
+      const processedSubscriptions = subscriptions.map(subscription => ({
         ...subscription,
         _dataSourceId: this.dataSource.id,
         _dataSourceName: this.dataSource.name,
@@ -249,7 +249,7 @@ class StripeSyncService {
       }));
 
       if (processedSubscriptions.length > 0) {
-        const bulkOps = processedSubscriptions.map((subscription) => ({
+        const bulkOps = processedSubscriptions.map(subscription => ({
           replaceOne: {
             filter: { id: subscription.id, _dataSourceId: this.dataSource.id },
             replacement: subscription,
@@ -261,7 +261,7 @@ class StripeSyncService {
         console.log(
           `Upserted ${
             result.upsertedCount + result.modifiedCount
-          } subscriptions in collection ${collectionName}`
+          } subscriptions in collection ${collectionName}`,
         );
       }
     } catch (error) {
@@ -272,16 +272,16 @@ class StripeSyncService {
 
   async syncCharges(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting charges sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const charges = await this.fetchAllStripeData(
-        (params) => this.stripe.charges.list(params),
+        params => this.stripe.charges.list(params),
         {},
-        progress
+        progress,
       );
       console.log(`Fetched ${charges.length} charges from Stripe`);
 
@@ -290,7 +290,7 @@ class StripeSyncService {
       const collection = db.collection(collectionName);
 
       // Process charges with data source reference
-      const processedCharges = charges.map((charge) => ({
+      const processedCharges = charges.map(charge => ({
         ...charge,
         _dataSourceId: this.dataSource.id,
         _dataSourceName: this.dataSource.name,
@@ -298,7 +298,7 @@ class StripeSyncService {
       }));
 
       if (processedCharges.length > 0) {
-        const bulkOps = processedCharges.map((charge) => ({
+        const bulkOps = processedCharges.map(charge => ({
           replaceOne: {
             filter: { id: charge.id, _dataSourceId: this.dataSource.id },
             replacement: charge,
@@ -308,7 +308,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} charges in collection ${collectionName}`
+          `Upserted ${result.upsertedCount + result.modifiedCount} charges in collection ${collectionName}`,
         );
       }
     } catch (error) {
@@ -319,16 +319,16 @@ class StripeSyncService {
 
   async syncInvoices(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting invoices sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const invoices = await this.fetchAllStripeData(
-        (params) => this.stripe.invoices.list(params),
+        params => this.stripe.invoices.list(params),
         {},
-        progress
+        progress,
       );
       console.log(`Fetched ${invoices.length} invoices from Stripe`);
 
@@ -337,7 +337,7 @@ class StripeSyncService {
       const collection = db.collection(collectionName);
 
       // Process invoices with data source reference
-      const processedInvoices = invoices.map((invoice) => ({
+      const processedInvoices = invoices.map(invoice => ({
         ...invoice,
         _dataSourceId: this.dataSource.id,
         _dataSourceName: this.dataSource.name,
@@ -345,7 +345,7 @@ class StripeSyncService {
       }));
 
       if (processedInvoices.length > 0) {
-        const bulkOps = processedInvoices.map((invoice) => ({
+        const bulkOps = processedInvoices.map(invoice => ({
           replaceOne: {
             filter: { id: invoice.id, _dataSourceId: this.dataSource.id },
             replacement: invoice,
@@ -355,7 +355,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} invoices in collection ${collectionName}`
+          `Upserted ${result.upsertedCount + result.modifiedCount} invoices in collection ${collectionName}`,
         );
       }
     } catch (error) {
@@ -366,16 +366,16 @@ class StripeSyncService {
 
   async syncProducts(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting products sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const products = await this.fetchAllStripeData(
-        (params) => this.stripe.products.list(params),
+        params => this.stripe.products.list(params),
         { active: true },
-        progress
+        progress,
       );
       console.log(`Fetched ${products.length} products from Stripe`);
 
@@ -384,7 +384,7 @@ class StripeSyncService {
       const collection = db.collection(collectionName);
 
       // Process products with data source reference
-      const processedProducts = products.map((product) => ({
+      const processedProducts = products.map(product => ({
         ...product,
         _dataSourceId: this.dataSource.id,
         _dataSourceName: this.dataSource.name,
@@ -392,7 +392,7 @@ class StripeSyncService {
       }));
 
       if (processedProducts.length > 0) {
-        const bulkOps = processedProducts.map((product) => ({
+        const bulkOps = processedProducts.map(product => ({
           replaceOne: {
             filter: { id: product.id, _dataSourceId: this.dataSource.id },
             replacement: product,
@@ -402,7 +402,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} products in collection ${collectionName}`
+          `Upserted ${result.upsertedCount + result.modifiedCount} products in collection ${collectionName}`,
         );
       }
     } catch (error) {
@@ -413,16 +413,16 @@ class StripeSyncService {
 
   async syncPlans(
     targetDbId?: string,
-    progress?: ProgressReporter
+    progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting plans sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDbId);
 
     try {
       const plans = await this.fetchAllStripeData(
-        (params) => this.stripe.plans.list(params),
+        params => this.stripe.plans.list(params),
         {},
-        progress
+        progress,
       );
       console.log(`Fetched ${plans.length} plans from Stripe`);
 
@@ -431,7 +431,7 @@ class StripeSyncService {
       const collection = db.collection(collectionName);
 
       // Process plans with data source reference
-      const processedPlans = plans.map((plan) => ({
+      const processedPlans = plans.map(plan => ({
         ...plan,
         _dataSourceId: this.dataSource.id,
         _dataSourceName: this.dataSource.name,
@@ -439,7 +439,7 @@ class StripeSyncService {
       }));
 
       if (processedPlans.length > 0) {
-        const bulkOps = processedPlans.map((plan) => ({
+        const bulkOps = processedPlans.map(plan => ({
           replaceOne: {
             filter: { id: plan.id, _dataSourceId: this.dataSource.id },
             replacement: plan,
@@ -449,7 +449,7 @@ class StripeSyncService {
 
         const result = await collection.bulkWrite(bulkOps);
         console.log(
-          `Upserted ${result.upsertedCount + result.modifiedCount} plans in collection ${collectionName}`
+          `Upserted ${result.upsertedCount + result.modifiedCount} plans in collection ${collectionName}`,
         );
       }
     } catch (error) {
@@ -460,7 +460,7 @@ class StripeSyncService {
 
   async syncAll(targetDbId?: string): Promise<void> {
     console.log(
-      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`
+      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
     );
     console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
     const startTime = Date.now();
@@ -473,7 +473,7 @@ class StripeSyncService {
       await this.syncCustomers(targetDbId, new ProgressReporter("customers"));
       await this.syncSubscriptions(
         targetDbId,
-        new ProgressReporter("subscriptions")
+        new ProgressReporter("subscriptions"),
       );
       await this.syncCharges(targetDbId, new ProgressReporter("charges"));
       await this.syncInvoices(targetDbId, new ProgressReporter("invoices"));
@@ -482,7 +482,7 @@ class StripeSyncService {
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(
-        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`
+        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`,
       );
     } catch (error) {
       console.error(`❌ Sync failed for ${this.dataSource.name}:`, error);
@@ -493,7 +493,7 @@ class StripeSyncService {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
@@ -504,7 +504,7 @@ function loadDataSourceConfig(): DataSourceConfig[] {
     const validation = dataSourceManager.validateConfig();
     if (!validation.valid) {
       console.error("Configuration validation failed:");
-      validation.errors.forEach((error) => console.error(`  - ${error}`));
+      validation.errors.forEach(error => console.error(`  - ${error}`));
       process.exit(1);
     }
 
@@ -512,7 +512,7 @@ function loadDataSourceConfig(): DataSourceConfig[] {
   } catch (error) {
     console.error("Failed to load configuration:", error);
     console.error(
-      "Make sure config/config.yaml exists and environment variables are set"
+      "Make sure config/config.yaml exists and environment variables are set",
     );
     process.exit(1);
   }
@@ -531,18 +531,18 @@ async function main() {
 
   // Check command line arguments
   const args = process.argv.slice(2);
-  const targetDbId = args.find((arg) => arg.startsWith("--db="))?.split("=")[1];
-  const specificSourceId = args.find((arg) => !arg.startsWith("--"));
+  const targetDbId = args.find(arg => arg.startsWith("--db="))?.split("=")[1];
+  const specificSourceId = args.find(arg => !arg.startsWith("--"));
 
   if (specificSourceId) {
     // Sync specific data source
-    const source = dataSources.find((s) => s.id === specificSourceId);
+    const source = dataSources.find(s => s.id === specificSourceId);
     if (!source) {
       console.error(
-        `Data source '${specificSourceId}' not found or not active`
+        `Data source '${specificSourceId}' not found or not active`,
       );
       console.log("\nAvailable Stripe data sources:");
-      dataSources.forEach((s) => console.log(`  - ${s.id}: ${s.name}`));
+      dataSources.forEach(s => console.log(`  - ${s.id}: ${s.name}`));
       process.exit(1);
     }
 
@@ -561,7 +561,7 @@ async function main() {
 
 // Execute if run directly
 if (require.main === module) {
-  main().catch((error) => {
+  main().catch(error => {
     console.error("Fatal error:", error);
     process.exit(1);
   });

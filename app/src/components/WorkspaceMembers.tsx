@@ -62,7 +62,7 @@ export function WorkspaceMembers() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member" | "viewer">(
-    "member"
+    "member",
   );
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,7 @@ export function WorkspaceMembers() {
 
   const handleRoleChange = async (
     userId: string,
-    newRole: "admin" | "member" | "viewer"
+    newRole: "admin" | "member" | "viewer",
   ) => {
     try {
       await updateMemberRole(userId, newRole);
@@ -142,13 +142,13 @@ export function WorkspaceMembers() {
     }
   };
 
-  const currentUserRole = members.find((m) => m.email === user?.email)?.role;
+  const currentUserRole = members.find(m => m.email === user?.email)?.role;
   const canManageMembers =
     currentUserRole === "owner" || currentUserRole === "admin";
 
   // Combine members and invites into a single dataset
   const rows: MemberRow[] = useMemo(() => {
-    const memberRows: MemberRow[] = members.map((member) => ({
+    const memberRows: MemberRow[] = members.map(member => ({
       id: member.id,
       email: member.email,
       role: member.role,
@@ -157,7 +157,7 @@ export function WorkspaceMembers() {
       userId: member.userId,
     }));
 
-    const inviteRows: MemberRow[] = invites.map((invite) => ({
+    const inviteRows: MemberRow[] = invites.map(invite => ({
       id: invite.id,
       email: invite.email,
       role: invite.role,
@@ -241,7 +241,7 @@ export function WorkspaceMembers() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((row) => {
+            {rows.map(row => {
               const isCurrentUser = row.email === user?.email;
               const isOwner = row.role === "owner";
               const canEdit = canManageMembers && !isOwner && !isCurrentUser;
@@ -281,7 +281,9 @@ export function WorkspaceMembers() {
                     <Typography variant="caption" color="text.secondary">
                       {row.status === "active" ? "Joined" : "Expires"}{" "}
                       {new Date(
-                        row.status === "active" ? row.joinedAt! : row.expiresAt!
+                        row.status === "active"
+                          ? row.joinedAt!
+                          : row.expiresAt!,
                       ).toLocaleDateString()}
                     </Typography>
                   </TableCell>
@@ -315,10 +317,10 @@ export function WorkspaceMembers() {
                         <FormControl size="small" sx={{ minWidth: 80 }}>
                           <Select
                             value={row.role}
-                            onChange={(e) =>
+                            onChange={e =>
                               handleRoleChange(
                                 row.userId!,
-                                e.target.value as any
+                                e.target.value as any,
                               )
                             }
                             size="small"
@@ -365,7 +367,7 @@ export function WorkspaceMembers() {
             fullWidth
             variant="outlined"
             value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
+            onChange={e => setInviteEmail(e.target.value)}
             disabled={inviting}
             sx={{ mb: 2 }}
           />
@@ -373,7 +375,7 @@ export function WorkspaceMembers() {
             <InputLabel>Role</InputLabel>
             <Select
               value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as any)}
+              onChange={e => setInviteRole(e.target.value as any)}
               label="Role"
               disabled={inviting}
             >

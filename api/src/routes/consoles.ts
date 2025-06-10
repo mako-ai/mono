@@ -1,9 +1,8 @@
-import { Hono } from "hono";
+import { Hono, Context } from "hono";
 import { ConsoleManager } from "../utils/console-manager";
 import { authMiddleware } from "../auth/auth.middleware";
 import { Database } from "../database/workspace-schema";
 import { workspaceService } from "../services/workspace.service";
-import { Context } from "hono";
 
 export const consoleRoutes = new Hono();
 const consoleManager = new ConsoleManager();
@@ -21,7 +20,7 @@ consoleRoutes.get("/", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
@@ -35,7 +34,7 @@ consoleRoutes.get("/", async (c: Context) => {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       },
-      500
+      500,
     );
   }
 });
@@ -51,14 +50,14 @@ consoleRoutes.get("/content", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
     if (!consolePath) {
       return c.json(
         { success: false, error: "Path query parameter is required" },
-        400
+        400,
       );
     }
 
@@ -67,14 +66,14 @@ consoleRoutes.get("/content", async (c: Context) => {
   } catch (error) {
     console.error(
       `Error fetching console content for ${c.req.query("path")}:`,
-      error
+      error,
     );
     return c.json(
       {
         success: false,
         error: error instanceof Error ? error.message : "Console not found",
       },
-      404
+      404,
     );
   }
 });
@@ -99,14 +98,14 @@ consoleRoutes.post("/", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
     if (!consolePath || typeof consolePath !== "string") {
       return c.json(
         { success: false, error: "Path is required and must be a string" },
-        400
+        400,
       );
     }
     if (typeof content !== "string") {
@@ -128,7 +127,7 @@ consoleRoutes.post("/", async (c: Context) => {
     if (exists) {
       return c.json(
         { success: false, error: "Console already exists at this path" },
-        409
+        409,
       );
     }
 
@@ -143,7 +142,7 @@ consoleRoutes.post("/", async (c: Context) => {
         description,
         language,
         isPrivate,
-      }
+      },
     );
 
     return c.json(
@@ -158,7 +157,7 @@ consoleRoutes.post("/", async (c: Context) => {
           language: savedConsole.language,
         },
       },
-      201
+      201,
     );
   } catch (error) {
     console.error("Error creating console:", error);
@@ -170,7 +169,7 @@ consoleRoutes.post("/", async (c: Context) => {
             ? error.message
             : "Unknown error creating console",
       },
-      500
+      500,
     );
   }
 });
@@ -187,14 +186,14 @@ consoleRoutes.put("/:path{.+}", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
     if (typeof body.content !== "string") {
       return c.json(
         { success: false, error: "Content is required and must be a string" },
-        400
+        400,
       );
     }
 
@@ -220,7 +219,7 @@ consoleRoutes.put("/:path{.+}", async (c: Context) => {
         description: body.description,
         language: body.language,
         isPrivate: body.isPrivate,
-      }
+      },
     );
 
     return c.json({
@@ -244,7 +243,7 @@ consoleRoutes.put("/:path{.+}", async (c: Context) => {
             ? error.message
             : "Unknown error updating console",
       },
-      500
+      500,
     );
   }
 });
@@ -261,14 +260,14 @@ consoleRoutes.post("/folders", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
     if (!name || typeof name !== "string") {
       return c.json(
         { success: false, error: "Name is required and must be a string" },
-        400
+        400,
       );
     }
 
@@ -277,7 +276,7 @@ consoleRoutes.post("/folders", async (c: Context) => {
       workspaceId,
       user.id,
       parentId,
-      isPrivate || false
+      isPrivate || false,
     );
 
     return c.json(
@@ -291,7 +290,7 @@ consoleRoutes.post("/folders", async (c: Context) => {
           isPrivate: folder.isPrivate,
         },
       },
-      201
+      201,
     );
   } catch (error) {
     console.error("Error creating folder:", error);
@@ -303,7 +302,7 @@ consoleRoutes.post("/folders", async (c: Context) => {
             ? error.message
             : "Unknown error creating folder",
       },
-      500
+      500,
     );
   }
 });
@@ -321,14 +320,14 @@ consoleRoutes.patch("/:id/rename", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
     if (!name || typeof name !== "string") {
       return c.json(
         { success: false, error: "Name is required and must be a string" },
-        400
+        400,
       );
     }
 
@@ -336,7 +335,7 @@ consoleRoutes.patch("/:id/rename", async (c: Context) => {
       consoleId,
       name,
       workspaceId,
-      user.id
+      user.id,
     );
 
     if (success) {
@@ -354,7 +353,7 @@ consoleRoutes.patch("/:id/rename", async (c: Context) => {
             ? error.message
             : "Unknown error renaming console",
       },
-      500
+      500,
     );
   }
 });
@@ -370,7 +369,7 @@ consoleRoutes.delete("/:id", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
@@ -391,7 +390,7 @@ consoleRoutes.delete("/:id", async (c: Context) => {
             ? error.message
             : "Unknown error deleting console",
       },
-      500
+      500,
     );
   }
 });
@@ -409,21 +408,21 @@ consoleRoutes.patch("/folders/:id/rename", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
     if (!name || typeof name !== "string") {
       return c.json(
         { success: false, error: "Name is required and must be a string" },
-        400
+        400,
       );
     }
 
     const success = await consoleManager.renameFolder(
       folderId,
       name,
-      workspaceId
+      workspaceId,
     );
 
     if (success) {
@@ -441,7 +440,7 @@ consoleRoutes.patch("/folders/:id/rename", async (c: Context) => {
             ? error.message
             : "Unknown error renaming folder",
       },
-      500
+      500,
     );
   }
 });
@@ -457,7 +456,7 @@ consoleRoutes.delete("/folders/:id", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
@@ -478,7 +477,7 @@ consoleRoutes.delete("/folders/:id", async (c: Context) => {
             ? error.message
             : "Unknown error deleting folder",
       },
-      500
+      500,
     );
   }
 });
@@ -494,7 +493,7 @@ consoleRoutes.post("/:id/execute", async (c: Context) => {
     if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
-        403
+        403,
       );
     }
 
@@ -504,7 +503,7 @@ consoleRoutes.post("/:id/execute", async (c: Context) => {
   } catch (error) {
     console.error(
       `Error updating execution stats for console ${c.req.param("id")}:`,
-      error
+      error,
     );
     return c.json(
       {
@@ -514,7 +513,7 @@ consoleRoutes.post("/:id/execute", async (c: Context) => {
             ? error.message
             : "Unknown error updating execution stats",
       },
-      500
+      500,
     );
   }
 });

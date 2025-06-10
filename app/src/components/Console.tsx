@@ -67,14 +67,14 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
       onDatabaseChange,
       filePath,
     },
-    ref
+    ref,
   ) => {
     const editorRef = useRef<any>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const { effectiveMode } = useTheme();
     const [currentContent, setCurrentContent] = useState(initialContent);
     const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>(
-      initialDatabaseId || ""
+      initialDatabaseId || "",
     );
     // Keep a ref of the latest selected database so closures (e.g. Monaco keybindings) always see the up-to-date value
     const selectedDatabaseIdRef = useRef<string>("");
@@ -286,7 +286,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
               disableUnderline
               labelId="database-select-label"
               value={selectedDatabaseId}
-              onChange={(e) => setSelectedDatabaseId(e.target.value)}
+              onChange={e => setSelectedDatabaseId(e.target.value)}
               disabled={databases.length === 0}
             >
               {databases.length === 0 ? (
@@ -294,7 +294,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
                   No databases available
                 </MenuItem>
               ) : (
-                databases.map((db) => (
+                databases.map(db => (
                   <MenuItem key={db.id} value={db.id}>
                     {db.displayName || db.name || "Unknown Database"}
                   </MenuItem>
@@ -324,7 +324,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>(
         </Box>
       </Box>
     );
-  }
+  },
 );
 
 export default Console;

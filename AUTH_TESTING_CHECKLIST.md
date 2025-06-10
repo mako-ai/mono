@@ -5,6 +5,7 @@ This checklist covers all the manual tests you should perform to ensure the auth
 ## Setup Requirements
 
 Before testing, ensure you have:
+
 - [ ] Created a `.env` file based on `.env.example`
 - [ ] Set up MongoDB (running locally or connection string configured)
 - [ ] Configured Google OAuth credentials in Google Cloud Console
@@ -15,6 +16,7 @@ Before testing, ensure you have:
 ## Basic Authentication Tests
 
 ### Registration
+
 - [ ] **Valid Registration**: Register a new user with email and password (min 8 chars)
   - Verify user is redirected to dashboard
   - Verify session cookie is set
@@ -26,6 +28,7 @@ Before testing, ensure you have:
   - Verify error is shown
 
 ### Login
+
 - [ ] **Valid Login**: Login with registered email/password
   - Verify redirect to dashboard
   - Verify user info is displayed
@@ -35,6 +38,7 @@ Before testing, ensure you have:
   - Verify appropriate error message
 
 ### Logout
+
 - [ ] **Logout Function**: Click logout button
   - Verify redirect to login page
   - Verify session cookie is cleared
@@ -43,6 +47,7 @@ Before testing, ensure you have:
 ## OAuth Authentication Tests
 
 ### Google OAuth
+
 - [ ] **Initial Login**: Click "Login with Google"
   - Verify redirect to Google consent screen
   - After consent, verify redirect back to app dashboard
@@ -53,6 +58,7 @@ Before testing, ensure you have:
   - Verify redirect to login page with error parameter
 
 ### GitHub OAuth
+
 - [ ] **Initial Login**: Click "Login with GitHub"
   - Verify redirect to GitHub authorization
   - After authorization, verify redirect to dashboard
@@ -64,6 +70,7 @@ Before testing, ensure you have:
 ## Session Management Tests
 
 ### Session Persistence
+
 - [ ] **Page Refresh**: Refresh page while logged in
   - Verify user remains authenticated
   - Verify user data is loaded correctly
@@ -73,6 +80,7 @@ Before testing, ensure you have:
   - Verify user is logged out automatically
 
 ### Protected Routes
+
 - [ ] **Authenticated Access**: Access protected routes while logged in
   - Verify routes load correctly
 - [ ] **Unauthenticated Access**: Try accessing protected routes without login
@@ -83,7 +91,8 @@ Before testing, ensure you have:
 ## Advanced Features Tests
 
 ### Account Linking
-- [ ] **Link Multiple Providers**: 
+
+- [ ] **Link Multiple Providers**:
   1. Register with email/password
   2. Link Google account
   3. Link GitHub account
@@ -94,6 +103,7 @@ Before testing, ensure you have:
   - Linked GitHub account
 
 ### API Integration
+
 - [ ] **401 Handling**: Make API call that returns 401
   - Verify automatic redirect to login
 - [ ] **Auth Headers**: Inspect network requests
@@ -102,6 +112,7 @@ Before testing, ensure you have:
 ### Security Tests
 
 ### Rate Limiting
+
 - [ ] **Login Attempts**: Try 6+ failed login attempts rapidly
   - Verify rate limit error after 5 attempts
   - Verify retry-after header is present
@@ -109,6 +120,7 @@ Before testing, ensure you have:
   - Verify rate limiting kicks in
 
 ### CSRF Protection
+
 - [ ] **Cookie Attributes**: Inspect session cookie
   - Verify httpOnly is set
   - Verify sameSite is set to 'lax'

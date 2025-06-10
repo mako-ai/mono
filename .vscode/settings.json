@@ -1,5 +1,53 @@
 {
   "terminal.integrated.defaultProfile.linux": "zsh",
   "terminal.integrated.defaultProfile.osx": "zsh",
-  "terminal.integrated.shellIntegration.enabled": false
+  "terminal.integrated.shellIntegration.enabled": false,
+
+  // ESLint configuration
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "eslint.workingDirectories": [
+    { "directory": ".", "changeProcessCWD": true },
+    { "directory": "./app", "changeProcessCWD": true },
+    { "directory": "./api", "changeProcessCWD": true }
+  ],
+
+  // Editor settings for consistent formatting
+  "editor.formatOnSave": true, // Enable formatting on save
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+
+  // Optional: Show ESLint status in the status bar
+  "eslint.alwaysShowStatus": true,
+
+  // Optional: Auto-fix on paste
+  "editor.formatOnPaste": false,
+
+  // Ensure ESLint is actively linting as you type
+  "eslint.provideLinting": true,
+  "eslint.run": "onType",
+  "eslint.format.enable": false,
+  "eslint.packageManager": "pnpm" // use the workspace package manager
 }

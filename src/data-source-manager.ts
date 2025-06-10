@@ -159,7 +159,7 @@ class DataSourceManager {
    * Get data sources by type
    */
   getDataSourcesByType(type: string): DataSourceConfig[] {
-    return this.getActiveDataSources().filter((source) => source.type === type);
+    return this.getActiveDataSources().filter(source => source.type === type);
   }
 
   /**
@@ -256,7 +256,7 @@ class DataSourceManager {
 
     // Get new format mongodb sources
     const databases = this.listMongoDBDatabases();
-    databases.forEach((dbId) => {
+    databases.forEach(dbId => {
       const db = this.getMongoDBDatabase(dbId);
       if (db) {
         sources.push(db);
@@ -279,7 +279,7 @@ class DataSourceManager {
     // Fall back to legacy format
     const mongoSources = this.getMongoDBSources();
     return (
-      mongoSources.find((source) => source.id === "analytics_db") ||
+      mongoSources.find(source => source.id === "analytics_db") ||
       mongoSources[0] ||
       null
     );
@@ -305,7 +305,7 @@ class DataSourceManager {
    * List active data source IDs
    */
   listActiveDataSourceIds(): string[] {
-    return this.getActiveDataSources().map((s) => s.id);
+    return this.getActiveDataSources().map(s => s.id);
   }
 
   /**
@@ -342,7 +342,7 @@ class DataSourceManager {
 
         if (!source.connection) {
           errors.push(
-            `Data source '${id}' is missing connection configuration`
+            `Data source '${id}' is missing connection configuration`,
           );
         }
 
@@ -352,7 +352,7 @@ class DataSourceManager {
           case "stripe":
             if (!source.connection.api_key) {
               errors.push(
-                `Data source '${id}' (${source.type}) is missing api_key`
+                `Data source '${id}' (${source.type}) is missing api_key`,
               );
             }
             break;
@@ -365,19 +365,19 @@ class DataSourceManager {
               source.connection.queries.length === 0
             ) {
               errors.push(
-                `Data source '${id}' (graphql) is missing queries configuration`
+                `Data source '${id}' (graphql) is missing queries configuration`,
               );
             } else {
               // Validate each query configuration
               source.connection.queries.forEach((query: any, index: number) => {
                 if (!query.name) {
                   errors.push(
-                    `Data source '${id}' (graphql) query ${index + 1} is missing name`
+                    `Data source '${id}' (graphql) query ${index + 1} is missing name`,
                   );
                 }
                 if (!query.query) {
                   errors.push(
-                    `Data source '${id}' (graphql) query ${index + 1} is missing query`
+                    `Data source '${id}' (graphql) query ${index + 1} is missing query`,
                   );
                 }
               });
@@ -386,12 +386,12 @@ class DataSourceManager {
           case "mongodb":
             if (!source.connection.connection_string) {
               errors.push(
-                `Data source '${id}' (mongodb) is missing connection_string`
+                `Data source '${id}' (mongodb) is missing connection_string`,
               );
             }
             if (!source.connection.database) {
               errors.push(
-                `Data source '${id}' (mongodb) is missing database name`
+                `Data source '${id}' (mongodb) is missing database name`,
               );
             }
             break;
@@ -416,14 +416,14 @@ class DataSourceManager {
         const value = process.env[varName];
         if (!value) {
           console.warn(
-            `Environment variable ${varName} is not set, using placeholder`
+            `Environment variable ${varName} is not set, using placeholder`,
           );
           return match;
         }
         return value;
       });
     } else if (Array.isArray(obj)) {
-      return obj.map((item) => this.processEnvironmentVariables(item));
+      return obj.map(item => this.processEnvironmentVariables(item));
     } else if (typeof obj === "object" && obj !== null) {
       const processed: any = {};
       for (const key in obj) {

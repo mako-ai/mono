@@ -7,6 +7,7 @@ This document describes the migration of database connections from a YAML config
 ## Migration Status
 
 ✅ **Completed Components:**
+
 - Migration script created (`scripts/migrate-databases-to-mongodb.ts`)
 - Database routes updated to read from MongoDB
 - Workspace-based filtering implemented
@@ -18,9 +19,11 @@ This document describes the migration of database connections from a YAML config
 ### Prerequisites
 
 1. Ensure you have the `ENCRYPTION_KEY` environment variable set:
+
    ```bash
    export ENCRYPTION_KEY=$(openssl rand -hex 32)
    ```
+
    Add this to your `.env` file for persistence.
 
 2. Ensure MongoDB is running and `DATABASE_URL` is set in your `.env` file.
@@ -30,11 +33,13 @@ This document describes the migration of database connections from a YAML config
 ### Migration Steps
 
 1. **Dry Run** - Preview what will be migrated:
+
    ```bash
    pnpm migrate:databases:dry
    ```
 
 2. **Run Migration** - Execute the actual migration:
+
    ```bash
    pnpm migrate:databases
    ```
@@ -62,6 +67,7 @@ The migration script reads from `config/config.yaml` and migrates:
 ### 1. Update Application Code
 
 The following routes have been updated to use MongoDB:
+
 - `/api/databases` - Lists all databases for the workspace
 - `/api/databases/servers` - Legacy endpoint for backward compatibility
 - `/api/databases/:id/collections` - Lists collections in a database
@@ -79,6 +85,7 @@ After successful migration and testing:
 ### 3. Environment Variables
 
 Ensure these environment variables are set:
+
 - `ENCRYPTION_KEY` - 32-byte hex string for encrypting credentials
 - `DATABASE_URL` - MongoDB connection string for the application database
 - Any variables referenced in your config file (e.g., `MONGO_ATLAS_PASSWORD`)
@@ -103,13 +110,16 @@ If you need to rollback:
 ### Common Issues
 
 1. **"Environment variable X is not set"**
+
    - Ensure all variables referenced in config.yaml are set in your environment
 
 2. **"No workspace found"**
+
    - The migration creates a default workspace if none exists
    - Ensure the migration user has proper permissions
 
 3. **"Failed to connect to MongoDB"**
+
    - Check your DATABASE_URL environment variable
    - Ensure MongoDB is running and accessible
 
@@ -120,6 +130,7 @@ If you need to rollback:
 ### Debug Mode
 
 Set environment variable for verbose logging:
+
 ```bash
 DEBUG=true pnpm migrate:databases
 ```
@@ -127,12 +138,14 @@ DEBUG=true pnpm migrate:databases
 ## API Changes
 
 ### Before (Config-based)
+
 ```javascript
 // Databases identified by: serverId.databaseId
-GET /api/databases/atlas.revops/collections
+GET / api / databases / atlas.revops / collections;
 ```
 
 ### After (MongoDB-based)
+
 ```javascript
 // Databases identified by MongoDB ObjectId
 GET /api/databases/507f1f77bcf86cd799439011/collections

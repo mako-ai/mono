@@ -108,7 +108,7 @@ const UserInput: React.FC<UserInputProps> = ({
         {/* Attached Context Display - Now inside Paper */}
         {attachedContext.length > 0 && (
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            {attachedContext.map((context) => (
+            {attachedContext.map(context => (
               <Chip
                 key={context.id}
                 label={context.title}
@@ -138,7 +138,7 @@ const UserInput: React.FC<UserInputProps> = ({
         minRows={1}
         placeholder="Ask me anything..."
         value={inputMessage}
-        onChange={(e) => setInputMessage(e.target.value)}
+        onChange={e => setInputMessage(e.target.value)}
         onKeyPress={handleKeyPress}
         disabled={isLoading}
         variant="outlined"
@@ -185,9 +185,9 @@ const UserInput: React.FC<UserInputProps> = ({
             variant="standard"
             disableUnderline
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value as string)}
+            onChange={e => setSelectedModel(e.target.value as string)}
           >
-            {availableModels.map((modelId) => (
+            {availableModels.map(modelId => (
               <MenuItem key={modelId} value={modelId} sx={{ fontSize: 12 }}>
                 {modelId}
               </MenuItem>
