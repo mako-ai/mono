@@ -32,6 +32,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { useTheme as useMuiTheme } from "@mui/material/styles";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface Message {
   role: "user" | "assistant";
@@ -341,6 +342,7 @@ const MessageItem = React.memo(
 MessageItem.displayName = "MessageItem";
 
 const Chat3: React.FC = () => {
+  const { currentWorkspace } = useWorkspace();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -363,8 +365,10 @@ const Chat3: React.FC = () => {
 
   useEffect(() => {
     const fetchSessions = async () => {
+      if (!currentWorkspace) return;
+
       try {
-        const res = await fetch("/api/chats");
+        const res = await fetch(`/api/workspaces/${currentWorkspace.id}/chats`);
         if (res.ok) {
           const data = await res.json();
           setSessions(data);
@@ -377,16 +381,18 @@ const Chat3: React.FC = () => {
       }
     };
     fetchSessions();
-  }, []);
+  }, [currentWorkspace]);
 
   useEffect(() => {
     const loadSession = async () => {
-      if (!sessionId) {
+      if (!sessionId || !currentWorkspace) {
         setMessages([]);
         return;
       }
       try {
-        const res = await fetch(`/api/chats/${sessionId}`);
+        const res = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`
+        );
         if (res.ok) {
           const data = await res.json();
           setMessages(data.messages || []);
@@ -396,7 +402,7 @@ const Chat3: React.FC = () => {
       }
     };
     loadSession();
-  }, [sessionId]);
+  }, [sessionId, currentWorkspace]);
 
   // Auto-focus input when session changes or when creating new chat
   useEffect(() => {
@@ -411,8 +417,10 @@ const Chat3: React.FC = () => {
   }, [sessionId, messages.length]);
 
   const createNewSession = async () => {
+    if (!currentWorkspace) return;
+
     try {
-      const res = await fetch("/api/chats", {
+      const res = await fetch(`/api/workspaces/${currentWorkspace.id}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "New Agent Chat" }),
@@ -421,7 +429,9 @@ const Chat3: React.FC = () => {
         const data = await res.json();
         const newId = data.chatId as string;
         // Refresh sessions list
-        const sessionsRes = await fetch("/api/chats");
+        const sessionsRes = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/chats`
+        );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
           setSessions(sessionsData);
@@ -453,13 +463,20 @@ const Chat3: React.FC = () => {
     event: React.MouseEvent
   ) => {
     event.stopPropagation();
+    if (!currentWorkspace) return;
+
     try {
-      const res = await fetch(`/api/chats/${sessionIdToDelete}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/chats/${sessionIdToDelete}`,
+        {
+          method: "DELETE",
+        }
+      );
       if (res.ok) {
         // Refresh sessions list
-        const sessionsRes = await fetch("/api/chats");
+        const sessionsRes = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/chats`
+        );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
           setSessions(sessionsData);
@@ -483,10 +500,18 @@ const Chat3: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const streamResponse = async (latestMessage: string) => {
+    if (!currentWorkspace) {
+      throw new Error("No workspace selected");
+    }
+
     const response = await fetch("/api/agent/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId, message: latestMessage }),
+      body: JSON.stringify({
+        sessionId,
+        message: latestMessage,
+        workspaceId: currentWorkspace.id,
+      }),
     });
 
     if (!response.ok || !response.body) {
@@ -551,7 +576,7 @@ const Chat3: React.FC = () => {
   };
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !currentWorkspace) return;
 
     const userMessage = input.trim();
 
@@ -609,7 +634,10 @@ const Chat3: React.FC = () => {
               Agent Chat
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", gap: 1 }}>
+          <Box sx={{ display: "flex" }}>
+            <IconButton size="small" onClick={createNewSession}>
+              <AddIcon />
+            </IconButton>
             <IconButton
               size="small"
               onClick={handleHistoryMenuOpen}
@@ -617,13 +645,6 @@ const Chat3: React.FC = () => {
             >
               <HistoryIcon />
             </IconButton>
-            <Button
-              size="small"
-              startIcon={<AddIcon />}
-              onClick={createNewSession}
-            >
-              New Chat
-            </Button>
           </Box>
         </Box>
       </Box>
@@ -727,7 +748,7 @@ const Chat3: React.FC = () => {
               </ListItem>
               {/* Show streaming assistant response below the chips */}
               {streamingContent && (
-                <ListItem alignItems="flex-start">
+                <ListItem alignItems="flex-start" sx={{ p: 0 }}>
                   <Box
                     sx={{
                       flex: 1,
@@ -897,10 +918,15 @@ const Chat3: React.FC = () => {
           {/* Send Button */}
           <IconButton
             onClick={sendMessage}
-            disabled={loading || !input.trim() || !sessionId}
+            disabled={
+              loading || !input.trim() || !sessionId || !currentWorkspace
+            }
             size="small"
             sx={{
-              color: input.trim() ? "primary.main" : "text.disabled",
+              color:
+                input.trim() && currentWorkspace
+                  ? "primary.main"
+                  : "text.disabled",
               p: 0,
               "&:hover": {
                 backgroundColor: "action.hover",

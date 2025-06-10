@@ -7,12 +7,12 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  CircularProgress,
   Alert,
   IconButton,
   Collapse,
   Chip,
   SvgIcon,
+  Skeleton,
 } from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
@@ -22,9 +22,12 @@ import {
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
+  Add as AddIcon,
 } from "@mui/icons-material";
 import { Database as DatabaseIcon } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
+import { useWorkspace } from "../contexts/workspace-context";
+import CreateDatabaseDialog from "./CreateDatabaseDialog";
 
 const MongoDBIcon = () => (
   <SvgIcon>
@@ -52,11 +55,15 @@ const MongoDBIcon = () => (
 
 interface Database {
   id: string;
-  localId: string;
   name: string;
   description: string;
   database: string;
+  type: string;
   active: boolean;
+  lastConnectedAt?: string;
+  displayName: string;
+  hostKey: string;
+  hostName: string;
 }
 
 interface Server {
@@ -95,6 +102,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   const [loading, setLoading] = useState(true);
   const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Use the store for expanded states
   const {
@@ -111,20 +119,50 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     isDatabaseExpanded,
   } = useDatabaseExplorerStore();
 
+  // Use the workspace context
+  const { currentWorkspace } = useWorkspace();
+
   useEffect(() => {
     fetchServers();
-  }, []);
+  }, [currentWorkspace]);
 
   const fetchServers = async () => {
+    if (!currentWorkspace) return;
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/databases/servers");
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases`
+      );
       const data = await response.json();
 
       if (data.success) {
-        setServers(data.data);
+        // Group databases by host on the frontend
+        const serverMap = new Map<string, Server>();
+
+        data.data.forEach((db: Database) => {
+          const hostKey = db.hostKey;
+
+          if (!serverMap.has(hostKey)) {
+            serverMap.set(hostKey, {
+              id: hostKey,
+              name: db.hostName,
+              description: "",
+              connectionString: db.hostKey,
+              active: true,
+              databases: [],
+            });
+          }
+
+          const server = serverMap.get(hostKey)!;
+          server.databases.push(db);
+        });
+
+        // Convert map to array
+        const serversData = Array.from(serverMap.values());
+        setServers(serversData);
 
         // Clear any previously cached collections/views so we always show fresh data
         setCollections({});
@@ -132,40 +170,44 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
         // Automatically fetch collections/views for every database so that the
         // data tree is fully up-to-date after a refresh.
-        data.data.forEach((srv: Server) => {
-          srv.databases.forEach((db) => {
-            fetchDatabaseData(db.id);
-          });
+        data.data.forEach((db: Database) => {
+          fetchDatabaseData(db.id);
         });
 
         // Only auto-expand the first server/database if nothing is expanded yet
-        if (data.data.length > 0 && expandedServers.size === 0) {
-          const firstServerId = data.data[0].id;
+        if (serversData.length > 0 && expandedServers.size === 0) {
+          const firstServerId = serversData[0].id;
           expandServer(firstServerId);
-          if (data.data[0].databases.length > 0) {
-            const firstDbId = data.data[0].databases[0].id;
+          if (serversData[0].databases.length > 0) {
+            const firstDbId = serversData[0].databases[0].id;
             expandDatabase(firstDbId);
           }
         }
       } else {
-        setError(data.error || "Failed to fetch servers");
+        setError(data.error || "Failed to fetch databases");
       }
     } catch (err) {
       setError("Failed to connect to the database API");
-      console.error("Error fetching servers:", err);
+      console.error("Error fetching databases:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchDatabaseData = async (databaseId: string) => {
+    if (!currentWorkspace) return;
+
     try {
       setLoadingData((prev) => new Set(prev).add(databaseId));
 
       // Fetch both collections and views in parallel
       const [collectionsResponse, viewsResponse] = await Promise.all([
-        fetch(`/api/databases/${databaseId}/collections`),
-        fetch(`/api/databases/${databaseId}/views`),
+        fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/collections`
+        ),
+        fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/views`
+        ),
       ]);
 
       const collectionsData = await collectionsResponse.json();
@@ -242,20 +284,55 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     fetchServers();
   };
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <CircularProgress size={24} />
-      </Box>
-    );
-  }
+  const handleDatabaseCreated = () => {
+    // Refresh the server data after creating a new database
+    handleRefresh();
+  };
+
+  const renderSkeletonItems = () => {
+    return Array.from({ length: 3 }).map((_, index) => (
+      <ListItem key={`skeleton-${index}`} disablePadding>
+        <ListItemButton sx={{ py: 0.5, pl: 1 }}>
+          <ListItemIcon sx={{ minWidth: 32 }}>
+            <Skeleton variant="circular" width={20} height={20} />
+          </ListItemIcon>
+          <ListItemIcon sx={{ minWidth: 32 }}>
+            <Skeleton variant="circular" width={24} height={24} />
+          </ListItemIcon>
+          <ListItemText
+            primary={
+              <Skeleton
+                variant="text"
+                width={`${60 + Math.random() * 40}%`}
+                height={20}
+              />
+            }
+          />
+        </ListItemButton>
+      </ListItem>
+    ));
+  };
+
+  const renderCollectionSkeletonItems = () => {
+    return Array.from({ length: 3 }).map((_, index) => (
+      <ListItem key={`collection-skeleton-${index}`} disablePadding>
+        <ListItemButton sx={{ py: 0.25, pl: 7.5 }}>
+          <ListItemIcon sx={{ minWidth: 28 }}>
+            <Skeleton variant="circular" width={16} height={16} />
+          </ListItemIcon>
+          <ListItemText
+            primary={
+              <Skeleton
+                variant="text"
+                width={`${50 + Math.random() * 30}%`}
+                height={16}
+              />
+            }
+          />
+        </ListItemButton>
+      </ListItem>
+    ));
+  };
 
   if (error) {
     return (
@@ -286,7 +363,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
             sx={{
               flexGrow: 1,
               overflow: "hidden",
-              maxWidth: "calc(100% - 40px)",
+              maxWidth: "calc(100% - 80px)",
             }}
           >
             <Typography
@@ -300,28 +377,35 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
               Databases
             </Typography>
           </Box>
-          <IconButton size="small" onClick={handleRefresh}>
-            <RefreshIcon />
-          </IconButton>
+          <Box sx={{ display: "flex" }}>
+            <IconButton size="small" onClick={() => setCreateDialogOpen(true)}>
+              <AddIcon />
+            </IconButton>
+            <IconButton size="small" onClick={handleRefresh}>
+              <RefreshIcon />
+            </IconButton>
+          </Box>
         </Box>
       </Box>
 
       <Box sx={{ flexGrow: 1, overflow: "auto" }}>
-        {servers.length === 0 ? (
-          <Box
-            sx={{
-              p: 3,
-              textAlign: "center",
-              color: "text.secondary",
-            }}
-          >
-            <Typography variant="body2">
-              No servers found in configuration
-            </Typography>
-          </Box>
-        ) : (
-          <List dense>
-            {servers.map((server) => {
+        <List dense>
+          {loading ? (
+            renderSkeletonItems()
+          ) : servers.length === 0 ? (
+            <Box
+              sx={{
+                p: 3,
+                textAlign: "center",
+                color: "text.secondary",
+              }}
+            >
+              <Typography variant="body2">
+                No servers found in configuration
+              </Typography>
+            </Box>
+          ) : (
+            servers.map((server) => {
               const isServerExpanded = expandedServers.has(server.id);
 
               return (
@@ -421,7 +505,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                           whiteSpace: "nowrap",
                                         }}
                                       >
-                                        {database.database}
+                                        {database.displayName}
                                       </Typography>
                                     </Box>
                                   }
@@ -434,210 +518,96 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                               timeout="auto"
                               unmountOnExit
                             >
-                              {isLoadingData ? (
-                                <Box
-                                  sx={{
-                                    py: 2,
-                                    display: "flex",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <CircularProgress size={20} />
-                                </Box>
-                              ) : (
-                                <List dense disablePadding>
-                                  {/* Collections Group */}
-                                  <ListItem disablePadding>
-                                    <ListItemButton
-                                      onClick={() =>
-                                        handleCollectionGroupToggle(database.id)
-                                      }
-                                      sx={{ py: 0.5, pl: 3 }}
-                                    >
-                                      <ListItemIcon sx={{ minWidth: 32 }}>
-                                        {expandedCollectionGroups.has(
-                                          database.id
-                                        ) ? (
-                                          <ExpandMoreIcon />
-                                        ) : (
-                                          <ChevronRightIcon />
-                                        )}
-                                      </ListItemIcon>
-                                      <ListItemIcon sx={{ minWidth: 32 }}>
-                                        <FolderIcon />
-                                      </ListItemIcon>
-                                      <ListItemText
-                                        primary={
-                                          <Typography
-                                            variant="body2"
-                                            sx={{
-                                              overflow: "hidden",
-                                              textOverflow: "ellipsis",
-                                              whiteSpace: "nowrap",
-                                            }}
-                                          >
-                                            Collections ({dbCollections.length})
-                                          </Typography>
-                                        }
-                                      />
-                                    </ListItemButton>
-                                  </ListItem>
-
-                                  <Collapse
-                                    in={expandedCollectionGroups.has(
-                                      database.id
-                                    )}
-                                    timeout="auto"
-                                    unmountOnExit
+                              <List dense disablePadding>
+                                {/* Collections Group */}
+                                <ListItem disablePadding>
+                                  <ListItemButton
+                                    onClick={() =>
+                                      handleCollectionGroupToggle(database.id)
+                                    }
+                                    sx={{ py: 0.5, pl: 3 }}
                                   >
-                                    <List dense disablePadding>
-                                      {dbCollections.length === 0 ? (
-                                        <Box
-                                          sx={{
-                                            py: 1,
-                                            pl: 9,
-                                            color: "text.secondary",
-                                          }}
-                                        >
-                                          <Typography variant="caption">
-                                            No collections found
-                                          </Typography>
-                                        </Box>
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                      {expandedCollectionGroups.has(
+                                        database.id
+                                      ) ? (
+                                        <ExpandMoreIcon />
                                       ) : (
-                                        dbCollections.map((collection) => (
-                                          <ListItem
-                                            key={collection.name}
-                                            disablePadding
-                                          >
-                                            <ListItemButton
-                                              onClick={() =>
-                                                handleCollectionClick(
-                                                  database.id,
-                                                  collection
-                                                )
-                                              }
-                                              sx={{ py: 0.25, pl: 7.5 }}
-                                            >
-                                              <ListItemIcon
-                                                sx={{ minWidth: 28 }}
-                                              >
-                                                <CollectionIcon fontSize="small" />
-                                              </ListItemIcon>
-                                              <ListItemText
-                                                primary={
-                                                  <Box
-                                                    sx={{
-                                                      display: "flex",
-                                                      alignItems: "center",
-                                                      gap: 1,
-                                                      overflow: "hidden",
-                                                    }}
-                                                  >
-                                                    <Typography
-                                                      variant="body2"
-                                                      fontSize="0.8rem"
-                                                      sx={{
-                                                        overflow: "hidden",
-                                                        textOverflow:
-                                                          "ellipsis",
-                                                        whiteSpace: "nowrap",
-                                                      }}
-                                                    >
-                                                      {collection.name}
-                                                    </Typography>
-                                                    {collection.options
-                                                      ?.capped && (
-                                                      <Chip
-                                                        label="Capped"
-                                                        size="small"
-                                                        variant="outlined"
-                                                        color="warning"
-                                                        sx={{
-                                                          fontSize: "0.65rem",
-                                                          height: 14,
-                                                          flexShrink: 0,
-                                                        }}
-                                                      />
-                                                    )}
-                                                  </Box>
-                                                }
-                                              />
-                                            </ListItemButton>
-                                          </ListItem>
-                                        ))
+                                        <ChevronRightIcon />
                                       )}
-                                    </List>
-                                  </Collapse>
-
-                                  {/* Views Group */}
-                                  <ListItem disablePadding>
-                                    <ListItemButton
-                                      onClick={() =>
-                                        handleViewGroupToggle(database.id)
-                                      }
-                                      sx={{ py: 0.5, pl: 3 }}
-                                    >
-                                      <ListItemIcon sx={{ minWidth: 32 }}>
-                                        {expandedViewGroups.has(database.id) ? (
-                                          <ExpandMoreIcon />
-                                        ) : (
-                                          <ChevronRightIcon />
-                                        )}
-                                      </ListItemIcon>
-                                      <ListItemIcon sx={{ minWidth: 32 }}>
-                                        <FolderIcon />
-                                      </ListItemIcon>
-                                      <ListItemText
-                                        primary={
-                                          <Typography
-                                            variant="body2"
-                                            sx={{
-                                              overflow: "hidden",
-                                              textOverflow: "ellipsis",
-                                              whiteSpace: "nowrap",
-                                            }}
-                                          >
-                                            Views ({dbViews.length})
-                                          </Typography>
-                                        }
-                                      />
-                                    </ListItemButton>
-                                  </ListItem>
-
-                                  <Collapse
-                                    in={expandedViewGroups.has(database.id)}
-                                    timeout="auto"
-                                    unmountOnExit
-                                  >
-                                    <List dense disablePadding>
-                                      {dbViews.length === 0 ? (
-                                        <Box
+                                    </ListItemIcon>
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                      <FolderIcon />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={
+                                        <Typography
+                                          variant="body2"
                                           sx={{
-                                            py: 1,
-                                            pl: 9,
-                                            color: "text.secondary",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
                                           }}
                                         >
-                                          <Typography variant="caption">
-                                            No views found
-                                          </Typography>
-                                        </Box>
-                                      ) : (
-                                        dbViews.map((view) => (
-                                          <ListItem
-                                            key={view.name}
-                                            disablePadding
+                                          Collections (
+                                          {isLoadingData
+                                            ? "..."
+                                            : dbCollections.length}
+                                          )
+                                        </Typography>
+                                      }
+                                    />
+                                  </ListItemButton>
+                                </ListItem>
+
+                                <Collapse
+                                  in={expandedCollectionGroups.has(database.id)}
+                                  timeout="auto"
+                                  unmountOnExit
+                                >
+                                  <List dense disablePadding>
+                                    {isLoadingData ? (
+                                      renderCollectionSkeletonItems()
+                                    ) : dbCollections.length === 0 ? (
+                                      <Box
+                                        sx={{
+                                          py: 1,
+                                          pl: 9,
+                                          color: "text.secondary",
+                                        }}
+                                      >
+                                        <Typography variant="caption">
+                                          No collections found
+                                        </Typography>
+                                      </Box>
+                                    ) : (
+                                      dbCollections.map((collection) => (
+                                        <ListItem
+                                          key={collection.name}
+                                          disablePadding
+                                        >
+                                          <ListItemButton
+                                            onClick={() =>
+                                              handleCollectionClick(
+                                                database.id,
+                                                collection
+                                              )
+                                            }
+                                            sx={{ py: 0.25, pl: 7.5 }}
                                           >
-                                            <ListItemButton
-                                              sx={{ py: 0.25, pl: 7.5 }}
-                                            >
-                                              <ListItemIcon
-                                                sx={{ minWidth: 28 }}
-                                              >
-                                                <ViewIcon fontSize="small" />
-                                              </ListItemIcon>
-                                              <ListItemText
-                                                primary={
+                                            <ListItemIcon sx={{ minWidth: 28 }}>
+                                              <CollectionIcon fontSize="small" />
+                                            </ListItemIcon>
+                                            <ListItemText
+                                              primary={
+                                                <Box
+                                                  sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    overflow: "hidden",
+                                                  }}
+                                                >
                                                   <Typography
                                                     variant="body2"
                                                     fontSize="0.8rem"
@@ -647,18 +617,125 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                       whiteSpace: "nowrap",
                                                     }}
                                                   >
-                                                    {view.name}
+                                                    {collection.name}
                                                   </Typography>
-                                                }
-                                              />
-                                            </ListItemButton>
-                                          </ListItem>
-                                        ))
+                                                  {collection.options
+                                                    ?.capped && (
+                                                    <Chip
+                                                      label="Capped"
+                                                      size="small"
+                                                      variant="outlined"
+                                                      color="warning"
+                                                      sx={{
+                                                        fontSize: "0.65rem",
+                                                        height: 14,
+                                                        flexShrink: 0,
+                                                      }}
+                                                    />
+                                                  )}
+                                                </Box>
+                                              }
+                                            />
+                                          </ListItemButton>
+                                        </ListItem>
+                                      ))
+                                    )}
+                                  </List>
+                                </Collapse>
+
+                                {/* Views Group */}
+                                <ListItem disablePadding>
+                                  <ListItemButton
+                                    onClick={() =>
+                                      handleViewGroupToggle(database.id)
+                                    }
+                                    sx={{ py: 0.5, pl: 3 }}
+                                  >
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                      {expandedViewGroups.has(database.id) ? (
+                                        <ExpandMoreIcon />
+                                      ) : (
+                                        <ChevronRightIcon />
                                       )}
-                                    </List>
-                                  </Collapse>
-                                </List>
-                              )}
+                                    </ListItemIcon>
+                                    <ListItemIcon sx={{ minWidth: 32 }}>
+                                      <FolderIcon />
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={
+                                        <Typography
+                                          variant="body2"
+                                          sx={{
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          Views (
+                                          {isLoadingData
+                                            ? "..."
+                                            : dbViews.length}
+                                          )
+                                        </Typography>
+                                      }
+                                    />
+                                  </ListItemButton>
+                                </ListItem>
+
+                                <Collapse
+                                  in={expandedViewGroups.has(database.id)}
+                                  timeout="auto"
+                                  unmountOnExit
+                                >
+                                  <List dense disablePadding>
+                                    {isLoadingData ? (
+                                      renderCollectionSkeletonItems()
+                                    ) : dbViews.length === 0 ? (
+                                      <Box
+                                        sx={{
+                                          py: 1,
+                                          pl: 9,
+                                          color: "text.secondary",
+                                        }}
+                                      >
+                                        <Typography variant="caption">
+                                          No views found
+                                        </Typography>
+                                      </Box>
+                                    ) : (
+                                      dbViews.map((view) => (
+                                        <ListItem
+                                          key={view.name}
+                                          disablePadding
+                                        >
+                                          <ListItemButton
+                                            sx={{ py: 0.25, pl: 7.5 }}
+                                          >
+                                            <ListItemIcon sx={{ minWidth: 28 }}>
+                                              <ViewIcon fontSize="small" />
+                                            </ListItemIcon>
+                                            <ListItemText
+                                              primary={
+                                                <Typography
+                                                  variant="body2"
+                                                  fontSize="0.8rem"
+                                                  sx={{
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                    whiteSpace: "nowrap",
+                                                  }}
+                                                >
+                                                  {view.name}
+                                                </Typography>
+                                              }
+                                            />
+                                          </ListItemButton>
+                                        </ListItem>
+                                      ))
+                                    )}
+                                  </List>
+                                </Collapse>
+                              </List>
                             </Collapse>
                           </React.Fragment>
                         );
@@ -667,10 +744,16 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                   </Collapse>
                 </React.Fragment>
               );
-            })}
-          </List>
-        )}
+            })
+          )}
+        </List>
       </Box>
+
+      <CreateDatabaseDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onSuccess={handleDatabaseCreated}
+      />
     </Box>
   );
 };

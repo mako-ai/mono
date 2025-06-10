@@ -16,7 +16,8 @@ import { Close as CloseIcon } from "@mui/icons-material";
 import ViewExplorer from "../components/ViewExplorer";
 import ViewEditor, { ViewEditorRef } from "../components/ViewEditor";
 import ResultsTable from "../components/ResultsTable";
-import { Chat } from "../components/Chat";
+import Chat from "../components/Chat/Chat";
+import { useWorkspace } from "../contexts/workspace-context";
 // @ts-ignore – types will be available once the package is installed
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -54,6 +55,8 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 }));
 
 function Views() {
+  const { currentWorkspace } = useWorkspace();
+  const [views, setViews] = useState<ViewDefinition[]>([]);
   const [selectedView, setSelectedView] = useState<string>("");
   const [viewDefinition, setViewDefinition] = useState<ViewDefinition | null>(
     null

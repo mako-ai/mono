@@ -58,11 +58,20 @@ function Editor() {
   const [availableDatabases, setAvailableDatabases] = useState<
     {
       id: string;
-      localId: string;
       name: string;
       description: string;
       database: string;
+      type: string;
       active: boolean;
+      lastConnectedAt?: string;
+      connection: {
+        host?: string;
+        port?: number;
+        connectionString?: string;
+      };
+      displayName: string;
+      hostKey: string;
+      hostName: string;
     }[]
   >([]);
 
@@ -112,25 +121,26 @@ function Editor() {
     return () => clearInterval(interval);
   }, [activeConsoleId, consoleTabs.length, setActiveEditorContent]);
 
-  // Fetch databases once
+  // Fetch databases when workspace changes
   useEffect(() => {
     const fetchDatabases = async () => {
+      if (!currentWorkspace) return;
+
       try {
-        const response = await fetch("/api/databases/servers");
+        const response = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases`
+        );
         const data = await response.json();
         if (data.success) {
-          const all: typeof availableDatabases = [];
-          data.data.forEach((srv: any) => {
-            all.push(...srv.databases);
-          });
-          setAvailableDatabases(all);
+          // Use the databases directly from the new API structure
+          setAvailableDatabases(data.data);
         }
       } catch (e) {
         console.error("Failed to fetch databases list", e);
       }
     };
     fetchDatabases();
-  }, []);
+  }, [currentWorkspace]);
 
   /* ------------------------ Console Actions ------------------------ */
   const handleTabChange = (_: React.SyntheticEvent, newValue: string) => {
@@ -156,16 +166,39 @@ function Editor() {
     databaseId?: string
   ) => {
     if (!contentToExecute.trim()) return;
+
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
+    if (!databaseId) {
+      setErrorMessage("No database selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
     setIsExecuting(true);
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: contentToExecute, databaseId }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: contentToExecute }),
+        }
+      );
       const data = await response.json();
       if (data.success) {
-        setTabResults((prev) => ({ ...prev, [tabId]: data.data }));
+        setTabResults((prev) => ({
+          ...prev,
+          [tabId]: {
+            results: data.data,
+            executedAt: new Date().toISOString(),
+            resultCount: Array.isArray(data.data) ? data.data.length : 1,
+          },
+        }));
       } else {
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
