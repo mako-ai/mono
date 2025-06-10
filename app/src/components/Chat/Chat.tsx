@@ -26,6 +26,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { useCustomPrompt } from "./CustomPrompt";
+import { useWorkspace } from "../../contexts/workspace-context";
 
 const Chat: React.FC<ChatProps> = () => {
   // Get state and actions from Zustand store
@@ -95,6 +96,9 @@ const Chat: React.FC<ChatProps> = () => {
   // Get custom prompt content
   const { content: customPromptContent } = useCustomPrompt();
 
+  // Get workspace context
+  const { currentWorkspace } = useWorkspace();
+
   // Initialize OpenAI client
   useEffect(() => {
     const apiKey = localStorage.getItem("openai_api_key");
@@ -125,9 +129,13 @@ const Chat: React.FC<ChatProps> = () => {
 
   // Fetch collections and views
   const fetchCollections = useCallback(async () => {
+    if (!currentWorkspace) return;
+
     try {
       // 1) Get list of databases defined in the backend configuration
-      const dbRes = await fetch("/api/databases");
+      const dbRes = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases`
+      );
       const dbData = await dbRes.json();
       if (!dbData.success) return;
 
@@ -140,7 +148,7 @@ const Chat: React.FC<ChatProps> = () => {
 
         try {
           const colRes = await fetch(
-            `/api/databases/${encodeURIComponent(dbId)}/collections`
+            `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections`
           );
           const colData = await colRes.json();
           if (!colData.success) continue;
@@ -153,7 +161,7 @@ const Chat: React.FC<ChatProps> = () => {
             try {
               // Get stats (count)
               const infoRes = await fetch(
-                `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`
+                `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}`
               );
               const infoData = await infoRes.json();
               if (infoData.success) {
@@ -166,7 +174,7 @@ const Chat: React.FC<ChatProps> = () => {
             try {
               // Get sample docs + schema
               const sampleRes = await fetch(
-                `/api/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`
+                `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/collections/${encodeURIComponent(col.name)}/sample?size=3`
               );
               const sampleData = await sampleRes.json();
               if (sampleData.success) {
@@ -199,11 +207,15 @@ const Chat: React.FC<ChatProps> = () => {
     } catch (error) {
       console.error("Failed to fetch collections:", error);
     }
-  }, []);
+  }, [currentWorkspace]);
 
   const fetchViews = useCallback(async () => {
+    if (!currentWorkspace) return;
+
     try {
-      const dbRes = await fetch("/api/databases");
+      const dbRes = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases`
+      );
       const dbData = await dbRes.json();
       if (!dbData.success) return;
 
@@ -214,7 +226,7 @@ const Chat: React.FC<ChatProps> = () => {
         const dbName = db.name || dbId;
         try {
           const viewRes = await fetch(
-            `/api/databases/${encodeURIComponent(dbId)}/views`
+            `/api/workspaces/${currentWorkspace.id}/databases/${encodeURIComponent(dbId)}/views`
           );
           const viewData = await viewRes.json();
           if (!viewData.success) continue;
@@ -240,7 +252,7 @@ const Chat: React.FC<ChatProps> = () => {
     } catch (error) {
       console.error("Failed to fetch views:", error);
     }
-  }, []);
+  }, [currentWorkspace]);
 
   // Initial fetch on mount
   useEffect(() => {
@@ -457,14 +469,25 @@ Document Count: ${collection.documentCount}${schemaDescription}${sampleDocuments
       return null;
     }
 
+    if (!currentWorkspace) {
+      return { success: false, error: "No workspace selected" };
+    }
+
+    if (!consoleTab.databaseId) {
+      return { success: false, error: "No database selected for this console" };
+    }
+
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content: consoleTab.content }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${consoleTab.databaseId}/execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query: consoleTab.content }),
+        }
+      );
 
       const data = await response.json();
       return data;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   TextField,
@@ -15,9 +15,28 @@ import {
   MenuItem,
   InputLabel,
   Button,
+  Menu,
+  ListItemIcon,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import BuildIcon from "@mui/icons-material/Build";
+import BuildIcon from "@mui/icons-material/BuildOutlined";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { tomorrow } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { prism } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  ExpandMore,
+  ExpandLess,
+  ContentCopy,
+  Check,
+  History as HistoryIcon,
+  Add as AddIcon,
+  Chat as ChatIcon,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
+import { useTheme as useMuiTheme } from "@mui/material/styles";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface Message {
   role: "user" | "assistant";
@@ -38,6 +57,7 @@ interface ChatSessionMeta {
 }
 
 const Chat2: React.FC = () => {
+  const { currentWorkspace } = useWorkspace();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -51,8 +71,10 @@ const Chat2: React.FC = () => {
   // Fetch sessions list on mount
   useEffect(() => {
     const fetchSessions = async () => {
+      if (!currentWorkspace) return;
+
       try {
-        const res = await fetch("/api/chats");
+        const res = await fetch(`/api/workspaces/${currentWorkspace.id}/chats`);
         if (res.ok) {
           const data = await res.json();
           setSessions(data);
@@ -66,17 +88,19 @@ const Chat2: React.FC = () => {
       }
     };
     fetchSessions();
-  }, []);
+  }, [currentWorkspace]);
 
   // Load messages when sessionId changes
   useEffect(() => {
     const loadSession = async () => {
-      if (!sessionId) {
+      if (!sessionId || !currentWorkspace) {
         setMessages([]);
         return;
       }
       try {
-        const res = await fetch(`/api/chats/${sessionId}`);
+        const res = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/chats/${sessionId}`
+        );
         if (res.ok) {
           const data = await res.json();
           setMessages(data.messages || []);
@@ -86,11 +110,13 @@ const Chat2: React.FC = () => {
       }
     };
     loadSession();
-  }, [sessionId]);
+  }, [sessionId, currentWorkspace]);
 
   const createNewSession = async () => {
+    if (!currentWorkspace) return;
+
     try {
-      const res = await fetch("/api/chats", {
+      const res = await fetch(`/api/workspaces/${currentWorkspace.id}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: "New Chat" }),
@@ -99,7 +125,9 @@ const Chat2: React.FC = () => {
         const data = await res.json();
         const newId = data.chatId as string;
         // Refresh sessions list
-        const sessionsRes = await fetch("/api/chats");
+        const sessionsRes = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/chats`
+        );
         if (sessionsRes.ok) {
           const sessionsData = await sessionsRes.json();
           setSessions(sessionsData);
@@ -211,7 +239,7 @@ const Chat2: React.FC = () => {
   };
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !currentWorkspace) return;
 
     const userMessage = input.trim();
     const newMessages: Message[] = [
@@ -335,7 +363,7 @@ const Chat2: React.FC = () => {
         <IconButton
           color="primary"
           onClick={sendMessage}
-          disabled={loading || !input.trim() || !sessionId}
+          disabled={loading || !input.trim() || !sessionId || !currentWorkspace}
         >
           <SendIcon />
         </IconButton>

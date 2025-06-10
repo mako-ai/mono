@@ -38,20 +38,15 @@ interface QueryResult {
 
 interface Database {
   id: string;
-  localId: string;
   name: string;
   description: string;
   database: string;
+  type: string;
   active: boolean;
-}
-
-interface Server {
-  id: string;
-  name: string;
-  description: string;
-  connectionString: string;
-  active: boolean;
-  databases: Database[];
+  lastConnectedAt?: string;
+  displayName: string;
+  hostKey: string;
+  hostName: string;
 }
 
 // Styled PanelResizeHandle components
@@ -174,17 +169,17 @@ function Databases() {
   // Fetch available databases on mount
   useEffect(() => {
     const fetchDatabases = async () => {
+      if (!currentWorkspace) return;
+
       try {
-        const response = await fetch("/api/databases/servers");
+        const response = await fetch(
+          `/api/workspaces/${currentWorkspace.id}/databases`
+        );
         const data = await response.json();
 
         if (data.success) {
-          // Extract all databases from all servers
-          const allDatabases: Database[] = [];
-          data.data.forEach((server: Server) => {
-            allDatabases.push(...server.databases);
-          });
-          setAvailableDatabases(allDatabases);
+          // Use the databases directly from the new API structure
+          setAvailableDatabases(data.data);
         }
       } catch (error) {
         console.error("Failed to fetch databases:", error);
@@ -192,29 +187,45 @@ function Databases() {
     };
 
     fetchDatabases();
-  }, []);
+  }, [currentWorkspace]);
 
   // Replace handleQueryExecute with handleConsoleExecute
   const handleConsoleExecute = async (query: string, databaseId?: string) => {
     if (!query.trim()) return;
 
+    if (!currentWorkspace) {
+      setErrorMessage("No workspace selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
+    if (!databaseId) {
+      setErrorMessage("No database selected");
+      setErrorModalOpen(true);
+      return;
+    }
+
     setIsExecuting(true);
     try {
-      const response = await fetch(`/api/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: query,
-          databaseId: databaseId,
-        }),
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ query }),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        setQueryResults(data.data);
+        setQueryResults({
+          results: data.data,
+          executedAt: new Date().toISOString(),
+          resultCount: Array.isArray(data.data) ? data.data.length : 1,
+        });
       } else {
         console.error("Query execution failed:", data.error);
         setErrorMessage(JSON.stringify(data.error, null, 2));

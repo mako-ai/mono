@@ -3,15 +3,26 @@ import { nanoid } from "nanoid";
 import * as crypto from "crypto";
 
 // Encryption helper functions
-const ENCRYPTION_KEY =
-  process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString("hex");
+let _encryptionKey: string | null = null;
+
+function getEncryptionKey(): string {
+  if (!_encryptionKey) {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) {
+      throw new Error("ENCRYPTION_KEY environment variable is not set");
+    }
+    _encryptionKey = key;
+  }
+  return _encryptionKey;
+}
+
 const IV_LENGTH = 16;
 
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(
     "aes-256-cbc",
-    Buffer.from(ENCRYPTION_KEY, "hex"),
+    Buffer.from(getEncryptionKey(), "hex"),
     iv
   );
   let encrypted = cipher.update(text);
@@ -25,7 +36,7 @@ function decrypt(text: string): string {
   const encryptedText = Buffer.from(textParts.join(":"), "hex");
   const decipher = crypto.createDecipheriv(
     "aes-256-cbc",
-    Buffer.from(ENCRYPTION_KEY, "hex"),
+    Buffer.from(getEncryptionKey(), "hex"),
     iv
   );
   let decrypted = decipher.update(encryptedText);
@@ -197,6 +208,23 @@ export interface ISavedConsole extends Document {
   updatedAt: Date;
   lastExecutedAt?: Date;
   executionCount: number;
+}
+
+/**
+ * Chat model interface
+ */
+export interface IChat extends Document {
+  _id: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  title: string;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
+  createdBy: string;
+  titleGenerated: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
@@ -535,6 +563,53 @@ SavedConsoleSchema.index({ workspaceId: 1, folderId: 1 });
 SavedConsoleSchema.index({ workspaceId: 1, createdBy: 1, isPrivate: 1 });
 SavedConsoleSchema.index({ databaseId: 1 }, { sparse: true }); // Sparse index since databaseId is optional
 
+/**
+ * Chat Schema
+ */
+const ChatSchema = new Schema<IChat>(
+  {
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    messages: [
+      {
+        role: {
+          type: String,
+          enum: ["user", "assistant"],
+          required: true,
+        },
+        content: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+    createdBy: {
+      type: String,
+      ref: "User",
+      required: true,
+    },
+    titleGenerated: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Indexes
+ChatSchema.index({ workspaceId: 1 });
+ChatSchema.index({ workspaceId: 1, title: 1 });
+
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
   "Workspace",
@@ -561,3 +636,4 @@ export const SavedConsole = mongoose.model<ISavedConsole>(
   "SavedConsole",
   SavedConsoleSchema
 );
+export const Chat = mongoose.model<IChat>("Chat", ChatSchema);
