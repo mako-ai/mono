@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Generated files
+*.d.ts
+
+# Configuration files
+*.config.js
+*.config.ts
+.eslintrc.cjs
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Logs
+*.log
+
+# Environment files
+.env* 

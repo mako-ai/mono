@@ -145,7 +145,7 @@ export class DatabaseConnectionService {
    * Close all connections
    */
   async closeAllConnections(): Promise<void> {
-    const promises = Array.from(this.connections.keys()).map((id) =>
+    const promises = Array.from(this.connections.keys()).map(id =>
       this.closeConnection(id),
     );
     await Promise.all(promises);
@@ -229,7 +229,7 @@ export class DatabaseConnectionService {
   private async executeMongoDBQuery(
     database: IDatabase,
     query: any,
-    options?: any,
+    _options?: any,
   ): Promise<QueryResult> {
     const client = (await this.getConnection(database)) as MongoClient;
     const db = client.db(database.connection.database);
@@ -345,7 +345,7 @@ export class DatabaseConnectionService {
             return (target as Db)
               .listCollections(filter, { nameOnly: true })
               .toArray()
-              .then((infos) => infos.map((info) => info.name));
+              .then(infos => infos.map(info => info.name));
           };
         }
 
@@ -367,7 +367,8 @@ export class DatabaseConnectionService {
     try {
       // Execute the query content directly - much simpler and more reliable
       console.log('⚡ Evaluating query...');
-      const db = dbProxy; // Make db available in eval context
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const db = dbProxy; // Make db available in eval context for evaluated queries
       const result = eval(query);
 
       console.log(`📤 Raw result type: ${typeof result}`);

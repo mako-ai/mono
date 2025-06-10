@@ -1,9 +1,8 @@
-import { Hono } from 'hono';
+import { Hono, Context } from 'hono';
 import { ConsoleManager } from '../utils/console-manager';
 import { authMiddleware } from '../auth/auth.middleware';
 import { Database } from '../database/workspace-schema';
 import { workspaceService } from '../services/workspace.service';
-import { Context } from 'hono';
 
 export const consoleRoutes = new Hono();
 const consoleManager = new ConsoleManager();

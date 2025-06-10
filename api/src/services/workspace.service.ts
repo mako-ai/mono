@@ -34,7 +34,7 @@ export class WorkspaceService {
 
     // Start a session for transaction
     const session = await Workspace.db.startSession();
-    session.startTransaction();
+    await session.startTransaction();
 
     try {
       // Create workspace
@@ -72,7 +72,7 @@ export class WorkspaceService {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -162,7 +162,7 @@ export class WorkspaceService {
    */
   async deleteWorkspace(workspaceId: string): Promise<boolean> {
     const session = await Workspace.db.startSession();
-    session.startTransaction();
+    await session.startTransaction();
 
     try {
       // Delete workspace
@@ -191,7 +191,7 @@ export class WorkspaceService {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 
@@ -296,7 +296,7 @@ export class WorkspaceService {
     }
 
     const session = await WorkspaceMember.db.startSession();
-    session.startTransaction();
+    await session.startTransaction();
 
     try {
       // Mark invite as accepted
@@ -317,7 +317,7 @@ export class WorkspaceService {
       await session.abortTransaction();
       throw error;
     } finally {
-      session.endSession();
+      await session.endSession();
     }
   }
 

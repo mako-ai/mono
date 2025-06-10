@@ -18,6 +18,7 @@ export class QueryExecutor {
       );
 
       // Create a proxy db object that can access any collection dynamically
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const db = new Proxy(dbInstance, {
         get: (target, prop) => {
           // First check if this property exists on the target (database methods)
@@ -43,7 +44,7 @@ export class QueryExecutor {
               return (target as Db)
                 .listCollections(filter, { nameOnly: true })
                 .toArray()
-                .then((infos) => infos.map((info) => info.name));
+                .then(infos => infos.map(info => info.name));
             };
           }
 

@@ -30,9 +30,10 @@ if (fs.existsSync(envPath)) {
 }
 
 // Connect to MongoDB
-connectDatabase().catch((error) => {
+connectDatabase().catch(error => {
   console.error('Failed to connect to database:', error);
-  process.exit(1);
+  // Re-throw to allow the unhandled rejection handler (or the runtime) to exit appropriately
+  throw error;
 });
 
 const app = new Hono();
@@ -49,7 +50,7 @@ app.use(
 );
 
 // Health check
-app.get('/health', (c) => {
+app.get('/health', c => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
