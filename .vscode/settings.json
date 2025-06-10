@@ -1,5 +1,48 @@
 {
   "terminal.integrated.defaultProfile.linux": "zsh",
   "terminal.integrated.defaultProfile.osx": "zsh",
-  "terminal.integrated.shellIntegration.enabled": false
+  "terminal.integrated.shellIntegration.enabled": false,
+  
+  // ESLint configuration
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact"
+  ],
+  "eslint.workingDirectories": [
+    { "directory": ".", "changeProcessCWD": true },
+    { "directory": "./app", "changeProcessCWD": true },
+    { "directory": "./api", "changeProcessCWD": true }
+  ],
+  
+  // Editor settings for consistent formatting
+  "editor.formatOnSave": false, // Disable default formatter on save to avoid conflicts with ESLint
+  "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  },
+  
+  // Optional: Show ESLint status in the status bar
+  "eslint.alwaysShowStatus": true,
+  
+  // Optional: Auto-fix on paste
+  "editor.formatOnPaste": false,
+  
+  // Files to exclude from ESLint
+  "eslint.options": {
+    "ignorePatterns": ["node_modules", "dist", "build", "coverage", "*.config.js"]
+  }
 }
