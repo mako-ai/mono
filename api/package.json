@@ -41,7 +41,7 @@
     "@types/pg": "^8.15.4",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
-    "eslint": "^9.28.0",
+    "eslint": "^8.57.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
   }

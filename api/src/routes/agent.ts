@@ -385,7 +385,7 @@ agentRoutes.post("/stream", async c => {
       if (existingChat && Array.isArray(existingChat.messages)) {
         existingMessages = existingChat.messages as any[];
       }
-    } catch (_) {
+    } catch {
       // Ignore JSON parse errors – body may legitimately be empty
     }
   }

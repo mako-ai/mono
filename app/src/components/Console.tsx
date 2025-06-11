@@ -105,25 +105,32 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     return "";
   }, [initialDatabaseId, databases]);
 
-  // Set default database only if user hasn't manually selected one
+  // On first load (or when the list of databases changes) pick a sensible
+  // default connection **only** if the user hasn't interacted with the
+  // dropdown yet.
   useEffect(() => {
     if (
-      defaultDatabaseId &&
       !hasUserSelectedDatabaseRef.current &&
-      !selectedDatabaseId
+      !selectedDatabaseId &&
+      defaultDatabaseId
     ) {
       setSelectedDatabaseId(defaultDatabaseId);
     }
   }, [defaultDatabaseId, selectedDatabaseId]);
 
-  // Handle when initialDatabaseId prop changes (e.g., switching consoles)
+  // Sync the selected database with the incoming prop **only** when the user
+  // has **not** explicitly chosen a connection. This prevents the dropdown
+  // from constantly "blinking" back to the prop-driven value after every
+  // keystroke or parent re-render.
   useEffect(() => {
-    if (initialDatabaseId && initialDatabaseId !== selectedDatabaseId) {
-      // Reset user selection flag when props change (switching consoles)
-      hasUserSelectedDatabaseRef.current = false;
+    if (!initialDatabaseId) return; // ignore empty values
+
+    // If the parent changed the default database (e.g., because we switched
+    // files/tabs) and the user hasn't made a manual choice yet, adopt it.
+    if (!hasUserSelectedDatabaseRef.current) {
       setSelectedDatabaseId(initialDatabaseId);
     }
-  }, [initialDatabaseId, selectedDatabaseId]);
+  }, [initialDatabaseId]);
 
   // Notify parent whenever selectedDatabaseId changes (with debouncing to prevent loops)
   const handleDatabaseChange = useCallback(
@@ -146,29 +153,35 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const lastInitialContentRef = useRef(initialContent);
 
   useEffect(() => {
-    // Only reset if this is genuinely a different document (not a feedback loop)
-    if (initialContent !== lastInitialContentRef.current) {
-      lastInitialContentRef.current = initialContent;
-
-      if (editorRef.current) {
-        const model = editorRef.current.getModel();
-        if (model) {
-          // Mark as programmatic update to prevent feedback
-          isProgrammaticUpdateRef.current = true;
-          model.setValue(initialContent);
-          isProgrammaticUpdateRef.current = false;
-
-          // Position cursor at the end
-          const lineCount = model.getLineCount();
-          const lastLineLength = model.getLineLength(lineCount);
-          editorRef.current.setPosition({
-            lineNumber: lineCount,
-            column: lastLineLength + 1,
-          });
-        }
-      } else {
-        // Editor not mounted yet, force remount with new content
+    if (!editorRef.current) {
+      // Editor not mounted yet, force remount with new content when it does appear
+      if (initialContent !== lastInitialContentRef.current) {
+        lastInitialContentRef.current = initialContent;
         setEditorKey(prev => prev + 1);
+      }
+      return;
+    }
+
+    const model = editorRef.current.getModel();
+    const currentContent = model?.getValue() ?? "";
+
+    // Update the editor only when the incoming content is **actually** different
+    // from what the user currently sees. This prevents unnecessary model.setValue
+    // calls that would otherwise clear the undo stack.
+    if (initialContent !== currentContent) {
+      lastInitialContentRef.current = initialContent;
+      if (model) {
+        isProgrammaticUpdateRef.current = true;
+        model.setValue(initialContent);
+        isProgrammaticUpdateRef.current = false;
+
+        // Move the cursor to the end of the newly inserted content
+        const lineCount = model.getLineCount();
+        const lastLineLength = model.getLineLength(lineCount);
+        editorRef.current.setPosition({
+          lineNumber: lineCount,
+          column: lastLineLength + 1,
+        });
       }
     }
   }, [initialContent]);

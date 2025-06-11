@@ -47,7 +47,7 @@ chatsRoutes.post("/", async c => {
     let body: any = {};
     try {
       body = await c.req.json();
-    } catch (_) {
+    } catch {
       // Ignore JSON parse errors – request body can be empty for this endpoint
     }
 
@@ -127,7 +127,7 @@ chatsRoutes.put("/:id", async c => {
     let body: any = {};
     try {
       body = await c.req.json();
-    } catch (_) {
+    } catch {
       // Ignore JSON parse errors – request body can be empty for this endpoint
     }
 

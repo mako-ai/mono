@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { setCookie } from "hono/cookie";
+import { setCookie, getCookie } from "hono/cookie";
 import { generateState, generateCodeVerifier } from "arctic";
 import { lucia } from "./lucia";
 import { getGoogle, getGitHub } from "./arctic";
@@ -197,9 +197,10 @@ authRoutes.get("/google", async c => {
     sameSite: "Lax",
   });
 
-  const url = await getGoogle().createAuthorizationURL(state, codeVerifier, {
-    scopes: ["openid", "email"],
-  });
+  const url = await getGoogle().createAuthorizationURL(state, codeVerifier, [
+    "openid",
+    "email",
+  ]);
 
   return c.redirect(url.toString());
 });
@@ -211,8 +212,8 @@ authRoutes.get("/google/callback", async c => {
   try {
     const code = c.req.query("code");
     const state = c.req.query("state");
-    const storedState = c.req.cookie("google_oauth_state");
-    const codeVerifier = c.req.cookie("google_code_verifier");
+    const storedState = getCookie(c, "google_oauth_state");
+    const codeVerifier = getCookie(c, "google_code_verifier");
 
     if (
       !code ||
@@ -229,21 +230,59 @@ authRoutes.get("/google/callback", async c => {
       codeVerifier,
     );
 
-    // Get user info from Google
-    const response = await fetch(
-      "https://openidconnect.googleapis.com/v1/userinfo",
-      {
-        headers: {
-          Authorization: `Bearer ${tokens.accessToken}`,
-        },
-      },
-    );
+    // Attempt to extract user info from ID token first to reduce external calls
+    let googleUser: any;
 
-    const googleUser: any = await response.json();
+    const rawIdToken =
+      typeof tokens.idToken === "function" ? tokens.idToken() : tokens.idToken;
+
+    if (typeof rawIdToken === "string" && rawIdToken.includes(".")) {
+      try {
+        const payload = JSON.parse(
+          Buffer.from(rawIdToken.split(".")[1], "base64").toString("utf8"),
+        );
+        googleUser = {
+          sub: payload.sub,
+          email: payload.email,
+        };
+      } catch (err) {
+        console.error("Failed to parse Google ID token", err);
+      }
+    }
+
+    // Fallback to userinfo endpoint if needed
+    if (!googleUser || !googleUser.sub) {
+      const response = await fetch(
+        "https://openidconnect.googleapis.com/v1/userinfo",
+        {
+          headers: {
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        console.error(
+          "Failed to fetch Google user info",
+          await response.text(),
+        );
+        return c.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
+      }
+
+      googleUser = await response.json();
+    }
+
+    if (!googleUser.sub) {
+      console.error(
+        "Google user info did not contain 'sub' identifier after all attempts",
+        googleUser,
+      );
+      return c.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
+    }
 
     const { session } = await authService.handleOAuthCallback(
       "google",
-      googleUser.sub,
+      googleUser.sub.toString(),
       googleUser.email,
     );
 
@@ -280,9 +319,7 @@ authRoutes.get("/github", async c => {
     sameSite: "Lax",
   });
 
-  const url = await getGitHub().createAuthorizationURL(state, {
-    scopes: ["user:email"],
-  });
+  const url = await getGitHub().createAuthorizationURL(state, ["user:email"]);
 
   return c.redirect(url.toString());
 });
@@ -294,7 +331,7 @@ authRoutes.get("/github/callback", async c => {
   try {
     const code = c.req.query("code");
     const state = c.req.query("state");
-    const storedState = c.req.cookie("github_oauth_state");
+    const storedState = getCookie(c, "github_oauth_state");
 
     if (!code || !state || !storedState || state !== storedState) {
       return c.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
@@ -310,6 +347,11 @@ authRoutes.get("/github/callback", async c => {
     });
 
     const githubUser: any = await userResponse.json();
+
+    if (!githubUser.id) {
+      console.error("GitHub user info did not contain 'id'", githubUser);
+      return c.redirect(`${process.env.CLIENT_URL}/login?error=oauth_error`);
+    }
 
     // Get primary email
     const emailResponse = await fetch("https://api.github.com/user/emails", {
