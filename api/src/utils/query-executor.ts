@@ -141,7 +141,7 @@ export class QueryExecutor {
         serialisableResult = JSON.parse(
           JSON.stringify(finalResult, getCircularReplacer()),
         );
-      } catch (stringifyError) {
+      } catch {
         console.warn(
           "⚠️ Failed to fully serialise result, falling back to string representation",
         );

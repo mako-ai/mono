@@ -109,8 +109,8 @@ const executeToolCall = async (fc: any) => {
   let parsedArgs: any = {};
   try {
     parsedArgs = fc.arguments ? JSON.parse(fc.arguments) : {};
-  } catch (_) {
-    /* parsedArgs stays empty if JSON.parse fails */
+  } catch (e) {
+    console.error("Failed to parse arguments", fc.arguments, e);
   }
 
   let result: any;

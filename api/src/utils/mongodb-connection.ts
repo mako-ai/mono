@@ -36,7 +36,10 @@ class MongoDBConnection {
         await existing.client.db("admin").command({ ping: 1 });
         return existing.db;
       } catch (error) {
-        console.log(`Connection lost for ${dataSourceId}, reconnecting...`);
+        console.error(
+          `Connection lost for ${dataSourceId}, reconnecting...`,
+          error,
+        );
         this.connections.delete(dataSourceId);
       }
     }

@@ -451,9 +451,10 @@ export class DatabaseConnectionService {
         serializedResult = JSON.parse(
           JSON.stringify(finalResult, getCircularReplacer()),
         );
-      } catch (stringifyError) {
-        console.warn(
+      } catch (e) {
+        console.error(
           "⚠️ Failed to fully serialize result, falling back to string representation",
+          e,
         );
         serializedResult = String(finalResult);
       }

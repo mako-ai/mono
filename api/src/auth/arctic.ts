@@ -49,9 +49,7 @@ export function getGitHub(): GitHub {
     _github = new GitHub(
       process.env.GITHUB_CLIENT_ID,
       process.env.GITHUB_CLIENT_SECRET,
-      {
-        redirectURI: `${process.env.BASE_URL}/api/auth/github/callback`,
-      },
+      `${process.env.BASE_URL}/api/auth/github/callback`,
     );
   }
   return _github;

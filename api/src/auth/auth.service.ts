@@ -100,9 +100,23 @@ export class AuthService {
    */
   async handleOAuthCallback(
     provider: OAuthProvider,
-    providerUserId: string,
+    providerUserId: string | undefined,
     email?: string,
   ) {
+    // Provider user id is essential to uniquely identify an OAuth account. If it's missing we
+    // treat this as a fatal OAuth error instead of silently creating duplicate placeholder
+    // accounts that later collide on the unique email index.
+    if (!providerUserId) {
+      throw new Error(
+        "OAuth callback did not include a valid provider user id",
+      );
+    }
+
+    // Normalise provider-specific placeholder email when the real e-mail isn't available
+    // (e.g. when a GitHub account has no public e-mail).  The placeholder includes the
+    // provider user id so that it stays unique across different accounts.
+    const fallbackEmail = `${provider}_${providerUserId}@oauth.local`;
+
     // Check if OAuth account exists
     const existingAccount = await OAuthAccount.findOne({
       provider,
@@ -145,11 +159,11 @@ export class AuthService {
         });
       }
     } else {
-      // Create user without email (GitHub might not provide email)
+      // Create user with placeholder e-mail when none was supplied.
       const userId = generateId(15);
       user = await User.create({
         _id: userId,
-        email: `${provider}_${providerUserId}@oauth.local`,
+        email: fallbackEmail,
       });
     }
 
@@ -158,7 +172,7 @@ export class AuthService {
       userId: user._id,
       provider,
       providerUserId,
-      email,
+      email: email ?? fallbackEmail,
     });
 
     // Create default workspace for new user

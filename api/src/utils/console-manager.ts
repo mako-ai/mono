@@ -50,7 +50,7 @@ export class ConsoleManager {
             resolvedDir = dir;
             break;
           }
-        } catch (err) {
+        } catch {
           // Ignore permission errors etc.
         }
       }
