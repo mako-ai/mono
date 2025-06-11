@@ -2,9 +2,117 @@ import { dataSourceManager } from "./data-source-manager";
 import { CloseSyncService } from "./sync-close";
 import { StripeSyncService } from "./sync-stripe";
 import { GraphQLSyncService } from "./sync-graphql";
+import { MongoClient, Db, ObjectId } from "mongodb";
+import * as crypto from "crypto";
 import * as dotenv from "dotenv";
 
 dotenv.config();
+
+// Database-based destination manager for app destinations
+class DatabaseDestinationManager {
+  private client: MongoClient;
+  private db!: Db;
+
+  constructor() {
+    if (!process.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL environment variable is not set");
+    }
+    const connectionString = process.env.DATABASE_URL;
+    this.client = new MongoClient(connectionString);
+  }
+
+  private async connect(): Promise<void> {
+    await this.client.connect();
+    this.db = this.client.db("mako");
+  }
+
+  private async disconnect(): Promise<void> {
+    await this.client.close();
+  }
+
+  async getDestination(nameOrId: string): Promise<any> {
+    try {
+      await this.connect();
+      const collection = this.db.collection("databases");
+
+      // Try to find by name first, then by ID
+      let destination = await collection.findOne({ name: nameOrId });
+      if (!destination) {
+        // Try to parse as ObjectId
+        try {
+          destination = await collection.findOne({
+            _id: new ObjectId(nameOrId),
+          });
+        } catch {
+          // Not a valid ObjectId, destination remains null
+        }
+      }
+
+      if (!destination) {
+        return null;
+      }
+
+      // Return in the expected format for the sync service
+      return {
+        id: destination._id,
+        name: destination.name,
+        type: "mongodb",
+        connection: {
+          connection_string: this.decryptString(
+            destination.connection.connectionString,
+          ),
+          database: this.decryptString(destination.connection.database),
+        },
+      };
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  async listDestinations(): Promise<string[]> {
+    try {
+      await this.connect();
+      const collection = this.db.collection("databases");
+      const destinations = await collection
+        .find({}, { projection: { name: 1 } })
+        .toArray();
+      return destinations.map(d => d.name);
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  private decryptString(encryptedString: string): string {
+    // Get encryption key from environment
+    const encryptionKey = process.env.ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      throw new Error("ENCRYPTION_KEY environment variable is not set");
+    }
+
+    // Parse the encrypted string (format: iv:encrypted_data)
+    const textParts = encryptedString.split(":");
+    if (textParts.length !== 2) {
+      throw new Error("Invalid encrypted string format");
+    }
+
+    const iv = Buffer.from(textParts[0], "hex");
+    const encryptedText = Buffer.from(textParts[1], "hex");
+
+    // Decrypt using AES-256-CBC
+    const decipher = crypto.createDecipheriv(
+      "aes-256-cbc",
+      Buffer.from(encryptionKey, "hex"),
+      iv,
+    );
+
+    let decrypted = decipher.update(encryptedText);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+    return decrypted.toString();
+  }
+}
+
+const databaseDestinationManager = new DatabaseDestinationManager();
 
 // Progress reporter for sync operations
 export class ProgressReporter {
@@ -149,26 +257,46 @@ async function main() {
     process.exit(1);
   }
 
-  // Validate destination database
-  const destinationDb = dataSourceManager.getMongoDBDatabase(destination);
+  // Try to get destination from database-based destinations first
+  let destinationDb =
+    await databaseDestinationManager.getDestination(destination);
+
+  // If not found, try the old YAML-based destinations
+  if (!destinationDb) {
+    destinationDb = dataSourceManager.getMongoDBDatabase(destination);
+  }
+
   if (!destinationDb) {
     console.error(`❌ Destination database '${destination}' not found`);
-    console.log("\nAvailable MongoDB destinations:");
-    const databases = dataSourceManager.listMongoDBDatabases();
-    databases.forEach(db => console.log(`  - ${db}`));
+    console.log("\nAvailable destinations:");
+
+    // List database-based destinations
+    const dbDestinations = await databaseDestinationManager.listDestinations();
+    if (dbDestinations.length > 0) {
+      console.log("  Database destinations:");
+      dbDestinations.forEach(db => console.log(`    - ${db}`));
+    }
+
+    // List YAML-based destinations
+    const yamlDestinations = dataSourceManager.listMongoDBDatabases();
+    if (yamlDestinations.length > 0) {
+      console.log("  YAML destinations:");
+      yamlDestinations.forEach(db => console.log(`    - ${db}`));
+    }
+
     process.exit(1);
   }
 
   // Handle different source types
   switch (dataSource.type) {
     case "close":
-      await syncClose(dataSource, entity, destination);
+      await syncClose(dataSource, entity, destinationDb);
       break;
     case "stripe":
-      await syncStripe(dataSource, entity, destination);
+      await syncStripe(dataSource, entity, destinationDb);
       break;
     case "graphql":
-      await syncGraphQL(dataSource, entity, destination);
+      await syncGraphQL(dataSource, entity, destinationDb);
       break;
     case "mongodb":
       console.error(
@@ -187,17 +315,13 @@ async function main() {
   process.exit(0);
 }
 
-async function syncClose(
-  dataSource: any,
-  entity?: string,
-  targetDbId?: string,
-) {
+async function syncClose(dataSource: any, entity?: string, targetDb?: any) {
   const syncService = new CloseSyncService(dataSource);
 
   if (!entity) {
     // Sync all entities
     console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
-    await syncService.syncAll(targetDbId);
+    await syncService.syncAll(targetDb);
     return;
   }
 
@@ -208,27 +332,27 @@ async function syncClose(
   switch (entity.toLowerCase()) {
     case "leads":
     case "lead":
-      await syncService.syncLeads(targetDbId, progress);
+      await syncService.syncLeads(targetDb, progress);
       break;
     case "opportunities":
     case "opportunity":
-      await syncService.syncOpportunities(targetDbId, progress);
+      await syncService.syncOpportunities(targetDb, progress);
       break;
     case "activities":
     case "activity":
-      await syncService.syncActivities(targetDbId, progress);
+      await syncService.syncActivities(targetDb, progress);
       break;
     case "contacts":
     case "contact":
-      await syncService.syncContacts(targetDbId, progress);
+      await syncService.syncContacts(targetDb, progress);
       break;
     case "users":
     case "user":
-      await syncService.syncUsers(targetDbId, progress);
+      await syncService.syncUsers(targetDb, progress);
       break;
     case "custom_fields":
     case "customfields":
-      await syncService.syncCustomFields(targetDbId, progress);
+      await syncService.syncCustomFields(targetDb, progress);
       break;
     default:
       console.error(`❌ Unknown entity '${entity}' for Close.com`);
@@ -237,17 +361,13 @@ async function syncClose(
   }
 }
 
-async function syncStripe(
-  dataSource: any,
-  entity?: string,
-  targetDbId?: string,
-) {
+async function syncStripe(dataSource: any, entity?: string, targetDb?: any) {
   const syncService = new StripeSyncService(dataSource);
 
   if (!entity) {
     // Sync all entities
     console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
-    await syncService.syncAll(targetDbId);
+    await syncService.syncAll(targetDb);
     return;
   }
 
@@ -258,27 +378,27 @@ async function syncStripe(
   switch (entity.toLowerCase()) {
     case "customers":
     case "customer":
-      await syncService.syncCustomers(targetDbId, progress);
+      await syncService.syncCustomers(targetDb, progress);
       break;
     case "subscriptions":
     case "subscription":
-      await syncService.syncSubscriptions(targetDbId, progress);
+      await syncService.syncSubscriptions(targetDb, progress);
       break;
     case "charges":
     case "charge":
-      await syncService.syncCharges(targetDbId, progress);
+      await syncService.syncCharges(targetDb, progress);
       break;
     case "invoices":
     case "invoice":
-      await syncService.syncInvoices(targetDbId, progress);
+      await syncService.syncInvoices(targetDb, progress);
       break;
     case "products":
     case "product":
-      await syncService.syncProducts(targetDbId, progress);
+      await syncService.syncProducts(targetDb, progress);
       break;
     case "plans":
     case "plan":
-      await syncService.syncPlans(targetDbId, progress);
+      await syncService.syncPlans(targetDb, progress);
       break;
     default:
       console.error(`❌ Unknown entity '${entity}' for Stripe`);
@@ -287,17 +407,13 @@ async function syncStripe(
   }
 }
 
-async function syncGraphQL(
-  dataSource: any,
-  entity?: string,
-  targetDbId?: string,
-) {
+async function syncGraphQL(dataSource: any, entity?: string, targetDb?: any) {
   const syncService = new GraphQLSyncService(dataSource);
 
   if (!entity) {
     // Sync all entities
     console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
-    await syncService.syncAll(targetDbId);
+    await syncService.syncAll(targetDb);
     return;
   }
 
@@ -318,7 +434,7 @@ async function syncGraphQL(
   // Sync specific entity
   console.log(`\n🔄 Syncing ${entity} for ${dataSource.name}`);
   const progress = new ProgressReporter(entity);
-  await syncService.syncEntity(queryConfig, targetDbId, progress);
+  await syncService.syncEntity(queryConfig, targetDb, progress);
 }
 
 function showUsage() {
@@ -327,23 +443,17 @@ Usage: pnpm run sync <source_id> <destination> [entity]
 
 Arguments:
   source_id     The ID of the data source to sync from (e.g., close_spain, stripe_spain)
-  destination   The destination database in format: server.database (e.g., local_dev.datawarehouse)
+  destination   The destination database name (e.g., RevOps, Mako, atlas.revops for legacy)
   entity        (Optional) Specific entity to sync. If omitted, syncs all entities.
 
 Examples:
-  pnpm run sync close_spain local_dev.analytics_db                    # Sync all entities from close_spain
-  pnpm run sync close_spain local_dev.datawarehouse leads             # Sync only leads to datawarehouse
-  pnpm run sync stripe_spain local_dev.datawarehouse customers        # Sync only customers from stripe_spain
+  pnpm run sync es_close RevOps                    # Sync all entities from es_close to RevOps database
+  pnpm run sync es_close RevOps leads              # Sync only leads to RevOps database
+  pnpm run sync es_close Mako customers            # Sync only customers to Mako database
 
 Available entities by source type:
   Close.com: ${SOURCE_ENTITIES.close.join(", ")}
   Stripe: ${SOURCE_ENTITIES.stripe.join(", ")}
-
-Available MongoDB destinations:
-${dataSourceManager
-  .listMongoDBDatabases()
-  .map(db => `  - ${db}`)
-  .join("\n")}
 `);
 }
 

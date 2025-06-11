@@ -46,17 +46,27 @@ class CloseSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "local_dev.analytics_db",
+    targetDb: any,
   ): Promise<{ client: MongoClient; db: Db }> {
-    // Check if connection already exists
-    if (this.mongoConnections.has(targetDbId)) {
-      return this.mongoConnections.get(targetDbId)!;
+    // Use default if no target specified
+    if (!targetDb) {
+      throw new Error("No target database specified and no default found");
     }
 
-    // Get target database configuration
-    const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
+    const connectionKey = targetDb.id || targetDb.name;
+
+    // Check if connection already exists
+    if (this.mongoConnections.has(connectionKey)) {
+      const existingConnection = this.mongoConnections.get(connectionKey);
+      if (existingConnection) {
+        return existingConnection;
+      }
+    }
+
     if (!targetDb || targetDb.type !== "mongodb") {
-      throw new Error(`MongoDB data source '${targetDbId}' not found`);
+      throw new Error(
+        `MongoDB data source '${connectionKey}' not found or invalid type`,
+      );
     }
 
     // Create new connection
@@ -65,7 +75,7 @@ class CloseSyncService {
     const db = client.db(targetDb.connection.database);
 
     const connection = { client, db };
-    this.mongoConnections.set(targetDbId, connection);
+    this.mongoConnections.set(connectionKey, connection);
 
     console.log(
       `Connected to MongoDB: ${targetDb.name} for Close source: ${this.dataSource.name}`,
@@ -241,12 +251,9 @@ class CloseSyncService {
     return false;
   }
 
-  async syncLeads(
-    targetDbId?: string,
-    progress?: ProgressReporter,
-  ): Promise<void> {
+  async syncLeads(targetDb?: any, progress?: ProgressReporter): Promise<void> {
     console.log(`Starting leads sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+    const { db } = await this.getMongoConnection(targetDb);
 
     const mainCollectionName = `${this.dataSource.id}_leads`;
     const stagingCollectionName = `${mainCollectionName}_staging`;
@@ -297,11 +304,11 @@ class CloseSyncService {
   }
 
   async syncOpportunities(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+    const { db } = await this.getMongoConnection(targetDb);
 
     const mainName = `${this.dataSource.id}_opportunities`;
     const stagingName = `${mainName}_staging`;
@@ -348,11 +355,11 @@ class CloseSyncService {
   }
 
   async syncContacts(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting contacts sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+    const { db } = await this.getMongoConnection(targetDb);
 
     const mainName = `${this.dataSource.id}_contacts`;
     const stagingName = `${mainName}_staging`;
@@ -397,12 +404,9 @@ class CloseSyncService {
     }
   }
 
-  async syncUsers(
-    targetDbId?: string,
-    progress?: ProgressReporter,
-  ): Promise<void> {
+  async syncUsers(targetDb?: any, progress?: ProgressReporter): Promise<void> {
     console.log(`Starting users sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+    const { db } = await this.getMongoConnection(targetDb);
 
     const mainName = `${this.dataSource.id}_users`;
     const stagingName = `${mainName}_staging`;
@@ -448,11 +452,11 @@ class CloseSyncService {
   }
 
   async syncActivities(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting activities sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+    const { db } = await this.getMongoConnection(targetDb);
 
     const mainName = `${this.dataSource.id}_activities`;
     const stagingName = `${mainName}_staging`;
@@ -498,11 +502,11 @@ class CloseSyncService {
   }
 
   async syncCustomFields(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+    const { db } = await this.getMongoConnection(targetDb);
 
     const mainName = `${this.dataSource.id}_custom_fields`;
     const stagingName = `${mainName}_staging`;
@@ -574,11 +578,11 @@ class CloseSyncService {
     }
   }
 
-  async syncAll(targetDbId?: string): Promise<void> {
+  async syncAll(targetDb?: any): Promise<void> {
     console.log(
       `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
     );
-    console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
+    console.log(`Target database: ${targetDb?.name || "default"}`);
     const startTime = Date.now();
 
     const failedEntities: string[] = [];
@@ -588,10 +592,7 @@ class CloseSyncService {
 
     const entityOperations: Array<{
       name: string;
-      fn: (
-        dbId: string | undefined,
-        progress: ProgressReporter,
-      ) => Promise<void>;
+      fn: (db: any, progress: ProgressReporter) => Promise<void>;
     }> = [
       { name: "leads", fn: this.syncLeads.bind(this) },
       { name: "opportunities", fn: this.syncOpportunities.bind(this) },
@@ -604,7 +605,7 @@ class CloseSyncService {
     try {
       for (const entity of entityOperations) {
         try {
-          await entity.fn(targetDbId, new ProgressReporter(entity.name));
+          await entity.fn(targetDb, new ProgressReporter(entity.name));
         } catch (err) {
           failedEntities.push(entity.name);
           console.error(`❌ Failed to sync ${entity.name}:`, err);
