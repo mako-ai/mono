@@ -21,6 +21,7 @@ import {
   AccordionDetails,
   Divider,
   InputAdornment,
+  Alert,
 } from "@mui/material";
 import {
   Close as CloseIcon,
@@ -75,19 +76,29 @@ interface ConnectorType {
 }
 
 interface DataSourceFormProps {
-  open: boolean;
-  onClose: () => void;
+  /**
+   * When `variant` is "dialog" (default), the form is rendered inside a MUI Dialog (modal behaviour).
+   * When set to "inline", a regular Box container is returned so the form can be embedded in a page or tab.
+   */
+  variant?: "dialog" | "inline";
+  /** Open flag is ignored for inline variant */
+  open?: boolean;
+  onClose?: () => void;
   onSubmit: (data: any) => void;
   dataSource?: DataSource | null;
   connectorTypes?: ConnectorType[];
+  /** Optional error message to display at top */
+  errorMessage?: string | null;
 }
 
 function DataSourceForm({
-  open,
+  variant = "dialog",
+  open = false,
   onClose,
   onSubmit,
   dataSource,
   connectorTypes = [],
+  errorMessage,
 }: DataSourceFormProps) {
   const [formData, setFormData] = useState({
     name: "",
@@ -505,6 +516,223 @@ function DataSourceForm({
     }
   };
 
+  // -----------------------------
+  // Shared form body (previously inside DialogContent)
+  // -----------------------------
+  const formBody = (
+    <Box sx={{ py: 1 }}>
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {errorMessage}
+        </Alert>
+      )}
+      {/* Basic Information */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle1" gutterBottom>
+          Basic Information
+        </Typography>
+        <TextField
+          fullWidth
+          label="Name"
+          value={formData.name}
+          onChange={e => handleInputChange("name", e.target.value)}
+          error={!!errors.name}
+          helperText={errors.name}
+          margin="normal"
+        />
+
+        <TextField
+          fullWidth
+          label="Description (optional)"
+          value={formData.description}
+          onChange={e => handleInputChange("description", e.target.value)}
+          margin="normal"
+          multiline
+          rows={2}
+        />
+
+        <FormControl fullWidth margin="normal" error={!!errors.type}>
+          <InputLabel>Source Type</InputLabel>
+          <Select
+            value={formData.type}
+            onChange={e => handleInputChange("type", e.target.value)}
+            label="Source Type"
+          >
+            {connectorTypes.map(connector => (
+              <MenuItem key={connector.type} value={connector.type}>
+                {connector.name}
+              </MenuItem>
+            ))}
+          </Select>
+          {errors.type && (
+            <Typography variant="caption" color="error" sx={{ ml: 2 }}>
+              {errors.type}
+            </Typography>
+          )}
+        </FormControl>
+
+        <FormControlLabel
+          control={
+            <Switch
+              checked={formData.isActive}
+              onChange={e => handleInputChange("isActive", e.target.checked)}
+            />
+          }
+          label="Active"
+          sx={{ mt: 2 }}
+        />
+      </Box>
+
+      <Divider sx={{ my: 3 }} />
+
+      {/* Connection Configuration */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="subtitle1" gutterBottom>
+          Connection Configuration
+        </Typography>
+        {renderConfigFields()}
+      </Box>
+
+      {/* Advanced Settings */}
+      <Accordion sx={{ mt: 3 }}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6">Advanced Settings</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Grid container spacing={2}>
+            <Grid size={6}>
+              <TextField
+                fullWidth
+                label="Sync Batch Size"
+                type="number"
+                value={formData.settings.sync_batch_size}
+                onChange={e =>
+                  handleInputChange(
+                    "settings.sync_batch_size",
+                    parseInt(e.target.value) || 0,
+                  )
+                }
+                error={!!errors["settings.sync_batch_size"]}
+                helperText={
+                  errors["settings.sync_batch_size"] ||
+                  "Number of records to process at once"
+                }
+                margin="normal"
+                inputProps={{ min: 1 }}
+              />
+            </Grid>
+            <Grid size={6}>
+              <TextField
+                fullWidth
+                label="Rate Limit Delay (ms)"
+                type="number"
+                value={formData.settings.rate_limit_delay_ms}
+                onChange={e =>
+                  handleInputChange(
+                    "settings.rate_limit_delay_ms",
+                    parseInt(e.target.value) || 0,
+                  )
+                }
+                error={!!errors["settings.rate_limit_delay_ms"]}
+                helperText={
+                  errors["settings.rate_limit_delay_ms"] ||
+                  "Delay between API calls"
+                }
+                margin="normal"
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+            <Grid size={6}>
+              <TextField
+                fullWidth
+                label="Max Retries"
+                type="number"
+                value={formData.settings.max_retries}
+                onChange={e =>
+                  handleInputChange(
+                    "settings.max_retries",
+                    parseInt(e.target.value) || 0,
+                  )
+                }
+                margin="normal"
+                inputProps={{ min: 0 }}
+              />
+            </Grid>
+            <Grid size={6}>
+              <TextField
+                fullWidth
+                label="Timeout (ms)"
+                type="number"
+                value={formData.settings.timeout_ms}
+                onChange={e =>
+                  handleInputChange(
+                    "settings.timeout_ms",
+                    parseInt(e.target.value) || 0,
+                  )
+                }
+                margin="normal"
+                inputProps={{ min: 1000 }}
+              />
+            </Grid>
+          </Grid>
+        </AccordionDetails>
+      </Accordion>
+    </Box>
+  );
+
+  if (variant === "inline") {
+    return (
+      <Box
+        sx={{
+          p: 2,
+          maxWidth: "800px",
+          mx: "auto",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
+          <Typography variant="h6">
+            {dataSource ? "Edit Data Source" : "Add Data Source"}
+          </Typography>
+          {onClose && (
+            <IconButton aria-label="close" onClick={onClose}>
+              <CloseIcon />
+            </IconButton>
+          )}
+        </Box>
+
+        {/* Main form */}
+        <Box sx={{ flexGrow: 1, overflow: "auto" }}>{formBody}</Box>
+
+        {/* Actions */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 1,
+            mt: 2,
+          }}
+        >
+          {onClose && <Button onClick={onClose}>Cancel</Button>}
+          <Button onClick={handleSubmit} variant="contained" disableElevation>
+            {dataSource ? "Update" : "Create"}
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Default: dialog variant (existing behavior)
   return (
     <Dialog
       open={open}
@@ -538,163 +766,7 @@ function DataSourceForm({
         </IconButton>
       </DialogTitle>
 
-      <DialogContent dividers>
-        <Box sx={{ py: 1 }}>
-          {/* Basic Information */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Basic Information
-            </Typography>
-            <TextField
-              fullWidth
-              label="Name"
-              value={formData.name}
-              onChange={e => handleInputChange("name", e.target.value)}
-              error={!!errors.name}
-              helperText={errors.name}
-              margin="normal"
-            />
-
-            <TextField
-              fullWidth
-              label="Description (optional)"
-              value={formData.description}
-              onChange={e => handleInputChange("description", e.target.value)}
-              margin="normal"
-              multiline
-              rows={2}
-            />
-
-            <FormControl fullWidth margin="normal" error={!!errors.type}>
-              <InputLabel>Source Type</InputLabel>
-              <Select
-                value={formData.type}
-                onChange={e => handleInputChange("type", e.target.value)}
-                label="Source Type"
-              >
-                {connectorTypes.map(connector => (
-                  <MenuItem key={connector.type} value={connector.type}>
-                    {connector.name}
-                  </MenuItem>
-                ))}
-              </Select>
-              {errors.type && (
-                <Typography variant="caption" color="error" sx={{ ml: 2 }}>
-                  {errors.type}
-                </Typography>
-              )}
-            </FormControl>
-
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.isActive}
-                  onChange={e =>
-                    handleInputChange("isActive", e.target.checked)
-                  }
-                />
-              }
-              label="Active"
-              sx={{ mt: 2 }}
-            />
-          </Box>
-
-          <Divider sx={{ my: 3 }} />
-
-          {/* Connection Configuration */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Connection Configuration
-            </Typography>
-            {renderConfigFields()}
-          </Box>
-
-          {/* Advanced Settings */}
-          <Accordion sx={{ mt: 3 }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">Advanced Settings</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Sync Batch Size"
-                    type="number"
-                    value={formData.settings.sync_batch_size}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.sync_batch_size",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    error={!!errors["settings.sync_batch_size"]}
-                    helperText={
-                      errors["settings.sync_batch_size"] ||
-                      "Number of records to process at once"
-                    }
-                    margin="normal"
-                    inputProps={{ min: 1 }}
-                  />
-                </Grid>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Rate Limit Delay (ms)"
-                    type="number"
-                    value={formData.settings.rate_limit_delay_ms}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.rate_limit_delay_ms",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    error={!!errors["settings.rate_limit_delay_ms"]}
-                    helperText={
-                      errors["settings.rate_limit_delay_ms"] ||
-                      "Delay between API calls"
-                    }
-                    margin="normal"
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Max Retries"
-                    type="number"
-                    value={formData.settings.max_retries}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.max_retries",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    margin="normal"
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Timeout (ms)"
-                    type="number"
-                    value={formData.settings.timeout_ms}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.timeout_ms",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    margin="normal"
-                    inputProps={{ min: 1000 }}
-                  />
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        </Box>
-      </DialogContent>
+      <DialogContent dividers>{formBody}</DialogContent>
 
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
