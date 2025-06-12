@@ -415,11 +415,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           )}
         </Box>
 
-        <FormControl
-          size="small"
-          variant="standard"
-          sx={{ minWidth: 80, ml: onSave ? 1 : 0 }}
-        >
+        <FormControl size="small" variant="standard" sx={{ minWidth: 80 }}>
           <Select
             variant="standard"
             disableUnderline

@@ -131,6 +131,10 @@ export type Action =
   | { type: "UPDATE_CONSOLE_TITLE"; payload: { id: string; title: string } }
   | { type: "UPDATE_CONSOLE_DIRTY"; payload: { id: string; isDirty: boolean } }
   | {
+      type: "UPDATE_CONSOLE_DATABASE";
+      payload: { id: string; databaseId?: string };
+    }
+  | {
       type: "SET_ATTACHED_CONTEXT";
       payload: { chatId: string; items: AttachedContext[] };
     }
@@ -309,6 +313,11 @@ export const reducer = (state: GlobalState, action: Action): void => {
     case "UPDATE_CONSOLE_DIRTY": {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.isDirty = action.payload.isDirty;
+      break;
+    }
+    case "UPDATE_CONSOLE_DATABASE": {
+      const tab = state.consoles.tabs[action.payload.id];
+      if (tab) tab.databaseId = action.payload.databaseId;
       break;
     }
     case "CREATE_CHAT": {

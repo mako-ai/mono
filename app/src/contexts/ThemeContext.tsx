@@ -168,10 +168,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       },
       MuiSelect: {
         styleOverrides: {
-          root: ({ ownerState }) => ({
+          root: ({ theme, ownerState }: any) => ({
             fontSize: "0.9em",
+            borderRadius: 4,
             "& .MuiSelect-select": {
               fontSize: "0.9em",
+              padding: theme.spacing(0.5, 1),
             },
             // Remove underline for the "standard" variant only
             ...(ownerState.variant === "standard" && {
@@ -180,6 +182,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               },
             }),
             transition: "background-color 0.2s ease, border-color 0.2s ease",
+            "&:hover": {
+              backgroundColor: theme.palette.action.hover,
+            },
           }),
         },
       },

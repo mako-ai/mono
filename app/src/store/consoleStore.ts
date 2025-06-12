@@ -44,20 +44,17 @@ export const useConsoleStore = () => {
   const findTabByKind = (kind: TabKind) =>
     consoleTabs.find((t: any) => (t as any).kind === kind);
 
-  const updateConsoleDatabase = (id: string) => {
-    // We don't store databaseId separately yet – add a quick in-place update
-    const tab = tabs[id];
-    if (tab) {
-      dispatch({
-        type: "UPDATE_CONSOLE_CONTENT",
-        payload: { id, content: tab.content },
-      } as any);
-      // Extend reducer later for dedicated action
-    }
+  const updateConsoleDatabase = (id: string, databaseId?: string) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_DATABASE",
+      payload: { id, databaseId },
+    } as any);
   };
+
   const updateConsoleFilePath = (_id: string, _filePath: string) => {
     // Not fully implemented
   };
+
   const updateConsoleTitle = (id: string, title: string) => {
     dispatch({
       type: "UPDATE_CONSOLE_TITLE",
@@ -134,9 +131,14 @@ useConsoleStore.getState = () => {
 
   const findTabByKind = (kind: TabKind) =>
     consoleTabs.find((t: any) => (t as any).kind === kind);
-  const updateConsoleDatabase = (_id: string, _databaseId: string) => {
-    // Not fully implemented
+
+  const updateConsoleDatabase = (id: string, databaseId?: string) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_DATABASE",
+      payload: { id, databaseId },
+    } as any);
   };
+
   const updateConsoleFilePath = (_id: string, _filePath: string) => {
     // Not fully implemented
   };
