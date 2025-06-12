@@ -20,7 +20,8 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
 import Settings from "../pages/Settings";
-import DataSources from "../pages/DataSources";
+// import DataSources from "../pages/DataSources"; // deprecated, will be removed
+import DataSourceTab from "./DataSourceTab";
 import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
@@ -457,7 +458,14 @@ function Editor() {
                       {activeTab?.kind === "settings" ? (
                         <Settings />
                       ) : activeTab?.kind === "sources" ? (
-                        <DataSources />
+                        <DataSourceTab
+                          tabId={activeTab.id}
+                          sourceId={
+                            typeof activeTab.content === "string"
+                              ? activeTab.content
+                              : undefined
+                          }
+                        />
                       ) : activeTab?.kind === "members" ? (
                         <WorkspaceMembers />
                       ) : null}
