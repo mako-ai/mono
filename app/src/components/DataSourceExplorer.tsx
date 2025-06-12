@@ -61,24 +61,34 @@ function DataSourceExplorer() {
   }, [currentWorkspace]);
 
   const openTabForSource = (source?: DataSource) => {
-    // Use source id as tab content (unique) or empty string for new
-    const contentKey = source?._id || "";
-    // Check if a tab with this content already exists
-    const existing = consoleTabs.find(
-      t => t.kind === "sources" && t.content === contentKey,
-    );
-    if (existing) {
-      setActiveConsole(existing.id);
-      return;
-    }
+    // If editing an existing source, try to reuse an open tab; for a new source always open a fresh tab
+    if (source) {
+      const contentKey = source._id;
+      const existing = consoleTabs.find(
+        t => t.kind === "sources" && t.content === contentKey,
+      );
+      if (existing) {
+        setActiveConsole(existing.id);
+        return;
+      }
 
-    const id = addConsoleTab({
-      title: source ? source.name : "New Data Source",
-      content: contentKey,
-      initialContent: contentKey,
-      kind: "sources",
-    });
-    setActiveConsole(id);
+      const id = addConsoleTab({
+        title: source.name,
+        content: contentKey,
+        initialContent: contentKey,
+        kind: "sources",
+      });
+      setActiveConsole(id);
+    } else {
+      // Always create a new tab for a brand-new data source form
+      const id = addConsoleTab({
+        title: "New Data Source",
+        content: "", // will be populated after save
+        initialContent: "",
+        kind: "sources",
+      });
+      setActiveConsole(id);
+    }
   };
 
   const handleAdd = () => openTabForSource(undefined);
