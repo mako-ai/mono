@@ -12,7 +12,8 @@ export VITE_API_URL="https://revops.realadvisor.com/api"
 
 # Run eslint before building - fail on errors, allow warnings
 echo "Running ESLint checks..."
-pnpm run lint
+pnpm run --filter app lint
+pnpm run --filter api lint
 
 echo "ESLint checks passed. Proceeding with build..."
 
