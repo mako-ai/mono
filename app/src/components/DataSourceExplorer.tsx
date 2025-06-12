@@ -96,7 +96,7 @@ function DataSourceExplorer() {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <Box sx={{ px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",
@@ -104,8 +104,17 @@ function DataSourceExplorer() {
             alignItems: "center",
           }}
         >
-          <Typography variant="h6">Data Sources</Typography>
-          <Box sx={{ display: "flex", gap: 0.5 }}>
+          <Typography
+            variant="h6"
+            sx={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Data Sources
+          </Typography>
+          <Box sx={{ display: "flex" }}>
             <Tooltip title="Add Data Source">
               <IconButton size="small" onClick={handleAdd}>
                 <AddIcon />

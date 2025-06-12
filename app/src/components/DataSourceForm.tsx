@@ -696,23 +696,18 @@ function DataSourceForm({
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
+            justifyContent: "flex-start",
             mb: 2,
           }}
         >
           <Typography variant="h6">
             {dataSource ? "Edit Data Source" : "Add Data Source"}
           </Typography>
-          {onClose && (
-            <IconButton aria-label="close" onClick={onClose}>
-              <CloseIcon />
-            </IconButton>
-          )}
         </Box>
 
         {/* Main form */}
-        <Box sx={{ flexGrow: 1, overflow: "auto" }}>{formBody}</Box>
+        <Box sx={{ flexGrow: 1 }}>{formBody}</Box>
 
         {/* Actions */}
         <Box
