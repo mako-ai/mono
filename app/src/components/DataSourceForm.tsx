@@ -33,11 +33,22 @@ interface DataSource {
   _id?: string;
   name: string;
   description?: string;
-  source: string;
-  enabled: boolean;
+  type: string;
+  isActive: boolean;
   config: {
     api_key?: string;
     api_base_url?: string;
+    endpoint?: string;
+    headers?: { [key: string]: string };
+    queries?: Array<{
+      name: string;
+      query: string;
+      variables?: { [key: string]: any };
+      dataPath?: string;
+      hasNextPagePath?: string;
+      cursorPath?: string;
+      totalCountPath?: string;
+    }>;
     username?: string;
     password?: string;
     host?: string;
@@ -50,8 +61,17 @@ interface DataSource {
     rate_limit_delay_ms: number;
     max_retries?: number;
     timeout_ms?: number;
+    timezone?: string;
   };
-  tenant?: string;
+  targetDatabases?: string[];
+}
+
+interface ConnectorType {
+  type: string;
+  name: string;
+  version: string;
+  description: string;
+  supportedEntities: string[];
 }
 
 interface DataSourceFormProps {
@@ -59,45 +79,40 @@ interface DataSourceFormProps {
   onClose: () => void;
   onSubmit: (data: any) => void;
   dataSource?: DataSource | null;
+  connectorTypes?: ConnectorType[];
 }
-
-const sourceTypes = [
-  { value: "close", label: "Close CRM" },
-  { value: "stripe", label: "Stripe" },
-  { value: "postgres", label: "PostgreSQL" },
-  { value: "mysql", label: "MySQL" },
-  { value: "graphql", label: "GraphQL API" },
-  { value: "rest", label: "REST API" },
-  { value: "api", label: "Generic API" },
-];
 
 function DataSourceForm({
   open,
   onClose,
   onSubmit,
   dataSource,
+  connectorTypes = [],
 }: DataSourceFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    source: "",
-    enabled: true,
+    type: "",
+    isActive: true,
     config: {
       api_key: "",
       api_base_url: "",
+      endpoint: "",
       username: "",
       password: "",
       host: "",
       port: "",
       database: "",
+      queries: [] as any[],
     },
     settings: {
       sync_batch_size: 100,
       rate_limit_delay_ms: 200,
       max_retries: 3,
       timeout_ms: 30000,
+      timezone: "UTC",
     },
-    tenant: "",
+    targetDatabases: [] as string[],
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -113,48 +128,54 @@ function DataSourceForm({
       setFormData({
         name: dataSource.name || "",
         description: dataSource.description || "",
-        source: dataSource.source || "",
-        enabled: dataSource.enabled ?? true,
+        type: dataSource.type || "",
+        isActive: dataSource.isActive ?? true,
         config: {
           api_key: dataSource.config?.api_key || "",
           api_base_url: dataSource.config?.api_base_url || "",
+          endpoint: dataSource.config?.endpoint || "",
           username: dataSource.config?.username || "",
           password: dataSource.config?.password || "",
           host: dataSource.config?.host || "",
           port: dataSource.config?.port?.toString() || "",
           database: dataSource.config?.database || "",
+          queries: dataSource.config?.queries || [],
         },
         settings: {
           sync_batch_size: dataSource.settings?.sync_batch_size || 100,
           rate_limit_delay_ms: dataSource.settings?.rate_limit_delay_ms || 200,
           max_retries: dataSource.settings?.max_retries || 3,
           timeout_ms: dataSource.settings?.timeout_ms || 30000,
+          timezone: dataSource.settings?.timezone || "UTC",
         },
-        tenant: dataSource.tenant || "",
+        targetDatabases: dataSource.targetDatabases || [],
       });
     } else {
       // Reset form for new data source
       setFormData({
         name: "",
         description: "",
-        source: "",
-        enabled: true,
+        type: "",
+        isActive: true,
         config: {
           api_key: "",
           api_base_url: "",
+          endpoint: "",
           username: "",
           password: "",
           host: "",
           port: "",
           database: "",
+          queries: [],
         },
         settings: {
           sync_batch_size: 100,
           rate_limit_delay_ms: 200,
           max_retries: 3,
           timeout_ms: 30000,
+          timezone: "UTC",
         },
-        tenant: "",
+        targetDatabases: [],
       });
     }
     setErrors({});
@@ -202,12 +223,12 @@ function DataSourceForm({
       newErrors.name = "Name is required";
     }
 
-    if (!formData.source) {
-      newErrors.source = "Source type is required";
+    if (!formData.type) {
+      newErrors.type = "Source type is required";
     }
 
     // Source-specific validation
-    switch (formData.source) {
+    switch (formData.type) {
       case "close":
       case "stripe":
         if (!formData.config.api_key.trim()) {
@@ -224,6 +245,10 @@ function DataSourceForm({
         }
         break;
       case "graphql":
+        if (!formData.config.endpoint?.trim()) {
+          newErrors["config.endpoint"] = "GraphQL endpoint is required";
+        }
+        break;
       case "rest":
       case "api":
         if (!formData.config.api_base_url.trim()) {
@@ -263,22 +288,21 @@ function DataSourceForm({
     // Remove empty strings from config
     const cleanConfig: { [key: string]: any } = {};
     Object.entries(submitData.config).forEach(([key, value]) => {
-      if (value !== "" && value !== undefined) {
+      if (
+        value !== "" &&
+        value !== undefined &&
+        (!Array.isArray(value) || value.length > 0)
+      ) {
         cleanConfig[key] = value;
       }
     });
     submitData.config = cleanConfig;
 
-    // Remove empty tenant
-    if (!submitData.tenant?.trim()) {
-      delete submitData.tenant;
-    }
-
     onSubmit(submitData);
   };
 
   const renderConfigFields = () => {
-    switch (formData.source) {
+    switch (formData.type) {
       case "close":
       case "stripe":
         return (
@@ -307,7 +331,7 @@ function DataSourceForm({
                 ),
               }}
             />
-            {formData.source === "close" && (
+            {formData.type === "close" && (
               <TextField
                 fullWidth
                 label="API Base URL"
@@ -351,7 +375,7 @@ function DataSourceForm({
                     handleInputChange("config.port", e.target.value)
                   }
                   margin="normal"
-                  placeholder={formData.source === "postgres" ? "5432" : "3306"}
+                  placeholder={formData.type === "postgres" ? "5432" : "3306"}
                 />
               </Grid>
             </Grid>
@@ -407,6 +431,30 @@ function DataSourceForm({
         );
 
       case "graphql":
+        return (
+          <>
+            <TextField
+              fullWidth
+              label="GraphQL Endpoint"
+              value={formData.config.endpoint}
+              onChange={e =>
+                handleInputChange("config.endpoint", e.target.value)
+              }
+              error={!!errors["config.endpoint"]}
+              helperText={errors["config.endpoint"]}
+              margin="normal"
+              placeholder="https://api.example.com/graphql"
+            />
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 2, mb: 1 }}
+            >
+              Headers and queries can be configured after creation
+            </Typography>
+          </>
+        );
+
       case "rest":
       case "api":
         return (
@@ -426,68 +474,25 @@ function DataSourceForm({
             <TextField
               fullWidth
               label="API Key (optional)"
-              type={showApiKeyOptional ? "text" : "password"}
+              type={showApiKey ? "text" : "password"}
               value={formData.config.api_key}
               onChange={e =>
                 handleInputChange("config.api_key", e.target.value)
               }
               margin="normal"
               InputProps={{
-                endAdornment: (
+                endAdornment: formData.config.api_key ? (
                   <InputAdornment position="end">
                     <IconButton
-                      onClick={() => setShowApiKeyOptional(!showApiKeyOptional)}
+                      onClick={() => setShowApiKey(!showApiKey)}
                       edge="end"
                     >
-                      {showApiKeyOptional ? <Visibility /> : <VisibilityOff />}
+                      {showApiKey ? <Visibility /> : <VisibilityOff />}
                     </IconButton>
                   </InputAdornment>
-                ),
+                ) : null,
               }}
             />
-            <Grid container spacing={2}>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Username (optional)"
-                  value={formData.config.username}
-                  onChange={e =>
-                    handleInputChange("config.username", e.target.value)
-                  }
-                  margin="normal"
-                />
-              </Grid>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Password (optional)"
-                  type={showPasswordOptional ? "text" : "password"}
-                  value={formData.config.password}
-                  onChange={e =>
-                    handleInputChange("config.password", e.target.value)
-                  }
-                  margin="normal"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() =>
-                            setShowPasswordOptional(!showPasswordOptional)
-                          }
-                          edge="end"
-                        >
-                          {showPasswordOptional ? (
-                            <Visibility />
-                          ) : (
-                            <VisibilityOff />
-                          )}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-            </Grid>
           </>
         );
 
@@ -501,96 +506,108 @@ function DataSourceForm({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Box
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          maxHeight: "90vh",
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="h6">
+          {dataSource ? "Edit Data Source" : "Add Data Source"}
+        </Typography>
+        <IconButton
+          aria-label="close"
+          onClick={onClose}
           sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            color: theme => theme.palette.grey[500],
           }}
         >
-          {dataSource ? "Edit Data Source" : "Add Data Source"}
-          <IconButton onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
-        </Box>
+          <CloseIcon />
+        </IconButton>
       </DialogTitle>
 
-      <DialogContent>
-        <Box sx={{ mt: 1 }}>
+      <DialogContent dividers>
+        <Box sx={{ py: 1 }}>
           {/* Basic Information */}
-          <Typography variant="h6" gutterBottom>
-            Basic Information
-          </Typography>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Basic Information
+            </Typography>
+            <TextField
+              fullWidth
+              label="Name"
+              value={formData.name}
+              onChange={e => handleInputChange("name", e.target.value)}
+              error={!!errors.name}
+              helperText={errors.name}
+              margin="normal"
+            />
 
-          <TextField
-            fullWidth
-            label="Name"
-            value={formData.name}
-            onChange={e => handleInputChange("name", e.target.value)}
-            error={!!errors.name}
-            helperText={errors.name}
-            margin="normal"
-          />
+            <TextField
+              fullWidth
+              label="Description (optional)"
+              value={formData.description}
+              onChange={e => handleInputChange("description", e.target.value)}
+              margin="normal"
+              multiline
+              rows={2}
+            />
 
-          <TextField
-            fullWidth
-            label="Description (optional)"
-            multiline
-            rows={2}
-            value={formData.description}
-            onChange={e => handleInputChange("description", e.target.value)}
-            margin="normal"
-          />
+            <FormControl fullWidth margin="normal" error={!!errors.type}>
+              <InputLabel>Source Type</InputLabel>
+              <Select
+                value={formData.type}
+                onChange={e => handleInputChange("type", e.target.value)}
+                label="Source Type"
+              >
+                {connectorTypes.map(connector => (
+                  <MenuItem key={connector.type} value={connector.type}>
+                    {connector.name}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.type && (
+                <Typography variant="caption" color="error" sx={{ ml: 2 }}>
+                  {errors.type}
+                </Typography>
+              )}
+            </FormControl>
 
-          <FormControl fullWidth margin="normal" error={!!errors.source}>
-            <InputLabel>Source Type</InputLabel>
-            <Select
-              value={formData.source}
-              onChange={e => handleInputChange("source", e.target.value)}
-              label="Source Type"
-            >
-              {sourceTypes.map(type => (
-                <MenuItem key={type.value} value={type.value}>
-                  {type.label}
-                </MenuItem>
-              ))}
-            </Select>
-            {errors.source && (
-              <Typography variant="caption" color="error" sx={{ ml: 2 }}>
-                {errors.source}
-              </Typography>
-            )}
-          </FormControl>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.isActive}
+                  onChange={e =>
+                    handleInputChange("isActive", e.target.checked)
+                  }
+                />
+              }
+              label="Active"
+              sx={{ mt: 2 }}
+            />
+          </Box>
 
-          <TextField
-            fullWidth
-            label="Tenant (optional)"
-            value={formData.tenant}
-            onChange={e => handleInputChange("tenant", e.target.value)}
-            margin="normal"
-            helperText="Associate this data source with a specific tenant"
-          />
-
-          <FormControlLabel
-            control={
-              <Switch
-                checked={formData.enabled}
-                onChange={e => handleInputChange("enabled", e.target.checked)}
-              />
-            }
-            label="Enabled"
-            sx={{ mt: 2 }}
-          />
+          <Divider sx={{ my: 3 }} />
 
           {/* Connection Configuration */}
-          <Divider sx={{ my: 3 }} />
-          <Typography variant="h6" gutterBottom>
-            Connection Configuration
-          </Typography>
-
-          {renderConfigFields()}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Connection Configuration
+            </Typography>
+            {renderConfigFields()}
+          </Box>
 
           {/* Advanced Settings */}
           <Accordion sx={{ mt: 3 }}>

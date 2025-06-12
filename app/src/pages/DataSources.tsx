@@ -27,16 +27,28 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 import DataSourceForm from "../components/DataSourceForm";
+import { useWorkspace } from "../contexts/workspace-context";
 
 interface DataSource {
   _id: string;
   name: string;
   description?: string;
-  source: string;
-  enabled: boolean;
+  type: string;
+  isActive: boolean;
   config: {
     api_key?: string;
     api_base_url?: string;
+    endpoint?: string;
+    headers?: { [key: string]: string };
+    queries?: Array<{
+      name: string;
+      query: string;
+      variables?: { [key: string]: any };
+      dataPath?: string;
+      hasNextPagePath?: string;
+      cursorPath?: string;
+      totalCountPath?: string;
+    }>;
     host?: string;
     port?: number;
     database?: string;
@@ -47,14 +59,25 @@ interface DataSource {
     rate_limit_delay_ms: number;
     max_retries?: number;
     timeout_ms?: number;
+    timezone?: string;
   };
-  tenant?: string;
-  created_at: string;
-  updated_at: string;
+  targetDatabases?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ConnectorType {
+  type: string;
+  name: string;
+  version: string;
+  description: string;
+  supportedEntities: string[];
 }
 
 function DataSources() {
+  const { currentWorkspace } = useWorkspace();
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
+  const [connectorTypes, setConnectorTypes] = useState<ConnectorType[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingDataSource, setEditingDataSource] = useState<DataSource | null>(
@@ -67,13 +90,20 @@ function DataSources() {
   const [testingId, setTestingId] = useState<string>("");
 
   useEffect(() => {
-    fetchDataSources();
-  }, []);
+    if (currentWorkspace) {
+      fetchDataSources();
+      fetchConnectorTypes();
+    }
+  }, [currentWorkspace]);
 
   const fetchDataSources = async () => {
+    if (!currentWorkspace) return;
+
     try {
       setLoading(true);
-      const response = await fetch("/api/sources");
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/sources`,
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -86,6 +116,23 @@ function DataSources() {
       console.error("Error fetching data sources:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchConnectorTypes = async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/sources/connectors/types`,
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setConnectorTypes(data.data);
+      }
+    } catch (err) {
+      console.error("Error fetching connector types:", err);
     }
   };
 
@@ -105,12 +152,15 @@ function DataSources() {
   };
 
   const handleDeleteConfirm = async () => {
-    if (!dataSourceToDelete) return;
+    if (!dataSourceToDelete || !currentWorkspace) return;
 
     try {
-      const response = await fetch(`/api/sources/${dataSourceToDelete._id}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/sources/${dataSourceToDelete._id}`,
+        {
+          method: "DELETE",
+        },
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -129,20 +179,25 @@ function DataSources() {
   };
 
   const handleToggleEnabled = async (dataSource: DataSource) => {
+    if (!currentWorkspace) return;
+
     try {
-      const response = await fetch(`/api/sources/${dataSource._id}/enable`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/sources/${dataSource._id}/enable`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ enabled: !dataSource.isActive }),
         },
-        body: JSON.stringify({ enabled: !dataSource.enabled }),
-      });
+      );
       const data = await response.json();
 
       if (data.success) {
         setDataSources(prev =>
           prev.map(ds =>
-            ds._id === dataSource._id ? { ...ds, enabled: !ds.enabled } : ds,
+            ds._id === dataSource._id ? { ...ds, isActive: !ds.isActive } : ds,
           ),
         );
       } else {
@@ -155,17 +210,27 @@ function DataSources() {
   };
 
   const handleTestConnection = async (dataSource: DataSource) => {
+    if (!currentWorkspace) return;
+
     setTestingId(dataSource._id);
     try {
-      const response = await fetch(`/api/sources/${dataSource._id}/test`, {
-        method: "POST",
-      });
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/sources/${dataSource._id}/test`,
+        {
+          method: "POST",
+        },
+      );
       const data = await response.json();
 
       if (data.success) {
         const result = data.data;
-        setError(result.success ? "" : result.message);
-        // You could show a success message here instead
+        if (result.success) {
+          setError(""); // Clear any existing errors
+          // Show success message
+          alert(`Connection successful: ${result.message}`);
+        } else {
+          setError(result.message);
+        }
       } else {
         setError(data.error || "Failed to test connection");
       }
@@ -178,10 +243,12 @@ function DataSources() {
   };
 
   const handleFormSubmit = async (formData: any) => {
+    if (!currentWorkspace) return;
+
     try {
       const url = editingDataSource
-        ? `/api/sources/${editingDataSource._id}`
-        : "/api/sources";
+        ? `/api/workspaces/${currentWorkspace.id}/sources/${editingDataSource._id}`
+        : `/api/workspaces/${currentWorkspace.id}/sources`;
 
       const method = editingDataSource ? "PUT" : "POST";
 
@@ -214,7 +281,7 @@ function DataSources() {
     }
   };
 
-  const getSourceChipColor = (source: string) => {
+  const getSourceChipColor = (type: string) => {
     const colors: {
       [key: string]: "primary" | "secondary" | "success" | "warning" | "error";
     } = {
@@ -226,8 +293,18 @@ function DataSources() {
       rest: "warning",
       api: "warning",
     };
-    return colors[source] || "default";
+    return colors[type] || "default";
   };
+
+  if (!currentWorkspace) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="info">
+          Please select a workspace to view data sources.
+        </Alert>
+      </Box>
+    );
+  }
 
   if (loading) {
     return (
@@ -293,8 +370,8 @@ function DataSources() {
                     {dataSource.name}
                   </Typography>
                   <Chip
-                    label={dataSource.source}
-                    color={getSourceChipColor(dataSource.source)}
+                    label={dataSource.type}
+                    color={getSourceChipColor(dataSource.type)}
                     size="small"
                   />
                 </Box>
@@ -311,18 +388,11 @@ function DataSources() {
 
                 <Box sx={{ mb: 2 }}>
                   <Chip
-                    label={dataSource.enabled ? "Enabled" : "Disabled"}
-                    color={dataSource.enabled ? "success" : "default"}
+                    label={dataSource.isActive ? "Active" : "Inactive"}
+                    color={dataSource.isActive ? "success" : "default"}
                     size="small"
                     sx={{ mr: 1 }}
                   />
-                  {dataSource.tenant && (
-                    <Chip
-                      label={`Tenant: ${dataSource.tenant}`}
-                      variant="outlined"
-                      size="small"
-                    />
-                  )}
                 </Box>
 
                 <Typography variant="caption" color="text.secondary">
@@ -343,13 +413,13 @@ function DataSources() {
                       <EditIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={dataSource.enabled ? "Disable" : "Enable"}>
+                  <Tooltip title={dataSource.isActive ? "Disable" : "Enable"}>
                     <IconButton
                       size="small"
                       onClick={() => handleToggleEnabled(dataSource)}
-                      color={dataSource.enabled ? "warning" : "success"}
+                      color={dataSource.isActive ? "warning" : "success"}
                     >
-                      {dataSource.enabled ? <DisableIcon /> : <EnableIcon />}
+                      {dataSource.isActive ? <DisableIcon /> : <EnableIcon />}
                     </IconButton>
                   </Tooltip>
                 </Box>
@@ -412,6 +482,7 @@ function DataSources() {
         }}
         onSubmit={handleFormSubmit}
         dataSource={editingDataSource}
+        connectorTypes={connectorTypes}
       />
 
       {/* Delete Confirmation Dialog */}

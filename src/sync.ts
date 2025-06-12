@@ -1,4 +1,4 @@
-import { dataSourceManager } from "./data-source-manager";
+import { databaseDataSourceManager } from "./database-data-source-manager";
 import { CloseSyncService } from "./sync-close";
 import { StripeSyncService } from "./sync-stripe";
 import { GraphQLSyncService } from "./sync-graphql";
@@ -235,7 +235,7 @@ async function main() {
   }
 
   // Validate configuration
-  const validation = dataSourceManager.validateConfig();
+  const validation = databaseDataSourceManager.validateConfig();
   if (!validation.valid) {
     console.error("Configuration validation failed:");
     validation.errors.forEach(error => console.error(`  - ${error}`));
@@ -243,12 +243,15 @@ async function main() {
   }
 
   // Get the data source
-  const dataSource = dataSourceManager.getDataSource(dataSourceId);
+  const dataSource =
+    await databaseDataSourceManager.getDataSource(dataSourceId);
   if (!dataSource) {
     console.error(`❌ Data source '${dataSourceId}' not found`);
     console.log("\nAvailable data sources:");
-    const allSources = dataSourceManager.getActiveDataSources();
-    allSources.forEach(s => console.log(`  - ${s.id}: ${s.name} (${s.type})`));
+    const allSources = await databaseDataSourceManager.getActiveDataSources();
+    allSources.forEach(s =>
+      console.log(`  - ${s.name}: ${s.type} (ID: ${s.id})`),
+    );
     process.exit(1);
   }
 
@@ -258,13 +261,8 @@ async function main() {
   }
 
   // Try to get destination from database-based destinations first
-  let destinationDb =
+  const destinationDb =
     await databaseDestinationManager.getDestination(destination);
-
-  // If not found, try the old YAML-based destinations
-  if (!destinationDb) {
-    destinationDb = dataSourceManager.getMongoDBDatabase(destination);
-  }
 
   if (!destinationDb) {
     console.error(`❌ Destination database '${destination}' not found`);
@@ -275,13 +273,6 @@ async function main() {
     if (dbDestinations.length > 0) {
       console.log("  Database destinations:");
       dbDestinations.forEach(db => console.log(`    - ${db}`));
-    }
-
-    // List YAML-based destinations
-    const yamlDestinations = dataSourceManager.listMongoDBDatabases();
-    if (yamlDestinations.length > 0) {
-      console.log("  YAML destinations:");
-      yamlDestinations.forEach(db => console.log(`    - ${db}`));
     }
 
     process.exit(1);

@@ -2,14 +2,15 @@ import axios, { AxiosError } from "axios";
 import { MongoClient, Db } from "mongodb";
 import * as dotenv from "dotenv";
 import {
-  dataSourceManager,
-  type DataSourceConfig,
-} from "./data-source-manager";
+  databaseDataSourceManager,
+  DataSourceConfig,
+} from "./database-data-source-manager";
 import type { ProgressReporter } from "./sync";
+import { dataSourceManager } from "./data-source-manager";
 
 dotenv.config();
 
-class CloseSyncService {
+export class CloseSyncService {
   private mongoConnections: Map<string, { client: MongoClient; db: Db }> =
     new Map();
   private dataSource: DataSourceConfig;
@@ -630,24 +631,28 @@ class CloseSyncService {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  async getDataSources() {
+    return databaseDataSourceManager.getDataSourcesByType("close");
+  }
 }
 
 // Load data source configuration
-function loadDataSourceConfig(): DataSourceConfig[] {
+async function loadDataSourceConfig(): Promise<DataSourceConfig[]> {
   try {
     // Validate configuration first
-    const validation = dataSourceManager.validateConfig();
+    const validation = databaseDataSourceManager.validateConfig();
     if (!validation.valid) {
       console.error("Configuration validation failed:");
       validation.errors.forEach(error => console.error(`  - ${error}`));
       process.exit(1);
     }
 
-    return dataSourceManager.getDataSourcesByType("close");
+    return databaseDataSourceManager.getDataSourcesByType("close");
   } catch (error) {
     console.error("Failed to load configuration:", error);
     console.error(
-      "Make sure config/config.yaml exists and environment variables are set",
+      "Make sure config/config.yaml exists and is properly formatted",
     );
     process.exit(1);
   }
@@ -655,10 +660,10 @@ function loadDataSourceConfig(): DataSourceConfig[] {
 
 // Main execution
 async function main() {
-  const dataSources = loadDataSourceConfig();
+  const dataSources = await loadDataSourceConfig();
 
   if (dataSources.length === 0) {
-    console.log("No active Close.com data sources found.");
+    console.log("No active Close data sources found.");
     process.exit(0);
   }
 
@@ -701,5 +706,3 @@ if (require.main === module) {
     process.exit(1);
   });
 }
-
-export { CloseSyncService };
