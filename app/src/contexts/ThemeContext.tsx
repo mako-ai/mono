@@ -298,6 +298,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           };
         },
       },
+      MuiButtonBase: {
+        defaultProps: {
+          disableRipple: true,
+        },
+      },
     },
   });
 
