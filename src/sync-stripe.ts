@@ -1,57 +1,69 @@
 import Stripe from "stripe";
 import { MongoClient, Db } from "mongodb";
 import {
-  dataSourceManager,
-  type DataSourceConfig,
-} from "./data-source-manager";
+  databaseDataSourceManager,
+  DataSourceConfig,
+} from "./database-data-source-manager";
 import type { ProgressReporter } from "./sync";
 import * as dotenv from "dotenv";
 
 dotenv.config();
 
-class StripeSyncService {
+export class StripeSyncService {
   private stripe: Stripe;
   private mongoConnections: Map<string, { client: MongoClient; db: Db }> =
     new Map();
-  private dataSource: DataSourceConfig;
   private settings: {
     batchSize: number;
     rateLimitDelay: number;
-    maxRetries: number;
+    timezone: string;
   };
 
-  constructor(dataSource: DataSourceConfig) {
-    this.dataSource = dataSource;
-
-    // Get Stripe configuration
-    if (!dataSource.connection.api_key) {
-      throw new Error(
-        `Stripe API key is required for data source ${dataSource.id}`,
-      );
+  constructor(private dataSource: DataSourceConfig) {
+    const apiKey = dataSource.connection.api_key;
+    if (!apiKey) {
+      throw new Error("Stripe API key is required");
     }
 
-    console.log(`Initializing Stripe client for ${dataSource.name}`);
-    console.log(
-      `API key loaded: ${dataSource.connection.api_key ? "Yes" : "No"}`,
-    );
-    console.log(
-      `API key prefix: ${dataSource.connection.api_key?.substring(0, 10)}...`,
-    );
-
-    this.stripe = new Stripe(dataSource.connection.api_key, {
-      // Add timeout to prevent hanging
-      timeout: 60000, // 60 seconds
-      maxNetworkRetries: 2,
+    this.stripe = new Stripe(apiKey, {
+      apiVersion: "2023-10-16",
     });
 
     // Get settings with defaults
-    const globalConfig = dataSourceManager.getGlobalConfig();
     this.settings = {
       batchSize: dataSource.settings.sync_batch_size || 50,
       rateLimitDelay: dataSource.settings.rate_limit_delay_ms || 300,
-      maxRetries:
-        dataSource.settings.max_retries || globalConfig.max_retries || 5,
+      timezone: dataSource.settings.timezone || "UTC",
     };
+  }
+
+  async syncAll(targetDb?: any): Promise<void> {
+    console.log(`\n🔄 Starting full sync for ${this.dataSource.name}`);
+
+    // Sync in order to handle dependencies
+    await this.syncCustomers(targetDb);
+    await this.syncProducts(targetDb);
+    await this.syncPlans(targetDb);
+    await this.syncSubscriptions(targetDb);
+    await this.syncCharges(targetDb);
+    await this.syncInvoices(targetDb);
+
+    console.log(`\n✅ Full sync completed for ${this.dataSource.name}`);
+  }
+
+  async connectToDatabase(targetDb?: any): Promise<{
+    client: MongoClient;
+    db: Db;
+  }> {
+    if (!targetDb) {
+      throw new Error("Target database configuration is required");
+    }
+
+    const client = new MongoClient(targetDb.connection.connection_string);
+    await client.connect();
+    const db = client.db(targetDb.connection.database);
+
+    return { client, db };
   }
 
   private async getMongoConnection(
@@ -63,7 +75,7 @@ class StripeSyncService {
     }
 
     // Get target database configuration
-    const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
+    const targetDb = databaseDataSourceManager.getMongoDBDatabase(targetDbId);
     if (!targetDb || targetDb.type !== "mongodb") {
       throw new Error(`MongoDB data source '${targetDbId}' not found`);
     }
@@ -452,61 +464,31 @@ class StripeSyncService {
     }
   }
 
-  async syncAll(targetDbId?: string): Promise<void> {
-    console.log(
-      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
-    );
-    console.log(`Target database: ${targetDbId || "local_dev.analytics_db"}`);
-    const startTime = Date.now();
-
-    try {
-      // Import ProgressReporter for creating individual progress
-      const { ProgressReporter } = await import("./sync");
-
-      // Sync all data types with individual progress
-      await this.syncCustomers(targetDbId, new ProgressReporter("customers"));
-      await this.syncSubscriptions(
-        targetDbId,
-        new ProgressReporter("subscriptions"),
-      );
-      await this.syncCharges(targetDbId, new ProgressReporter("charges"));
-      await this.syncInvoices(targetDbId, new ProgressReporter("invoices"));
-      await this.syncProducts(targetDbId, new ProgressReporter("products"));
-      await this.syncPlans(targetDbId, new ProgressReporter("plans"));
-
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(
-        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`,
-      );
-    } catch (error) {
-      console.error(`❌ Sync failed for ${this.dataSource.name}:`, error);
-      throw error;
-    } finally {
-      await this.disconnect();
-    }
-  }
-
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async getDataSources() {
+    return databaseDataSourceManager.getDataSourcesByType("stripe");
   }
 }
 
 // Load data source configuration
-function loadDataSourceConfig(): DataSourceConfig[] {
+async function loadDataSourceConfig(): Promise<DataSourceConfig[]> {
   try {
     // Validate configuration first
-    const validation = dataSourceManager.validateConfig();
+    const validation = databaseDataSourceManager.validateConfig();
     if (!validation.valid) {
       console.error("Configuration validation failed:");
       validation.errors.forEach(error => console.error(`  - ${error}`));
       process.exit(1);
     }
 
-    return dataSourceManager.getDataSourcesByType("stripe");
+    return databaseDataSourceManager.getDataSourcesByType("stripe");
   } catch (error) {
     console.error("Failed to load configuration:", error);
     console.error(
-      "Make sure config/config.yaml exists and environment variables are set",
+      "Make sure config/config.yaml exists and is properly formatted",
     );
     process.exit(1);
   }
@@ -514,7 +496,7 @@ function loadDataSourceConfig(): DataSourceConfig[] {
 
 // Main execution
 async function main() {
-  const dataSources = loadDataSourceConfig();
+  const dataSources = await loadDataSourceConfig();
 
   if (dataSources.length === 0) {
     console.log("No active Stripe data sources found.");
@@ -560,5 +542,3 @@ if (require.main === module) {
     process.exit(1);
   });
 }
-
-export { StripeSyncService };

@@ -158,11 +158,57 @@ export interface IDataSource extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
-  type: "stripe" | "shopify" | "webhook" | "csv" | "api";
-  config: any;
+  type:
+    | "stripe"
+    | "close"
+    | "graphql"
+    | "postgresql"
+    | "mysql"
+    | "webhook"
+    | "csv"
+    | "api";
+  description?: string;
+  config: {
+    // API sources
+    api_key?: string;
+    api_base_url?: string;
+
+    // GraphQL sources
+    endpoint?: string;
+    headers?: { [key: string]: string };
+    queries?: Array<{
+      name: string;
+      query: string;
+      variables?: { [key: string]: any };
+      dataPath?: string;
+      hasNextPagePath?: string;
+      cursorPath?: string;
+      totalCountPath?: string;
+    }>;
+
+    // Database sources
+    host?: string;
+    port?: number;
+    database?: string;
+    username?: string;
+    password?: string;
+    connection_string?: string;
+
+    // Additional fields
+    [key: string]: any;
+  };
+  settings: {
+    sync_batch_size: number;
+    rate_limit_delay_ms: number;
+    max_retries?: number;
+    timeout_ms?: number;
+    timezone?: string;
+  };
   targetDatabases?: Types.ObjectId[];
   createdBy: string;
   createdAt: Date;
+  updatedAt: Date;
+  lastSyncedAt?: Date;
   isActive: boolean;
 }
 
@@ -433,14 +479,46 @@ const DataSourceSchema = new Schema<IDataSource>(
     },
     type: {
       type: String,
-      enum: ["stripe", "shopify", "webhook", "csv", "api"],
+      enum: [
+        "stripe",
+        "close",
+        "graphql",
+        "postgresql",
+        "mysql",
+        "webhook",
+        "csv",
+        "api",
+      ],
       required: true,
+    },
+    description: {
+      type: String,
+      trim: true,
     },
     config: {
       type: Schema.Types.Mixed,
       required: true,
       set: encryptObject,
       get: decryptObject,
+    },
+    settings: {
+      sync_batch_size: {
+        type: Number,
+        required: true,
+      },
+      rate_limit_delay_ms: {
+        type: Number,
+        required: true,
+      },
+      max_retries: {
+        type: Number,
+      },
+      timeout_ms: {
+        type: Number,
+      },
+      timezone: {
+        type: String,
+      },
     },
     targetDatabases: [
       {
@@ -453,13 +531,16 @@ const DataSourceSchema = new Schema<IDataSource>(
       ref: "User",
       required: true,
     },
+    lastSyncedAt: {
+      type: Date,
+    },
     isActive: {
       type: Boolean,
       default: true,
     },
   },
   {
-    timestamps: { createdAt: true, updatedAt: false },
+    timestamps: { createdAt: true, updatedAt: true },
     toJSON: { getters: true },
     toObject: { getters: true },
   },
