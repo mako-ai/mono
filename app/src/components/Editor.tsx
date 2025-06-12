@@ -459,6 +459,7 @@ function Editor() {
                         <Settings />
                       ) : activeTab?.kind === "sources" ? (
                         <DataSourceTab
+                          key={activeTab.id}
                           tabId={activeTab.id}
                           sourceId={
                             typeof activeTab.content === "string"
