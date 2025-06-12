@@ -420,8 +420,8 @@ function Editor() {
                             }}
                             initialDatabaseId={tab.databaseId}
                             databases={availableDatabases}
-                            onDatabaseChange={() =>
-                              updateConsoleDatabase(tab.id)
+                            onDatabaseChange={dbId =>
+                              updateConsoleDatabase(tab.id, dbId)
                             }
                             filePath={tab.filePath}
                           />
