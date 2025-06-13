@@ -25,6 +25,27 @@ function get(obj: any, path: string, defaultValue?: any): any {
 export class GraphQLConnector extends BaseConnector {
   private graphqlClient: AxiosInstance | null = null;
 
+  static getConfigSchema() {
+    return {
+      fields: [
+        {
+          name: "endpoint",
+          label: "GraphQL Endpoint",
+          type: "string",
+          required: true,
+          placeholder: "https://api.example.com/graphql",
+        },
+        {
+          name: "headers",
+          label: "Headers (JSON)",
+          type: "string",
+          required: false,
+          helperText: "Optional JSON string of additional headers",
+        },
+      ],
+    };
+  }
+
   getMetadata() {
     return {
       name: "GraphQL",

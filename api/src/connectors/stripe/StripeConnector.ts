@@ -9,6 +9,28 @@ import Stripe from "stripe";
 export class StripeConnector extends BaseConnector {
   private stripe: Stripe | null = null;
 
+  // Schema describing required configuration for this connector (used by frontend)
+  static getConfigSchema() {
+    return {
+      fields: [
+        {
+          name: "api_key",
+          label: "API Key",
+          type: "password",
+          required: true,
+          helperText: "Your Stripe secret API key",
+        },
+        {
+          name: "api_base_url",
+          label: "API Base URL",
+          type: "string",
+          required: false,
+          default: "https://api.stripe.com",
+        },
+      ],
+    };
+  }
+
   getMetadata() {
     return {
       name: "Stripe",
