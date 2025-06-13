@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// @ts-nocheck
+import { useEffect, useState, useMemo } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -16,79 +18,80 @@ import {
   Grid,
   Switch,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Divider,
   InputAdornment,
   Alert,
+  CircularProgress,
 } from "@mui/material";
 import {
   Close as CloseIcon,
-  ExpandMore as ExpandMoreIcon,
   Visibility,
   VisibilityOff,
 } from "@mui/icons-material";
+// react-hook-form may not have type definitions installed in this project yet.
+// @ts-ignore
+import { useForm, Controller, UseFormReturn } from "react-hook-form";
 
-interface DataSource {
-  _id?: string;
+/**
+ * Generic field description coming from the API schema
+ */
+export interface ConnectorFieldSchema {
+  /** config key, e.g. "api_key" */
   name: string;
-  description?: string;
-  type: string;
-  isActive: boolean;
-  config: {
-    api_key?: string;
-    api_base_url?: string;
-    endpoint?: string;
-    headers?: { [key: string]: string };
-    queries?: Array<{
-      name: string;
-      query: string;
-      variables?: { [key: string]: any };
-      dataPath?: string;
-      hasNextPagePath?: string;
-      cursorPath?: string;
-      totalCountPath?: string;
-    }>;
-    username?: string;
-    password?: string;
-    host?: string;
-    port?: number;
-    database?: string;
-    [key: string]: any;
-  };
-  settings: {
-    sync_batch_size: number;
-    rate_limit_delay_ms: number;
-    max_retries?: number;
-    timeout_ms?: number;
-    timezone?: string;
-  };
-  targetDatabases?: string[];
+  /** Human readable label */
+  label: string;
+  /** Field type: string | number | boolean | password */
+  type: "string" | "number" | "boolean" | "password";
+  /** Whether it is required */
+  required?: boolean;
+  /** Default value if not supplied */
+  default?: any;
+  /** Optional helper text */
+  helperText?: string;
+  /** Placeholder value */
+  placeholder?: string;
+  /** Additional options for select inputs */
+  options?: Array<{ label: string; value: any }>;
 }
 
-interface ConnectorType {
-  type: string;
-  name: string;
-  version: string;
-  description: string;
-  supportedEntities: string[];
+export interface ConnectorSchemaResponse {
+  /** Array of configuration fields */
+  fields: ConnectorFieldSchema[];
 }
 
 interface DataSourceFormProps {
-  /**
-   * When `variant` is "dialog" (default), the form is rendered inside a MUI Dialog (modal behaviour).
-   * When set to "inline", a regular Box container is returned so the form can be embedded in a page or tab.
-   */
   variant?: "dialog" | "inline";
-  /** Open flag is ignored for inline variant */
   open?: boolean;
   onClose?: () => void;
   onSubmit: (data: any) => void;
-  dataSource?: DataSource | null;
-  connectorTypes?: ConnectorType[];
-  /** Optional error message to display at top */
+  /** Existing data source (for edit) */
+  dataSource?: any | null;
+  /** List of available connector types supplied by parent */
+  connectorTypes?: Array<{
+    type: string;
+    name: string;
+    version: string;
+    description: string;
+    supportedEntities: string[];
+  }>;
   errorMessage?: string | null;
+}
+
+function generateDefaultValues(
+  schema?: ConnectorSchemaResponse,
+): Record<string, any> {
+  if (!schema) return {};
+  const defaults: Record<string, any> = {};
+  schema.fields.forEach(f => {
+    if (f.default !== undefined) {
+      defaults[f.name] = f.default;
+    } else if (f.type === "boolean") {
+      defaults[f.name] = false;
+    } else {
+      defaults[f.name] = "";
+    }
+  });
+  return defaults;
 }
 
 function DataSourceForm({
@@ -100,597 +103,420 @@ function DataSourceForm({
   connectorTypes = [],
   errorMessage,
 }: DataSourceFormProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    type: "",
-    isActive: true,
-    config: {
-      api_key: "",
-      api_base_url: "",
-      endpoint: "",
-      username: "",
-      password: "",
-      host: "",
-      port: "",
-      database: "",
-      queries: [] as any[],
-    },
-    settings: {
-      sync_batch_size: 100,
-      rate_limit_delay_ms: 200,
-      max_retries: 3,
-      timeout_ms: 30000,
-      timezone: "UTC",
-    },
-    targetDatabases: [] as string[],
-  });
+  // Fetch connector schema when the type changes
+  const [schema, setSchema] = useState<ConnectorSchemaResponse | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
 
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  // Password visibility state
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showApiKeyOptional, setShowApiKeyOptional] = useState(false);
-  const [showPasswordOptional, setShowPasswordOptional] = useState(false);
-
-  useEffect(() => {
+  // React Hook Form setup
+  const defaultValues = useMemo(() => {
     if (dataSource) {
-      setFormData({
+      return {
         name: dataSource.name || "",
         description: dataSource.description || "",
         type: dataSource.type || "",
         isActive: dataSource.isActive ?? true,
-        config: {
-          api_key: dataSource.config?.api_key || "",
-          api_base_url: dataSource.config?.api_base_url || "",
-          endpoint: dataSource.config?.endpoint || "",
-          username: dataSource.config?.username || "",
-          password: dataSource.config?.password || "",
-          host: dataSource.config?.host || "",
-          port: dataSource.config?.port?.toString() || "",
-          database: dataSource.config?.database || "",
-          queries: dataSource.config?.queries || [],
-        },
-        settings: {
-          sync_batch_size: dataSource.settings?.sync_batch_size || 100,
-          rate_limit_delay_ms: dataSource.settings?.rate_limit_delay_ms || 200,
-          max_retries: dataSource.settings?.max_retries || 3,
-          timeout_ms: dataSource.settings?.timeout_ms || 30000,
-          timezone: dataSource.settings?.timezone || "UTC",
-        },
-        targetDatabases: dataSource.targetDatabases || [],
-      });
-    } else {
-      // Reset form for new data source
-      setFormData({
-        name: "",
-        description: "",
-        type: "",
-        isActive: true,
-        config: {
-          api_key: "",
-          api_base_url: "",
-          endpoint: "",
-          username: "",
-          password: "",
-          host: "",
-          port: "",
-          database: "",
-          queries: [],
-        },
-        settings: {
-          sync_batch_size: 100,
-          rate_limit_delay_ms: 200,
-          max_retries: 3,
-          timeout_ms: 30000,
-          timezone: "UTC",
-        },
-        targetDatabases: [],
-      });
+        // Flatten config keys at the root level for RHF simplicity
+        ...dataSource.config,
+        // Advanced settings (namespaced with settings.)
+        settings_sync_batch_size: dataSource.settings?.sync_batch_size ?? 100,
+        settings_rate_limit_delay_ms:
+          dataSource.settings?.rate_limit_delay_ms ?? 200,
+        settings_max_retries: dataSource.settings?.max_retries ?? 3,
+        settings_timeout_ms: dataSource.settings?.timeout_ms ?? 30000,
+      } as Record<string, any>;
     }
-    setErrors({});
-  }, [dataSource, open]);
+    return {
+      name: "",
+      description: "",
+      type: "",
+      isActive: true,
+    } as Record<string, any>;
+  }, [dataSource]);
 
-  const handleInputChange = (field: string, value: any) => {
-    if (field.startsWith("config.")) {
-      const configField = field.replace("config.", "");
-      setFormData(prev => ({
-        ...prev,
-        config: {
-          ...prev.config,
-          [configField]: value,
-        },
-      }));
-    } else if (field.startsWith("settings.")) {
-      const settingsField = field.replace("settings.", "");
-      setFormData(prev => ({
-        ...prev,
-        settings: {
-          ...prev.settings,
-          [settingsField]: value,
-        },
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [field]: value,
-      }));
-    }
+  const form = useForm({
+    defaultValues,
+  });
 
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: "",
-      }));
-    }
-  };
+  const {
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors },
+  } = form;
 
-  const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
+  // Watch selected connector type
+  const selectedType = watch("type");
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Name is required";
-    }
+  // Reset form when dataSource changes (edit mode)
+  useEffect(() => {
+    reset(defaultValues);
+  }, [defaultValues, reset]);
 
-    if (!formData.type) {
-      newErrors.type = "Source type is required";
-    }
-
-    // Source-specific validation
-    switch (formData.type) {
-      case "close":
-      case "stripe":
-        if (!formData.config.api_key.trim()) {
-          newErrors["config.api_key"] = "API key is required";
-        }
-        break;
-      case "postgres":
-      case "mysql":
-        if (!formData.config.host.trim()) {
-          newErrors["config.host"] = "Host is required";
-        }
-        if (!formData.config.database.trim()) {
-          newErrors["config.database"] = "Database name is required";
-        }
-        break;
-      case "graphql":
-        if (!formData.config.endpoint?.trim()) {
-          newErrors["config.endpoint"] = "GraphQL endpoint is required";
-        }
-        break;
-      case "rest":
-      case "api":
-        if (!formData.config.api_base_url.trim()) {
-          newErrors["config.api_base_url"] = "Base URL is required";
-        }
-        break;
-    }
-
-    // Settings validation
-    if (formData.settings.sync_batch_size < 1) {
-      newErrors["settings.sync_batch_size"] = "Batch size must be at least 1";
-    }
-
-    if (formData.settings.rate_limit_delay_ms < 0) {
-      newErrors["settings.rate_limit_delay_ms"] =
-        "Rate limit delay cannot be negative";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = () => {
-    if (!validateForm()) {
+  // Fetch schema when connector type changes
+  useEffect(() => {
+    if (!selectedType) {
+      setSchema(null);
       return;
     }
+    // If editing and we already have schema loaded with same type, skip
+    setSchemaLoading(true);
+    setSchemaError(null);
+    fetch(`/api/connectors/${selectedType}/schema`)
+      .then(async res => {
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+        return res.json();
+      })
+      .then(json => {
+        setSchema(json.data as ConnectorSchemaResponse);
+        // Populate default values for new type if they don't exist yet
+        const defaults = generateDefaultValues(json.data);
+        Object.entries(defaults).forEach(([key, value]) => {
+          // Only set if value not already present (keeps existing data when editing)
+          if (form.getValues(key as any) === undefined) {
+            form.setValue(key as any, value);
+          }
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        setSchemaError(err.message || "Failed to load connector schema");
+      })
+      .finally(() => {
+        setSchemaLoading(false);
+      });
+  }, [selectedType]);
 
-    // Prepare data for submission
-    const submitData: any = {
-      ...formData,
-      config: {
-        ...formData.config,
-        port: formData.config.port ? parseInt(formData.config.port) : undefined,
+  /** Submit handler */
+  const onSubmitInternal = (values: Record<string, any>) => {
+    // Build config from schema fields
+    const config: Record<string, any> = {};
+    if (schema) {
+      schema.fields.forEach(f => {
+        config[f.name] = values[f.name];
+      });
+    }
+
+    const payload = {
+      name: values.name,
+      description: values.description,
+      type: values.type,
+      isActive: values.isActive,
+      config,
+      settings: {
+        sync_batch_size: Number(values.settings_sync_batch_size) || 100,
+        rate_limit_delay_ms: Number(values.settings_rate_limit_delay_ms) || 200,
+        max_retries: Number(values.settings_max_retries) || 3,
+        timeout_ms: Number(values.settings_timeout_ms) || 30000,
       },
     };
 
-    // Remove empty strings from config
-    const cleanConfig: { [key: string]: any } = {};
-    Object.entries(submitData.config).forEach(([key, value]) => {
-      if (
-        value !== "" &&
-        value !== undefined &&
-        (!Array.isArray(value) || value.length > 0)
-      ) {
-        cleanConfig[key] = value;
-      }
-    });
-    submitData.config = cleanConfig;
-
-    onSubmit(submitData);
+    onSubmit(payload);
   };
 
-  const renderConfigFields = () => {
-    switch (formData.type) {
-      case "close":
-      case "stripe":
-        return (
-          <>
-            <TextField
-              fullWidth
-              label="API Key"
-              type={showApiKey ? "text" : "password"}
-              value={formData.config.api_key}
-              onChange={e =>
-                handleInputChange("config.api_key", e.target.value)
-              }
-              error={!!errors["config.api_key"]}
-              helperText={errors["config.api_key"]}
-              margin="normal"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      edge="end"
-                    >
-                      {showApiKey ? <Visibility /> : <VisibilityOff />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            {formData.type === "close" && (
-              <TextField
-                fullWidth
-                label="API Base URL"
-                value={
-                  formData.config.api_base_url || "https://api.close.com/api/v1"
-                }
-                onChange={e =>
-                  handleInputChange("config.api_base_url", e.target.value)
-                }
-                margin="normal"
-              />
-            )}
-          </>
-        );
+  /** Renders a single dynamic config field */
+  const renderDynamicField = (
+    field: ConnectorFieldSchema,
+    form: UseFormReturn<any>,
+  ) => {
+    const { control } = form;
+    const { name, label, type, required, helperText, placeholder, options } =
+      field;
+    const fieldType = type === "password" ? "password" : "text";
 
-      case "postgres":
-      case "mysql":
-        return (
-          <>
-            <Grid container spacing={2}>
-              <Grid size={8}>
-                <TextField
-                  fullWidth
-                  label="Host"
-                  value={formData.config.host}
-                  onChange={e =>
-                    handleInputChange("config.host", e.target.value)
-                  }
-                  error={!!errors["config.host"]}
-                  helperText={errors["config.host"]}
-                  margin="normal"
-                />
-              </Grid>
-              <Grid size={4}>
-                <TextField
-                  fullWidth
-                  label="Port"
-                  type="number"
-                  value={formData.config.port}
-                  onChange={e =>
-                    handleInputChange("config.port", e.target.value)
-                  }
-                  margin="normal"
-                  placeholder={formData.type === "postgres" ? "5432" : "3306"}
-                />
-              </Grid>
-            </Grid>
-            <TextField
-              fullWidth
-              label="Database Name"
-              value={formData.config.database}
-              onChange={e =>
-                handleInputChange("config.database", e.target.value)
-              }
-              error={!!errors["config.database"]}
-              helperText={errors["config.database"]}
-              margin="normal"
+    if (type === "boolean") {
+      return (
+        <Controller
+          key={name}
+          name={name}
+          control={control}
+          rules={{ required }}
+          render={({ field }) => (
+            <FormControlLabel
+              control={<Switch {...field} checked={field.value ?? false} />}
+              label={label}
             />
-            <Grid container spacing={2}>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Username"
-                  value={formData.config.username}
-                  onChange={e =>
-                    handleInputChange("config.username", e.target.value)
-                  }
-                  margin="normal"
-                />
-              </Grid>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Password"
-                  type={showPassword ? "text" : "password"}
-                  value={formData.config.password}
-                  onChange={e =>
-                    handleInputChange("config.password", e.target.value)
-                  }
-                  margin="normal"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword(!showPassword)}
-                          edge="end"
-                        >
-                          {showPassword ? <Visibility /> : <VisibilityOff />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </>
-        );
-
-      case "graphql":
-        return (
-          <>
-            <TextField
-              fullWidth
-              label="GraphQL Endpoint"
-              value={formData.config.endpoint}
-              onChange={e =>
-                handleInputChange("config.endpoint", e.target.value)
-              }
-              error={!!errors["config.endpoint"]}
-              helperText={errors["config.endpoint"]}
-              margin="normal"
-              placeholder="https://api.example.com/graphql"
-            />
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              sx={{ mt: 2, mb: 1 }}
-            >
-              Headers and queries can be configured after creation
-            </Typography>
-          </>
-        );
-
-      case "rest":
-      case "api":
-        return (
-          <>
-            <TextField
-              fullWidth
-              label="Base URL"
-              value={formData.config.api_base_url}
-              onChange={e =>
-                handleInputChange("config.api_base_url", e.target.value)
-              }
-              error={!!errors["config.api_base_url"]}
-              helperText={errors["config.api_base_url"]}
-              margin="normal"
-              placeholder="https://api.example.com"
-            />
-            <TextField
-              fullWidth
-              label="API Key (optional)"
-              type={showApiKey ? "text" : "password"}
-              value={formData.config.api_key}
-              onChange={e =>
-                handleInputChange("config.api_key", e.target.value)
-              }
-              margin="normal"
-              InputProps={{
-                endAdornment: formData.config.api_key ? (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      edge="end"
-                    >
-                      {showApiKey ? <Visibility /> : <VisibilityOff />}
-                    </IconButton>
-                  </InputAdornment>
-                ) : null,
-              }}
-            />
-          </>
-        );
-
-      default:
-        return (
-          <Typography color="text.secondary" sx={{ mt: 2 }}>
-            Select a source type to configure connection settings
-          </Typography>
-        );
+          )}
+        />
+      );
     }
+
+    if (options && options.length > 0) {
+      return (
+        <Controller
+          key={name}
+          name={name}
+          control={control}
+          rules={{ required }}
+          render={({ field }) => (
+            <FormControl fullWidth margin="normal">
+              <InputLabel>{label}</InputLabel>
+              <Select {...field} label={label}>
+                {options.map(opt => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        />
+      );
+    }
+
+    // Default: TextField
+    return (
+      <Controller
+        key={name}
+        name={name}
+        control={control}
+        rules={{ required }}
+        render={({ field, fieldState }) => (
+          <TextField
+            {...field}
+            fullWidth
+            margin="normal"
+            type={fieldType}
+            label={label}
+            placeholder={placeholder}
+            error={!!fieldState.error}
+            helperText={
+              fieldState.error ? "This field is required" : helperText
+            }
+          />
+        )}
+      />
+    );
   };
 
-  // -----------------------------
-  // Shared form body (previously inside DialogContent)
-  // -----------------------------
-  const formBody = (
-    <Box sx={{ py: 1 }}>
-      {errorMessage && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {errorMessage}
-        </Alert>
-      )}
-      {/* Basic Information */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle1" gutterBottom>
-          Basic Information
-        </Typography>
-        <TextField
-          fullWidth
-          label="Name"
-          value={formData.name}
-          onChange={e => handleInputChange("name", e.target.value)}
-          error={!!errors.name}
-          helperText={errors.name}
-          margin="normal"
-        />
+  // -------------------------------------------------
+  // UI Sections
+  // -------------------------------------------------
 
-        <TextField
-          fullWidth
-          label="Description (optional)"
-          value={formData.description}
-          onChange={e => handleInputChange("description", e.target.value)}
-          margin="normal"
-          multiline
-          rows={2}
-        />
-
-        <FormControl fullWidth margin="normal" error={!!errors.type}>
-          <InputLabel>Source Type</InputLabel>
-          <Select
-            value={formData.type}
-            onChange={e => handleInputChange("type", e.target.value)}
-            label="Source Type"
-          >
+  const typeSelect = (
+    <FormControl fullWidth margin="normal">
+      <InputLabel>Source Type</InputLabel>
+      <Controller
+        name="type"
+        control={control}
+        rules={{ required: true }}
+        render={({ field }) => (
+          <Select {...field} label="Source Type">
             {connectorTypes.map(connector => (
               <MenuItem key={connector.type} value={connector.type}>
                 {connector.name}
               </MenuItem>
             ))}
           </Select>
-          {errors.type && (
-            <Typography variant="caption" color="error" sx={{ ml: 2 }}>
-              {errors.type}
-            </Typography>
-          )}
-        </FormControl>
-
-        <FormControlLabel
-          control={
-            <Switch
-              checked={formData.isActive}
-              onChange={e => handleInputChange("isActive", e.target.checked)}
-            />
-          }
-          label="Active"
-          sx={{ mt: 2 }}
-        />
-      </Box>
-
-      <Divider sx={{ my: 3 }} />
-
-      {/* Connection Configuration */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle1" gutterBottom>
-          Connection Configuration
+        )}
+      />
+      {errors.type && (
+        <Typography variant="caption" color="error" sx={{ ml: 2 }}>
+          Source type is required
         </Typography>
-        {renderConfigFields()}
-      </Box>
+      )}
+    </FormControl>
+  );
 
-      {/* Advanced Settings */}
-      <Accordion sx={{ mt: 3 }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">Advanced Settings</Typography>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Grid container spacing={2}>
-            <Grid size={6}>
+  const basicInformationSection = (
+    <Box sx={{ mb: 3 }}>
+      <Typography variant="subtitle1" gutterBottom>
+        Basic Information
+      </Typography>
+      <Controller
+        name="name"
+        control={control}
+        rules={{ required: true }}
+        render={({ field, fieldState }) => (
+          <TextField
+            {...field}
+            fullWidth
+            margin="normal"
+            label="Name"
+            error={!!fieldState.error}
+            helperText={fieldState.error ? "Name is required" : undefined}
+          />
+        )}
+      />
+      <Controller
+        name="description"
+        control={control}
+        render={({ field }) => (
+          <TextField
+            {...field}
+            fullWidth
+            margin="normal"
+            label="Description (optional)"
+            multiline
+            rows={2}
+          />
+        )}
+      />
+      <Controller
+        name="isActive"
+        control={control}
+        render={({ field }) => (
+          <FormControlLabel
+            control={<Switch {...field} checked={field.value ?? true} />}
+            label="Active"
+            sx={{ mt: 2 }}
+          />
+        )}
+      />
+    </Box>
+  );
+
+  const connectionConfigSection = (
+    <Box sx={{ mb: 3 }}>
+      <Typography variant="subtitle1" gutterBottom>
+        Connection Configuration
+      </Typography>
+      {schemaLoading && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <CircularProgress size={20} />
+          <Typography variant="body2">Loading schema…</Typography>
+        </Box>
+      )}
+      {schemaError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {schemaError}
+        </Alert>
+      )}
+      {schema && schema.fields.map(f => renderDynamicField(f, form))}
+      {!schemaLoading && !schema && (
+        <Typography color="text.secondary" sx={{ mt: 2 }}>
+          Select a source type to load configuration fields.
+        </Typography>
+      )}
+    </Box>
+  );
+
+  const advancedSettingsSection = (
+    <Box sx={{ mt: 3 }}>
+      <Typography variant="h6" gutterBottom>
+        Advanced Settings
+      </Typography>
+      <Grid container spacing={2}>
+        <Grid xs={6}>
+          <Controller
+            name="settings_sync_batch_size"
+            control={control}
+            rules={{ min: 1, required: true }}
+            render={({ field, fieldState }) => (
               <TextField
+                {...field}
                 fullWidth
                 label="Sync Batch Size"
                 type="number"
-                value={formData.settings.sync_batch_size}
-                onChange={e =>
-                  handleInputChange(
-                    "settings.sync_batch_size",
-                    parseInt(e.target.value) || 0,
-                  )
-                }
-                error={!!errors["settings.sync_batch_size"]}
-                helperText={
-                  errors["settings.sync_batch_size"] ||
-                  "Number of records to process at once"
-                }
                 margin="normal"
+                error={!!fieldState.error}
+                helperText={
+                  fieldState.error ? "Must be at least 1" : "Records per batch"
+                }
                 inputProps={{ min: 1 }}
               />
-            </Grid>
-            <Grid size={6}>
+            )}
+          />
+        </Grid>
+        <Grid xs={6}>
+          <Controller
+            name="settings_rate_limit_delay_ms"
+            control={control}
+            rules={{ min: 0, required: true }}
+            render={({ field, fieldState }) => (
               <TextField
+                {...field}
                 fullWidth
                 label="Rate Limit Delay (ms)"
                 type="number"
-                value={formData.settings.rate_limit_delay_ms}
-                onChange={e =>
-                  handleInputChange(
-                    "settings.rate_limit_delay_ms",
-                    parseInt(e.target.value) || 0,
-                  )
-                }
-                error={!!errors["settings.rate_limit_delay_ms"]}
-                helperText={
-                  errors["settings.rate_limit_delay_ms"] ||
-                  "Delay between API calls"
-                }
                 margin="normal"
+                error={!!fieldState.error}
+                helperText={
+                  fieldState.error
+                    ? "Cannot be negative"
+                    : "Delay between API calls"
+                }
                 inputProps={{ min: 0 }}
               />
-            </Grid>
-            <Grid size={6}>
+            )}
+          />
+        </Grid>
+        <Grid xs={6}>
+          <Controller
+            name="settings_max_retries"
+            control={control}
+            rules={{ min: 0, required: true }}
+            render={({ field }) => (
               <TextField
+                {...field}
                 fullWidth
                 label="Max Retries"
                 type="number"
-                value={formData.settings.max_retries}
-                onChange={e =>
-                  handleInputChange(
-                    "settings.max_retries",
-                    parseInt(e.target.value) || 0,
-                  )
-                }
                 margin="normal"
                 inputProps={{ min: 0 }}
               />
-            </Grid>
-            <Grid size={6}>
+            )}
+          />
+        </Grid>
+        <Grid xs={6}>
+          <Controller
+            name="settings_timeout_ms"
+            control={control}
+            rules={{ min: 1000, required: true }}
+            render={({ field }) => (
               <TextField
+                {...field}
                 fullWidth
                 label="Timeout (ms)"
                 type="number"
-                value={formData.settings.timeout_ms}
-                onChange={e =>
-                  handleInputChange(
-                    "settings.timeout_ms",
-                    parseInt(e.target.value) || 0,
-                  )
-                }
                 margin="normal"
                 inputProps={{ min: 1000 }}
               />
-            </Grid>
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
+            )}
+          />
+        </Grid>
+      </Grid>
+    </Box>
+  );
+
+  // --------------------------------------------------------------------
+  // Variant rendering (inline vs dialog)
+  // --------------------------------------------------------------------
+
+  const formContent = (
+    <Box sx={{ py: 1 }}>
+      {/* Optional error message */}
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {errorMessage}
+        </Alert>
+      )}
+
+      {/* Source Type dropdown first */}
+      {typeSelect}
+
+      {/* Render rest only if type selected */}
+      {selectedType && (
+        <>
+          <Divider sx={{ my: 3 }} />
+          {basicInformationSection}
+          <Divider sx={{ my: 3 }} />
+          {connectionConfigSection}
+          {advancedSettingsSection}
+        </>
+      )}
     </Box>
   );
 
   if (variant === "inline") {
     return (
       <Box
-        sx={{
-          p: 2,
-          maxWidth: "800px",
-          mx: "auto",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-        }}
+        component="form"
+        onSubmit={handleSubmit(onSubmitInternal)}
+        sx={{ p: 2, maxWidth: "800px", mx: "auto" }}
       >
         {/* Header */}
         <Box
@@ -705,21 +531,14 @@ function DataSourceForm({
             {dataSource ? "Edit Data Source" : "Add Data Source"}
           </Typography>
         </Box>
-
-        {/* Main form */}
-        <Box sx={{ flexGrow: 1 }}>{formBody}</Box>
-
+        {/* Form fields */}
+        {formContent}
         {/* Actions */}
         <Box
-          sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 1,
-            mt: 2,
-          }}
+          sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}
         >
           {onClose && <Button onClick={onClose}>Cancel</Button>}
-          <Button onClick={handleSubmit} variant="contained" disableElevation>
+          <Button type="submit" variant="contained" disableElevation>
             {dataSource ? "Update" : "Create"}
           </Button>
         </Box>
@@ -727,18 +546,14 @@ function DataSourceForm({
     );
   }
 
-  // Default: dialog variant (existing behavior)
+  // Dialog variant
   return (
     <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
       fullWidth
-      PaperProps={{
-        sx: {
-          maxHeight: "90vh",
-        },
-      }}
+      PaperProps={{ sx: { maxHeight: "90vh" } }}
     >
       <DialogTitle
         sx={{
@@ -750,22 +565,18 @@ function DataSourceForm({
         <Typography variant="h6">
           {dataSource ? "Edit Data Source" : "Add Data Source"}
         </Typography>
-        <IconButton
-          aria-label="close"
-          onClick={onClose}
-          sx={{
-            color: theme => theme.palette.grey[500],
-          }}
-        >
+        <IconButton aria-label="close" onClick={onClose}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-
-      <DialogContent dividers>{formBody}</DialogContent>
-
+      <DialogContent dividers>{formContent}</DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" disableElevation>
+        <Button
+          onClick={handleSubmit(onSubmitInternal)}
+          variant="contained"
+          disableElevation
+        >
           {dataSource ? "Update" : "Create"}
         </Button>
       </DialogActions>

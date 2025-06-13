@@ -9,6 +9,27 @@ import axios, { AxiosInstance } from "axios";
 export class CloseConnector extends BaseConnector {
   private closeApi: AxiosInstance | null = null;
 
+  static getConfigSchema() {
+    return {
+      fields: [
+        {
+          name: "api_key",
+          label: "API Key",
+          type: "password",
+          required: true,
+          helperText: "Close API Key (generate in Close settings)",
+        },
+        {
+          name: "api_base_url",
+          label: "API Base URL",
+          type: "string",
+          required: false,
+          default: "https://api.close.com/api/v1",
+        },
+      ],
+    };
+  }
+
   getMetadata() {
     return {
       name: "Close",

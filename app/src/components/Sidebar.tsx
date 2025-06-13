@@ -9,15 +9,14 @@ import {
   Divider,
 } from "@mui/material";
 import {
-  VisibilityOutlined as ViewIcon,
-  SettingsOutlined as SettingsIcon,
-  CloudUploadOutlined as DataSourceIcon,
   AccountCircleOutlined as UserIcon,
   Logout as LogoutIcon,
 } from "@mui/icons-material";
 import {
+  Settings as SettingsIcon,
   SquareChevronRight as ConsoleIcon,
   Database as DatabaseIcon,
+  CloudUpload as DataSourceIcon,
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
@@ -52,7 +51,6 @@ const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
   [
     { view: "databases", icon: DatabaseIcon, label: "Databases" },
     { view: "consoles", icon: ConsoleIcon, label: "Consoles" },
-    { view: "views", icon: ViewIcon, label: "Views" },
     { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
   ];
 
@@ -93,8 +91,9 @@ function Sidebar() {
       setActiveView(view);
     }
 
-    // Views that should open (or focus) a tab in the editor
-    if (view === "settings" || view === "sources") {
+    // Only certain views should automatically open (or focus) a tab in the editor.
+    // Currently we want settings to open a tab, but data sources should just switch the left pane.
+    if (view === "settings") {
       const { findTabByKind, addConsoleTab, setActiveConsole } =
         useConsoleStore.getState();
 
