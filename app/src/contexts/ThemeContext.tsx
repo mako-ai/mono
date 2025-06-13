@@ -167,6 +167,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         },
       },
       MuiSelect: {
+        defaultProps: {
+          size: "small",
+        },
         styleOverrides: {
           root: ({ theme, ownerState }: any) => ({
             fontSize: "0.9em",
@@ -236,6 +239,51 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           },
         },
       },
+      MuiInputLabel: {
+        defaultProps: {
+          shrink: true,
+        },
+        styleOverrides: {
+          root: {
+            transform: "none",
+            position: "relative",
+            top: 0,
+            left: 0,
+            marginBottom: 4,
+            transition: "none",
+            "&.MuiInputLabel-shrink": {
+              transform: "none",
+            },
+          },
+        },
+      },
+      MuiFormLabel: {
+        styleOverrides: {
+          root: {
+            transform: "none",
+            position: "relative",
+            top: 0,
+            left: 0,
+            marginBottom: 4,
+            transition: "none",
+            "&.MuiInputLabel-shrink, &.MuiFormLabel-filled": {
+              transform: "none",
+            },
+          },
+        },
+      },
+      MuiOutlinedInput: {
+        defaultProps: {
+          size: "small",
+        },
+        styleOverrides: {
+          root: {
+            "& legend": {
+              width: "0 !important",
+            },
+          },
+        },
+      },
       MuiCssBaseline: {
         styleOverrides: (theme: any) => {
           const thumbColor = alpha(theme.palette.text.primary, 0.1);
@@ -301,6 +349,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       MuiButtonBase: {
         defaultProps: {
           disableRipple: true,
+        },
+      },
+      MuiTextField: {
+        defaultProps: {
+          size: "small",
         },
       },
     },

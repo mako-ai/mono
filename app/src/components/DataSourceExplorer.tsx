@@ -11,8 +11,19 @@ import {
   CircularProgress,
   Tooltip,
   Alert,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
 } from "@mui/material";
-import { Add as AddIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import {
+  Add as AddIcon,
+  Refresh as RefreshIcon,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
 
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
@@ -32,6 +43,15 @@ function DataSourceExplorer() {
   const [sources, setSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Context-menu & delete handling state
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    item: DataSource;
+  } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<DataSource | null>(null);
 
   const fetchSources = async () => {
     if (!currentWorkspace) return;
@@ -93,6 +113,53 @@ function DataSourceExplorer() {
 
   const handleAdd = () => openTabForSource(undefined);
 
+  // ---------- Context menu helpers ----------
+  const handleContextMenu = (
+    event: React.MouseEvent<HTMLDivElement, MouseEvent>,
+    item: DataSource,
+  ) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      item,
+    });
+  };
+
+  const handleContextMenuClose = () => setContextMenu(null);
+
+  const handleDelete = (item: DataSource) => {
+    setSelectedItem(item);
+    setDeleteDialogOpen(true);
+    handleContextMenuClose();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!currentWorkspace || !selectedItem) return;
+    try {
+      const response = await fetch(
+        `/api/workspaces/${currentWorkspace.id}/sources/${selectedItem._id}`,
+        {
+          method: "DELETE",
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setDeleteDialogOpen(false);
+        setSelectedItem(null);
+        fetchSources();
+      } else {
+        console.error("Failed to delete data source:", data.error);
+      }
+    } catch (e: any) {
+      console.error("Failed to delete data source:", e);
+    }
+  };
+
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
@@ -149,7 +216,10 @@ function DataSourceExplorer() {
           <List dense>
             {sources.map(src => (
               <ListItem key={src._id} disablePadding>
-                <ListItemButton onClick={() => openTabForSource(src)}>
+                <ListItemButton
+                  onClick={() => openTabForSource(src)}
+                  onContextMenu={e => handleContextMenu(e, src)}
+                >
                   <ListItemIcon sx={{ minWidth: 32 }}>
                     <Box
                       component="img"
@@ -165,6 +235,51 @@ function DataSourceExplorer() {
           </List>
         )}
       </Box>
+
+      {/* Context Menu */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleContextMenuClose}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem onClick={() => handleDelete(contextMenu!.item)}>
+          <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
+          Delete
+        </MenuItem>
+      </Menu>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete Data Source</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This will permanently delete the data source.
+          </Alert>
+          <Typography>
+            Are you sure you want to delete "{selectedItem?.name}"?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

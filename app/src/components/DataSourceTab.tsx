@@ -170,14 +170,16 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
   }
 
   return (
-    <DataSourceForm
-      variant="inline"
-      onClose={handleClose}
-      onSubmit={handleSubmit}
-      dataSource={dataSource}
-      connectorTypes={connectorTypes}
-      errorMessage={error}
-    />
+    <Box sx={{ height: "100%", p: 2, overflow: "auto", bgcolor: "#fff" }}>
+      <DataSourceForm
+        variant="inline"
+        onClose={handleClose}
+        onSubmit={handleSubmit}
+        dataSource={dataSource}
+        connectorTypes={connectorTypes}
+        errorMessage={error}
+      />
+    </Box>
   );
 };
 

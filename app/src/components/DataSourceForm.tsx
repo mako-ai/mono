@@ -1,11 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// @ts-nocheck
 import { useEffect, useState, useMemo } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   TextField,
   FormControl,
@@ -14,22 +8,13 @@ import {
   MenuItem,
   Box,
   Typography,
-  IconButton,
-  Grid,
   Switch,
   FormControlLabel,
   Divider,
-  InputAdornment,
   Alert,
   CircularProgress,
 } from "@mui/material";
-import {
-  Close as CloseIcon,
-  Visibility,
-  VisibilityOff,
-} from "@mui/icons-material";
-// react-hook-form may not have type definitions installed in this project yet.
-// @ts-ignore
+
 import { useForm, Controller, UseFormReturn } from "react-hook-form";
 
 /**
@@ -95,8 +80,6 @@ function generateDefaultValues(
 }
 
 function DataSourceForm({
-  variant = "dialog",
-  open = false,
   onClose,
   onSubmit,
   dataSource,
@@ -252,7 +235,7 @@ function DataSourceForm({
           control={control}
           rules={{ required }}
           render={({ field }) => (
-            <FormControl fullWidth margin="normal">
+            <FormControl fullWidth margin="normal" variant="standard">
               <InputLabel>{label}</InputLabel>
               <Select {...field} label={label}>
                 {options.map(opt => (
@@ -286,6 +269,20 @@ function DataSourceForm({
             helperText={
               fieldState.error ? "This field is required" : helperText
             }
+            autoComplete="nope"
+            name={`config_${name}_${Math.random().toString(36).substring(7)}`}
+            inputProps={{
+              autoComplete: "nope",
+              "data-lpignore": "true",
+              "data-form-type": "other",
+              "aria-autocomplete": "none",
+              readOnly: true,
+              onFocus: (e: any) => {
+                setTimeout(() => {
+                  e.target.removeAttribute("readonly");
+                }, 100);
+              },
+            }}
           />
         )}
       />
@@ -304,7 +301,7 @@ function DataSourceForm({
         control={control}
         rules={{ required: true }}
         render={({ field }) => (
-          <Select {...field} label="Source Type">
+          <Select {...field} variant="outlined" size="small">
             {connectorTypes.map(connector => (
               <MenuItem key={connector.type} value={connector.type}>
                 {connector.name}
@@ -323,9 +320,6 @@ function DataSourceForm({
 
   const basicInformationSection = (
     <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" gutterBottom>
-        Basic Information
-      </Typography>
       <Controller
         name="name"
         control={control}
@@ -338,6 +332,20 @@ function DataSourceForm({
             label="Name"
             error={!!fieldState.error}
             helperText={fieldState.error ? "Name is required" : undefined}
+            autoComplete="nope"
+            name={`datasource_title_${Math.random().toString(36).substring(7)}`}
+            inputProps={{
+              autoComplete: "nope",
+              "data-lpignore": "true",
+              "data-form-type": "other",
+              "aria-autocomplete": "none",
+              readOnly: true,
+              onFocus: (e: any) => {
+                setTimeout(() => {
+                  e.target.removeAttribute("readonly");
+                }, 100);
+              },
+            }}
           />
         )}
       />
@@ -352,6 +360,20 @@ function DataSourceForm({
             label="Description (optional)"
             multiline
             rows={2}
+            autoComplete="nope"
+            name={`datasource_desc_${Math.random().toString(36).substring(7)}`}
+            inputProps={{
+              autoComplete: "nope",
+              "data-lpignore": "true",
+              "data-form-type": "other",
+              "aria-autocomplete": "none",
+              readOnly: true,
+              onFocus: (e: any) => {
+                setTimeout(() => {
+                  e.target.removeAttribute("readonly");
+                }, 100);
+              },
+            }}
           />
         )}
       />
@@ -399,8 +421,14 @@ function DataSourceForm({
       <Typography variant="h6" gutterBottom>
         Advanced Settings
       </Typography>
-      <Grid container spacing={2}>
-        <Grid xs={6}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          gap: 2,
+        }}
+      >
+        <Box>
           <Controller
             name="settings_sync_batch_size"
             control={control}
@@ -416,12 +444,18 @@ function DataSourceForm({
                 helperText={
                   fieldState.error ? "Must be at least 1" : "Records per batch"
                 }
-                inputProps={{ min: 1 }}
+                inputProps={{
+                  min: 1,
+                  autoComplete: "nope",
+                  "data-lpignore": "true",
+                  "data-form-type": "other",
+                }}
+                autoComplete="nope"
               />
             )}
           />
-        </Grid>
-        <Grid xs={6}>
+        </Box>
+        <Box>
           <Controller
             name="settings_rate_limit_delay_ms"
             control={control}
@@ -439,12 +473,18 @@ function DataSourceForm({
                     ? "Cannot be negative"
                     : "Delay between API calls"
                 }
-                inputProps={{ min: 0 }}
+                inputProps={{
+                  min: 0,
+                  autoComplete: "nope",
+                  "data-lpignore": "true",
+                  "data-form-type": "other",
+                }}
+                autoComplete="nope"
               />
             )}
           />
-        </Grid>
-        <Grid xs={6}>
+        </Box>
+        <Box>
           <Controller
             name="settings_max_retries"
             control={control}
@@ -456,12 +496,18 @@ function DataSourceForm({
                 label="Max Retries"
                 type="number"
                 margin="normal"
-                inputProps={{ min: 0 }}
+                inputProps={{
+                  min: 0,
+                  autoComplete: "nope",
+                  "data-lpignore": "true",
+                  "data-form-type": "other",
+                }}
+                autoComplete="nope"
               />
             )}
           />
-        </Grid>
-        <Grid xs={6}>
+        </Box>
+        <Box>
           <Controller
             name="settings_timeout_ms"
             control={control}
@@ -473,12 +519,18 @@ function DataSourceForm({
                 label="Timeout (ms)"
                 type="number"
                 margin="normal"
-                inputProps={{ min: 1000 }}
+                inputProps={{
+                  min: 1000,
+                  autoComplete: "nope",
+                  "data-lpignore": "true",
+                  "data-form-type": "other",
+                }}
+                autoComplete="nope"
               />
             )}
           />
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 
@@ -488,6 +540,41 @@ function DataSourceForm({
 
   const formContent = (
     <Box sx={{ py: 1 }}>
+      {/* CSS to disable autocomplete dropdown */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+          input:-webkit-autofill,
+          input:-webkit-autofill:hover,
+          input:-webkit-autofill:focus,
+          input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px white inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+          }
+          input[readonly] {
+            background-color: transparent !important;
+          }
+        `,
+        }}
+      />
+
+      {/* Hidden fields to prevent autocomplete */}
+      <input type="text" style={{ display: "none" }} autoComplete="nope" />
+      <input type="password" style={{ display: "none" }} autoComplete="nope" />
+      <input type="email" style={{ display: "none" }} autoComplete="nope" />
+      <input
+        type="text"
+        name="fakeusernameremembered"
+        style={{ display: "none" }}
+        autoComplete="nope"
+      />
+      <input
+        type="password"
+        name="fakepasswordremembered"
+        style={{ display: "none" }}
+        autoComplete="nope"
+      />
+
       {/* Optional error message */}
       {errorMessage && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -501,86 +588,36 @@ function DataSourceForm({
       {/* Render rest only if type selected */}
       {selectedType && (
         <>
-          <Divider sx={{ my: 3 }} />
+          <Divider sx={{ my: 1 }} />
           {basicInformationSection}
           <Divider sx={{ my: 3 }} />
           {connectionConfigSection}
           {advancedSettingsSection}
+          <Box
+            sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}
+          >
+            <Button onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="contained" disableElevation>
+              {dataSource ? "Update" : "Create"}
+            </Button>
+          </Box>
         </>
       )}
     </Box>
   );
 
-  if (variant === "inline") {
-    return (
-      <Box
-        component="form"
-        onSubmit={handleSubmit(onSubmitInternal)}
-        sx={{ p: 2, maxWidth: "800px", mx: "auto" }}
-      >
-        {/* Header */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-start",
-            mb: 2,
-          }}
-        >
-          <Typography variant="h6">
-            {dataSource ? "Edit Data Source" : "Add Data Source"}
-          </Typography>
-        </Box>
-        {/* Form fields */}
-        {formContent}
-        {/* Actions */}
-        <Box
-          sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}
-        >
-          {onClose && <Button onClick={onClose}>Cancel</Button>}
-          <Button type="submit" variant="contained" disableElevation>
-            {dataSource ? "Update" : "Create"}
-          </Button>
-        </Box>
-      </Box>
-    );
-  }
-
-  // Dialog variant
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{ sx: { maxHeight: "90vh" } }}
+    <Box
+      component="form"
+      autoComplete="nope"
+      noValidate
+      onSubmit={handleSubmit(onSubmitInternal)}
+      sx={{ p: 2, maxWidth: "800px", mx: "auto" }}
+      data-form-type="other"
     >
-      <DialogTitle
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Typography variant="h6">
-          {dataSource ? "Edit Data Source" : "Add Data Source"}
-        </Typography>
-        <IconButton aria-label="close" onClick={onClose}>
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers>{formContent}</DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={handleSubmit(onSubmitInternal)}
-          variant="contained"
-          disableElevation
-        >
-          {dataSource ? "Update" : "Create"}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      {/* Form fields */}
+      {formContent}
+    </Box>
   );
 }
 
