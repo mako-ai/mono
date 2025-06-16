@@ -512,7 +512,15 @@ function DataSourceForm({
           <Select {...field} variant="outlined" size="small">
             {connectorTypes.map(connector => (
               <MenuItem key={connector.type} value={connector.type}>
-                {connector.name}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box
+                    component="img"
+                    src={`/api/connectors/${connector.type}/icon.svg`}
+                    alt={`${connector.type} icon`}
+                    sx={{ width: 20, height: 20 }}
+                  />
+                  {connector.name}
+                </Box>
               </MenuItem>
             ))}
           </Select>
@@ -749,6 +757,36 @@ function DataSourceForm({
       {/* Render rest only if type selected */}
       {selectedType && (
         <>
+          {/* Display selected connector icon and name */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              mb: 2,
+              mt: 2,
+              p: 2,
+              bgcolor: "action.hover",
+              borderRadius: 1,
+            }}
+          >
+            <Box
+              component="img"
+              src={`/api/connectors/${selectedType}/icon.svg`}
+              alt={`${selectedType} icon`}
+              sx={{ width: 32, height: 32 }}
+            />
+            <Box>
+              <Typography variant="subtitle1" fontWeight="medium">
+                {connectorTypes.find(c => c.type === selectedType)?.name ||
+                  selectedType}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {connectorTypes.find(c => c.type === selectedType)?.description}
+              </Typography>
+            </Box>
+          </Box>
+
           {basicInformationSection}
           {connectionConfigSection}
           {advancedSettingsSection}

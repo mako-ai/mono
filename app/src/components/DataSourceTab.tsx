@@ -34,13 +34,22 @@ interface DataSourceTabProps {
 
 const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
   const { currentWorkspace } = useWorkspace();
-  const { removeConsoleTab, updateConsoleTitle, consoleTabs } =
-    useConsoleStore();
+  const {
+    removeConsoleTab,
+    updateConsoleTitle,
+    updateConsoleIcon,
+    consoleTabs,
+  } = useConsoleStore();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<any>(null);
   const [connectorTypes, setConnectorTypes] = useState<ConnectorType[]>([]);
+
+  // Helper function to update tab icon
+  const updateTabIcon = (type: string) => {
+    updateConsoleIcon(tabId, `/api/connectors/${type}/icon.svg`);
+  };
 
   const fetchConnectorTypes = useCallback(async () => {
     if (!currentWorkspace) return;
@@ -81,6 +90,8 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
         setDataSource(data.data);
         // Update console tab title (via ref to avoid changing deps)
         updateConsoleTitleRef.current(tabId, data.data.name || "Data Source");
+        // Update tab icon
+        updateTabIcon(data.data.type);
         setError(null);
       } else {
         const serverError = data.error || data.message || JSON.stringify(data);
@@ -150,6 +161,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
           }
         }
         setError(null);
+        updateTabIcon(data.data.type);
       } else {
         const serverError = data.error || data.message || JSON.stringify(data);
         setError(serverError);

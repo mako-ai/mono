@@ -15,7 +15,11 @@ import {
   Snackbar,
 } from "@mui/material";
 import { Close as CloseIcon, Add as AddIcon } from "@mui/icons-material";
-import { SquareTerminal as ConsoleIcon } from "lucide-react";
+import {
+  SquareTerminal as ConsoleIcon,
+  Settings as SettingsIcon,
+  CloudUpload as DataSourceIcon,
+} from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
@@ -332,7 +336,20 @@ function Editor() {
                     <Box
                       sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
                     >
-                      <ConsoleIcon size={20} />
+                      {tab.icon ? (
+                        <Box
+                          component="img"
+                          src={tab.icon}
+                          alt="tab icon"
+                          sx={{ width: 20, height: 20 }}
+                        />
+                      ) : tab.kind === "settings" ? (
+                        <SettingsIcon size={20} />
+                      ) : tab.kind === "sources" ? (
+                        <DataSourceIcon size={20} />
+                      ) : (
+                        <ConsoleIcon size={20} />
+                      )}
                       <span
                         style={{
                           fontStyle: tab.isDirty ? "normal" : "italic",
