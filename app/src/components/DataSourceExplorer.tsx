@@ -97,6 +97,7 @@ function DataSourceExplorer() {
         content: contentKey,
         initialContent: contentKey,
         kind: "sources",
+        icon: `/api/connectors/${source.type}/icon.svg`,
       });
       setActiveConsole(id);
     } else {
