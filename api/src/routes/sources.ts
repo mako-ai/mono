@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { DataSource } from "../database/workspace-schema";
 import { connectorRegistry } from "../connectors/registry";
 import { getUserFromRequest } from "../middleware/auth";
+import * as crypto from "crypto";
 
 export const dataSourceRoutes = new Hono();
 
@@ -334,6 +335,103 @@ dataSourceRoutes.get("/connectors/types", async c => {
       })),
     });
   } catch (error) {
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
+
+// POST /api/workspaces/:workspaceId/sources/decrypt - Decrypt a value for debugging
+dataSourceRoutes.post("/decrypt", async c => {
+  try {
+    const { encryptedValue } = await c.req.json();
+
+    if (!encryptedValue) {
+      return c.json(
+        {
+          success: false,
+          error: "Encrypted value is required",
+        },
+        400,
+      );
+    }
+
+    // Get encryption key from environment
+    const encryptionKey = process.env.ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      return c.json(
+        {
+          success: false,
+          error: "ENCRYPTION_KEY not configured",
+        },
+        500,
+      );
+    }
+
+    // Check if the value is encrypted (contains ':')
+    if (!encryptedValue.includes(":")) {
+      return c.json({
+        success: true,
+        data: {
+          decryptedValue: encryptedValue,
+          wasEncrypted: false,
+        },
+      });
+    }
+
+    try {
+      // Parse the encrypted string (format: iv:encrypted_data)
+      const textParts = encryptedValue.split(":");
+      if (textParts.length < 2) {
+        return c.json(
+          {
+            success: false,
+            error: "Invalid encrypted format (expected iv:data)",
+          },
+          400,
+        );
+      }
+
+      const iv = Buffer.from(textParts[0], "hex");
+      const encryptedText = Buffer.from(textParts.slice(1).join(":"), "hex");
+
+      // Decrypt using AES-256-CBC
+      const decipher = crypto.createDecipheriv(
+        "aes-256-cbc",
+        Buffer.from(encryptionKey, "hex"),
+        iv,
+      );
+
+      let decrypted = decipher.update(encryptedText);
+      decrypted = Buffer.concat([decrypted, decipher.final()]);
+
+      return c.json({
+        success: true,
+        data: {
+          decryptedValue: decrypted.toString(),
+          wasEncrypted: true,
+        },
+      });
+    } catch (error: any) {
+      console.error("Decryption error:", error);
+      return c.json(
+        {
+          success: false,
+          error: `Decryption failed: ${error.message}`,
+          details: {
+            code: error.code,
+            message: error.message,
+          },
+        },
+        400,
+      );
+    }
+  } catch (error: any) {
+    console.error("Decrypt endpoint error:", error);
     return c.json(
       {
         success: false,

@@ -4,6 +4,103 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+// Import connector schemas to determine which fields should be encrypted
+interface ConnectorFieldSchema {
+  name: string;
+  type: string;
+  encrypted?: boolean;
+  [key: string]: any; // Allow other properties like label, required, etc.
+}
+
+interface ConnectorSchema {
+  fields: ConnectorFieldSchema[];
+}
+
+// Define schemas directly (matching what's in the connector classes)
+const CONNECTOR_SCHEMAS: { [key: string]: ConnectorSchema } = {
+  stripe: {
+    fields: [
+      { name: "api_key", label: "API Key", type: "password", required: true },
+      {
+        name: "api_base_url",
+        label: "API Base URL",
+        type: "string",
+        required: false,
+      },
+    ],
+  },
+  graphql: {
+    fields: [
+      {
+        name: "endpoint",
+        label: "GraphQL Endpoint URL",
+        type: "string",
+        required: true,
+      },
+      {
+        name: "headers",
+        label: "Custom Headers (JSON)",
+        type: "textarea",
+        required: false,
+        encrypted: true,
+      },
+      {
+        name: "query",
+        label: "GraphQL Query",
+        type: "textarea",
+        required: true,
+      },
+      {
+        name: "query_name",
+        label: "Query Name",
+        type: "string",
+        required: true,
+      },
+      { name: "data_path", label: "Data Path", type: "string", required: true },
+      {
+        name: "total_count_path",
+        label: "Total Count Path",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "has_next_page_path",
+        label: "Has Next Page Path",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "cursor_path",
+        label: "Cursor Path",
+        type: "string",
+        required: false,
+      },
+      {
+        name: "batch_size",
+        label: "Batch Size",
+        type: "number",
+        required: false,
+      },
+    ],
+  },
+  close: {
+    fields: [
+      { name: "api_key", label: "API Key", type: "password", required: true },
+    ],
+  },
+  mongodb: {
+    fields: [
+      {
+        name: "connection_string",
+        label: "Connection String",
+        type: "password",
+        required: true,
+      },
+      { name: "database", label: "Database", type: "string", required: true },
+    ],
+  },
+};
+
 // Data source interface matching the database schema
 export interface DataSourceConfig {
   id: string;
@@ -24,6 +121,7 @@ export interface DataSourceConfig {
 class DatabaseDataSourceManager {
   private client: MongoClient;
   private db!: Db;
+  private schemaCache: Map<string, ConnectorSchema> = new Map();
 
   constructor() {
     if (!process.env.DATABASE_URL) {
@@ -43,6 +141,28 @@ class DatabaseDataSourceManager {
   }
 
   /**
+   * Get connector schema
+   */
+  private async getConnectorSchema(
+    connectorType: string,
+  ): Promise<ConnectorSchema | null> {
+    // Check cache first
+    if (this.schemaCache.has(connectorType)) {
+      return this.schemaCache.get(connectorType)!;
+    }
+
+    // Get schema from our definitions
+    const schema = CONNECTOR_SCHEMAS[connectorType];
+    if (schema) {
+      this.schemaCache.set(connectorType, schema);
+      return schema;
+    }
+
+    console.warn(`No schema found for connector type: ${connectorType}`);
+    return null;
+  }
+
+  /**
    * Get all active data sources
    */
   async getActiveDataSources(): Promise<DataSourceConfig[]> {
@@ -52,21 +172,26 @@ class DatabaseDataSourceManager {
 
       const sources = await collection.find({ isActive: true }).toArray();
 
-      return sources.map(source => ({
-        id: source._id.toString(),
-        name: source.name,
-        description: source.description,
-        type: source.type,
-        active: source.isActive,
-        connection: this.decryptObject(source.config),
-        settings: {
-          sync_batch_size: source.settings?.sync_batch_size || 100,
-          rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
-          timezone: source.settings?.timezone || "UTC",
-          max_retries: source.settings?.max_retries || 3,
-          timeout_ms: source.settings?.timeout_ms || 30000,
-        },
-      }));
+      const results = [];
+      for (const source of sources) {
+        results.push({
+          id: source._id.toString(),
+          name: source.name,
+          description: source.description,
+          type: source.type,
+          active: source.isActive,
+          connection: await this.decryptConfig(source.config, source.type),
+          settings: {
+            sync_batch_size: source.settings?.sync_batch_size || 100,
+            rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
+            timezone: source.settings?.timezone || "UTC",
+            max_retries: source.settings?.max_retries || 3,
+            timeout_ms: source.settings?.timeout_ms || 30000,
+          },
+        });
+      }
+
+      return results;
     } finally {
       await this.disconnect();
     }
@@ -99,7 +224,7 @@ class DatabaseDataSourceManager {
         description: source.description,
         type: source.type,
         active: source.isActive,
-        connection: this.decryptObject(source.config),
+        connection: await this.decryptConfig(source.config, source.type),
         settings: {
           sync_batch_size: source.settings?.sync_batch_size || 100,
           rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
@@ -123,21 +248,26 @@ class DatabaseDataSourceManager {
 
       const sources = await collection.find({ type, isActive: true }).toArray();
 
-      return sources.map(source => ({
-        id: source._id.toString(),
-        name: source.name,
-        description: source.description,
-        type: source.type,
-        active: source.isActive,
-        connection: this.decryptObject(source.config),
-        settings: {
-          sync_batch_size: source.settings?.sync_batch_size || 100,
-          rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
-          timezone: source.settings?.timezone || "UTC",
-          max_retries: source.settings?.max_retries || 3,
-          timeout_ms: source.settings?.timeout_ms || 30000,
-        },
-      }));
+      const results = [];
+      for (const source of sources) {
+        results.push({
+          id: source._id.toString(),
+          name: source.name,
+          description: source.description,
+          type: source.type,
+          active: source.isActive,
+          connection: await this.decryptConfig(source.config, source.type),
+          settings: {
+            sync_batch_size: source.settings?.sync_batch_size || 100,
+            rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
+            timezone: source.settings?.timezone || "UTC",
+            max_retries: source.settings?.max_retries || 3,
+            timeout_ms: source.settings?.timeout_ms || 30000,
+          },
+        });
+      }
+
+      return results;
     } finally {
       await this.disconnect();
     }
@@ -216,8 +346,52 @@ class DatabaseDataSourceManager {
       return decrypted.toString();
     } catch (error) {
       console.error("Decryption failed:", error);
-      return encryptedString; // Return as-is if decryption fails
+      // Don't return the original string if decryption fails - throw error
+      throw error;
     }
+  }
+
+  /**
+   * Decrypt config based on connector schema
+   */
+  private async decryptConfig(
+    config: any,
+    connectorType: string,
+  ): Promise<any> {
+    if (!config) return config;
+
+    const schema = await this.getConnectorSchema(connectorType);
+    if (!schema) {
+      console.warn(
+        `No schema found for connector type: ${connectorType}, skipping decryption`,
+      );
+      // Return config as-is without decryption
+      return config;
+    }
+
+    const decrypted: any = {};
+
+    // Copy all fields
+    for (const key in config) {
+      decrypted[key] = config[key];
+    }
+
+    // Only decrypt fields marked as encrypted in the schema
+    for (const field of schema.fields) {
+      if (field.encrypted || field.type === "password") {
+        if (config[field.name] && typeof config[field.name] === "string") {
+          try {
+            decrypted[field.name] = this.decryptString(config[field.name]);
+          } catch (error) {
+            console.error(`Failed to decrypt field ${field.name}:`, error);
+            // Keep the original value if decryption fails
+            decrypted[field.name] = config[field.name];
+          }
+        }
+      }
+    }
+
+    return decrypted;
   }
 
   private decryptObject(obj: any): any {
