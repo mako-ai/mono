@@ -27,6 +27,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     removeConsoleTab,
     updateConsoleTitle,
     updateConsoleIcon,
+    updateConsoleContent,
     consoleTabs,
   } = useConsoleStore();
 
@@ -36,9 +37,12 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
   const [connectorTypes, setConnectorTypes] = useState<ConnectorType[]>([]);
 
   // Helper function to update tab icon
-  const updateTabIcon = (type: string) => {
-    updateConsoleIcon(tabId, `/api/connectors/${type}/icon.svg`);
-  };
+  const updateTabIcon = useCallback(
+    (type: string) => {
+      updateConsoleIcon(tabId, `/api/connectors/${type}/icon.svg`);
+    },
+    [updateConsoleIcon, tabId],
+  );
 
   const fetchConnectorTypes = useCallback(async () => {
     if (!currentWorkspace) return;
@@ -144,10 +148,9 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
         // If this was a create, we should also update the tab's content to hold the new id
         const newId = data.data._id;
         if (!sourceId && newId) {
-          const tab = consoleTabs.find(t => t.id === tabId);
-          if (tab) {
-            tab.content = newId;
-          }
+          // Persist the newly created data source id as the tab's content
+          // Using the store action avoids mutating immutable state directly
+          updateConsoleContent(tabId, newId);
         }
         setError(null);
         updateTabIcon(data.data.type);
