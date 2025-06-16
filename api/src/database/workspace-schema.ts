@@ -76,6 +76,70 @@ function decryptObject(obj: any): any {
   return decrypted;
 }
 
+// Selective encryption for DataSource config - only encrypt sensitive fields
+function encryptDataSourceConfig(config: any): any {
+  if (!config || typeof config !== "object") return config;
+
+  const result = { ...config };
+
+  // Only encrypt specific sensitive fields
+  if (config.headers && typeof config.headers === "string") {
+    result.headers = encrypt(config.headers);
+  }
+  if (config.api_key && typeof config.api_key === "string") {
+    result.api_key = encrypt(config.api_key);
+  }
+  if (config.password && typeof config.password === "string") {
+    result.password = encrypt(config.password);
+  }
+
+  return result;
+}
+
+function decryptDataSourceConfig(config: any): any {
+  if (!config || typeof config !== "object") return config;
+
+  const result = { ...config };
+
+  // Only decrypt specific sensitive fields
+  if (
+    config.headers &&
+    typeof config.headers === "string" &&
+    config.headers.includes(":")
+  ) {
+    try {
+      result.headers = decrypt(config.headers);
+    } catch {
+      // If decryption fails, assume it's already plain text (backward compatibility)
+      result.headers = config.headers;
+    }
+  }
+  if (
+    config.api_key &&
+    typeof config.api_key === "string" &&
+    config.api_key.includes(":")
+  ) {
+    try {
+      result.api_key = decrypt(config.api_key);
+    } catch {
+      result.api_key = config.api_key;
+    }
+  }
+  if (
+    config.password &&
+    typeof config.password === "string" &&
+    config.password.includes(":")
+  ) {
+    try {
+      result.password = decrypt(config.password);
+    } catch {
+      result.password = config.password;
+    }
+  }
+
+  return result;
+}
+
 /**
  * Workspace model interface
  */
@@ -498,8 +562,8 @@ const DataSourceSchema = new Schema<IDataSource>(
     config: {
       type: Schema.Types.Mixed,
       required: true,
-      set: encryptObject,
-      get: decryptObject,
+      set: encryptDataSourceConfig,
+      get: decryptDataSourceConfig,
     },
     settings: {
       sync_batch_size: {

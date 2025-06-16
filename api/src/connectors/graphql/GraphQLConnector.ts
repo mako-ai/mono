@@ -30,17 +30,97 @@ export class GraphQLConnector extends BaseConnector {
       fields: [
         {
           name: "endpoint",
-          label: "GraphQL Endpoint",
+          label: "GraphQL Endpoint URL",
           type: "string",
           required: true,
           placeholder: "https://api.example.com/graphql",
+          helperText: "The GraphQL endpoint URL (not encrypted)",
         },
         {
           name: "headers",
-          label: "Headers (JSON)",
+          label: "Custom Headers (JSON)",
+          type: "textarea",
+          required: false,
+          rows: 6,
+          placeholder: `{
+  "Authorization": "Bearer your-token-here",
+  "X-API-Key": "your-api-key",
+  "x-hasura-admin-secret": "your-hasura-secret",
+  "X-Custom-Header": "custom-value"
+}`,
+          helperText:
+            "Authentication and custom headers as JSON (encrypted when saved)",
+        },
+        // GraphQL Query
+        {
+          name: "query",
+          label: "GraphQL Query",
+          type: "textarea",
+          required: true,
+          rows: 12,
+          placeholder: `query GetData($limit: Int!, $offset: Int!) {
+  items(limit: $limit, offset: $offset) {
+    id
+    name
+    created_at
+  }
+  items_aggregate {
+    aggregate {
+      count
+    }
+  }
+}`,
+          helperText: "Your GraphQL query with pagination support",
+        },
+        {
+          name: "query_name",
+          label: "Query Name",
+          type: "string",
+          required: true,
+          placeholder: "items",
+          helperText: "Name for this query (used for collection naming)",
+        },
+        {
+          name: "data_path",
+          label: "Data Path",
+          type: "string",
+          required: true,
+          placeholder: "data.items",
+          helperText: "JSONPath to the data array in the response",
+        },
+        {
+          name: "total_count_path",
+          label: "Total Count Path",
           type: "string",
           required: false,
-          helperText: "Optional JSON string of additional headers",
+          placeholder: "data.items_aggregate.aggregate.count",
+          helperText: "JSONPath to total count (for progress tracking)",
+        },
+        // Pagination configuration
+        {
+          name: "has_next_page_path",
+          label: "Has Next Page Path",
+          type: "string",
+          required: false,
+          placeholder: "data.items.pageInfo.hasNextPage",
+          helperText: "JSONPath for cursor-based pagination (optional)",
+        },
+        {
+          name: "cursor_path",
+          label: "Cursor Path",
+          type: "string",
+          required: false,
+          placeholder: "data.items.pageInfo.endCursor",
+          helperText: "JSONPath for next cursor value (optional)",
+        },
+        {
+          name: "batch_size",
+          label: "Batch Size",
+          type: "number",
+          required: false,
+          default: 100,
+          placeholder: "100",
+          helperText: "Number of records per request (uses $limit variable)",
         },
       ],
     };
@@ -63,15 +143,43 @@ export class GraphQLConnector extends BaseConnector {
       errors.push("GraphQL endpoint is required");
     }
 
-    if (
-      !this.dataSource.config.queries ||
-      this.dataSource.config.queries.length === 0
-    ) {
-      errors.push("At least one query must be configured");
+    // Check if using new form-based config or legacy config
+    const hasFormConfig =
+      this.dataSource.config.query && this.dataSource.config.query_name;
+    const hasLegacyConfig =
+      this.dataSource.config.queries &&
+      this.dataSource.config.queries.length > 0;
+
+    if (!hasFormConfig && !hasLegacyConfig) {
+      errors.push(
+        "Either GraphQL query (new format) or queries array (legacy) must be configured",
+      );
     }
 
-    // Validate each query
-    if (this.dataSource.config.queries) {
+    // Validate new form-based config
+    if (hasFormConfig) {
+      if (!this.dataSource.config.query_name) {
+        errors.push("Query name is required");
+      }
+      if (!this.dataSource.config.data_path) {
+        errors.push("Data path is required");
+      }
+
+      // Validate headers JSON if provided
+      if (
+        this.dataSource.config.headers &&
+        typeof this.dataSource.config.headers === "string"
+      ) {
+        try {
+          JSON.parse(this.dataSource.config.headers);
+        } catch {
+          errors.push("Headers must be valid JSON format");
+        }
+      }
+    }
+
+    // Validate legacy queries array
+    if (hasLegacyConfig && this.dataSource.config.queries) {
       this.dataSource.config.queries.forEach((query: any, index: number) => {
         if (!query.name) {
           errors.push(`Query ${index + 1} is missing a name`);
@@ -91,10 +199,32 @@ export class GraphQLConnector extends BaseConnector {
         throw new Error("GraphQL endpoint not configured");
       }
 
-      const headers = {
+      // Build headers from JSON field
+      const headers: { [key: string]: string } = {
         "Content-Type": "application/json",
-        ...(this.dataSource.config.headers || {}),
       };
+
+      // Parse headers from JSON string if provided
+      if (this.dataSource.config.headers) {
+        try {
+          let parsedHeaders: any;
+
+          if (typeof this.dataSource.config.headers === "string") {
+            // Parse JSON string
+            parsedHeaders = JSON.parse(this.dataSource.config.headers);
+          } else if (typeof this.dataSource.config.headers === "object") {
+            // Already an object (legacy format)
+            parsedHeaders = this.dataSource.config.headers;
+          }
+
+          if (parsedHeaders && typeof parsedHeaders === "object") {
+            Object.assign(headers, parsedHeaders);
+          }
+        } catch (error) {
+          console.warn("Failed to parse headers JSON:", error);
+          throw new Error("Invalid JSON format in headers field");
+        }
+      }
 
       this.graphqlClient = axios.create({
         baseURL: this.dataSource.config.endpoint,
@@ -152,6 +282,12 @@ export class GraphQLConnector extends BaseConnector {
   }
 
   getAvailableEntities(): string[] {
+    // Handle new form-based config
+    if (this.dataSource.config.query && this.dataSource.config.query_name) {
+      return [this.dataSource.config.query_name];
+    }
+
+    // Handle legacy queries array
     if (!this.dataSource.config.queries) {
       return [];
     }
@@ -159,7 +295,17 @@ export class GraphQLConnector extends BaseConnector {
   }
 
   async syncAll(options: SyncOptions): Promise<void> {
-    if (!this.dataSource.config.queries) {
+    // Handle new form-based config
+    if (this.dataSource.config.query && this.dataSource.config.query_name) {
+      await this.syncEntity(this.dataSource.config.query_name, options);
+      return;
+    }
+
+    // Handle legacy queries array
+    if (
+      !this.dataSource.config.queries ||
+      this.dataSource.config.queries.length === 0
+    ) {
       throw new Error("No queries configured");
     }
 
@@ -175,9 +321,33 @@ export class GraphQLConnector extends BaseConnector {
       throw new Error("Target database is required for sync");
     }
 
-    const queryConfig = this.dataSource.config.queries?.find(
-      (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
-    );
+    let queryConfig: any;
+
+    // Handle new form-based config
+    if (
+      this.dataSource.config.query &&
+      this.dataSource.config.query_name &&
+      this.dataSource.config.query_name.toLowerCase() === entity.toLowerCase()
+    ) {
+      queryConfig = {
+        name: this.dataSource.config.query_name,
+        query: this.dataSource.config.query,
+        dataPath: this.dataSource.config.data_path,
+        totalCountPath: this.dataSource.config.total_count_path,
+        hasNextPagePath: this.dataSource.config.has_next_page_path,
+        cursorPath: this.dataSource.config.cursor_path,
+        // Add standard variables for pagination
+        variables: {
+          limit: this.dataSource.config.batch_size || 100,
+          offset: 0,
+        },
+      };
+    } else {
+      // Handle legacy queries array
+      queryConfig = this.dataSource.config.queries?.find(
+        (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
+      );
+    }
 
     if (!queryConfig) {
       throw new Error(`Query configuration not found for entity: ${entity}`);
