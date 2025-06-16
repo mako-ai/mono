@@ -25,8 +25,8 @@ export interface ConnectorFieldSchema {
   name: string;
   /** Human readable label */
   label: string;
-  /** Field type: string | number | boolean | password */
-  type: "string" | "number" | "boolean" | "password";
+  /** Field type: string | number | boolean | password | textarea */
+  type: "string" | "number" | "boolean" | "password" | "textarea";
   /** Whether it is required */
   required?: boolean;
   /** Default value if not supplied */
@@ -37,6 +37,8 @@ export interface ConnectorFieldSchema {
   placeholder?: string;
   /** Additional options for select inputs */
   options?: Array<{ label: string; value: any }>;
+  /** Number of rows for textarea */
+  rows?: number;
 }
 
 export interface ConnectorSchemaResponse {
@@ -206,8 +208,16 @@ function DataSourceForm({
     form: UseFormReturn<any>,
   ) => {
     const { control } = form;
-    const { name, label, type, required, helperText, placeholder, options } =
-      field;
+    const {
+      name,
+      label,
+      type,
+      required,
+      helperText,
+      placeholder,
+      options,
+      rows,
+    } = field;
     const fieldType = type === "password" ? "password" : "text";
 
     if (type === "boolean") {
@@ -245,6 +255,41 @@ function DataSourceForm({
                 ))}
               </Select>
             </FormControl>
+          )}
+        />
+      );
+    }
+
+    if (type === "textarea") {
+      return (
+        <Controller
+          key={name}
+          name={name}
+          control={control}
+          rules={{ required }}
+          render={({ field, fieldState }) => (
+            <TextField
+              {...field}
+              fullWidth
+              margin="normal"
+              multiline
+              rows={rows ?? 8}
+              label={label}
+              placeholder={placeholder}
+              error={!!fieldState.error}
+              helperText={
+                fieldState.error ? "This field is required" : helperText
+              }
+              autoComplete="nope"
+              name={`config_${name}_${Math.random().toString(36).substring(7)}`}
+              inputProps={{
+                autoComplete: "nope",
+                "data-lpignore": "true",
+                "data-form-type": "other",
+                "aria-autocomplete": "none",
+                style: { fontFamily: "monospace", fontSize: "0.875rem" },
+              }}
+            />
           )}
         />
       );
@@ -349,53 +394,11 @@ function DataSourceForm({
           />
         )}
       />
-      <Controller
-        name="description"
-        control={control}
-        render={({ field }) => (
-          <TextField
-            {...field}
-            fullWidth
-            margin="normal"
-            label="Description (optional)"
-            multiline
-            rows={2}
-            autoComplete="nope"
-            name={`datasource_desc_${Math.random().toString(36).substring(7)}`}
-            inputProps={{
-              autoComplete: "nope",
-              "data-lpignore": "true",
-              "data-form-type": "other",
-              "aria-autocomplete": "none",
-              readOnly: true,
-              onFocus: (e: any) => {
-                setTimeout(() => {
-                  e.target.removeAttribute("readonly");
-                }, 100);
-              },
-            }}
-          />
-        )}
-      />
-      <Controller
-        name="isActive"
-        control={control}
-        render={({ field }) => (
-          <FormControlLabel
-            control={<Switch {...field} checked={field.value ?? true} />}
-            label="Active"
-            sx={{ mt: 2 }}
-          />
-        )}
-      />
     </Box>
   );
 
   const connectionConfigSection = (
-    <Box sx={{ mb: 3 }}>
-      <Typography variant="subtitle1" gutterBottom>
-        Connection Configuration
-      </Typography>
+    <>
       {schemaLoading && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={20} />
@@ -413,123 +416,118 @@ function DataSourceForm({
           Select a source type to load configuration fields.
         </Typography>
       )}
-    </Box>
+    </>
   );
 
   const advancedSettingsSection = (
-    <Box sx={{ mt: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        Advanced Settings
-      </Typography>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-          gap: 2,
-        }}
-      >
-        <Box>
-          <Controller
-            name="settings_sync_batch_size"
-            control={control}
-            rules={{ min: 1, required: true }}
-            render={({ field, fieldState }) => (
-              <TextField
-                {...field}
-                fullWidth
-                label="Sync Batch Size"
-                type="number"
-                margin="normal"
-                error={!!fieldState.error}
-                helperText={
-                  fieldState.error ? "Must be at least 1" : "Records per batch"
-                }
-                inputProps={{
-                  min: 1,
-                  autoComplete: "nope",
-                  "data-lpignore": "true",
-                  "data-form-type": "other",
-                }}
-                autoComplete="nope"
-              />
-            )}
-          />
-        </Box>
-        <Box>
-          <Controller
-            name="settings_rate_limit_delay_ms"
-            control={control}
-            rules={{ min: 0, required: true }}
-            render={({ field, fieldState }) => (
-              <TextField
-                {...field}
-                fullWidth
-                label="Rate Limit Delay (ms)"
-                type="number"
-                margin="normal"
-                error={!!fieldState.error}
-                helperText={
-                  fieldState.error
-                    ? "Cannot be negative"
-                    : "Delay between API calls"
-                }
-                inputProps={{
-                  min: 0,
-                  autoComplete: "nope",
-                  "data-lpignore": "true",
-                  "data-form-type": "other",
-                }}
-                autoComplete="nope"
-              />
-            )}
-          />
-        </Box>
-        <Box>
-          <Controller
-            name="settings_max_retries"
-            control={control}
-            rules={{ min: 0, required: true }}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                fullWidth
-                label="Max Retries"
-                type="number"
-                margin="normal"
-                inputProps={{
-                  min: 0,
-                  autoComplete: "nope",
-                  "data-lpignore": "true",
-                  "data-form-type": "other",
-                }}
-                autoComplete="nope"
-              />
-            )}
-          />
-        </Box>
-        <Box>
-          <Controller
-            name="settings_timeout_ms"
-            control={control}
-            rules={{ min: 1000, required: true }}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                fullWidth
-                label="Timeout (ms)"
-                type="number"
-                margin="normal"
-                inputProps={{
-                  min: 1000,
-                  autoComplete: "nope",
-                  "data-lpignore": "true",
-                  "data-form-type": "other",
-                }}
-                autoComplete="nope"
-              />
-            )}
-          />
-        </Box>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+        gap: 2,
+      }}
+    >
+      <Box>
+        <Controller
+          name="settings_sync_batch_size"
+          control={control}
+          rules={{ min: 1, required: true }}
+          render={({ field, fieldState }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Sync Batch Size"
+              type="number"
+              margin="normal"
+              error={!!fieldState.error}
+              helperText={
+                fieldState.error ? "Must be at least 1" : "Records per batch"
+              }
+              inputProps={{
+                min: 1,
+                autoComplete: "nope",
+                "data-lpignore": "true",
+                "data-form-type": "other",
+              }}
+              autoComplete="nope"
+            />
+          )}
+        />
+      </Box>
+      <Box>
+        <Controller
+          name="settings_rate_limit_delay_ms"
+          control={control}
+          rules={{ min: 0, required: true }}
+          render={({ field, fieldState }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Rate Limit Delay (ms)"
+              type="number"
+              margin="normal"
+              error={!!fieldState.error}
+              helperText={
+                fieldState.error
+                  ? "Cannot be negative"
+                  : "Delay between API calls"
+              }
+              inputProps={{
+                min: 0,
+                autoComplete: "nope",
+                "data-lpignore": "true",
+                "data-form-type": "other",
+              }}
+              autoComplete="nope"
+            />
+          )}
+        />
+      </Box>
+      <Box>
+        <Controller
+          name="settings_max_retries"
+          control={control}
+          rules={{ min: 0, required: true }}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Max Retries"
+              type="number"
+              margin="normal"
+              inputProps={{
+                min: 0,
+                autoComplete: "nope",
+                "data-lpignore": "true",
+                "data-form-type": "other",
+              }}
+              autoComplete="nope"
+            />
+          )}
+        />
+      </Box>
+      <Box>
+        <Controller
+          name="settings_timeout_ms"
+          control={control}
+          rules={{ min: 1000, required: true }}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Timeout (ms)"
+              type="number"
+              margin="normal"
+              inputProps={{
+                min: 1000,
+                autoComplete: "nope",
+                "data-lpignore": "true",
+                "data-form-type": "other",
+              }}
+              autoComplete="nope"
+            />
+          )}
+        />
       </Box>
     </Box>
   );
@@ -588,9 +586,7 @@ function DataSourceForm({
       {/* Render rest only if type selected */}
       {selectedType && (
         <>
-          <Divider sx={{ my: 1 }} />
           {basicInformationSection}
-          <Divider sx={{ my: 3 }} />
           {connectionConfigSection}
           {advancedSettingsSection}
           <Box

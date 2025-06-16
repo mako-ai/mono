@@ -170,7 +170,14 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
   }
 
   return (
-    <Box sx={{ height: "100%", p: 2, overflow: "auto", bgcolor: "#fff" }}>
+    <Box
+      sx={{
+        height: "100%",
+        p: 1,
+        overflow: "auto",
+        bgcolor: "background.paper",
+      }}
+    >
       <DataSourceForm
         variant="inline"
         onClose={handleClose}

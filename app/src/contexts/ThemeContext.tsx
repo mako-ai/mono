@@ -244,32 +244,38 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           shrink: true,
         },
         styleOverrides: {
-          root: {
+          root: ({ theme }: any) => ({
             transform: "none",
             position: "relative",
             top: 0,
             left: 0,
-            marginBottom: 4,
+            marginBottom: 6,
             transition: "none",
+            fontSize: "0.9rem",
+            fontWeight: 500,
+            color: theme.palette.text.primary,
             "&.MuiInputLabel-shrink": {
               transform: "none",
             },
-          },
+          }),
         },
       },
       MuiFormLabel: {
         styleOverrides: {
-          root: {
+          root: ({ theme }: any) => ({
             transform: "none",
             position: "relative",
             top: 0,
             left: 0,
             marginBottom: 4,
             transition: "none",
+            fontSize: "1rem",
+            fontWeight: 600,
+            color: theme.palette.text.primary,
             "&.MuiInputLabel-shrink, &.MuiFormLabel-filled": {
               transform: "none",
             },
-          },
+          }),
         },
       },
       MuiOutlinedInput: {
