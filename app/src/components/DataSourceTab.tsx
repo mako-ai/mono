@@ -1,19 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Box, CircularProgress, Alert } from "@mui/material";
+import { Box, CircularProgress } from "@mui/material";
 import DataSourceForm from "./DataSourceForm";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
-
-interface DataSource {
-  _id?: string;
-  name: string;
-  description?: string;
-  type: string;
-  isActive: boolean;
-  config: Record<string, any>;
-  settings: Record<string, any>;
-  targetDatabases?: string[];
-}
 
 interface ConnectorType {
   type: string;
@@ -103,7 +92,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     } finally {
       setLoading(false);
     }
-  }, [currentWorkspace, sourceId, tabId]);
+  }, [currentWorkspace, sourceId, tabId, updateConsoleTitleRef, updateTabIcon]);
 
   // Prevent duplicate calls in React StrictMode by tracking last fetched keys
   const lastTypesWorkspaceId = useRef<string | null>(null);
