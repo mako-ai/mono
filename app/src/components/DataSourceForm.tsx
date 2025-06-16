@@ -13,7 +13,11 @@ import {
   Divider,
   Alert,
   CircularProgress,
+  IconButton,
+  Tooltip,
+  Snackbar,
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 
 import { useForm, Controller, UseFormReturn } from "react-hook-form";
 
@@ -39,6 +43,8 @@ export interface ConnectorFieldSchema {
   options?: Array<{ label: string; value: any }>;
   /** Number of rows for textarea */
   rows?: number;
+  /** Whether this field is encrypted when stored */
+  encrypted?: boolean;
 }
 
 export interface ConnectorSchemaResponse {
@@ -92,6 +98,18 @@ function DataSourceForm({
   const [schema, setSchema] = useState<ConnectorSchemaResponse | null>(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaError, setSchemaError] = useState<string | null>(null);
+
+  // Decrypt functionality states
+  const [decryptedValues, setDecryptedValues] = useState<
+    Record<string, string>
+  >({});
+  const [decryptingFields, setDecryptingFields] = useState<
+    Record<string, boolean>
+  >({});
+  const [showDecryptedFields, setShowDecryptedFields] = useState<
+    Record<string, boolean>
+  >({});
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   // React Hook Form setup
   const defaultValues = useMemo(() => {
@@ -175,6 +193,64 @@ function DataSourceForm({
       });
   }, [selectedType]);
 
+  // Decrypt value function
+  const decryptValue = async (fieldName: string, encryptedValue: string) => {
+    if (!encryptedValue) {
+      setSnackbarMessage("No value to decrypt");
+      return;
+    }
+
+    setDecryptingFields(prev => ({ ...prev, [fieldName]: true }));
+
+    try {
+      // Get workspace ID from the form or dataSource
+      const workspaceId = dataSource?.workspaceId || "default";
+
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/sources/decrypt`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ encryptedValue }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setDecryptedValues(prev => ({
+          ...prev,
+          [fieldName]: result.data.decryptedValue,
+        }));
+        setShowDecryptedFields(prev => ({
+          ...prev,
+          [fieldName]: true,
+        }));
+
+        if (!result.data.wasEncrypted) {
+          setSnackbarMessage("Value was not encrypted");
+        }
+      } else {
+        setSnackbarMessage(result.error || "Failed to decrypt value");
+      }
+    } catch (error) {
+      console.error("Decrypt error:", error);
+      setSnackbarMessage("Failed to decrypt value");
+    } finally {
+      setDecryptingFields(prev => ({ ...prev, [fieldName]: false }));
+    }
+  };
+
+  // Toggle decrypted value visibility
+  const toggleDecryptedVisibility = (fieldName: string) => {
+    setShowDecryptedFields(prev => ({
+      ...prev,
+      [fieldName]: !prev[fieldName],
+    }));
+  };
+
   /** Submit handler */
   const onSubmitInternal = (values: Record<string, any>) => {
     // Build config from schema fields
@@ -217,8 +293,12 @@ function DataSourceForm({
       placeholder,
       options,
       rows,
+      encrypted,
     } = field;
     const fieldType = type === "password" ? "password" : "text";
+
+    // Determine if field should have decrypt button
+    const shouldShowDecrypt = encrypted === true || type === "password";
 
     if (type === "boolean") {
       return (
@@ -262,8 +342,86 @@ function DataSourceForm({
 
     if (type === "textarea") {
       return (
+        <Box key={name} position="relative">
+          <Controller
+            name={name}
+            control={control}
+            rules={{ required }}
+            render={({ field, fieldState }) => (
+              <TextField
+                {...field}
+                fullWidth
+                margin="normal"
+                multiline
+                rows={rows ?? 8}
+                label={label}
+                placeholder={placeholder}
+                error={!!fieldState.error}
+                helperText={
+                  fieldState.error ? "This field is required" : helperText
+                }
+                type={showDecryptedFields[name] ? "text" : fieldType}
+                value={
+                  showDecryptedFields[name] && decryptedValues[name]
+                    ? decryptedValues[name]
+                    : field.value
+                }
+                autoComplete="nope"
+                name={`config_${name}_${Math.random().toString(36).substring(7)}`}
+                inputProps={{
+                  autoComplete: "nope",
+                  "data-lpignore": "true",
+                  "data-form-type": "other",
+                  "aria-autocomplete": "none",
+                  style: { fontFamily: "monospace", fontSize: "0.875rem" },
+                }}
+                InputProps={{
+                  endAdornment: shouldShowDecrypt && field.value && (
+                    <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
+                      <Tooltip
+                        title={
+                          showDecryptedFields[name]
+                            ? "Hide decrypted"
+                            : "Show decrypted"
+                        }
+                      >
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            if (
+                              !decryptedValues[name] &&
+                              !showDecryptedFields[name]
+                            ) {
+                              decryptValue(name, field.value);
+                            } else {
+                              toggleDecryptedVisibility(name);
+                            }
+                          }}
+                          disabled={decryptingFields[name]}
+                        >
+                          {decryptingFields[name] ? (
+                            <CircularProgress size={20} />
+                          ) : showDecryptedFields[name] ? (
+                            <VisibilityOff />
+                          ) : (
+                            <Visibility />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  ),
+                }}
+              />
+            )}
+          />
+        </Box>
+      );
+    }
+
+    // Default: TextField
+    return (
+      <Box key={name} position="relative">
         <Controller
-          key={name}
           name={name}
           control={control}
           rules={{ required }}
@@ -272,8 +430,12 @@ function DataSourceForm({
               {...field}
               fullWidth
               margin="normal"
-              multiline
-              rows={rows ?? 8}
+              type={showDecryptedFields[name] ? "text" : fieldType}
+              value={
+                showDecryptedFields[name] && decryptedValues[name]
+                  ? decryptedValues[name]
+                  : field.value
+              }
               label={label}
               placeholder={placeholder}
               error={!!fieldState.error}
@@ -287,50 +449,51 @@ function DataSourceForm({
                 "data-lpignore": "true",
                 "data-form-type": "other",
                 "aria-autocomplete": "none",
-                style: { fontFamily: "monospace", fontSize: "0.875rem" },
+                readOnly: true,
+                onFocus: (e: any) => {
+                  setTimeout(() => {
+                    e.target.removeAttribute("readonly");
+                  }, 100);
+                },
+              }}
+              InputProps={{
+                endAdornment: shouldShowDecrypt && field.value && (
+                  <Tooltip
+                    title={
+                      showDecryptedFields[name]
+                        ? "Hide decrypted"
+                        : "Show decrypted"
+                    }
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        if (
+                          !decryptedValues[name] &&
+                          !showDecryptedFields[name]
+                        ) {
+                          decryptValue(name, field.value);
+                        } else {
+                          toggleDecryptedVisibility(name);
+                        }
+                      }}
+                      disabled={decryptingFields[name]}
+                    >
+                      {decryptingFields[name] ? (
+                        <CircularProgress size={20} />
+                      ) : showDecryptedFields[name] ? (
+                        <VisibilityOff />
+                      ) : (
+                        <Visibility />
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                ),
               }}
             />
           )}
         />
-      );
-    }
-
-    // Default: TextField
-    return (
-      <Controller
-        key={name}
-        name={name}
-        control={control}
-        rules={{ required }}
-        render={({ field, fieldState }) => (
-          <TextField
-            {...field}
-            fullWidth
-            margin="normal"
-            type={fieldType}
-            label={label}
-            placeholder={placeholder}
-            error={!!fieldState.error}
-            helperText={
-              fieldState.error ? "This field is required" : helperText
-            }
-            autoComplete="nope"
-            name={`config_${name}_${Math.random().toString(36).substring(7)}`}
-            inputProps={{
-              autoComplete: "nope",
-              "data-lpignore": "true",
-              "data-form-type": "other",
-              "aria-autocomplete": "none",
-              readOnly: true,
-              onFocus: (e: any) => {
-                setTimeout(() => {
-                  e.target.removeAttribute("readonly");
-                }, 100);
-              },
-            }}
-          />
-        )}
-      />
+      </Box>
     );
   };
 
@@ -613,6 +776,15 @@ function DataSourceForm({
     >
       {/* Form fields */}
       {formContent}
+
+      {/* Snackbar for messages */}
+      <Snackbar
+        open={!!snackbarMessage}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarMessage(null)}
+        message={snackbarMessage}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
     </Box>
   );
 }

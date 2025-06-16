@@ -1,6 +1,6 @@
 import { MongoClient, Db } from "mongodb";
 import axios, { AxiosError } from "axios";
-import { dataSourceManager, DataSourceConfig } from "./data-source-manager";
+import { DataSourceConfig } from "./database-data-source-manager";
 import { ProgressReporter } from "./sync";
 
 interface GraphQLQuery {
@@ -45,21 +45,44 @@ class GraphQLSyncService {
     // Setup headers
     this.headers = {
       "Content-Type": "application/json",
-      ...dataSource.connection.headers,
     };
 
-    // Add authorization if provided
+    // Parse headers if they exist (they come as a JSON string after decryption)
+    if (dataSource.connection.headers) {
+      try {
+        let parsedHeaders: any;
+
+        // Check if headers is already an object (shouldn't happen with new system)
+        if (typeof dataSource.connection.headers === "object") {
+          parsedHeaders = dataSource.connection.headers;
+        } else if (typeof dataSource.connection.headers === "string") {
+          // Parse the JSON string
+          parsedHeaders = JSON.parse(dataSource.connection.headers);
+        }
+
+        // Merge parsed headers with default headers
+        if (parsedHeaders && typeof parsedHeaders === "object") {
+          Object.assign(this.headers, parsedHeaders);
+        }
+      } catch (error) {
+        console.error("Failed to parse headers JSON:", error);
+        console.error("Headers value:", dataSource.connection.headers);
+        throw new Error(
+          `Invalid headers format: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
+      }
+    }
+
+    // Add authorization if provided (legacy support)
     if (dataSource.connection.api_key) {
       this.headers["Authorization"] = `Bearer ${dataSource.connection.api_key}`;
     }
 
     // Get settings with defaults
-    const globalConfig = dataSourceManager.getGlobalConfig();
     this.settings = {
       batchSize: dataSource.settings.sync_batch_size || 100,
       rateLimitDelay: dataSource.settings.rate_limit_delay_ms || 200,
-      maxRetries:
-        dataSource.settings.max_retries || globalConfig.max_retries || 5,
+      maxRetries: dataSource.settings.max_retries || 5,
       timeout: dataSource.settings.timeout_ms || 30000,
     };
 
@@ -73,31 +96,25 @@ class GraphQLSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "local_dev.analytics_db",
+    targetDbId: string | any = "local_dev.analytics_db",
   ): Promise<{ client: MongoClient; db: Db }> {
-    // Check if connection already exists
-    if (this.mongoConnections.has(targetDbId)) {
-      return this.mongoConnections.get(targetDbId)!;
+    // If targetDbId is an object with connection info, use it directly
+    if (typeof targetDbId === "object" && targetDbId.connection) {
+      const client = new MongoClient(targetDbId.connection.connection_string);
+      await client.connect();
+      const db = client.db(targetDbId.connection.database);
+
+      console.log(
+        `Connected to MongoDB: ${targetDbId.name} for GraphQL source: ${this.dataSource.name}`,
+      );
+
+      return { client, db };
     }
 
-    // Get target database configuration
-    const targetDb = dataSourceManager.getMongoDBDatabase(targetDbId);
-    if (!targetDb || targetDb.type !== "mongodb") {
-      throw new Error(`MongoDB data source '${targetDbId}' not found`);
-    }
-
-    // Create new connection
-    const client = new MongoClient(targetDb.connection.connection_string!);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-
-    const connection = { client, db };
-    this.mongoConnections.set(targetDbId, connection);
-
-    console.log(
-      `Connected to MongoDB: ${targetDb.name} for GraphQL source: ${this.dataSource.name}`,
+    // Legacy string ID not supported anymore
+    throw new Error(
+      `GraphQL sync requires a database object, not a string ID. Received: ${targetDbId}`,
     );
-    return connection;
   }
 
   private async disconnect(): Promise<void> {
@@ -382,7 +399,7 @@ class GraphQLSyncService {
    */
   async syncEntity(
     queryConfig: GraphQLQuery,
-    targetDbId?: string,
+    targetDbId?: string | any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(
@@ -445,7 +462,7 @@ class GraphQLSyncService {
   /**
    * Sync all configured entities
    */
-  async syncAll(targetDbId?: string): Promise<void> {
+  async syncAll(targetDbId?: string | any): Promise<void> {
     console.log(
       `\n🔄 Starting full sync for GraphQL source: ${this.dataSource.name}`,
     );
@@ -453,7 +470,28 @@ class GraphQLSyncService {
     const startTime = Date.now();
 
     try {
-      const queries = this.dataSource.connection.queries || [];
+      let queries: any[] = [];
+
+      // Check if using new format (single query fields)
+      if (
+        this.dataSource.connection.query &&
+        this.dataSource.connection.query_name
+      ) {
+        // New format - create a query config from individual fields
+        queries = [
+          {
+            name: this.dataSource.connection.query_name,
+            query: this.dataSource.connection.query,
+            dataPath: this.dataSource.connection.data_path,
+            totalCountPath: this.dataSource.connection.total_count_path,
+            hasNextPagePath: this.dataSource.connection.has_next_page_path,
+            cursorPath: this.dataSource.connection.cursor_path,
+          },
+        ];
+      } else if (this.dataSource.connection.queries) {
+        // Old format - use queries array
+        queries = this.dataSource.connection.queries;
+      }
 
       if (queries.length === 0) {
         console.warn("No queries configured for this GraphQL data source");

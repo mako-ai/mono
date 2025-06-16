@@ -42,6 +42,7 @@ export class GraphQLConnector extends BaseConnector {
           type: "textarea",
           required: false,
           rows: 6,
+          encrypted: true,
           placeholder: `{
   "Authorization": "Bearer your-token-here",
   "X-API-Key": "your-api-key",

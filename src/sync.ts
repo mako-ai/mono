@@ -499,9 +499,29 @@ async function syncGraphQL(
     return;
   }
 
-  // For GraphQL, we need to find the query configuration for the specified entity
-  const queries = dataSource.connection.queries || [];
-  const queryConfig = queries.find(
+  // For GraphQL, we need to handle both old format (queries array) and new format (single query)
+  let queries: any[] = [];
+  let queryConfig: any = null;
+
+  // Check if using new format (single query fields)
+  if (dataSource.connection.query && dataSource.connection.query_name) {
+    // New format - create a query config from individual fields
+    queries = [
+      {
+        name: dataSource.connection.query_name,
+        query: dataSource.connection.query,
+        dataPath: dataSource.connection.data_path,
+        totalCountPath: dataSource.connection.total_count_path,
+        hasNextPagePath: dataSource.connection.has_next_page_path,
+        cursorPath: dataSource.connection.cursor_path,
+      },
+    ];
+  } else if (dataSource.connection.queries) {
+    // Old format - use queries array
+    queries = dataSource.connection.queries;
+  }
+
+  queryConfig = queries.find(
     (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
   );
 
