@@ -19,6 +19,96 @@ export class StripeSyncService {
     timezone: string;
   };
 
+  // Create a collection-safe identifier from the data source name
+  private getCollectionPrefix(): string {
+    // Convert name to lowercase, replace spaces and special chars with underscores
+    return this.dataSource.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+  }
+
+  // Hot swap collections for zero-downtime updates
+  private async hotSwapCollections(
+    db: any,
+    stagingCollections: string[],
+    targetCollections: string[],
+  ): Promise<void> {
+    const timestamp = Date.now();
+
+    console.log("🔄 Starting hot swap of collections...");
+
+    try {
+      // Step 1: Rename existing collections to backup
+      for (let i = 0; i < targetCollections.length; i++) {
+        const targetCollection = targetCollections[i];
+        const backupCollection = `${targetCollection}_backup_${timestamp}`;
+
+        try {
+          await db.collection(targetCollection).rename(backupCollection);
+          console.log(`📦 Backed up ${targetCollection} → ${backupCollection}`);
+        } catch (error: any) {
+          if (error.code === 26) {
+            // Collection doesn't exist, that's fine for first run
+            console.log(
+              `📝 Collection ${targetCollection} doesn't exist yet (first sync)`,
+            );
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      // Step 2: Rename staging collections to target names
+      for (let i = 0; i < stagingCollections.length; i++) {
+        const stagingCollection = stagingCollections[i];
+        const targetCollection = targetCollections[i];
+
+        await db.collection(stagingCollection).rename(targetCollection);
+        console.log(`✨ Promoted ${stagingCollection} → ${targetCollection}`);
+      }
+
+      // Step 3: Schedule cleanup of backup collections after a delay (optional)
+      setTimeout(() => {
+        targetCollections.forEach(targetCollection => {
+          const backupCollection = `${targetCollection}_backup_${timestamp}`;
+          db.collection(backupCollection)
+            .drop()
+            .then(() => {
+              console.log(`🗑️  Cleaned up backup: ${backupCollection}`);
+            })
+            .catch(() => {
+              // Ignore errors when dropping backup collections
+            });
+        });
+      }, 60000); // Clean up after 1 minute
+
+      console.log("✅ Hot swap completed successfully!");
+    } catch (error) {
+      console.error("❌ Hot swap failed:", error);
+
+      // Attempt to rollback by renaming backup collections back
+      console.log("🔄 Attempting rollback...");
+      for (const targetCollection of targetCollections) {
+        const backupCollection = `${targetCollection}_backup_${timestamp}`;
+        try {
+          await db.collection(backupCollection).rename(targetCollection);
+          console.log(
+            `↩️  Rolled back ${backupCollection} → ${targetCollection}`,
+          );
+        } catch (rollbackError) {
+          console.error(
+            `❌ Rollback failed for ${targetCollection}:`,
+            rollbackError,
+          );
+        }
+      }
+
+      throw error;
+    }
+  }
+
   constructor(private dataSource: DataSourceConfig) {
     const apiKey = dataSource.connection.api_key;
     if (!apiKey) {
@@ -38,9 +128,95 @@ export class StripeSyncService {
   }
 
   async syncAll(targetDb?: any): Promise<void> {
-    console.log(`\n🔄 Starting full sync for ${this.dataSource.name}`);
+    console.log(
+      `\n🔄 Starting full sync with staging for ${this.dataSource.name}`,
+    );
 
-    // Sync in order to handle dependencies
+    // Get database connection
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
+
+    const entities = [
+      "customers",
+      "products",
+      "plans",
+      "subscriptions",
+      "charges",
+      "invoices",
+    ];
+    const stagingCollections: string[] = [];
+    const targetCollections: string[] = [];
+
+    try {
+      // Sync all entities to staging collections
+      console.log("📊 Syncing to staging collections...");
+
+      const timestamp = Date.now();
+
+      for (const entity of entities) {
+        const baseCollectionName = `${this.getCollectionPrefix()}_${entity}`;
+        const stagingCollectionName = `${baseCollectionName}_staging_${timestamp}`;
+
+        stagingCollections.push(stagingCollectionName);
+        targetCollections.push(baseCollectionName);
+
+        console.log(`\n🔄 Syncing ${entity} to staging...`);
+
+        switch (entity) {
+          case "customers":
+            await this.syncCustomersToStaging(db, stagingCollectionName);
+            break;
+          case "products":
+            await this.syncProductsToStaging(db, stagingCollectionName);
+            break;
+          case "plans":
+            await this.syncPlansToStaging(db, stagingCollectionName);
+            break;
+          case "subscriptions":
+            await this.syncSubscriptionsToStaging(db, stagingCollectionName);
+            break;
+          case "charges":
+            await this.syncChargesToStaging(db, stagingCollectionName);
+            break;
+          case "invoices":
+            await this.syncInvoicesToStaging(db, stagingCollectionName);
+            break;
+        }
+      }
+
+      // If all syncs successful, perform hot swap
+      await this.hotSwapCollections(db, stagingCollections, targetCollections);
+
+      console.log(
+        `\n✅ Full sync with hot swap completed for ${this.dataSource.name}`,
+      );
+    } catch (error) {
+      console.error("❌ Full sync failed, cleaning up staging collections...");
+
+      // Clean up staging collections on error
+      for (const stagingCollection of stagingCollections) {
+        try {
+          await db.collection(stagingCollection).drop();
+          console.log(
+            `🗑️  Cleaned up staging collection: ${stagingCollection}`,
+          );
+        } catch (cleanupError) {
+          // Ignore cleanup errors
+        }
+      }
+
+      throw error;
+    }
+  }
+
+  async syncAllDirect(targetDb?: any): Promise<void> {
+    console.log(
+      `\n🔄 Starting direct sync (upsert mode) for ${this.dataSource.name}`,
+    );
+
+    // Sync in order to handle dependencies with direct upserts
     await this.syncCustomers(targetDb);
     await this.syncProducts(targetDb);
     await this.syncPlans(targetDb);
@@ -48,7 +224,80 @@ export class StripeSyncService {
     await this.syncCharges(targetDb);
     await this.syncInvoices(targetDb);
 
-    console.log(`\n✅ Full sync completed for ${this.dataSource.name}`);
+    console.log(`\n✅ Direct sync completed for ${this.dataSource.name}`);
+  }
+
+  async syncEntityWithStaging(entity: string, targetDb?: any): Promise<void> {
+    console.log(
+      `\n🔄 Starting staging sync for ${entity} in ${this.dataSource.name}`,
+    );
+
+    // Get database connection
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
+
+    const timestamp = Date.now();
+    const baseCollectionName = `${this.getCollectionPrefix()}_${entity}`;
+    const stagingCollectionName = `${baseCollectionName}_staging_${timestamp}`;
+
+    try {
+      // Sync specific entity to staging collection
+      switch (entity.toLowerCase()) {
+        case "customers":
+        case "customer":
+          await this.syncCustomersToStaging(db, stagingCollectionName);
+          break;
+        case "subscriptions":
+        case "subscription":
+          await this.syncSubscriptionsToStaging(db, stagingCollectionName);
+          break;
+        case "charges":
+        case "charge":
+          await this.syncChargesToStaging(db, stagingCollectionName);
+          break;
+        case "invoices":
+        case "invoice":
+          await this.syncInvoicesToStaging(db, stagingCollectionName);
+          break;
+        case "products":
+        case "product":
+          await this.syncProductsToStaging(db, stagingCollectionName);
+          break;
+        case "plans":
+        case "plan":
+          await this.syncPlansToStaging(db, stagingCollectionName);
+          break;
+        default:
+          throw new Error(`Unknown entity: ${entity}`);
+      }
+
+      // Hot swap single collection
+      await this.hotSwapCollections(
+        db,
+        [stagingCollectionName],
+        [baseCollectionName],
+      );
+
+      console.log(
+        `\n✅ Staging sync completed for ${entity} in ${this.dataSource.name}`,
+      );
+    } catch (error) {
+      console.error(`❌ Staging sync failed for ${entity}, cleaning up...`);
+
+      // Clean up staging collection on error
+      try {
+        await db.collection(stagingCollectionName).drop();
+        console.log(
+          `🗑️  Cleaned up staging collection: ${stagingCollectionName}`,
+        );
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
+
+      throw error;
+    }
   }
 
   async connectToDatabase(targetDb?: any): Promise<{
@@ -67,31 +316,17 @@ export class StripeSyncService {
   }
 
   private async getMongoConnection(
-    targetDbId: string = "local_dev.analytics_db",
+    targetDbId: string = "default",
   ): Promise<{ client: MongoClient; db: Db }> {
     // Check if connection already exists
     if (this.mongoConnections.has(targetDbId)) {
       return this.mongoConnections.get(targetDbId)!;
     }
 
-    // Get target database configuration
-    const targetDb = databaseDataSourceManager.getMongoDBDatabase(targetDbId);
-    if (!targetDb || targetDb.type !== "mongodb") {
-      throw new Error(`MongoDB data source '${targetDbId}' not found`);
-    }
-
-    // Create new connection
-    const client = new MongoClient(targetDb.connection.connection_string!);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-
-    const connection = { client, db };
-    this.mongoConnections.set(targetDbId, connection);
-
-    console.log(
-      `Connected to MongoDB: ${targetDb.name} for Stripe source: ${this.dataSource.name}`,
+    // For backward compatibility, create a default connection
+    throw new Error(
+      `Legacy MongoDB connection method not supported. Please use connectToDatabase() with a target database object.`,
     );
-    return connection;
   }
 
   private async disconnect(): Promise<void> {
@@ -181,11 +416,16 @@ export class StripeSyncService {
   }
 
   async syncCustomers(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting customers sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+
+    // Handle both targetDb object and targetDbId string for backward compatibility
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
 
     try {
       const customers = await this.fetchAllStripeData(
@@ -195,8 +435,8 @@ export class StripeSyncService {
       );
       console.log(`Fetched ${customers.length} customers from Stripe`);
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_customers`;
+      // Use collection name with source name prefix
+      const collectionName = `${this.getCollectionPrefix()}_customers`;
       const collection = db.collection(collectionName);
 
       // Process customers with data source reference
@@ -228,11 +468,16 @@ export class StripeSyncService {
   }
 
   async syncSubscriptions(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting subscriptions sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+
+    // Handle both targetDb object and targetDbId string for backward compatibility
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
 
     try {
       const subscriptions = await this.fetchAllStripeData(
@@ -242,8 +487,8 @@ export class StripeSyncService {
       );
       console.log(`Fetched ${subscriptions.length} subscriptions from Stripe`);
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_subscriptions`;
+      // Use collection name with source name prefix
+      const collectionName = `${this.getCollectionPrefix()}_subscriptions`;
       const collection = db.collection(collectionName);
 
       // Process subscriptions with data source reference
@@ -277,11 +522,16 @@ export class StripeSyncService {
   }
 
   async syncCharges(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting charges sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+
+    // Handle both targetDb object and targetDbId string for backward compatibility
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
 
     try {
       const charges = await this.fetchAllStripeData(
@@ -291,8 +541,8 @@ export class StripeSyncService {
       );
       console.log(`Fetched ${charges.length} charges from Stripe`);
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_charges`;
+      // Use collection name with source name prefix
+      const collectionName = `${this.getCollectionPrefix()}_charges`;
       const collection = db.collection(collectionName);
 
       // Process charges with data source reference
@@ -324,11 +574,16 @@ export class StripeSyncService {
   }
 
   async syncInvoices(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting invoices sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+
+    // Handle both targetDb object and targetDbId string for backward compatibility
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
 
     try {
       const invoices = await this.fetchAllStripeData(
@@ -338,8 +593,8 @@ export class StripeSyncService {
       );
       console.log(`Fetched ${invoices.length} invoices from Stripe`);
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_invoices`;
+      // Use collection name with source name prefix
+      const collectionName = `${this.getCollectionPrefix()}_invoices`;
       const collection = db.collection(collectionName);
 
       // Process invoices with data source reference
@@ -371,11 +626,16 @@ export class StripeSyncService {
   }
 
   async syncProducts(
-    targetDbId?: string,
+    targetDb?: any,
     progress?: ProgressReporter,
   ): Promise<void> {
     console.log(`Starting products sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+
+    // Handle both targetDb object and targetDbId string for backward compatibility
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
 
     try {
       const products = await this.fetchAllStripeData(
@@ -385,8 +645,8 @@ export class StripeSyncService {
       );
       console.log(`Fetched ${products.length} products from Stripe`);
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_products`;
+      // Use collection name with source name prefix
+      const collectionName = `${this.getCollectionPrefix()}_products`;
       const collection = db.collection(collectionName);
 
       // Process products with data source reference
@@ -417,12 +677,14 @@ export class StripeSyncService {
     }
   }
 
-  async syncPlans(
-    targetDbId?: string,
-    progress?: ProgressReporter,
-  ): Promise<void> {
+  async syncPlans(targetDb?: any, progress?: ProgressReporter): Promise<void> {
     console.log(`Starting plans sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDbId);
+
+    // Handle both targetDb object and targetDbId string for backward compatibility
+    const { db } =
+      targetDb && typeof targetDb === "object" && targetDb.connection
+        ? await this.connectToDatabase(targetDb)
+        : await this.getMongoConnection(targetDb as string);
 
     try {
       const plans = await this.fetchAllStripeData(
@@ -432,8 +694,8 @@ export class StripeSyncService {
       );
       console.log(`Fetched ${plans.length} plans from Stripe`);
 
-      // Use collection name with source ID prefix
-      const collectionName = `${this.dataSource.id}_plans`;
+      // Use collection name with source name prefix
+      const collectionName = `${this.getCollectionPrefix()}_plans`;
       const collection = db.collection(collectionName);
 
       // Process plans with data source reference
@@ -466,6 +728,155 @@ export class StripeSyncService {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Staging sync methods for hot swap
+  private async syncCustomersToStaging(
+    db: any,
+    stagingCollectionName: string,
+  ): Promise<void> {
+    const customers = await this.fetchAllStripeData(
+      params => this.stripe.customers.list(params),
+      {},
+    );
+
+    const collection = db.collection(stagingCollectionName);
+    const processedCustomers = customers.map(customer => ({
+      ...customer,
+      _dataSourceId: this.dataSource.id,
+      _dataSourceName: this.dataSource.name,
+      _syncedAt: new Date(),
+    }));
+
+    if (processedCustomers.length > 0) {
+      await collection.insertMany(processedCustomers);
+      console.log(
+        `✅ Inserted ${processedCustomers.length} customers into staging`,
+      );
+    }
+  }
+
+  private async syncProductsToStaging(
+    db: any,
+    stagingCollectionName: string,
+  ): Promise<void> {
+    const products = await this.fetchAllStripeData(
+      params => this.stripe.products.list(params),
+      { active: true },
+    );
+
+    const collection = db.collection(stagingCollectionName);
+    const processedProducts = products.map(product => ({
+      ...product,
+      _dataSourceId: this.dataSource.id,
+      _dataSourceName: this.dataSource.name,
+      _syncedAt: new Date(),
+    }));
+
+    if (processedProducts.length > 0) {
+      await collection.insertMany(processedProducts);
+      console.log(
+        `✅ Inserted ${processedProducts.length} products into staging`,
+      );
+    }
+  }
+
+  private async syncPlansToStaging(
+    db: any,
+    stagingCollectionName: string,
+  ): Promise<void> {
+    const plans = await this.fetchAllStripeData(
+      params => this.stripe.plans.list(params),
+      {},
+    );
+
+    const collection = db.collection(stagingCollectionName);
+    const processedPlans = plans.map(plan => ({
+      ...plan,
+      _dataSourceId: this.dataSource.id,
+      _dataSourceName: this.dataSource.name,
+      _syncedAt: new Date(),
+    }));
+
+    if (processedPlans.length > 0) {
+      await collection.insertMany(processedPlans);
+      console.log(`✅ Inserted ${processedPlans.length} plans into staging`);
+    }
+  }
+
+  private async syncSubscriptionsToStaging(
+    db: any,
+    stagingCollectionName: string,
+  ): Promise<void> {
+    const subscriptions = await this.fetchAllStripeData(
+      params => this.stripe.subscriptions.list(params),
+      { status: "all" },
+    );
+
+    const collection = db.collection(stagingCollectionName);
+    const processedSubscriptions = subscriptions.map(subscription => ({
+      ...subscription,
+      _dataSourceId: this.dataSource.id,
+      _dataSourceName: this.dataSource.name,
+      _syncedAt: new Date(),
+    }));
+
+    if (processedSubscriptions.length > 0) {
+      await collection.insertMany(processedSubscriptions);
+      console.log(
+        `✅ Inserted ${processedSubscriptions.length} subscriptions into staging`,
+      );
+    }
+  }
+
+  private async syncChargesToStaging(
+    db: any,
+    stagingCollectionName: string,
+  ): Promise<void> {
+    const charges = await this.fetchAllStripeData(
+      params => this.stripe.charges.list(params),
+      {},
+    );
+
+    const collection = db.collection(stagingCollectionName);
+    const processedCharges = charges.map(charge => ({
+      ...charge,
+      _dataSourceId: this.dataSource.id,
+      _dataSourceName: this.dataSource.name,
+      _syncedAt: new Date(),
+    }));
+
+    if (processedCharges.length > 0) {
+      await collection.insertMany(processedCharges);
+      console.log(
+        `✅ Inserted ${processedCharges.length} charges into staging`,
+      );
+    }
+  }
+
+  private async syncInvoicesToStaging(
+    db: any,
+    stagingCollectionName: string,
+  ): Promise<void> {
+    const invoices = await this.fetchAllStripeData(
+      params => this.stripe.invoices.list(params),
+      {},
+    );
+
+    const collection = db.collection(stagingCollectionName);
+    const processedInvoices = invoices.map(invoice => ({
+      ...invoice,
+      _dataSourceId: this.dataSource.id,
+      _dataSourceName: this.dataSource.name,
+      _syncedAt: new Date(),
+    }));
+
+    if (processedInvoices.length > 0) {
+      await collection.insertMany(processedInvoices);
+      console.log(
+        `✅ Inserted ${processedInvoices.length} invoices into staging`,
+      );
+    }
   }
 
   async getDataSources() {
