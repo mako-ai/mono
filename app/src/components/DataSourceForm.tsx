@@ -17,9 +17,18 @@ import {
   Tooltip,
   Snackbar,
 } from "@mui/material";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import {
+  Visibility,
+  VisibilityOff,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
 
-import { useForm, Controller, UseFormReturn } from "react-hook-form";
+import {
+  useForm,
+  Controller,
+  UseFormReturn,
+  useFieldArray,
+} from "react-hook-form";
 
 // Zustand stores
 import { useDataSourceStore } from "../store/dataSourceStore";
@@ -33,8 +42,14 @@ export interface ConnectorFieldSchema {
   name: string;
   /** Human readable label */
   label: string;
-  /** Field type: string | number | boolean | password | textarea */
-  type: "string" | "number" | "boolean" | "password" | "textarea";
+  /** Field type */
+  type:
+    | "string"
+    | "number"
+    | "boolean"
+    | "password"
+    | "textarea"
+    | "object_array";
   /** Whether it is required */
   required?: boolean;
   /** Default value if not supplied */
@@ -49,6 +64,8 @@ export interface ConnectorFieldSchema {
   rows?: number;
   /** Whether this field is encrypted when stored */
   encrypted?: boolean;
+  /** Nested schema for array items (only for object_array) */
+  itemFields?: ConnectorFieldSchema[];
 }
 
 export interface ConnectorSchemaResponse {
@@ -90,6 +107,8 @@ function generateDefaultValues(
       defaults[f.name] = f.default;
     } else if (f.type === "boolean") {
       defaults[f.name] = false;
+    } else if (f.type === "object_array") {
+      // Leave undefined – array will be created on first append
     } else {
       defaults[f.name] = "";
     }
@@ -276,8 +295,12 @@ function DataSourceForm({
 
   // Persist every form change into the draft store (debounced by RHF internally)
   useEffect(() => {
-    if (!tabId) return; // Only persist when a tab id is provided
+    if (!tabId) return;
+    const lastJsonRef = { current: "" } as { current: string };
     const subscription = form.watch(values => {
+      const json = JSON.stringify(values);
+      if (json === lastJsonRef.current) return;
+      lastJsonRef.current = json;
       upsertDraft(tabId, values as Record<string, any>);
     });
     return () => subscription.unsubscribe();
@@ -399,7 +422,7 @@ function DataSourceForm({
                     : field.value
                 }
                 autoComplete="nope"
-                name={`config_${name}_${Math.random().toString(36).substring(7)}`}
+                name={`config_${name}`}
                 inputProps={{
                   autoComplete: "nope",
                   "data-lpignore": "true",
@@ -450,6 +473,11 @@ function DataSourceForm({
       );
     }
 
+    // Special handling for object_array
+    if (field.type === "object_array") {
+      return <ObjectArrayField key={field.name} field={field} form={form} />;
+    }
+
     // Default: TextField
     return (
       <Box key={name} position="relative">
@@ -475,7 +503,7 @@ function DataSourceForm({
                 fieldState.error ? "This field is required" : helperText
               }
               autoComplete="nope"
-              name={`config_${name}_${Math.random().toString(36).substring(7)}`}
+              name={`config_${name}`}
               inputProps={{
                 autoComplete: "nope",
                 "data-lpignore": "true",
@@ -525,6 +553,69 @@ function DataSourceForm({
             />
           )}
         />
+      </Box>
+    );
+  };
+
+  /** Component to render an array of objects (e.g., GraphQL queries list) */
+  const ObjectArrayField = ({
+    field,
+    form,
+  }: {
+    field: ConnectorFieldSchema;
+    form: UseFormReturn<any>;
+  }) => {
+    const { control } = form;
+    const {
+      fields: arrayFields,
+      append,
+      remove,
+    } = useFieldArray({ control, name: field.name as any });
+
+    return (
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle1" fontWeight="medium" sx={{ mb: 1 }}>
+          {field.label}
+        </Typography>
+
+        {arrayFields.map((item, index) => (
+          <Box
+            key={item.id}
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              p: 2,
+              mb: 2,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1 }}>
+              <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+                {field.label} {index + 1}
+              </Typography>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => remove(index)}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
+
+            {field.itemFields?.map(subField => {
+              // Build a nested field schema with dot-notation name
+              const nestedField: ConnectorFieldSchema = {
+                ...subField,
+                name: `${field.name}.${index}.${subField.name}`,
+              };
+              return renderDynamicField(nestedField, form);
+            })}
+          </Box>
+        ))}
+
+        <Button variant="outlined" size="small" onClick={() => append({})}>
+          Add Query
+        </Button>
       </Box>
     );
   };
@@ -581,7 +672,7 @@ function DataSourceForm({
             error={!!fieldState.error}
             helperText={fieldState.error ? "Name is required" : undefined}
             autoComplete="nope"
-            name={`datasource_title_${Math.random().toString(36).substring(7)}`}
+            name="datasource_title"
             inputProps={{
               autoComplete: "nope",
               "data-lpignore": "true",

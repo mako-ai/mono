@@ -470,28 +470,7 @@ class GraphQLSyncService {
     const startTime = Date.now();
 
     try {
-      let queries: any[] = [];
-
-      // Check if using new format (single query fields)
-      if (
-        this.dataSource.connection.query &&
-        this.dataSource.connection.query_name
-      ) {
-        // New format - create a query config from individual fields
-        queries = [
-          {
-            name: this.dataSource.connection.query_name,
-            query: this.dataSource.connection.query,
-            dataPath: this.dataSource.connection.data_path,
-            totalCountPath: this.dataSource.connection.total_count_path,
-            hasNextPagePath: this.dataSource.connection.has_next_page_path,
-            cursorPath: this.dataSource.connection.cursor_path,
-          },
-        ];
-      } else if (this.dataSource.connection.queries) {
-        // Old format - use queries array
-        queries = this.dataSource.connection.queries;
-      }
+      const queries: any[] = this.dataSource.connection.queries || [];
 
       if (queries.length === 0) {
         console.warn("No queries configured for this GraphQL data source");

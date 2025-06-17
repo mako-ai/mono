@@ -366,6 +366,7 @@ function Editor() {
                         {tab.title}
                       </span>
                       <IconButton
+                        component="span"
                         size="small"
                         onClick={e => {
                           e.stopPropagation();
