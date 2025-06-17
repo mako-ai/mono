@@ -28,6 +28,8 @@ import {
 } from "@mui/icons-material";
 import DataSourceForm from "../components/DataSourceForm";
 import { useWorkspace } from "../contexts/workspace-context";
+import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
+import { useDataSourceEntitiesStore } from "../store/dataSourceEntitiesStore";
 
 interface DataSource {
   _id: string;
@@ -76,9 +78,24 @@ interface ConnectorType {
 
 function DataSources() {
   const { currentWorkspace } = useWorkspace();
-  const [dataSources, setDataSources] = useState<DataSource[]>([]);
-  const [connectorTypes, setConnectorTypes] = useState<ConnectorType[]>([]);
   const [loading, setLoading] = useState(true);
+  const { types: connectorTypes, fetchCatalog } = useConnectorCatalogStore();
+  const { fetchAll: fetchSources, entities } = useDataSourceEntitiesStore();
+
+  const dataSources = currentWorkspace
+    ? (Object.values(entities).filter(
+        (e: any) => e.workspaceId === currentWorkspace.id,
+      ) as any[])
+    : [];
+
+  useEffect(() => {
+    if (!currentWorkspace) return;
+    if (!connectorTypes) {
+      fetchCatalog(currentWorkspace.id);
+    }
+    fetchSources(currentWorkspace.id).finally(() => setLoading(false));
+  }, [currentWorkspace]);
+
   const [formOpen, setFormOpen] = useState(false);
   const [editingDataSource, setEditingDataSource] = useState<DataSource | null>(
     null,
@@ -88,53 +105,6 @@ function DataSources() {
     useState<DataSource | null>(null);
   const [error, setError] = useState<string>("");
   const [testingId, setTestingId] = useState<string>("");
-
-  useEffect(() => {
-    if (currentWorkspace) {
-      fetchDataSources();
-      fetchConnectorTypes();
-    }
-  }, [currentWorkspace]);
-
-  const fetchDataSources = async () => {
-    if (!currentWorkspace) return;
-
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources`,
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setDataSources(data.data);
-      } else {
-        setError(data.error || "Failed to fetch data sources");
-      }
-    } catch (err) {
-      setError("Failed to fetch data sources");
-      console.error("Error fetching data sources:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchConnectorTypes = async () => {
-    if (!currentWorkspace) return;
-
-    try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources/connectors/types`,
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        setConnectorTypes(data.data);
-      }
-    } catch (err) {
-      console.error("Error fetching connector types:", err);
-    }
-  };
 
   const handleCreateDataSource = () => {
     setEditingDataSource(null);
@@ -164,9 +134,7 @@ function DataSources() {
       const data = await response.json();
 
       if (data.success) {
-        setDataSources(prev =>
-          prev.filter(ds => ds._id !== dataSourceToDelete._id),
-        );
+        fetchSources(currentWorkspace.id);
         setDeleteDialogOpen(false);
         setDataSourceToDelete(null);
       } else {
@@ -195,11 +163,7 @@ function DataSources() {
       const data = await response.json();
 
       if (data.success) {
-        setDataSources(prev =>
-          prev.map(ds =>
-            ds._id === dataSource._id ? { ...ds, isActive: !ds.isActive } : ds,
-          ),
-        );
+        fetchSources(currentWorkspace.id);
       } else {
         setError(data.error || "Failed to update data source");
       }
@@ -263,13 +227,7 @@ function DataSources() {
       const data = await response.json();
 
       if (data.success) {
-        if (editingDataSource) {
-          setDataSources(prev =>
-            prev.map(ds => (ds._id === editingDataSource._id ? data.data : ds)),
-          );
-        } else {
-          setDataSources(prev => [...prev, data.data]);
-        }
+        fetchSources(currentWorkspace.id);
         setFormOpen(false);
         setEditingDataSource(null);
       } else {
@@ -482,7 +440,7 @@ function DataSources() {
         }}
         onSubmit={handleFormSubmit}
         dataSource={editingDataSource}
-        connectorTypes={connectorTypes}
+        connectorTypes={connectorTypes || []}
       />
 
       {/* Delete Confirmation Dialog */}

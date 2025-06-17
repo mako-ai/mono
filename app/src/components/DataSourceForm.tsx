@@ -21,8 +21,9 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 
 import { useForm, Controller, UseFormReturn } from "react-hook-form";
 
-// Zustand store for draft persistence
+// Zustand stores
 import { useDataSourceStore } from "../store/dataSourceStore";
+import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
 
 /**
  * Generic field description coming from the API schema
@@ -180,41 +181,35 @@ function DataSourceForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataSource?._id]);
 
-  // Fetch schema when connector type changes
+  const { schemas, fetchSchema } = useConnectorCatalogStore();
+
+  // Fetch schema when connector type changes using cache
   useEffect(() => {
     if (!selectedType) {
       setSchema(null);
       return;
     }
-    // If editing and we already have schema loaded with same type, skip
+    if (schemas[selectedType]) {
+      setSchema(schemas[selectedType]);
+      return;
+    }
     setSchemaLoading(true);
     setSchemaError(null);
-    fetch(`/api/connectors/${selectedType}/schema`)
-      .then(async res => {
-        if (!res.ok) {
-          throw new Error(await res.text());
-        }
-        return res.json();
-      })
-      .then(json => {
-        setSchema(json.data as ConnectorSchemaResponse);
-        // Populate default values for new type if they don't exist yet
-        const defaults = generateDefaultValues(json.data);
+    fetchSchema(selectedType).then(res => {
+      if (res) {
+        setSchema(res);
+        const defaults = generateDefaultValues(res);
         Object.entries(defaults).forEach(([key, value]) => {
-          // Only set if value not already present (keeps existing data when editing)
           if (form.getValues(key as any) === undefined) {
             form.setValue(key as any, value);
           }
         });
-      })
-      .catch(err => {
-        console.error(err);
-        setSchemaError(err.message || "Failed to load connector schema");
-      })
-      .finally(() => {
-        setSchemaLoading(false);
-      });
-  }, [selectedType]);
+      } else {
+        setSchemaError("Failed to load connector schema");
+      }
+      setSchemaLoading(false);
+    });
+  }, [selectedType, schemas, fetchSchema]);
 
   // Decrypt value function
   const decryptValue = async (fieldName: string, encryptedValue: string) => {
