@@ -24,7 +24,10 @@ interface DataSourceTabProps {
   tabId: string;
 }
 
-const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
+const DataSourceTab: React.FC<DataSourceTabProps> = ({
+  sourceId: initialSourceId,
+  tabId,
+}) => {
   const { currentWorkspace } = useWorkspace();
   const {
     removeConsoleTab,
@@ -32,6 +35,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     updateConsoleIcon,
     updateConsoleContent,
     consoleTabs,
+    updateConsoleDirty,
   } = useConsoleStore();
 
   // Draft store
@@ -50,8 +54,14 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     entities,
   } = useDataSourceEntitiesStore();
 
+  const [localSourceId, setLocalSourceId] = useState<string | undefined>(
+    initialSourceId,
+  );
+  const effectiveSourceId = localSourceId;
   const dataSourceKey =
-    currentWorkspace && sourceId ? `${currentWorkspace.id}:${sourceId}` : null;
+    currentWorkspace && effectiveSourceId
+      ? `${currentWorkspace.id}:${effectiveSourceId}`
+      : null;
   const dataSource = dataSourceKey ? (entities as any)[dataSourceKey] : null;
 
   const updateConsoleTitleRef = useRef(updateConsoleTitle);
@@ -82,7 +92,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
 
   // Fetch data source entity if needed
   useEffect(() => {
-    if (!currentWorkspace || !sourceId) return;
+    if (!currentWorkspace || !effectiveSourceId) return;
     if (dataSource) {
       // ensure title/icon update once entity arrives
       updateConsoleTitleRef.current(tabId, dataSource.name || "Data Source");
@@ -91,7 +101,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
       return;
     }
     setLoading(true);
-    fetchSource(currentWorkspace.id, sourceId).then(entity => {
+    fetchSource(currentWorkspace.id, effectiveSourceId).then(entity => {
       if (entity) {
         updateConsoleTitleRef.current(tabId, entity.name || "Data Source");
         updateTabIcon(entity.type);
@@ -103,7 +113,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     });
   }, [
     currentWorkspace,
-    sourceId,
+    effectiveSourceId,
     dataSource,
     fetchSource,
     tabId,
@@ -120,10 +130,10 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     if (!currentWorkspace) return;
 
     try {
-      const url = sourceId
-        ? `/api/workspaces/${currentWorkspace.id}/sources/${sourceId}`
+      const url = effectiveSourceId
+        ? `/api/workspaces/${currentWorkspace.id}/sources/${effectiveSourceId}`
         : `/api/workspaces/${currentWorkspace.id}/sources`;
-      const method = sourceId ? "PUT" : "POST";
+      const method = effectiveSourceId ? "PUT" : "POST";
 
       const response = await fetch(url, {
         method,
@@ -141,6 +151,14 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
 
         // Clear draft on successful save
         deleteDraft(tabId);
+
+        const newId = data.data._id;
+        if (!effectiveSourceId && newId) {
+          // Persist the newly created data source id as the tab's content
+          // Using the store action avoids mutating immutable state directly
+          updateConsoleContent(tabId, newId);
+          setLocalSourceId(newId);
+        }
       } else {
         const serverError = data.error || data.message || JSON.stringify(data);
         setError(serverError);
@@ -177,6 +195,10 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
         dataSource={dataSource}
         connectorTypes={connectorTypes || []}
         errorMessage={error}
+        onDirtyChange={dirty => updateConsoleDirty(tabId, dirty)}
+        onTitleChange={title =>
+          updateConsoleTitle(tabId, title || "New Data Source")
+        }
       />
     </Box>
   );
