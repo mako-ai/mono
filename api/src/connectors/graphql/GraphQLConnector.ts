@@ -52,76 +52,75 @@ export class GraphQLConnector extends BaseConnector {
           helperText:
             "Authentication and custom headers as JSON (encrypted when saved)",
         },
-        // GraphQL Query
         {
-          name: "query",
-          label: "GraphQL Query",
-          type: "textarea",
+          name: "queries",
+          label: "GraphQL Queries",
+          type: "object_array",
           required: true,
-          rows: 12,
-          placeholder: `query GetData($limit: Int!, $offset: Int!) {
-  items(limit: $limit, offset: $offset) {
-    id
-    name
-    created_at
-  }
-  items_aggregate {
-    aggregate {
-      count
-    }
-  }
-}`,
-          helperText: "Your GraphQL query with pagination support",
-        },
-        {
-          name: "query_name",
-          label: "Query Name",
-          type: "string",
-          required: true,
-          placeholder: "items",
-          helperText: "Name for this query (used for collection naming)",
-        },
-        {
-          name: "data_path",
-          label: "Data Path",
-          type: "string",
-          required: true,
-          placeholder: "data.items",
-          helperText: "JSONPath to the data array in the response",
-        },
-        {
-          name: "total_count_path",
-          label: "Total Count Path",
-          type: "string",
-          required: false,
-          placeholder: "data.items_aggregate.aggregate.count",
-          helperText: "JSONPath to total count (for progress tracking)",
-        },
-        // Pagination configuration
-        {
-          name: "has_next_page_path",
-          label: "Has Next Page Path",
-          type: "string",
-          required: false,
-          placeholder: "data.items.pageInfo.hasNextPage",
-          helperText: "JSONPath for cursor-based pagination (optional)",
-        },
-        {
-          name: "cursor_path",
-          label: "Cursor Path",
-          type: "string",
-          required: false,
-          placeholder: "data.items.pageInfo.endCursor",
-          helperText: "JSONPath for next cursor value (optional)",
-        },
-        {
-          name: "batch_size",
-          label: "Batch Size",
-          type: "number",
-          required: false,
-          default: 100,
-          placeholder: "100",
-          helperText: "Number of records per request (uses $limit variable)",
+          itemFields: [
+            {
+              name: "name",
+              label: "Query Name",
+              type: "string",
+              required: true,
+              placeholder: "items",
+              helperText: "Name for this query (used for collection naming)",
+            },
+            {
+              name: "query",
+              label: "GraphQL Query",
+              type: "textarea",
+              required: true,
+              rows: 12,
+              placeholder:
+                "query GetData($limit: Int!, $offset: Int!) {\n  items(limit: $limit, offset: $offset) {\n    id\n    name\n    created_at\n  }\n  items_aggregate {\n    aggregate {\n      count\n    }\n  }\n}",
+              helperText: "Your GraphQL query with pagination support",
+            },
+            {
+              name: "data_path",
+              label: "Data Path",
+              type: "string",
+              required: true,
+              placeholder: "data.items",
+              helperText: "JSONPath to the data array in the response",
+            },
+            {
+              name: "total_count_path",
+              label: "Total Count Path",
+              type: "string",
+              required: false,
+              placeholder: "data.items_aggregate.aggregate.count",
+              helperText: "JSONPath to total count (for progress tracking)",
+            },
+            {
+              name: "has_next_page_path",
+              label: "Has Next Page Path",
+              type: "string",
+              required: false,
+              placeholder: "data.items.pageInfo.hasNextPage",
+              helperText: "JSONPath for cursor-based pagination (optional)",
+            },
+            {
+              name: "cursor_path",
+              label: "Cursor Path",
+              type: "string",
+              required: false,
+              placeholder: "data.items.pageInfo.endCursor",
+              helperText: "JSONPath for next cursor value (optional)",
+            },
+            {
+              name: "batch_size",
+              label: "Batch Size",
+              type: "number",
+              required: false,
+              default: 100,
+              placeholder: "100",
+              helperText:
+                "Number of records per request (uses $limit variable)",
+            },
+          ],
+          helperText:
+            "Define one or more GraphQL queries. Each query will be synced to its own MongoDB collection.",
         },
       ],
     };
@@ -144,29 +143,27 @@ export class GraphQLConnector extends BaseConnector {
       errors.push("GraphQL endpoint is required");
     }
 
-    // Check if using new form-based config or legacy config
-    const hasFormConfig =
-      this.dataSource.config.query && this.dataSource.config.query_name;
-    const hasLegacyConfig =
-      this.dataSource.config.queries &&
-      this.dataSource.config.queries.length > 0;
+    // Validate queries array (new format)
+    if (
+      !this.dataSource.config.queries ||
+      this.dataSource.config.queries.length === 0
+    ) {
+      errors.push("At least one GraphQL query must be configured");
+    } else {
+      this.dataSource.config.queries.forEach((query: any, index: number) => {
+        if (!query.name) {
+          errors.push(`Query ${index + 1} is missing a name`);
+        }
+        if (!query.query) {
+          errors.push(`Query ${index + 1} is missing the GraphQL query`);
+        }
+        if (!query.data_path) {
+          errors.push(`Query ${index + 1} is missing the data path`);
+        }
+        // Validate headers JSON if provided at connector level (only once)
+      });
 
-    if (!hasFormConfig && !hasLegacyConfig) {
-      errors.push(
-        "Either GraphQL query (new format) or queries array (legacy) must be configured",
-      );
-    }
-
-    // Validate new form-based config
-    if (hasFormConfig) {
-      if (!this.dataSource.config.query_name) {
-        errors.push("Query name is required");
-      }
-      if (!this.dataSource.config.data_path) {
-        errors.push("Data path is required");
-      }
-
-      // Validate headers JSON if provided
+      // Validate headers JSON if provided (at top level)
       if (
         this.dataSource.config.headers &&
         typeof this.dataSource.config.headers === "string"
@@ -177,18 +174,6 @@ export class GraphQLConnector extends BaseConnector {
           errors.push("Headers must be valid JSON format");
         }
       }
-    }
-
-    // Validate legacy queries array
-    if (hasLegacyConfig && this.dataSource.config.queries) {
-      this.dataSource.config.queries.forEach((query: any, index: number) => {
-        if (!query.name) {
-          errors.push(`Query ${index + 1} is missing a name`);
-        }
-        if (!query.query) {
-          errors.push(`Query ${index + 1} is missing the GraphQL query`);
-        }
-      });
     }
 
     return { valid: errors.length === 0, errors };
@@ -283,26 +268,11 @@ export class GraphQLConnector extends BaseConnector {
   }
 
   getAvailableEntities(): string[] {
-    // Handle new form-based config
-    if (this.dataSource.config.query && this.dataSource.config.query_name) {
-      return [this.dataSource.config.query_name];
-    }
-
-    // Handle legacy queries array
-    if (!this.dataSource.config.queries) {
-      return [];
-    }
+    if (!this.dataSource.config.queries) return [];
     return this.dataSource.config.queries.map((q: any) => q.name);
   }
 
   async syncAll(options: SyncOptions): Promise<void> {
-    // Handle new form-based config
-    if (this.dataSource.config.query && this.dataSource.config.query_name) {
-      await this.syncEntity(this.dataSource.config.query_name, options);
-      return;
-    }
-
-    // Handle legacy queries array
     if (
       !this.dataSource.config.queries ||
       this.dataSource.config.queries.length === 0
@@ -322,37 +292,27 @@ export class GraphQLConnector extends BaseConnector {
       throw new Error("Target database is required for sync");
     }
 
-    let queryConfig: any;
+    const rawConfig = this.dataSource.config.queries?.find(
+      (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
+    );
 
-    // Handle new form-based config
-    if (
-      this.dataSource.config.query &&
-      this.dataSource.config.query_name &&
-      this.dataSource.config.query_name.toLowerCase() === entity.toLowerCase()
-    ) {
-      queryConfig = {
-        name: this.dataSource.config.query_name,
-        query: this.dataSource.config.query,
-        dataPath: this.dataSource.config.data_path,
-        totalCountPath: this.dataSource.config.total_count_path,
-        hasNextPagePath: this.dataSource.config.has_next_page_path,
-        cursorPath: this.dataSource.config.cursor_path,
-        // Add standard variables for pagination
-        variables: {
-          limit: this.dataSource.config.batch_size || 100,
-          offset: 0,
-        },
-      };
-    } else {
-      // Handle legacy queries array
-      queryConfig = this.dataSource.config.queries?.find(
-        (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
-      );
-    }
-
-    if (!queryConfig) {
+    if (!rawConfig) {
       throw new Error(`Query configuration not found for entity: ${entity}`);
     }
+
+    // Normalize keys to camelCase expected by syncQuery helper
+    const rc: any = rawConfig as any;
+    const queryConfig = {
+      ...rawConfig,
+      dataPath: rc.data_path ?? rc.dataPath,
+      totalCountPath: rc.total_count_path ?? rc.totalCountPath,
+      hasNextPagePath: rc.has_next_page_path ?? rc.hasNextPagePath,
+      cursorPath: rc.cursor_path ?? rc.cursorPath,
+      variables: rc.variables ?? {
+        limit: rc.batch_size || 100,
+        offset: 0,
+      },
+    };
 
     await this.syncQuery(queryConfig, targetDatabase, progress);
   }
