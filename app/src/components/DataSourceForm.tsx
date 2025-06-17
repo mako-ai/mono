@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Button,
   TextField,
@@ -74,6 +74,10 @@ interface DataSourceFormProps {
     supportedEntities: string[];
   }>;
   errorMessage?: string | null;
+  /** Notify parent when dirty status changes */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Notify parent when name field changes */
+  onTitleChange?: (title: string) => void;
 }
 
 function generateDefaultValues(
@@ -100,6 +104,8 @@ function DataSourceForm({
   connectorTypes = [],
   errorMessage,
   tabId,
+  onDirtyChange,
+  onTitleChange,
 }: DataSourceFormProps) {
   // Fetch connector schema when the type changes
   const [schema, setSchema] = useState<ConnectorSchemaResponse | null>(null);
@@ -166,11 +172,17 @@ function DataSourceForm({
     handleSubmit,
     watch,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = form;
 
   // Watch selected connector type
   const selectedType = watch("type");
+
+  // Propagate title changes
+  const nameValue = watch("name");
+  useEffect(() => {
+    if (onTitleChange) onTitleChange(nameValue);
+  }, [nameValue, onTitleChange]);
 
   // Removed automatic reset on every defaultValues change to avoid update loops.
   // If the dataSource prop itself changes (switching from new to edit mode), we manually reset.
@@ -829,6 +841,15 @@ function DataSourceForm({
       )}
     </Box>
   );
+
+  // bubble dirty state to parent
+  const lastDirty = useRef<boolean>(false);
+  useEffect(() => {
+    if (onDirtyChange && lastDirty.current !== isDirty) {
+      lastDirty.current = isDirty;
+      onDirtyChange(isDirty);
+    }
+  }, [isDirty, onDirtyChange]);
 
   return (
     <Box
