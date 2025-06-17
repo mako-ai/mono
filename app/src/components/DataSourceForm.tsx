@@ -76,7 +76,7 @@ interface DataSourceFormProps {
   errorMessage?: string | null;
   /** Notify parent when dirty status changes */
   onDirtyChange?: (dirty: boolean) => void;
-  /** Notify parent when name field changes */
+  /** Preserve title change callback for backward compatibility (no longer used internally) */
   onTitleChange?: (title: string) => void;
 }
 
@@ -105,7 +105,6 @@ function DataSourceForm({
   errorMessage,
   tabId,
   onDirtyChange,
-  onTitleChange,
 }: DataSourceFormProps) {
   // Fetch connector schema when the type changes
   const [schema, setSchema] = useState<ConnectorSchemaResponse | null>(null);
@@ -177,12 +176,6 @@ function DataSourceForm({
 
   // Watch selected connector type
   const selectedType = watch("type");
-
-  // Propagate title changes
-  const nameValue = watch("name");
-  useEffect(() => {
-    if (onTitleChange) onTitleChange(nameValue);
-  }, [nameValue, onTitleChange]);
 
   // Removed automatic reset on every defaultValues change to avoid update loops.
   // If the dataSource prop itself changes (switching from new to edit mode), we manually reset.
