@@ -148,6 +148,8 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({
         }
         setError(null);
         updateTabIcon(data.data.type);
+        // Update the tab title once after a successful save
+        updateConsoleTitle(tabId, data.data.name || "Data Source");
 
         // Clear draft on successful save
         deleteDraft(tabId);
@@ -196,9 +198,6 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({
         connectorTypes={connectorTypes || []}
         errorMessage={error}
         onDirtyChange={dirty => updateConsoleDirty(tabId, dirty)}
-        onTitleChange={title =>
-          updateConsoleTitle(tabId, title || "New Data Source")
-        }
       />
     </Box>
   );
