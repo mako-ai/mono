@@ -108,7 +108,8 @@ function generateDefaultValues(
     } else if (f.type === "boolean") {
       defaults[f.name] = false;
     } else if (f.type === "object_array") {
-      // Leave undefined – array will be created on first append
+      // Initialize as empty array to avoid read-only property errors
+      defaults[f.name] = [];
     } else {
       defaults[f.name] = "";
     }
@@ -178,11 +179,32 @@ function DataSourceForm({
       base = { ...base, ...draft.values };
     }
 
-    return base;
+    // Deep clone to ensure all values (including nested arrays) are mutable
+    // This is necessary because values from Immer stores are frozen/immutable
+    const deepClone = (obj: any): any => {
+      if (obj === null || typeof obj !== "object") return obj;
+      if (obj instanceof Date) return new Date(obj);
+      if (Array.isArray(obj)) {
+        return obj.map(item => deepClone(item));
+      }
+      const cloned: Record<string, any> = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          cloned[key] = deepClone(obj[key]);
+        }
+      }
+      return cloned;
+    };
+
+    return deepClone(base);
   }, [dataSource, draft]);
 
   const form = useForm({
     defaultValues,
+    // Ensure arrays are mutable
+    mode: "onChange",
+    // Disable automatic unregister to prevent issues with dynamic fields
+    shouldUnregister: false,
   });
 
   const {
@@ -200,7 +222,9 @@ function DataSourceForm({
   // If the dataSource prop itself changes (switching from new to edit mode), we manually reset.
   useEffect(() => {
     if (dataSource) {
-      reset(defaultValues);
+      // Deep clone defaultValues to ensure arrays are mutable
+      const mutableDefaults = JSON.parse(JSON.stringify(defaultValues));
+      reset(mutableDefaults);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataSource?._id]);
@@ -215,6 +239,13 @@ function DataSourceForm({
     }
     if (schemas[selectedType]) {
       setSchema(schemas[selectedType]);
+      // When schema is set, ensure all array fields are initialized
+      const currentValues = form.getValues();
+      schemas[selectedType].fields.forEach((field: any) => {
+        if (field.type === "object_array" && !currentValues[field.name]) {
+          form.setValue(field.name, []);
+        }
+      });
       return;
     }
     setSchemaLoading(true);
@@ -225,7 +256,9 @@ function DataSourceForm({
         const defaults = generateDefaultValues(res);
         Object.entries(defaults).forEach(([key, value]) => {
           if (form.getValues(key as any) === undefined) {
-            form.setValue(key as any, value);
+            // Ensure arrays are mutable when setting values
+            const mutableValue = Array.isArray(value) ? [...value] : value;
+            form.setValue(key as any, mutableValue);
           }
         });
       } else {
@@ -233,7 +266,7 @@ function DataSourceForm({
       }
       setSchemaLoading(false);
     });
-  }, [selectedType, schemas, fetchSchema]);
+  }, [selectedType, schemas, fetchSchema, form]);
 
   // Decrypt value function
   const decryptValue = async (fieldName: string, encryptedValue: string) => {
@@ -301,7 +334,9 @@ function DataSourceForm({
       const json = JSON.stringify(values);
       if (json === lastJsonRef.current) return;
       lastJsonRef.current = json;
-      upsertDraft(tabId, values as Record<string, any>);
+      // Deep clone values to ensure draft store doesn't freeze the arrays
+      const clonedValues = JSON.parse(JSON.stringify(values));
+      upsertDraft(tabId, clonedValues as Record<string, any>);
     });
     return () => subscription.unsubscribe();
   }, [form, tabId, upsertDraft]);
@@ -565,12 +600,42 @@ function DataSourceForm({
     field: ConnectorFieldSchema;
     form: UseFormReturn<any>;
   }) => {
-    const { control } = form;
-    const {
-      fields: arrayFields,
-      append,
-      remove,
-    } = useFieldArray({ control, name: field.name as any });
+    const { control, setValue, getValues, watch } = form;
+
+    // Watch the array value
+    const arrayValue = watch(field.name) || [];
+
+    // Custom append function that ensures mutable arrays
+    const customAppend = (newItem: any) => {
+      const currentArray = getValues(field.name) || [];
+      // Create a completely new mutable array
+      const newArray = JSON.parse(JSON.stringify([...currentArray, newItem]));
+      setValue(field.name, newArray, { shouldDirty: true });
+    };
+
+    // Custom remove function
+    const customRemove = (index: number) => {
+      const currentArray = getValues(field.name) || [];
+      const newArray = currentArray.filter((_: any, i: number) => i !== index);
+      setValue(field.name, JSON.parse(JSON.stringify(newArray)), {
+        shouldDirty: true,
+      });
+    };
+
+    // Create a new item with all fields initialized
+    const createNewItem = () => {
+      const newItem: Record<string, any> = {};
+      field.itemFields?.forEach(subField => {
+        if (subField.default !== undefined) {
+          newItem[subField.name] = subField.default;
+        } else if (subField.type === "boolean") {
+          newItem[subField.name] = false;
+        } else {
+          newItem[subField.name] = "";
+        }
+      });
+      return newItem;
+    };
 
     return (
       <Box sx={{ mt: 2 }}>
@@ -578,9 +643,9 @@ function DataSourceForm({
           {field.label}
         </Typography>
 
-        {arrayFields.map((item, index) => (
+        {arrayValue.map((item: any, index: number) => (
           <Box
-            key={item.id}
+            key={`${field.name}-${index}`}
             sx={{
               border: "1px solid",
               borderColor: "divider",
@@ -596,24 +661,88 @@ function DataSourceForm({
               <IconButton
                 size="small"
                 color="error"
-                onClick={() => remove(index)}
+                onClick={() => customRemove(index)}
               >
                 <DeleteIcon fontSize="small" />
               </IconButton>
             </Box>
 
             {field.itemFields?.map(subField => {
-              // Build a nested field schema with dot-notation name
-              const nestedField: ConnectorFieldSchema = {
-                ...subField,
-                name: `${field.name}.${index}.${subField.name}`,
+              const fieldPath = `${field.name}.${index}.${subField.name}`;
+              const fieldValue = item[subField.name] || "";
+
+              // Custom onChange handler that updates the entire array
+              const handleChange = (newValue: any) => {
+                const currentArray = getValues(field.name) || [];
+                const updatedArray = [...currentArray];
+                if (!updatedArray[index]) {
+                  updatedArray[index] = {};
+                }
+                updatedArray[index] = {
+                  ...updatedArray[index],
+                  [subField.name]: newValue,
+                };
+                // Deep clone to ensure mutability
+                setValue(field.name, JSON.parse(JSON.stringify(updatedArray)), {
+                  shouldDirty: true,
+                });
               };
-              return renderDynamicField(nestedField, form);
+
+              if (subField.type === "boolean") {
+                return (
+                  <FormControlLabel
+                    key={fieldPath}
+                    control={
+                      <Switch
+                        checked={fieldValue || false}
+                        onChange={e => handleChange(e.target.checked)}
+                      />
+                    }
+                    label={subField.label}
+                  />
+                );
+              }
+
+              if (subField.type === "textarea") {
+                return (
+                  <TextField
+                    key={fieldPath}
+                    fullWidth
+                    margin="normal"
+                    multiline
+                    rows={subField.rows ?? 8}
+                    label={subField.label}
+                    placeholder={subField.placeholder}
+                    value={fieldValue}
+                    onChange={e => handleChange(e.target.value)}
+                    helperText={subField.helperText}
+                  />
+                );
+              }
+
+              // Default: TextField
+              return (
+                <TextField
+                  key={fieldPath}
+                  fullWidth
+                  margin="normal"
+                  label={subField.label}
+                  placeholder={subField.placeholder}
+                  value={fieldValue}
+                  onChange={e => handleChange(e.target.value)}
+                  type={subField.type === "number" ? "number" : "text"}
+                  helperText={subField.helperText}
+                />
+              );
             })}
           </Box>
         ))}
 
-        <Button variant="outlined" size="small" onClick={() => append({})}>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => customAppend(createNewItem())}
+        >
           Add Query
         </Button>
       </Box>
