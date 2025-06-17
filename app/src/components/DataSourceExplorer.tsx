@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -27,6 +27,7 @@ import {
 
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
+import { useDataSourceEntitiesStore } from "../store/dataSourceEntitiesStore";
 
 interface DataSource {
   _id: string;
@@ -34,14 +35,27 @@ interface DataSource {
   description?: string;
   type: string;
   isActive: boolean;
+  workspaceId: string;
 }
 
 function DataSourceExplorer() {
   const { currentWorkspace } = useWorkspace();
   const { consoleTabs, addConsoleTab, setActiveConsole } = useConsoleStore();
+  const {
+    entities,
+    loading,
+    init,
+    refresh,
+    delete: deleteSource,
+  } = useDataSourceEntitiesStore();
 
-  const [sources, setSources] = useState<DataSource[]>([]);
-  const [loading, setLoading] = useState(true);
+  const sources: DataSource[] = useMemo(() => {
+    if (!currentWorkspace) return [];
+    return Object.values(entities).filter(
+      e => e.workspaceId === currentWorkspace.id,
+    ) as DataSource[];
+  }, [entities, currentWorkspace]);
+
   const [error, setError] = useState<string | null>(null);
 
   // Context-menu & delete handling state
@@ -55,30 +69,18 @@ function DataSourceExplorer() {
 
   const fetchSources = async () => {
     if (!currentWorkspace) return;
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources`,
-      );
-      const data = await response.json();
-      if (data.success) {
-        setSources(data.data);
-      } else {
-        setError(data.error || "Failed to fetch data sources");
-      }
-    } catch (err) {
-      console.error("Error fetching data sources", err);
-      setError("Failed to fetch data sources");
-    } finally {
-      setLoading(false);
+    const list = await refresh(currentWorkspace.id);
+    if (!list.length) {
+      // Could set error based on future error handling in store
     }
   };
 
   useEffect(() => {
-    fetchSources();
+    if (currentWorkspace) {
+      init(currentWorkspace.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWorkspace]);
+  }, [currentWorkspace?.id]);
 
   const openTabForSource = (source?: DataSource) => {
     // If editing an existing source, try to reuse an open tab; for a new source always open a fresh tab
@@ -137,28 +139,12 @@ function DataSourceExplorer() {
 
   const handleDeleteConfirm = async () => {
     if (!currentWorkspace || !selectedItem) return;
-    try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources/${selectedItem._id}`,
-        {
-          method: "DELETE",
-        },
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.success) {
-        setDeleteDialogOpen(false);
-        setSelectedItem(null);
-        fetchSources();
-      } else {
-        console.error("Failed to delete data source:", data.error);
-      }
-    } catch (e: any) {
-      console.error("Failed to delete data source:", e);
+    const res = await deleteSource(currentWorkspace.id, selectedItem._id);
+    if (!res.success) {
+      console.error("Failed to delete data source:", res.error);
     }
+    setDeleteDialogOpen(false);
+    setSelectedItem(null);
   };
 
   return (
@@ -199,7 +185,7 @@ function DataSourceExplorer() {
 
       {/* List */}
       <Box sx={{ flexGrow: 1, overflow: "auto" }}>
-        {loading ? (
+        {currentWorkspace && loading[currentWorkspace.id] ? (
           <Box sx={{ p: 2, textAlign: "center" }}>
             <CircularProgress size={24} />
           </Box>

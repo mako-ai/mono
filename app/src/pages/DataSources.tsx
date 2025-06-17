@@ -37,6 +37,7 @@ interface DataSource {
   description?: string;
   type: string;
   isActive: boolean;
+  workspaceId?: string;
   config: {
     api_key?: string;
     api_base_url?: string;
@@ -78,9 +79,16 @@ interface ConnectorType {
 
 function DataSources() {
   const { currentWorkspace } = useWorkspace();
-  const [loading, setLoading] = useState(true);
   const { types: connectorTypes, fetchCatalog } = useConnectorCatalogStore();
-  const { fetchAll: fetchSources, entities } = useDataSourceEntitiesStore();
+
+  const {
+    entities,
+    loading,
+    init,
+    create: createSource,
+    update: updateSource,
+    delete: deleteSource,
+  } = useDataSourceEntitiesStore();
 
   const dataSources = currentWorkspace
     ? (Object.values(entities).filter(
@@ -93,8 +101,9 @@ function DataSources() {
     if (!connectorTypes) {
       fetchCatalog(currentWorkspace.id);
     }
-    fetchSources(currentWorkspace.id).finally(() => setLoading(false));
-  }, [currentWorkspace]);
+    init(currentWorkspace.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspace?.id]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingDataSource, setEditingDataSource] = useState<DataSource | null>(
@@ -123,54 +132,22 @@ function DataSources() {
 
   const handleDeleteConfirm = async () => {
     if (!dataSourceToDelete || !currentWorkspace) return;
-
-    try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources/${dataSourceToDelete._id}`,
-        {
-          method: "DELETE",
-        },
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        fetchSources(currentWorkspace.id);
-        setDeleteDialogOpen(false);
-        setDataSourceToDelete(null);
-      } else {
-        setError(data.error || "Failed to delete data source");
-      }
-    } catch (err) {
-      setError("Failed to delete data source");
-      console.error("Error deleting data source:", err);
+    const res = await deleteSource(currentWorkspace.id, dataSourceToDelete._id);
+    if (!res.success) {
+      setError(res.error || "Failed to delete data source");
     }
+    setDeleteDialogOpen(false);
+    setDataSourceToDelete(null);
   };
 
   const handleToggleEnabled = async (dataSource: DataSource) => {
     if (!currentWorkspace) return;
-
-    try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources/${dataSource._id}/enable`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ enabled: !dataSource.isActive }),
-        },
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        fetchSources(currentWorkspace.id);
-      } else {
-        setError(data.error || "Failed to update data source");
-      }
-    } catch (err) {
-      setError("Failed to update data source");
-      console.error("Error updating data source:", err);
-    }
+    const { error: updateError } = await updateSource(
+      currentWorkspace.id,
+      dataSource._id,
+      { isActive: !dataSource.isActive },
+    );
+    if (updateError) setError(updateError);
   };
 
   const handleTestConnection = async (dataSource: DataSource) => {
@@ -209,34 +186,29 @@ function DataSources() {
   const handleFormSubmit = async (formData: any) => {
     if (!currentWorkspace) return;
 
-    try {
-      const url = editingDataSource
-        ? `/api/workspaces/${currentWorkspace.id}/sources/${editingDataSource._id}`
-        : `/api/workspaces/${currentWorkspace.id}/sources`;
-
-      const method = editingDataSource ? "PUT" : "POST";
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        fetchSources(currentWorkspace.id);
-        setFormOpen(false);
-        setEditingDataSource(null);
-      } else {
-        setError(data.error || "Failed to save data source");
+    if (editingDataSource) {
+      const { error: updateError } = await updateSource(
+        currentWorkspace.id,
+        editingDataSource._id,
+        formData,
+      );
+      if (updateError) {
+        setError(updateError);
+        return;
       }
-    } catch (err) {
-      setError("Failed to save data source");
-      console.error("Error saving data source:", err);
+    } else {
+      const { error: createError } = await createSource(
+        currentWorkspace.id,
+        formData,
+      );
+      if (createError) {
+        setError(createError);
+        return;
+      }
     }
+
+    setFormOpen(false);
+    setEditingDataSource(null);
   };
 
   const getSourceChipColor = (type: string) => {
@@ -254,6 +226,8 @@ function DataSources() {
     return colors[type] || "default";
   };
 
+  const isLoading = currentWorkspace ? loading[currentWorkspace.id] : false;
+
   if (!currentWorkspace) {
     return (
       <Box sx={{ p: 3 }}>
@@ -264,7 +238,7 @@ function DataSources() {
     );
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Box
         display="flex"
@@ -412,7 +386,7 @@ function DataSources() {
         ))}
       </Grid>
 
-      {dataSources.length === 0 && !loading && (
+      {dataSources.length === 0 && !isLoading && (
         <Box sx={{ textAlign: "center", mt: 8 }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No data sources configured
