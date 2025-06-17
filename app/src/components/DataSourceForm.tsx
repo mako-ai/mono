@@ -21,6 +21,9 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 
 import { useForm, Controller, UseFormReturn } from "react-hook-form";
 
+// Zustand store for draft persistence
+import { useDataSourceStore } from "../store/dataSourceStore";
+
 /**
  * Generic field description coming from the API schema
  */
@@ -53,6 +56,8 @@ export interface ConnectorSchemaResponse {
 }
 
 interface DataSourceFormProps {
+  /** Optional tab id when the form is rendered inside a console sources tab. */
+  tabId?: string;
   variant?: "dialog" | "inline";
   open?: boolean;
   onClose?: () => void;
@@ -93,6 +98,7 @@ function DataSourceForm({
   dataSource,
   connectorTypes = [],
   errorMessage,
+  tabId,
 }: DataSourceFormProps) {
   // Fetch connector schema when the type changes
   const [schema, setSchema] = useState<ConnectorSchemaResponse | null>(null);
@@ -111,31 +117,44 @@ function DataSourceForm({
   >({});
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
+  // ---------------- Draft store integration ----------------
+  const draft = useDataSourceStore(state =>
+    tabId ? state.drafts[tabId] : undefined,
+  );
+  const upsertDraft = useDataSourceStore(state => state.upsertDraft);
+
   // React Hook Form setup
   const defaultValues = useMemo(() => {
+    let base: Record<string, any>;
     if (dataSource) {
-      return {
+      base = {
         name: dataSource.name || "",
         description: dataSource.description || "",
         type: dataSource.type || "",
         isActive: dataSource.isActive ?? true,
-        // Flatten config keys at the root level for RHF simplicity
         ...dataSource.config,
-        // Advanced settings (namespaced with settings.)
         settings_sync_batch_size: dataSource.settings?.sync_batch_size ?? 100,
         settings_rate_limit_delay_ms:
           dataSource.settings?.rate_limit_delay_ms ?? 200,
         settings_max_retries: dataSource.settings?.max_retries ?? 3,
         settings_timeout_ms: dataSource.settings?.timeout_ms ?? 30000,
-      } as Record<string, any>;
+      };
+    } else {
+      base = {
+        name: "",
+        description: "",
+        type: "",
+        isActive: true,
+      };
     }
-    return {
-      name: "",
-      description: "",
-      type: "",
-      isActive: true,
-    } as Record<string, any>;
-  }, [dataSource]);
+
+    // If we have a persisted draft for this tab, merge it over base
+    if (draft?.values) {
+      base = { ...base, ...draft.values };
+    }
+
+    return base;
+  }, [dataSource, draft]);
 
   const form = useForm({
     defaultValues,
@@ -152,10 +171,14 @@ function DataSourceForm({
   // Watch selected connector type
   const selectedType = watch("type");
 
-  // Reset form when dataSource changes (edit mode)
+  // Removed automatic reset on every defaultValues change to avoid update loops.
+  // If the dataSource prop itself changes (switching from new to edit mode), we manually reset.
   useEffect(() => {
-    reset(defaultValues);
-  }, [defaultValues, reset]);
+    if (dataSource) {
+      reset(defaultValues);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSource?._id]);
 
   // Fetch schema when connector type changes
   useEffect(() => {
@@ -250,6 +273,15 @@ function DataSourceForm({
       [fieldName]: !prev[fieldName],
     }));
   };
+
+  // Persist every form change into the draft store (debounced by RHF internally)
+  useEffect(() => {
+    if (!tabId) return; // Only persist when a tab id is provided
+    const subscription = form.watch(values => {
+      upsertDraft(tabId, values as Record<string, any>);
+    });
+    return () => subscription.unsubscribe();
+  }, [form, tabId, upsertDraft]);
 
   /** Submit handler */
   const onSubmitInternal = (values: Record<string, any>) => {

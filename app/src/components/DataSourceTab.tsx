@@ -3,6 +3,7 @@ import { Box, CircularProgress } from "@mui/material";
 import DataSourceForm from "./DataSourceForm";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
+import { useDataSourceStore } from "../store/dataSourceStore";
 
 interface ConnectorType {
   type: string;
@@ -30,6 +31,9 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     updateConsoleContent,
     consoleTabs,
   } = useConsoleStore();
+
+  // Draft store
+  const deleteDraft = useDataSourceStore(state => state.deleteDraft);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +127,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
 
   /* ------------------ handlers ------------------ */
   const handleClose = () => {
+    deleteDraft(tabId);
     removeConsoleTab(tabId);
   };
 
@@ -154,6 +159,9 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
         }
         setError(null);
         updateTabIcon(data.data.type);
+
+        // Clear draft on successful save
+        deleteDraft(tabId);
       } else {
         const serverError = data.error || data.message || JSON.stringify(data);
         setError(serverError);
@@ -184,6 +192,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     >
       <DataSourceForm
         variant="inline"
+        tabId={tabId}
         onClose={handleClose}
         onSubmit={handleSubmit}
         dataSource={dataSource}
