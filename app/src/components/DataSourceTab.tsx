@@ -3,6 +3,8 @@ import { Box, CircularProgress } from "@mui/material";
 import DataSourceForm from "./DataSourceForm";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
+import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
+import { useDataSourceEntitiesStore } from "../store/dataSourceEntitiesStore";
 import { useDataSourceStore } from "../store/dataSourceStore";
 
 interface ConnectorType {
@@ -37,31 +39,20 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<any>(null);
-  const [connectorTypes, setConnectorTypes] = useState<ConnectorType[]>([]);
 
-  // Helper function to update tab icon
-  const updateTabIcon = useCallback(
-    (type: string) => {
-      updateConsoleIcon(tabId, `/api/connectors/${type}/icon.svg`);
-    },
-    [updateConsoleIcon, tabId],
-  );
+  /* ------------------ global catalog ------------------ */
+  const { types: connectorTypes, fetchCatalog } = useConnectorCatalogStore();
 
-  const fetchConnectorTypes = useCallback(async () => {
-    if (!currentWorkspace) return;
-    try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources/connectors/types`,
-      );
-      const data = await response.json();
-      if (data.success) {
-        setConnectorTypes(data.data);
-      }
-    } catch (err) {
-      console.error("Error fetching connector types", err);
-    }
-  }, [currentWorkspace]);
+  /* ------------------ entity cache -------------------- */
+  const {
+    fetchOne: fetchSource,
+    upsert: upsertSource,
+    entities,
+  } = useDataSourceEntitiesStore();
+
+  const dataSourceKey =
+    currentWorkspace && sourceId ? `${currentWorkspace.id}:${sourceId}` : null;
+  const dataSource = dataSourceKey ? (entities as any)[dataSourceKey] : null;
 
   const updateConsoleTitleRef = useRef(updateConsoleTitle);
   const consoleTabsRef = useRef(consoleTabs);
@@ -74,56 +65,50 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
     consoleTabsRef.current = consoleTabs;
   }, [consoleTabs]);
 
-  const fetchDataSource = useCallback(async () => {
-    if (!currentWorkspace || !sourceId) return;
+  // Helper to update the tab icon based on connector type
+  const updateTabIcon = useCallback(
+    (type: string) => {
+      updateConsoleIcon(tabId, `/api/connectors/${type}/icon.svg`);
+    },
+    [updateConsoleIcon, tabId],
+  );
 
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/sources/${sourceId}`,
-      );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setDataSource(data.data);
-        // Update console tab title (via ref to avoid changing deps)
-        updateConsoleTitleRef.current(tabId, data.data.name || "Data Source");
-        // Update tab icon
-        updateTabIcon(data.data.type);
+  /* ------------------ effects ------------------ */
+  // Fetch global connector catalog once
+  useEffect(() => {
+    if (!currentWorkspace || connectorTypes) return;
+    fetchCatalog(currentWorkspace.id);
+  }, [currentWorkspace, connectorTypes, fetchCatalog]);
+
+  // Fetch data source entity if needed
+  useEffect(() => {
+    if (!currentWorkspace || !sourceId) return;
+    if (dataSource) {
+      // ensure title/icon update once entity arrives
+      updateConsoleTitleRef.current(tabId, dataSource.name || "Data Source");
+      updateTabIcon(dataSource.type);
+      setError(null);
+      return;
+    }
+    setLoading(true);
+    fetchSource(currentWorkspace.id, sourceId).then(entity => {
+      if (entity) {
+        updateConsoleTitleRef.current(tabId, entity.name || "Data Source");
+        updateTabIcon(entity.type);
         setError(null);
       } else {
-        const serverError = data.error || data.message || JSON.stringify(data);
-        setError(serverError);
+        setError("Failed to load data source");
       }
-    } catch (err: any) {
-      console.error("Error loading data source", err);
-      setError(err.message || "Failed to load data source");
-    } finally {
       setLoading(false);
-    }
-  }, [currentWorkspace, sourceId, tabId, updateConsoleTitleRef, updateTabIcon]);
-
-  // Prevent duplicate calls in React StrictMode by tracking last fetched keys
-  const lastTypesWorkspaceId = useRef<string | null>(null);
-  const lastSourceKey = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!currentWorkspace) return;
-
-    if (lastTypesWorkspaceId.current !== currentWorkspace.id) {
-      lastTypesWorkspaceId.current = currentWorkspace.id;
-      fetchConnectorTypes();
-    }
-  }, [currentWorkspace, fetchConnectorTypes]);
-
-  useEffect(() => {
-    if (!currentWorkspace || !sourceId) return;
-
-    const key = `${currentWorkspace.id}-${sourceId}`;
-    if (lastSourceKey.current !== key) {
-      lastSourceKey.current = key;
-      fetchDataSource();
-    }
-  }, [currentWorkspace, sourceId, fetchDataSource]);
+    });
+  }, [
+    currentWorkspace,
+    sourceId,
+    dataSource,
+    fetchSource,
+    tabId,
+    updateTabIcon,
+  ]);
 
   /* ------------------ handlers ------------------ */
   const handleClose = () => {
@@ -147,15 +132,9 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
       });
       const data = await response.json();
       if (data.success) {
-        setDataSource(data.data);
-        // Update console tab title if name changed or new created
-        updateConsoleTitle(tabId, data.data.name || "New Data Source");
-        // If this was a create, we should also update the tab's content to hold the new id
-        const newId = data.data._id;
-        if (!sourceId && newId) {
-          // Persist the newly created data source id as the tab's content
-          // Using the store action avoids mutating immutable state directly
-          updateConsoleContent(tabId, newId);
+        // update entity cache
+        if (currentWorkspace) {
+          upsertSource({ ...data.data, workspaceId: currentWorkspace.id });
         }
         setError(null);
         updateTabIcon(data.data.type);
@@ -196,7 +175,7 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({ sourceId, tabId }) => {
         onClose={handleClose}
         onSubmit={handleSubmit}
         dataSource={dataSource}
-        connectorTypes={connectorTypes}
+        connectorTypes={connectorTypes || []}
         errorMessage={error}
       />
     </Box>
