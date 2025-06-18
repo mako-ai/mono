@@ -402,12 +402,16 @@ class GraphQLSyncService {
     targetDbId?: string | any,
     progress?: ProgressReporter,
   ): Promise<void> {
+    // Ensure queryConfig is normalised (handles snake_case keys coming from
+    // CLI path where no prior normalisation happened).
+    queryConfig = this.normalizeQueryConfig(queryConfig);
+
     console.log(
       `Starting ${queryConfig.name} sync for: ${this.dataSource.name}`,
     );
     const { db } = await this.getMongoConnection(targetDbId);
 
-    const mainCollectionName = `${this.dataSource.id}_${queryConfig.name}`;
+    const mainCollectionName = `${this.dataSource.name}_${queryConfig.name}`;
     const stagingCollectionName = `${mainCollectionName}_staging`;
 
     // Prepare staging collection (drop if exists to ensure fresh start)
@@ -423,10 +427,10 @@ class GraphQLSyncService {
 
         const processedRecords = batch.map(record => ({
           ...record,
+          _syncedAt: new Date(),
           _dataSourceId: this.dataSource.id,
           _dataSourceName: this.dataSource.name,
-          _syncedAt: new Date(),
-          _entityType: queryConfig.name,
+          _type: queryConfig.name,
         }));
 
         const bulkOps = processedRecords.map(record => ({
@@ -434,7 +438,6 @@ class GraphQLSyncService {
             filter: {
               id: record.id,
               _dataSourceId: this.dataSource.id,
-              _entityType: queryConfig.name,
             },
             replacement: record,
             upsert: true,
@@ -470,7 +473,27 @@ class GraphQLSyncService {
     const startTime = Date.now();
 
     try {
-      const queries: any[] = this.dataSource.connection.queries || [];
+      // Original query definitions coming from the data-source record can use
+      // snake_case keys (e.g. `data_path`) because they are stored directly in
+      // MongoDB.  The sync code downstream, however, expects camelCase keys
+      // (e.g. `dataPath`).  Here we normalise each query object so both
+      // variants are accepted transparently.
+
+      const rawQueries: any[] = this.dataSource.connection.queries || [];
+
+      const queries = rawQueries.map(q => {
+        // If the camelCase variant is already present keep it; otherwise copy
+        // from the snake_case counterpart.
+        const normalised = {
+          ...q,
+          dataPath: q.dataPath ?? q.data_path,
+          hasNextPagePath: q.hasNextPagePath ?? q.has_next_page_path,
+          cursorPath: q.cursorPath ?? q.cursor_path,
+          totalCountPath: q.totalCountPath ?? q.total_count_path,
+        };
+
+        return normalised;
+      });
 
       if (queries.length === 0) {
         console.warn("No queries configured for this GraphQL data source");
@@ -575,6 +598,21 @@ class GraphQLSyncService {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Accept both snake_case and camelCase variants of GraphQL query config
+   * keys that refer to JSON-paths so external callers (or DB records) can use
+   * either style.  Returns a new object – does not mutate the original.
+   */
+  private normalizeQueryConfig(q: any): GraphQLQuery {
+    return {
+      ...q,
+      dataPath: q.dataPath ?? q.data_path,
+      hasNextPagePath: q.hasNextPagePath ?? q.has_next_page_path,
+      cursorPath: q.cursorPath ?? q.cursor_path,
+      totalCountPath: q.totalCountPath ?? q.total_count_path,
+    } as GraphQLQuery;
   }
 }
 
