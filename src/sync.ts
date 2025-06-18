@@ -231,7 +231,8 @@ async function main() {
   const destination = nonFlagArgs[1];
   const entity = nonFlagArgs[2]; // optional
 
-  const isFullSync = flags.includes("--full");
+  const isIncremental = flags.some(f => f === "--incremental" || f === "--inc");
+  const isFullSync = !isIncremental; // default full sync unless incremental specified
 
   if (!dataSourceId) {
     console.error("❌ Data source ID is required");
@@ -294,13 +295,31 @@ async function main() {
   // Handle different source types
   switch (dataSource.type) {
     case "close":
-      await syncClose(dataSource, entity, destinationDb, isFullSync);
+      await syncClose(
+        dataSource,
+        entity,
+        destinationDb,
+        isFullSync,
+        isIncremental,
+      );
       break;
     case "stripe":
-      await syncStripe(dataSource, entity, destinationDb, isFullSync);
+      await syncStripe(
+        dataSource,
+        entity,
+        destinationDb,
+        isFullSync,
+        isIncremental,
+      );
       break;
     case "graphql":
-      await syncGraphQL(dataSource, entity, destinationDb, isFullSync);
+      await syncGraphQL(
+        dataSource,
+        entity,
+        destinationDb,
+        isFullSync,
+        isIncremental,
+      );
       break;
     case "mongodb":
       console.error(
@@ -324,6 +343,7 @@ async function syncClose(
   entity?: string,
   targetDb?: any,
   isFullSync?: boolean,
+  isIncremental?: boolean,
 ) {
   const syncService = new CloseSyncService(dataSource);
 
@@ -363,23 +383,44 @@ async function syncClose(
   switch (entity.toLowerCase()) {
     case "leads":
     case "lead":
-      await syncService.syncLeads(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncLeadsIncremental(targetDb, progress);
+      } else {
+        await syncService.syncLeads(targetDb, progress);
+      }
       break;
     case "opportunities":
     case "opportunity":
-      await syncService.syncOpportunities(targetDb, progress);
+    case "opps":
+      if (isIncremental) {
+        await syncService.syncOpportunitiesIncremental(targetDb, progress);
+      } else {
+        await syncService.syncOpportunities(targetDb, progress);
+      }
       break;
     case "activities":
     case "activity":
-      await syncService.syncActivities(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncActivitiesIncremental(targetDb, progress);
+      } else {
+        await syncService.syncActivities(targetDb, progress);
+      }
       break;
     case "contacts":
     case "contact":
-      await syncService.syncContacts(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncContactsIncremental(targetDb, progress);
+      } else {
+        await syncService.syncContacts(targetDb, progress);
+      }
       break;
     case "users":
     case "user":
-      await syncService.syncUsers(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncUsersIncremental(targetDb, progress);
+      } else {
+        await syncService.syncUsers(targetDb, progress);
+      }
       break;
     case "custom_fields":
     case "customfields":
@@ -397,6 +438,7 @@ async function syncStripe(
   entity?: string,
   targetDb?: any,
   isFullSync?: boolean,
+  _incremental?: boolean,
 ) {
   const syncService = new StripeSyncService(dataSource);
 
@@ -467,6 +509,7 @@ async function syncGraphQL(
   entity?: string,
   targetDb?: any,
   isFullSync?: boolean,
+  _incremental?: boolean,
 ) {
   const syncService = new GraphQLSyncService(dataSource);
 
@@ -529,6 +572,8 @@ Arguments:
 
 Flags:
   --full        Full sync with staging + hot swap (enables deletion detection)
+  --inc, --incremental  Incremental sync (direct upserts, faster)
+  If omitted, a FULL sync with staging + hot swap is run by default.
 
 Sync Modes:
   --full flag:    Uses staging + hot swap (enables deletion detection)
