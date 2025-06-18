@@ -360,6 +360,21 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       MuiTextField: {
         defaultProps: {
           size: "small",
+          autoComplete: "off",
+          // Forward HTML input attributes to the underlying <input /> element
+          inputProps: {
+            autoComplete: "off",
+            autoCorrect: "off",
+            autoCapitalize: "off",
+          },
+          // For the new slot-based API (v5+)
+          slotProps: {
+            input: {
+              autoComplete: "off",
+              autoCorrect: "off",
+              autoCapitalize: "off",
+            },
+          },
         },
       },
     },

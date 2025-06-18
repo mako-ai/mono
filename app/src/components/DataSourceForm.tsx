@@ -10,7 +10,6 @@ import {
   Typography,
   Switch,
   FormControlLabel,
-  Divider,
   Alert,
   CircularProgress,
   IconButton,
@@ -144,10 +143,18 @@ function DataSourceForm({
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   // ---------------- Draft store integration ----------------
-  const draft = useDataSourceStore(state =>
-    tabId ? state.drafts[tabId] : undefined,
-  );
   const upsertDraft = useDataSourceStore(state => state.upsertDraft);
+
+  // Avoid subscribing to draft changes to prevent re-renders on every keystroke
+  const draftRef = useRef<Record<string, any> | undefined>(
+    tabId ? useDataSourceStore.getState().drafts[tabId]?.values : undefined,
+  );
+  // Update snapshot if tabId changes
+  useEffect(() => {
+    if (tabId) {
+      draftRef.current = useDataSourceStore.getState().drafts[tabId]?.values;
+    }
+  }, [tabId]);
 
   // React Hook Form setup
   const defaultValues = useMemo(() => {
@@ -175,8 +182,8 @@ function DataSourceForm({
     }
 
     // If we have a persisted draft for this tab, merge it over base
-    if (draft?.values) {
-      base = { ...base, ...draft.values };
+    if (draftRef.current) {
+      base = { ...base, ...draftRef.current };
     }
 
     // Deep clone to ensure all values (including nested arrays) are mutable
@@ -197,7 +204,7 @@ function DataSourceForm({
     };
 
     return deepClone(base);
-  }, [dataSource, draft]);
+  }, [dataSource]);
 
   const form = useForm({
     defaultValues,
@@ -326,21 +333,6 @@ function DataSourceForm({
     }));
   };
 
-  // Persist every form change into the draft store (debounced by RHF internally)
-  useEffect(() => {
-    if (!tabId) return;
-    const lastJsonRef = { current: "" } as { current: string };
-    const subscription = form.watch(values => {
-      const json = JSON.stringify(values);
-      if (json === lastJsonRef.current) return;
-      lastJsonRef.current = json;
-      // Deep clone values to ensure draft store doesn't freeze the arrays
-      const clonedValues = JSON.parse(JSON.stringify(values));
-      upsertDraft(tabId, clonedValues as Record<string, any>);
-    });
-    return () => subscription.unsubscribe();
-  }, [form, tabId, upsertDraft]);
-
   /** Submit handler */
   const onSubmitInternal = (values: Record<string, any>) => {
     // Build config from schema fields
@@ -389,6 +381,8 @@ function DataSourceForm({
 
     // Determine if field should have decrypt button
     const shouldShowDecrypt = encrypted === true || type === "password";
+
+    const isNested = name.includes(".");
 
     if (type === "boolean") {
       return (
@@ -456,50 +450,57 @@ function DataSourceForm({
                     ? decryptedValues[name]
                     : field.value
                 }
-                autoComplete="nope"
+                autoComplete="false"
                 name={`config_${name}`}
-                inputProps={{
-                  autoComplete: "nope",
-                  "data-lpignore": "true",
-                  "data-form-type": "other",
-                  "aria-autocomplete": "none",
-                  style: { fontFamily: "monospace", fontSize: "0.875rem" },
-                }}
-                InputProps={{
-                  endAdornment: shouldShowDecrypt && field.value && (
-                    <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
-                      <Tooltip
-                        title={
-                          showDecryptedFields[name]
-                            ? "Hide decrypted"
-                            : "Show decrypted"
-                        }
-                      >
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            if (
-                              !decryptedValues[name] &&
-                              !showDecryptedFields[name]
-                            ) {
-                              decryptValue(name, field.value);
-                            } else {
-                              toggleDecryptedVisibility(name);
-                            }
-                          }}
-                          disabled={decryptingFields[name]}
+                slotProps={{
+                  input: {
+                    autoComplete: "false",
+                    style: { fontFamily: "monospace", fontSize: "0.875rem" },
+                    ...(isNested
+                      ? {}
+                      : {
+                          readOnly: true,
+                          onFocus: (e: any) => {
+                            setTimeout(() => {
+                              e.target.removeAttribute("readonly");
+                            }, 100);
+                          },
+                        }),
+                    endAdornment: shouldShowDecrypt && field.value && (
+                      <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
+                        <Tooltip
+                          title={
+                            showDecryptedFields[name]
+                              ? "Hide decrypted"
+                              : "Show decrypted"
+                          }
                         >
-                          {decryptingFields[name] ? (
-                            <CircularProgress size={20} />
-                          ) : showDecryptedFields[name] ? (
-                            <VisibilityOff />
-                          ) : (
-                            <Visibility />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  ),
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              if (
+                                !decryptedValues[name] &&
+                                !showDecryptedFields[name]
+                              ) {
+                                decryptValue(name, field.value);
+                              } else {
+                                toggleDecryptedVisibility(name);
+                              }
+                            }}
+                            disabled={decryptingFields[name]}
+                          >
+                            {decryptingFields[name] ? (
+                              <CircularProgress size={20} />
+                            ) : showDecryptedFields[name] ? (
+                              <VisibilityOff />
+                            ) : (
+                              <Visibility />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ),
+                  },
                 }}
               />
             )}
@@ -537,53 +538,46 @@ function DataSourceForm({
               helperText={
                 fieldState.error ? "This field is required" : helperText
               }
-              autoComplete="nope"
+              autoComplete="off"
               name={`config_${name}`}
-              inputProps={{
-                autoComplete: "nope",
-                "data-lpignore": "true",
-                "data-form-type": "other",
-                "aria-autocomplete": "none",
-                readOnly: true,
-                onFocus: (e: any) => {
-                  setTimeout(() => {
-                    e.target.removeAttribute("readonly");
-                  }, 100);
-                },
-              }}
-              InputProps={{
-                endAdornment: shouldShowDecrypt && field.value && (
-                  <Tooltip
-                    title={
-                      showDecryptedFields[name]
-                        ? "Hide decrypted"
-                        : "Show decrypted"
-                    }
-                  >
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        if (
-                          !decryptedValues[name] &&
-                          !showDecryptedFields[name]
-                        ) {
-                          decryptValue(name, field.value);
-                        } else {
-                          toggleDecryptedVisibility(name);
+              slotProps={{
+                input: {
+                  autoComplete: "off",
+                  endAdornment: shouldShowDecrypt && field.value && (
+                    <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
+                      <Tooltip
+                        title={
+                          showDecryptedFields[name]
+                            ? "Hide decrypted"
+                            : "Show decrypted"
                         }
-                      }}
-                      disabled={decryptingFields[name]}
-                    >
-                      {decryptingFields[name] ? (
-                        <CircularProgress size={20} />
-                      ) : showDecryptedFields[name] ? (
-                        <VisibilityOff />
-                      ) : (
-                        <Visibility />
-                      )}
-                    </IconButton>
-                  </Tooltip>
-                ),
+                      >
+                        <IconButton
+                          size="small"
+                          onClick={() => {
+                            if (
+                              !decryptedValues[name] &&
+                              !showDecryptedFields[name]
+                            ) {
+                              decryptValue(name, field.value);
+                            } else {
+                              toggleDecryptedVisibility(name);
+                            }
+                          }}
+                          disabled={decryptingFields[name]}
+                        >
+                          {decryptingFields[name] ? (
+                            <CircularProgress size={20} />
+                          ) : showDecryptedFields[name] ? (
+                            <VisibilityOff />
+                          ) : (
+                            <Visibility />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  ),
+                },
               }}
             />
           )}
@@ -600,29 +594,16 @@ function DataSourceForm({
     field: ConnectorFieldSchema;
     form: UseFormReturn<any>;
   }) => {
-    const { control, setValue, getValues, watch } = form;
+    const { control } = form;
 
-    // Watch the array value
-    const arrayValue = watch(field.name) || [];
+    // Initialise field array hook
+    const {
+      fields: arrayFields,
+      append,
+      remove,
+    } = useFieldArray({ control, name: field.name as any });
 
-    // Custom append function that ensures mutable arrays
-    const customAppend = (newItem: any) => {
-      const currentArray = getValues(field.name) || [];
-      // Create a completely new mutable array
-      const newArray = JSON.parse(JSON.stringify([...currentArray, newItem]));
-      setValue(field.name, newArray, { shouldDirty: true });
-    };
-
-    // Custom remove function
-    const customRemove = (index: number) => {
-      const currentArray = getValues(field.name) || [];
-      const newArray = currentArray.filter((_: any, i: number) => i !== index);
-      setValue(field.name, JSON.parse(JSON.stringify(newArray)), {
-        shouldDirty: true,
-      });
-    };
-
-    // Create a new item with all fields initialized
+    // Helper: create a new item populated with sensible defaults
     const createNewItem = () => {
       const newItem: Record<string, any> = {};
       field.itemFields?.forEach(subField => {
@@ -643,9 +624,9 @@ function DataSourceForm({
           {field.label}
         </Typography>
 
-        {arrayValue.map((item: any, index: number) => (
+        {arrayFields.map((item, index) => (
           <Box
-            key={`${field.name}-${index}`}
+            key={item.id}
             sx={{
               border: "1px solid",
               borderColor: "divider",
@@ -661,7 +642,7 @@ function DataSourceForm({
               <IconButton
                 size="small"
                 color="error"
-                onClick={() => customRemove(index)}
+                onClick={() => remove(index)}
               >
                 <DeleteIcon fontSize="small" />
               </IconButton>
@@ -669,33 +650,45 @@ function DataSourceForm({
 
             {field.itemFields?.map(subField => {
               const fieldPath = `${field.name}.${index}.${subField.name}`;
-              const fieldValue = item[subField.name] || "";
 
-              // Custom onChange handler that updates the entire array
-              const handleChange = (newValue: any) => {
-                const currentArray = getValues(field.name) || [];
-                const updatedArray = [...currentArray];
-                if (!updatedArray[index]) {
-                  updatedArray[index] = {};
-                }
-                updatedArray[index] = {
-                  ...updatedArray[index],
-                  [subField.name]: newValue,
-                };
-                // Deep clone to ensure mutability
-                setValue(field.name, JSON.parse(JSON.stringify(updatedArray)), {
-                  shouldDirty: true,
-                });
+              const registerProps = form.register(fieldPath);
+
+              const commonTextProps = {
+                fullWidth: true,
+                margin: "normal" as const,
+                label: subField.label,
+                placeholder: subField.placeholder,
+                helperText: subField.helperText,
+                defaultValue: (item as any)[subField.name] || "",
               };
 
+              if (subField.type === "textarea") {
+                return (
+                  <TextField
+                    key={fieldPath}
+                    {...commonTextProps}
+                    multiline
+                    rows={subField.rows ?? 4}
+                    inputRef={registerProps.ref}
+                    name={registerProps.name}
+                    onChange={registerProps.onChange}
+                  />
+                );
+              }
+
+              // Boolean switch (controlled minimal impact)
               if (subField.type === "boolean") {
                 return (
                   <FormControlLabel
                     key={fieldPath}
                     control={
                       <Switch
-                        checked={fieldValue || false}
-                        onChange={e => handleChange(e.target.checked)}
+                        checked={(item as any)[subField.name] || false}
+                        onChange={e =>
+                          form.setValue(fieldPath, e.target.checked, {
+                            shouldDirty: true,
+                          })
+                        }
                       />
                     }
                     label={subField.label}
@@ -703,35 +696,14 @@ function DataSourceForm({
                 );
               }
 
-              if (subField.type === "textarea") {
-                return (
-                  <TextField
-                    key={fieldPath}
-                    fullWidth
-                    margin="normal"
-                    multiline
-                    rows={subField.rows ?? 8}
-                    label={subField.label}
-                    placeholder={subField.placeholder}
-                    value={fieldValue}
-                    onChange={e => handleChange(e.target.value)}
-                    helperText={subField.helperText}
-                  />
-                );
-              }
-
-              // Default: TextField
               return (
                 <TextField
                   key={fieldPath}
-                  fullWidth
-                  margin="normal"
-                  label={subField.label}
-                  placeholder={subField.placeholder}
-                  value={fieldValue}
-                  onChange={e => handleChange(e.target.value)}
+                  {...commonTextProps}
                   type={subField.type === "number" ? "number" : "text"}
-                  helperText={subField.helperText}
+                  inputRef={registerProps.ref}
+                  name={registerProps.name}
+                  onChange={registerProps.onChange}
                 />
               );
             })}
@@ -741,7 +713,7 @@ function DataSourceForm({
         <Button
           variant="outlined"
           size="small"
-          onClick={() => customAppend(createNewItem())}
+          onClick={() => append(createNewItem())}
         >
           Add Query
         </Button>
@@ -800,18 +772,11 @@ function DataSourceForm({
             label="Name"
             error={!!fieldState.error}
             helperText={fieldState.error ? "Name is required" : undefined}
-            autoComplete="nope"
+            autoComplete="off"
             name="datasource_title"
-            inputProps={{
-              autoComplete: "nope",
-              "data-lpignore": "true",
-              "data-form-type": "other",
-              "aria-autocomplete": "none",
-              readOnly: true,
-              onFocus: (e: any) => {
-                setTimeout(() => {
-                  e.target.removeAttribute("readonly");
-                }, 100);
+            slotProps={{
+              input: {
+                autoComplete: "off",
               },
             }}
           />
@@ -866,13 +831,11 @@ function DataSourceForm({
               helperText={
                 fieldState.error ? "Must be at least 1" : "Records per batch"
               }
-              inputProps={{
-                min: 1,
-                autoComplete: "nope",
-                "data-lpignore": "true",
-                "data-form-type": "other",
+              slotProps={{
+                input: {
+                  autoComplete: "off",
+                },
               }}
-              autoComplete="nope"
             />
           )}
         />
@@ -895,13 +858,11 @@ function DataSourceForm({
                   ? "Cannot be negative"
                   : "Delay between API calls"
               }
-              inputProps={{
-                min: 0,
-                autoComplete: "nope",
-                "data-lpignore": "true",
-                "data-form-type": "other",
+              slotProps={{
+                input: {
+                  autoComplete: "off",
+                },
               }}
-              autoComplete="nope"
             />
           )}
         />
@@ -918,13 +879,16 @@ function DataSourceForm({
               label="Max Retries"
               type="number"
               margin="normal"
-              inputProps={{
-                min: 0,
-                autoComplete: "nope",
-                "data-lpignore": "true",
-                "data-form-type": "other",
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              slotProps={{
+                input: {
+                  autoComplete: "off",
+                  autoCorrect: "off",
+                  autoCapitalize: "off",
+                },
               }}
-              autoComplete="nope"
             />
           )}
         />
@@ -977,23 +941,6 @@ function DataSourceForm({
           }
         `,
         }}
-      />
-
-      {/* Hidden fields to prevent autocomplete */}
-      <input type="text" style={{ display: "none" }} autoComplete="nope" />
-      <input type="password" style={{ display: "none" }} autoComplete="nope" />
-      <input type="email" style={{ display: "none" }} autoComplete="nope" />
-      <input
-        type="text"
-        name="fakeusernameremembered"
-        style={{ display: "none" }}
-        autoComplete="nope"
-      />
-      <input
-        type="password"
-        name="fakepasswordremembered"
-        style={{ display: "none" }}
-        autoComplete="nope"
       />
 
       {/* Optional error message */}
