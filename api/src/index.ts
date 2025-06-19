@@ -16,6 +16,8 @@ import { authRoutes } from "./auth/auth.controller";
 import { connectDatabase } from "./database/schema";
 import { workspaceRoutes } from "./routes/workspaces";
 import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
+import { connectorIconRoutes } from "./routes/connector-icons";
+import { connectorSchemaRoutes } from "./routes/connector-schema";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -61,12 +63,14 @@ app.route("/api/workspaces/:workspaceId/databases", workspaceDatabaseRoutes);
 app.route("/api/workspaces/:workspaceId/consoles", consoleRoutes);
 app.route("/api/workspaces/:workspaceId/chats", chatsRoutes);
 app.route("/api/workspaces/:workspaceId/custom-prompt", customPromptRoutes);
+app.route("/api/workspaces/:workspaceId/sources", dataSourceRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
-app.route("/api/sources", dataSourceRoutes);
 app.route("/api/ai", aiRoutes);
 app.route("/api/agent", agentRoutes);
+app.route("/api/connectors", connectorIconRoutes);
+app.route("/api/connectors", connectorSchemaRoutes);
 
 // Serve static files (frontend) - middleware for non-API routes
 app.use("*", async (c, next) => {

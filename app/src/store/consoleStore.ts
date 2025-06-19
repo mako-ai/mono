@@ -24,6 +24,7 @@ export const useConsoleStore = () => {
         databaseId: tab.databaseId,
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
+        icon: tab.icon,
       },
     } as any);
     return id;
@@ -69,6 +70,13 @@ export const useConsoleStore = () => {
     });
   };
 
+  const updateConsoleIcon = (id: string, icon: string) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_ICON",
+      payload: { id, icon },
+    });
+  };
+
   const clearAllConsoles = () => {
     consoleTabs.forEach(tab => removeConsoleTab(tab.id));
   };
@@ -86,6 +94,7 @@ export const useConsoleStore = () => {
     updateConsoleFilePath,
     updateConsoleTitle,
     updateConsoleDirty,
+    updateConsoleIcon,
   };
 };
 
@@ -112,6 +121,7 @@ useConsoleStore.getState = () => {
         databaseId: tab.databaseId,
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
+        icon: tab.icon,
       },
     });
     return id;
@@ -157,6 +167,13 @@ useConsoleStore.getState = () => {
     });
   };
 
+  const updateConsoleIcon = (id: string, icon: string) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_ICON",
+      payload: { id, icon },
+    });
+  };
+
   const clearAllConsoles = () => {
     consoleTabs.forEach(tab => removeConsoleTab(tab.id));
   };
@@ -174,5 +191,6 @@ useConsoleStore.getState = () => {
     updateConsoleFilePath,
     updateConsoleTitle,
     updateConsoleDirty,
+    updateConsoleIcon,
   };
 };

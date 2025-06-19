@@ -15,12 +15,17 @@ import {
   Snackbar,
 } from "@mui/material";
 import { Close as CloseIcon, Add as AddIcon } from "@mui/icons-material";
-import { SquareTerminal as ConsoleIcon } from "lucide-react";
+import {
+  SquareTerminal as ConsoleIcon,
+  Settings as SettingsIcon,
+  CloudUpload as DataSourceIcon,
+} from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
 import Settings from "../pages/Settings";
-import DataSources from "../pages/DataSources";
+// import DataSources from "../pages/DataSources"; // deprecated, will be removed
+import DataSourceTab from "./DataSourceTab";
 import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
@@ -108,7 +113,7 @@ function Editor() {
     const updateContent = () => {
       if (activeConsoleId && consoleRefs.current[activeConsoleId]?.current) {
         const content =
-          consoleRefs.current[activeConsoleId].current!.getCurrentContent();
+          consoleRefs.current[activeConsoleId].current.getCurrentContent();
         setActiveEditorContent(content);
       } else {
         setActiveEditorContent(undefined);
@@ -331,7 +336,20 @@ function Editor() {
                     <Box
                       sx={{ display: "flex", alignItems: "center", gap: 0.75 }}
                     >
-                      <ConsoleIcon size={20} />
+                      {tab.icon ? (
+                        <Box
+                          component="img"
+                          src={tab.icon}
+                          alt="tab icon"
+                          sx={{ width: 20, height: 20 }}
+                        />
+                      ) : tab.kind === "settings" ? (
+                        <SettingsIcon size={20} />
+                      ) : tab.kind === "sources" ? (
+                        <DataSourceIcon size={20} />
+                      ) : (
+                        <ConsoleIcon size={20} />
+                      )}
                       <span
                         style={{
                           fontStyle: tab.isDirty ? "normal" : "italic",
@@ -348,6 +366,7 @@ function Editor() {
                         {tab.title}
                       </span>
                       <IconButton
+                        component="span"
                         size="small"
                         onClick={e => {
                           e.stopPropagation();
@@ -371,101 +390,73 @@ function Editor() {
             </IconButton>
           </Box>
 
-          {/* Editor + Results vertical split */}
+          {/* Unified tab rendering: every tab stays mounted, visibility toggled with CSS */}
           <Box sx={{ flexGrow: 1, overflow: "hidden" }}>
-            {(() => {
-              const activeTab = consoleTabs.find(t => t.id === activeConsoleId);
-              const isConsoleTab =
-                activeTab?.kind !== "settings" &&
-                activeTab?.kind !== "sources" &&
-                activeTab?.kind !== "members";
-
-              if (isConsoleTab) {
-                return (
+            {consoleTabs.map(tab => (
+              <Box
+                key={tab.id}
+                sx={{
+                  height: "100%",
+                  display: activeConsoleId === tab.id ? "block" : "none",
+                  overflow: "hidden",
+                }}
+              >
+                {tab.kind === "settings" ? (
+                  <Settings />
+                ) : tab.kind === "members" ? (
+                  <WorkspaceMembers />
+                ) : tab.kind === "sources" ? (
+                  <DataSourceTab
+                    tabId={tab.id}
+                    sourceId={
+                      typeof tab.content === "string" ? tab.content : undefined
+                    }
+                  />
+                ) : (
+                  /* Console tab: editor + results split */
                   <PanelGroup
                     direction="vertical"
                     style={{ height: "100%", width: "100%" }}
                   >
                     <Panel defaultSize={60} minSize={1}>
-                      {consoleTabs.map(tab => (
-                        <Box
-                          key={tab.id}
-                          sx={{
-                            height: "100%",
-                            display:
-                              activeConsoleId === tab.id ? "block" : "none",
-                          }}
-                        >
-                          <Console
-                            ref={consoleRefs.current[tab.id]}
-                            initialContent={tab.content}
-                            title={tab.title}
-                            onExecute={(content, db) =>
-                              handleConsoleExecute(tab.id, content, db)
-                            }
-                            onSave={(content, currentPath) =>
-                              handleConsoleSave(tab.id, content, currentPath)
-                            }
-                            isExecuting={isExecuting}
-                            isSaving={isSaving}
-                            onContentChange={content => {
-                              updateConsoleContent(tab.id, content);
-                              // Mark tab as dirty when content changes from initial
-                              if (
-                                content !== tab.initialContent &&
-                                !tab.isDirty
-                              ) {
-                                updateConsoleDirty(tab.id, true);
-                              }
-                            }}
-                            initialDatabaseId={tab.databaseId}
-                            databases={availableDatabases}
-                            onDatabaseChange={dbId =>
-                              updateConsoleDatabase(tab.id, dbId)
-                            }
-                            filePath={tab.filePath}
-                          />
-                        </Box>
-                      ))}
+                      <Console
+                        ref={consoleRefs.current[tab.id]}
+                        initialContent={tab.content}
+                        title={tab.title}
+                        onExecute={(content, db) =>
+                          handleConsoleExecute(tab.id, content, db)
+                        }
+                        onSave={(content, currentPath) =>
+                          handleConsoleSave(tab.id, content, currentPath)
+                        }
+                        isExecuting={isExecuting}
+                        isSaving={isSaving}
+                        onContentChange={content => {
+                          updateConsoleContent(tab.id, content);
+                          if (content !== tab.initialContent && !tab.isDirty) {
+                            updateConsoleDirty(tab.id, true);
+                          }
+                        }}
+                        initialDatabaseId={tab.databaseId}
+                        databases={availableDatabases}
+                        onDatabaseChange={dbId =>
+                          updateConsoleDatabase(tab.id, dbId)
+                        }
+                        filePath={tab.filePath}
+                      />
                     </Panel>
 
                     <StyledVerticalResizeHandle />
 
                     <Panel defaultSize={40} minSize={1}>
                       <Box sx={{ height: "100%", overflow: "hidden" }}>
-                        <ResultsTable
-                          results={
-                            activeTab?.id
-                              ? tabResults[activeTab.id] || null
-                              : null
-                          }
-                        />
+                        <ResultsTable results={tabResults[tab.id] || null} />
                       </Box>
                     </Panel>
                   </PanelGroup>
-                );
-              }
-
-              // Non-console tab (settings or sources) – render full height without results panel
-              return (
-                <PanelGroup
-                  direction="vertical"
-                  style={{ height: "100%", width: "100%" }}
-                >
-                  <Panel>
-                    <Box sx={{ height: "100%", overflow: "auto" }}>
-                      {activeTab?.kind === "settings" ? (
-                        <Settings />
-                      ) : activeTab?.kind === "sources" ? (
-                        <DataSources />
-                      ) : activeTab?.kind === "members" ? (
-                        <WorkspaceMembers />
-                      ) : null}
-                    </Box>
-                  </Panel>
-                </PanelGroup>
-              );
-            })()}
+                )}
+              </Box>
+            ))}
           </Box>
         </Box>
       ) : (

@@ -1,4 +1,4 @@
-import { dataSourceManager } from "./data-source-manager";
+import { databaseDataSourceManager } from "./database-data-source-manager";
 import { CloseSyncService } from "./sync-close";
 import { StripeSyncService } from "./sync-stripe";
 import { GraphQLSyncService } from "./sync-graphql";
@@ -223,10 +223,22 @@ async function main() {
     process.exit(1);
   }
 
-  // Parse arguments: source_id destination [entity]
-  const dataSourceId = args[0];
-  const destination = args[1];
-  const entity = args[2]; // optional
+  // Parse arguments and flags
+  const flags = args.filter(arg => arg.startsWith("--"));
+  const nonFlagArgs = args.filter(arg => !arg.startsWith("--"));
+
+  const dataSourceId = nonFlagArgs[0];
+  const destination = nonFlagArgs[1];
+  const entity = nonFlagArgs[2]; // optional
+
+  const isIncremental = flags.some(f => f === "--incremental" || f === "--inc");
+  const isFullSync = !isIncremental; // default full sync unless incremental specified
+
+  if (!dataSourceId) {
+    console.error("❌ Data source ID is required");
+    showUsage();
+    process.exit(1);
+  }
 
   if (!destination) {
     console.error("❌ Destination database is required");
@@ -234,8 +246,10 @@ async function main() {
     process.exit(1);
   }
 
+  // --full flag can be used with or without entity specification
+
   // Validate configuration
-  const validation = dataSourceManager.validateConfig();
+  const validation = databaseDataSourceManager.validateConfig();
   if (!validation.valid) {
     console.error("Configuration validation failed:");
     validation.errors.forEach(error => console.error(`  - ${error}`));
@@ -243,12 +257,15 @@ async function main() {
   }
 
   // Get the data source
-  const dataSource = dataSourceManager.getDataSource(dataSourceId);
+  const dataSource =
+    await databaseDataSourceManager.getDataSource(dataSourceId);
   if (!dataSource) {
     console.error(`❌ Data source '${dataSourceId}' not found`);
     console.log("\nAvailable data sources:");
-    const allSources = dataSourceManager.getActiveDataSources();
-    allSources.forEach(s => console.log(`  - ${s.id}: ${s.name} (${s.type})`));
+    const allSources = await databaseDataSourceManager.getActiveDataSources();
+    allSources.forEach(s =>
+      console.log(`  - ${s.name}: ${s.type} (ID: ${s.id})`),
+    );
     process.exit(1);
   }
 
@@ -258,13 +275,8 @@ async function main() {
   }
 
   // Try to get destination from database-based destinations first
-  let destinationDb =
+  const destinationDb =
     await databaseDestinationManager.getDestination(destination);
-
-  // If not found, try the old YAML-based destinations
-  if (!destinationDb) {
-    destinationDb = dataSourceManager.getMongoDBDatabase(destination);
-  }
 
   if (!destinationDb) {
     console.error(`❌ Destination database '${destination}' not found`);
@@ -277,26 +289,37 @@ async function main() {
       dbDestinations.forEach(db => console.log(`    - ${db}`));
     }
 
-    // List YAML-based destinations
-    const yamlDestinations = dataSourceManager.listMongoDBDatabases();
-    if (yamlDestinations.length > 0) {
-      console.log("  YAML destinations:");
-      yamlDestinations.forEach(db => console.log(`    - ${db}`));
-    }
-
     process.exit(1);
   }
 
   // Handle different source types
   switch (dataSource.type) {
     case "close":
-      await syncClose(dataSource, entity, destinationDb);
+      await syncClose(
+        dataSource,
+        entity,
+        destinationDb,
+        isFullSync,
+        isIncremental,
+      );
       break;
     case "stripe":
-      await syncStripe(dataSource, entity, destinationDb);
+      await syncStripe(
+        dataSource,
+        entity,
+        destinationDb,
+        isFullSync,
+        isIncremental,
+      );
       break;
     case "graphql":
-      await syncGraphQL(dataSource, entity, destinationDb);
+      await syncGraphQL(
+        dataSource,
+        entity,
+        destinationDb,
+        isFullSync,
+        isIncremental,
+      );
       break;
     case "mongodb":
       console.error(
@@ -315,12 +338,40 @@ async function main() {
   process.exit(0);
 }
 
-async function syncClose(dataSource: any, entity?: string, targetDb?: any) {
+async function syncClose(
+  dataSource: any,
+  entity?: string,
+  targetDb?: any,
+  isFullSync?: boolean,
+  isIncremental?: boolean,
+) {
   const syncService = new CloseSyncService(dataSource);
 
+  if (isFullSync) {
+    if (entity) {
+      // Full sync with staging for specific entity (not implemented for Close yet)
+      console.log(
+        `\n🔄 Starting full sync with staging for ${entity} in ${dataSource.name}`,
+      );
+      console.log(
+        "⚠️  Note: Staging sync for individual Close entities not yet implemented, using direct sync",
+      );
+      // Fall back to direct entity sync for now
+    } else {
+      // Full sync with staging for all entities
+      console.log(
+        `\n🔄 Starting full sync with staging for all entities in ${dataSource.name}`,
+      );
+      await syncService.syncAll(targetDb);
+      return;
+    }
+  }
+
   if (!entity) {
-    // Sync all entities
-    console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
+    // Sync all entities with direct upserts
+    console.log(
+      `\n🔄 Syncing all entities (direct upsert mode) for ${dataSource.name}`,
+    );
     await syncService.syncAll(targetDb);
     return;
   }
@@ -332,23 +383,44 @@ async function syncClose(dataSource: any, entity?: string, targetDb?: any) {
   switch (entity.toLowerCase()) {
     case "leads":
     case "lead":
-      await syncService.syncLeads(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncLeadsIncremental(targetDb, progress);
+      } else {
+        await syncService.syncLeads(targetDb, progress);
+      }
       break;
     case "opportunities":
     case "opportunity":
-      await syncService.syncOpportunities(targetDb, progress);
+    case "opps":
+      if (isIncremental) {
+        await syncService.syncOpportunitiesIncremental(targetDb, progress);
+      } else {
+        await syncService.syncOpportunities(targetDb, progress);
+      }
       break;
     case "activities":
     case "activity":
-      await syncService.syncActivities(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncActivitiesIncremental(targetDb, progress);
+      } else {
+        await syncService.syncActivities(targetDb, progress);
+      }
       break;
     case "contacts":
     case "contact":
-      await syncService.syncContacts(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncContactsIncremental(targetDb, progress);
+      } else {
+        await syncService.syncContacts(targetDb, progress);
+      }
       break;
     case "users":
     case "user":
-      await syncService.syncUsers(targetDb, progress);
+      if (isIncremental) {
+        await syncService.syncUsersIncremental(targetDb, progress);
+      } else {
+        await syncService.syncUsers(targetDb, progress);
+      }
       break;
     case "custom_fields":
     case "customfields":
@@ -361,13 +433,38 @@ async function syncClose(dataSource: any, entity?: string, targetDb?: any) {
   }
 }
 
-async function syncStripe(dataSource: any, entity?: string, targetDb?: any) {
+async function syncStripe(
+  dataSource: any,
+  entity?: string,
+  targetDb?: any,
+  isFullSync?: boolean,
+  _incremental?: boolean,
+) {
   const syncService = new StripeSyncService(dataSource);
 
+  if (isFullSync) {
+    if (entity) {
+      // Full sync with staging + hot swap for specific entity
+      console.log(
+        `\n🔄 Starting full sync with staging for ${entity} in ${dataSource.name}`,
+      );
+      await syncService.syncEntityWithStaging(entity, targetDb);
+    } else {
+      // Full sync with staging + hot swap for all entities
+      console.log(
+        `\n🔄 Starting full sync with staging for all entities in ${dataSource.name}`,
+      );
+      await syncService.syncAll(targetDb);
+    }
+    return;
+  }
+
   if (!entity) {
-    // Sync all entities
-    console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
-    await syncService.syncAll(targetDb);
+    // Sync all entities with direct upserts
+    console.log(
+      `\n🔄 Syncing all entities (direct upsert mode) for ${dataSource.name}`,
+    );
+    await syncService.syncAllDirect(targetDb);
     return;
   }
 
@@ -407,18 +504,45 @@ async function syncStripe(dataSource: any, entity?: string, targetDb?: any) {
   }
 }
 
-async function syncGraphQL(dataSource: any, entity?: string, targetDb?: any) {
+async function syncGraphQL(
+  dataSource: any,
+  entity?: string,
+  targetDb?: any,
+  isFullSync?: boolean,
+  _incremental?: boolean,
+) {
   const syncService = new GraphQLSyncService(dataSource);
 
+  if (isFullSync) {
+    if (entity) {
+      // Full sync with staging for specific entity (not implemented for GraphQL yet)
+      console.log(
+        `\n🔄 Starting full sync with staging for ${entity} in ${dataSource.name}`,
+      );
+      console.log(
+        "⚠️  Note: Staging sync for individual GraphQL entities not yet implemented, using direct sync",
+      );
+      // Fall back to direct entity sync for now
+    } else {
+      // Full sync with staging for all entities
+      console.log(
+        `\n🔄 Starting full sync with staging for all entities in ${dataSource.name}`,
+      );
+      await syncService.syncAll(targetDb);
+      return;
+    }
+  }
+
   if (!entity) {
-    // Sync all entities
-    console.log(`\n🔄 Syncing all entities for ${dataSource.name}`);
+    // Sync all entities with direct upserts
+    console.log(
+      `\n🔄 Syncing all entities (direct upsert mode) for ${dataSource.name}`,
+    );
     await syncService.syncAll(targetDb);
     return;
   }
 
-  // For GraphQL, we need to find the query configuration for the specified entity
-  const queries = dataSource.connection.queries || [];
+  const queries: any[] = dataSource.connection.queries || [];
   const queryConfig = queries.find(
     (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
   );
@@ -439,17 +563,30 @@ async function syncGraphQL(dataSource: any, entity?: string, targetDb?: any) {
 
 function showUsage() {
   console.log(`
-Usage: pnpm run sync <source_id> <destination> [entity]
+Usage: pnpm run sync <source_id> <destination> [entity] [flags]
 
 Arguments:
-  source_id     The ID of the data source to sync from (e.g., close_spain, stripe_spain)
-  destination   The destination database name (e.g., RevOps, Mako, atlas.revops for legacy)
-  entity        (Optional) Specific entity to sync. If omitted, syncs all entities.
+  source_id     The ID of the data source to sync from (database ID or name)
+  destination   The destination database name
+  entity        (Optional) Specific entity to sync
+
+Flags:
+  --full        Full sync with staging + hot swap (enables deletion detection)
+  --inc, --incremental  Incremental sync (direct upserts, faster)
+  If omitted, a FULL sync with staging + hot swap is run by default.
+
+Sync Modes:
+  --full flag:    Uses staging + hot swap (enables deletion detection)
+  No --full flag: Uses direct upserts (faster, incremental)
+  
+  Entity:         Syncs only specified entity
+  No entity:      Syncs all entities
 
 Examples:
-  pnpm run sync es_close RevOps                    # Sync all entities from es_close to RevOps database
-  pnpm run sync es_close RevOps leads              # Sync only leads to RevOps database
-  pnpm run sync es_close Mako customers            # Sync only customers to Mako database
+  pnpm run sync es_stripe RevOps --full           # Full sync all entities with staging + hot swap
+  pnpm run sync es_stripe RevOps                  # Direct sync all entities (upsert mode)
+  pnpm run sync es_stripe RevOps customers --full # Full sync customers only with staging + hot swap
+  pnpm run sync es_stripe RevOps customers        # Direct sync customers only (upsert mode)
 
 Available entities by source type:
   Close.com: ${SOURCE_ENTITIES.close.join(", ")}

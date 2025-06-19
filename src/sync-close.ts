@@ -2,14 +2,15 @@ import axios, { AxiosError } from "axios";
 import { MongoClient, Db } from "mongodb";
 import * as dotenv from "dotenv";
 import {
-  dataSourceManager,
-  type DataSourceConfig,
-} from "./data-source-manager";
+  databaseDataSourceManager,
+  DataSourceConfig,
+} from "./database-data-source-manager";
 import type { ProgressReporter } from "./sync";
+import { dataSourceManager } from "./data-source-manager";
 
 dotenv.config();
 
-class CloseSyncService {
+export class CloseSyncService {
   private mongoConnections: Map<string, { client: MongoClient; db: Db }> =
     new Map();
   private dataSource: DataSourceConfig;
@@ -69,8 +70,14 @@ class CloseSyncService {
       );
     }
 
+    if (!targetDb.connection.connection_string) {
+      throw new Error(
+        `MongoDB connection string is required for data source ${targetDb.name}`,
+      );
+    }
+
     // Create new connection
-    const client = new MongoClient(targetDb.connection.connection_string!);
+    const client = new MongoClient(targetDb.connection.connection_string);
     await client.connect();
     const db = client.db(targetDb.connection.database);
 
@@ -255,8 +262,8 @@ class CloseSyncService {
     console.log(`Starting leads sync for: ${this.dataSource.name}`);
     const { db } = await this.getMongoConnection(targetDb);
 
-    const mainCollectionName = `${this.dataSource.id}_leads`;
-    const stagingCollectionName = `${mainCollectionName}_staging`;
+    const collectionName = await this.resolveCollectionName(db, "leads");
+    const stagingCollectionName = `${collectionName}_staging`;
 
     // Prepare staging collection (drop if exists to ensure fresh start)
     if (await db.listCollections({ name: stagingCollectionName }).hasNext()) {
@@ -288,13 +295,13 @@ class CloseSyncService {
 
       // Completed successfully – atomically swap staging into main.
       // Drop main (if exists) & rename staging to main.
-      if (await db.listCollections({ name: mainCollectionName }).hasNext()) {
-        await db.collection(mainCollectionName).drop();
+      if (await db.listCollections({ name: collectionName }).hasNext()) {
+        await db.collection(collectionName).drop();
       }
-      await stagingCollection.rename(mainCollectionName, { dropTarget: true });
+      await stagingCollection.rename(collectionName, { dropTarget: true });
 
       console.log(
-        `✅ Leads synced and collection swapped successfully (${mainCollectionName})`,
+        `✅ Leads synced and collection swapped successfully (${collectionName})`,
       );
     } catch (error) {
       console.error("Lead sync failed:", error);
@@ -630,24 +637,508 @@ class CloseSyncService {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  async getDataSources() {
+    return databaseDataSourceManager.getDataSourcesByType("close");
+  }
+
+  private async searchCloseData(
+    searchBody: any,
+    progress?: ProgressReporter,
+    onBatch?: (records: any[]) => Promise<void>,
+  ): Promise<any[]> {
+    const results: any[] = [];
+    let cursor: string | null = null;
+
+    // Set default limit if not provided
+    if (!searchBody._limit) {
+      searchBody._limit = this.settings.batchSize;
+    }
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let attempts = 0;
+      // Inject cursor if we have one
+      const bodyWithCursor: Record<string, any> = cursor
+        ? { ...searchBody, cursor }
+        : searchBody;
+
+      while (attempts <= this.settings.maxRetries) {
+        try {
+          const response: any = await axios.post(
+            `${this.closeApiUrl}/data/search/`,
+            bodyWithCursor,
+            {
+              headers: {
+                Authorization: `Basic ${Buffer.from(
+                  this.closeApiKey + ":",
+                ).toString("base64")}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+            },
+          );
+
+          const data = response.data.data || [];
+
+          if (onBatch) {
+            await onBatch(data);
+          } else {
+            results.push(...data);
+          }
+
+          if (progress && data.length > 0) {
+            progress.reportBatch(data.length);
+          }
+
+          cursor = response.data.cursor;
+          if (!cursor) {
+            // No more pages
+            if (progress) {
+              progress.reportComplete();
+            }
+            return results;
+          }
+
+          await this.delay(this.settings.rateLimitDelay);
+          break; // break retry loop on success
+        } catch (error: any) {
+          const axiosError: AxiosError | any = error;
+
+          // Handle rate limiting 429
+          if (axiosError.response?.status === 429) {
+            const retryAfterHeader =
+              axiosError.response.headers?.["retry-after"];
+            const retryAfterSeconds = retryAfterHeader
+              ? parseInt(retryAfterHeader, 10)
+              : NaN;
+            const delayMs = !isNaN(retryAfterSeconds)
+              ? retryAfterSeconds * 1000
+              : 1000 * Math.pow(2, attempts);
+            console.warn(
+              `⏳ Received 429 Too Many Requests from Close API (search). Waiting ${delayMs}ms before retrying.`,
+            );
+            await this.delay(delayMs);
+            attempts++;
+            continue;
+          }
+
+          const isRetryable = this.isRetryableAxiosError(error);
+          attempts++;
+          if (!isRetryable || attempts > this.settings.maxRetries) {
+            console.error(
+              "❌ Failed Close advanced search after retries",
+              error,
+            );
+            throw error;
+          }
+
+          const backoff = 500 * Math.pow(2, attempts);
+          console.warn(
+            `⚠️  Error during Close search (attempt ${attempts}). Retrying in ${backoff}ms …`,
+          );
+          await this.delay(backoff);
+        }
+      }
+    }
+  }
+
+  /** Fetch full lead details by id */
+  private async fetchLeadById(id: string): Promise<any> {
+    const response = await axios.get(`${this.closeApiUrl}/lead/${id}`, {
+      headers: {
+        Authorization: `Basic ${Buffer.from(this.closeApiKey + ":").toString("base64")}`,
+        Accept: "application/json",
+      },
+    });
+    return response.data;
+  }
+
+  /**
+   * Incremental leads sync – fetch only leads updated since last _syncedAt
+   */
+  async syncLeadsIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting incremental leads sync for: ${this.dataSource.name}`);
+
+    const { db } = await this.getMongoConnection(targetDb);
+    const collectionName = await this.resolveCollectionName(db, "leads");
+    const collection = db.collection(collectionName);
+
+    // Find latest document that has a _syncedAt value (descending by that field)
+    const latestDoc = await collection
+      .find({ _syncedAt: { $exists: true } })
+      .sort({ _syncedAt: -1 })
+      .limit(1)
+      .toArray();
+
+    if (latestDoc.length === 0) {
+      const totalDocs = await collection.estimatedDocumentCount();
+      console.warn(
+        `⚠️  No document with _syncedAt found in '${collectionName}'. Total docs present: ${totalDocs}. Falling back to full sync.`,
+      );
+    }
+
+    const lastSyncedAt: Date | null = latestDoc.length
+      ? latestDoc[0]._syncedAt
+      : null;
+
+    if (!lastSyncedAt) {
+      console.log("No previous sync found – falling back to full lead sync.");
+      await this.syncLeads(targetDb, progress);
+      return;
+    }
+
+    console.log(`Last lead sync was at ${lastSyncedAt.toISOString()}`);
+
+    const isoTime = lastSyncedAt.toISOString();
+
+    const searchBody = {
+      query: {
+        type: "and",
+        queries: [
+          { type: "object_type", object_type: "lead" },
+          {
+            type: "field_condition",
+            field: {
+              type: "regular_field",
+              object_type: "lead",
+              field_name: "date_updated",
+            },
+            condition: {
+              type: "moment_range",
+              on_or_after: {
+                type: "fixed_utc",
+                value: isoTime,
+              },
+            },
+          },
+        ],
+      },
+      sort: [
+        {
+          field: {
+            type: "regular_field",
+            object_type: "lead",
+            field_name: "date_updated",
+          },
+          direction: "asc",
+        },
+      ],
+      _limit: this.settings.batchSize,
+    };
+
+    await this.searchCloseData(searchBody, progress, async idBatch => {
+      if (idBatch.length === 0) return;
+
+      console.log(`Found ${idBatch.length} leads to be upserted`);
+
+      const concurrency = 8;
+      const details: any[] = [];
+      const chunks: any[][] = [];
+      for (let i = 0; i < idBatch.length; i += concurrency) {
+        chunks.push(idBatch.slice(i, i + concurrency));
+      }
+
+      for (const chunk of chunks) {
+        const results = await Promise.allSettled(
+          chunk.map(rec => this.fetchLeadById(rec.id)),
+        );
+        results.forEach((res, idx) => {
+          if (res.status === "fulfilled") {
+            details.push(res.value);
+          } else {
+            console.warn(
+              `Failed to fetch lead ${chunk[idx].id}:`,
+              (res.reason as any)?.message || res.reason,
+            );
+          }
+        });
+      }
+
+      if (details.length === 0) return;
+
+      const processed = details.map(lead => ({
+        ...lead,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      const bulkOps = processed.map(lead => ({
+        replaceOne: {
+          filter: { id: lead.id, _dataSourceId: this.dataSource.id },
+          replacement: lead,
+          upsert: true,
+        },
+      }));
+
+      await collection.bulkWrite(bulkOps, { ordered: false });
+
+      console.log(`Upserted ${details.length} leads`);
+    });
+
+    console.log(
+      `✅ Incremental leads sync completed for ${this.dataSource.name}`,
+    );
+  }
+
+  private async resolveCollectionName(
+    db: Db,
+    baseSuffix: string,
+  ): Promise<string> {
+    const primary = `${this.dataSource.id}_${baseSuffix}`;
+    const alt = `${this.dataSource.name.replace(/\s+/g, "_").toLowerCase()}_${baseSuffix}`;
+
+    const primaryExists = await db.listCollections({ name: primary }).hasNext();
+    if (primaryExists) return primary;
+
+    const altExists = await db.listCollections({ name: alt }).hasNext();
+    if (altExists) return alt;
+
+    // Default to primary
+    return primary;
+  }
+
+  /** Generic incremental sync for an entity */
+  private async incrementalSync(
+    params: {
+      objectType: string; // "lead" | "opportunity" | etc.
+      endpoint: string; // REST endpoint to fetch full object by id
+      collectionSuffix: string; // suffix like "leads", "opportunities"
+      dateFieldObjectType?: string; // object type whose date_updated field to filter on (default same as objectType)
+    },
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    const { objectType, endpoint, collectionSuffix } = params;
+    const dateFieldType = params.dateFieldObjectType || objectType;
+
+    const { db } = await this.getMongoConnection(targetDb);
+    const collectionName = await this.resolveCollectionName(
+      db,
+      collectionSuffix,
+    );
+    const collection = db.collection(collectionName);
+
+    // find last syncedAt
+    const latestDoc = await collection
+      .find({ _syncedAt: { $exists: true } })
+      .sort({ _syncedAt: -1 })
+      .limit(1)
+      .toArray();
+
+    const lastSyncedAt: Date | null = latestDoc.length
+      ? latestDoc[0]._syncedAt
+      : null;
+
+    if (!lastSyncedAt) {
+      console.log(
+        "No previous sync found – falling back to full sync for " + objectType,
+      );
+      // call full sync fallback based on objectType
+      switch (objectType) {
+        case "lead":
+          await this.syncLeads(targetDb, progress);
+          break;
+        case "opportunity":
+          await this.syncOpportunities(targetDb, progress);
+          break;
+        case "contact":
+          await this.syncContacts(targetDb, progress);
+          break;
+        case "activity":
+          await this.syncActivities(targetDb, progress);
+          break;
+        case "user":
+          await this.syncUsers(targetDb, progress);
+          break;
+        default:
+          throw new Error(
+            "Full sync fallback not implemented for " + objectType,
+          );
+      }
+      return;
+    }
+
+    console.log(`Last ${objectType} sync was at ${lastSyncedAt.toISOString()}`);
+
+    const isoTime = lastSyncedAt.toISOString();
+
+    const searchBody = {
+      query: {
+        type: "and",
+        queries: [
+          { type: "object_type", object_type: objectType },
+          {
+            type: "field_condition",
+            field: {
+              type: "regular_field",
+              object_type: dateFieldType,
+              field_name: "date_updated",
+            },
+            condition: {
+              type: "moment_range",
+              on_or_after: {
+                type: "fixed_utc",
+                value: isoTime,
+              },
+            },
+          },
+        ],
+      },
+      sort: [
+        {
+          field: {
+            type: "regular_field",
+            object_type: dateFieldType,
+            field_name: "date_updated",
+          },
+          direction: "asc",
+        },
+      ],
+      _limit: this.settings.batchSize,
+    };
+
+    await this.searchCloseData(searchBody, progress, async idBatch => {
+      if (idBatch.length === 0) return;
+
+      console.log(`Found ${idBatch.length} ${collectionSuffix} to be upserted`);
+
+      const concurrency = 8;
+      const details: any[] = [];
+      const chunks: any[][] = [];
+      for (let i = 0; i < idBatch.length; i += concurrency) {
+        chunks.push(idBatch.slice(i, i + concurrency));
+      }
+
+      for (const chunk of chunks) {
+        const results = await Promise.allSettled(
+          chunk.map(rec => this.fetchEntityById(endpoint, rec.id)),
+        );
+        results.forEach((res, idx) => {
+          if (res.status === "fulfilled") {
+            details.push(res.value);
+          } else {
+            console.warn(
+              `Failed to fetch ${objectType} ${chunk[idx].id}:`,
+              (res.reason as any)?.message || res.reason,
+            );
+          }
+        });
+      }
+
+      if (details.length === 0) return;
+
+      const processed = details.map(ent => ({
+        ...ent,
+        _dataSourceId: this.dataSource.id,
+        _dataSourceName: this.dataSource.name,
+        _syncedAt: new Date(),
+      }));
+
+      const bulkOps = processed.map(ent => ({
+        replaceOne: {
+          filter: { id: ent.id, _dataSourceId: this.dataSource.id },
+          replacement: ent,
+          upsert: true,
+        },
+      }));
+
+      await collection.bulkWrite(bulkOps, { ordered: false });
+
+      console.log(`Upserted ${details.length} ${collectionSuffix}`);
+    });
+
+    console.log(`✅ Incremental ${objectType} sync completed.`);
+  }
+
+  private async fetchEntityById(apiEndpoint: string, id: string): Promise<any> {
+    const response = await axios.get(
+      `${this.closeApiUrl}/${apiEndpoint}/${id}`,
+      {
+        headers: {
+          Authorization: `Basic ${Buffer.from(this.closeApiKey + ":").toString("base64")}`,
+          Accept: "application/json",
+        },
+      },
+    );
+    return response.data;
+  }
+
+  // Incremental wrappers
+  async syncOpportunitiesIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ) {
+    await this.incrementalSync(
+      {
+        objectType: "opportunity",
+        endpoint: "opportunity",
+        collectionSuffix: "opportunities",
+        dateFieldObjectType: "lead", // use lead.date_updated per Close docs
+      },
+      targetDb,
+      progress,
+    );
+  }
+
+  async syncContactsIncremental(targetDb?: any, progress?: ProgressReporter) {
+    await this.incrementalSync(
+      {
+        objectType: "contact",
+        endpoint: "contact",
+        collectionSuffix: "contacts",
+      },
+      targetDb,
+      progress,
+    );
+  }
+
+  async syncActivitiesIncremental(targetDb?: any, progress?: ProgressReporter) {
+    await this.incrementalSync(
+      {
+        objectType: "activity",
+        endpoint: "activity",
+        collectionSuffix: "activities",
+        dateFieldObjectType: "activity", // activity has date_updated on itself
+      },
+      targetDb,
+      progress,
+    );
+  }
+
+  async syncUsersIncremental(targetDb?: any, progress?: ProgressReporter) {
+    await this.incrementalSync(
+      {
+        objectType: "user",
+        endpoint: "user",
+        collectionSuffix: "users",
+      },
+      targetDb,
+      progress,
+    );
+  }
 }
 
 // Load data source configuration
-function loadDataSourceConfig(): DataSourceConfig[] {
+async function loadDataSourceConfig(): Promise<DataSourceConfig[]> {
   try {
     // Validate configuration first
-    const validation = dataSourceManager.validateConfig();
+    const validation = databaseDataSourceManager.validateConfig();
     if (!validation.valid) {
       console.error("Configuration validation failed:");
       validation.errors.forEach(error => console.error(`  - ${error}`));
       process.exit(1);
     }
 
-    return dataSourceManager.getDataSourcesByType("close");
+    return databaseDataSourceManager.getDataSourcesByType("close");
   } catch (error) {
     console.error("Failed to load configuration:", error);
     console.error(
-      "Make sure config/config.yaml exists and environment variables are set",
+      "Make sure config/config.yaml exists and is properly formatted",
     );
     process.exit(1);
   }
@@ -655,10 +1146,10 @@ function loadDataSourceConfig(): DataSourceConfig[] {
 
 // Main execution
 async function main() {
-  const dataSources = loadDataSourceConfig();
+  const dataSources = await loadDataSourceConfig();
 
   if (dataSources.length === 0) {
-    console.log("No active Close.com data sources found.");
+    console.log("No active Close data sources found.");
     process.exit(0);
   }
 
@@ -701,5 +1192,3 @@ if (require.main === module) {
     process.exit(1);
   });
 }
-
-export { CloseSyncService };

@@ -33,6 +33,7 @@ import {
 import { SquareTerminal as ConsoleIcon } from "lucide-react";
 import { useAppStore } from "../store/appStore";
 import { useWorkspace } from "../contexts/workspace-context";
+import { useConsoleTreeStore } from "../store/consoleTreeStore";
 
 interface ConsoleEntry {
   name: string;
@@ -62,14 +63,25 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
   (props, ref) => {
     const { onConsoleSelect } = props;
     const { currentWorkspace } = useWorkspace();
-    const [consoleEntries, setConsoleEntries] = useState<ConsoleEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {
+      trees,
+      loading: loadingMap,
+      fetchTree,
+      refresh: refreshTree,
+    } = useConsoleTreeStore();
+
+    const consoleEntries = currentWorkspace
+      ? trees[currentWorkspace.id] || []
+      : [];
+    const loading = currentWorkspace
+      ? !!loadingMap[currentWorkspace.id]
+      : false;
     const dispatch = useAppStore(s => s.dispatch);
     const expandedFoldersArray = useAppStore(
       s => s.explorers.console.expandedFolders,
     );
     const expandedFolders = new Set(expandedFoldersArray);
-    const [error, setError] = useState<string | null>(null);
+    const error = currentWorkspace ? _errorFor(currentWorkspace.id) : null;
     const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
     const [folderDialogOpen, setFolderDialogOpen] = useState(false);
     const [newFolderName, setNewFolderName] = useState("");
@@ -86,51 +98,22 @@ const ConsoleExplorer = forwardRef<ConsoleExplorerRef, ConsoleExplorerProps>(
     const [selectedItem, setSelectedItem] = useState<ConsoleEntry | null>(null);
     const [newItemName, setNewItemName] = useState("");
 
+    function _errorFor(wid: string) {
+      const map = useConsoleTreeStore.getState().error;
+      return map[wid] || null;
+    }
+
     const fetchConsoleEntries = async () => {
-      // Don't fetch if no workspace is selected
-      if (!currentWorkspace) {
-        setConsoleEntries([]);
-        setError("No workspace selected");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/consoles`,
-        );
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const rawText = await response.text();
-        // console.log("Raw console tree response text:", rawText); // Kept for potential future debugging
-
-        const data = JSON.parse(rawText);
-        // console.log("Full Response Parse - data object:", data);
-
-        if (data.tree && Array.isArray(data.tree)) {
-          const parsedEntries: ConsoleEntry[] = data.tree;
-          // for (let i = 0; i < parsedEntries.length; i++) { ... } // Detailed logging removed for brevity now
-          setConsoleEntries(parsedEntries);
-        } else {
-          setConsoleEntries([]);
-        }
-      } catch (e: any) {
-        console.error("Failed to fetch console entries:", e);
-        setError(
-          `Failed to load consoles. ${e.message || "Please try again later."}`,
-        );
-        setConsoleEntries([]);
-      } finally {
-        setLoading(false);
-      }
+      if (!currentWorkspace) return;
+      await refreshTree(currentWorkspace.id);
     };
 
     useEffect(() => {
-      fetchConsoleEntries();
-    }, [currentWorkspace]); // Re-fetch when workspace changes
+      if (currentWorkspace) {
+        useConsoleTreeStore.getState().init(currentWorkspace.id);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentWorkspace?.id]);
 
     useImperativeHandle(ref, () => ({
       refresh: () => {
