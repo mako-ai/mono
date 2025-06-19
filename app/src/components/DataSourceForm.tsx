@@ -535,11 +535,9 @@ function DataSourceForm({
               helperText={
                 fieldState.error ? "This field is required" : helperText
               }
-              autoComplete="off"
               name={`config_${name}`}
               slotProps={{
                 input: {
-                  autoComplete: "off",
                   endAdornment: shouldShowDecrypt && field.value && (
                     <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
                       <Tooltip
@@ -769,13 +767,7 @@ function DataSourceForm({
             label="Name"
             error={!!fieldState.error}
             helperText={fieldState.error ? "Name is required" : undefined}
-            autoComplete="off"
             name="datasource_title"
-            slotProps={{
-              input: {
-                autoComplete: "off",
-              },
-            }}
           />
         )}
       />
@@ -828,11 +820,6 @@ function DataSourceForm({
               helperText={
                 fieldState.error ? "Must be at least 1" : "Records per batch"
               }
-              slotProps={{
-                input: {
-                  autoComplete: "off",
-                },
-              }}
             />
           )}
         />
@@ -855,11 +842,6 @@ function DataSourceForm({
                   ? "Cannot be negative"
                   : "Delay between API calls"
               }
-              slotProps={{
-                input: {
-                  autoComplete: "off",
-                },
-              }}
             />
           )}
         />
@@ -876,16 +858,6 @@ function DataSourceForm({
               label="Max Retries"
               type="number"
               margin="normal"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              slotProps={{
-                input: {
-                  autoComplete: "off",
-                  autoCorrect: "off",
-                  autoCapitalize: "off",
-                },
-              }}
             />
           )}
         />
