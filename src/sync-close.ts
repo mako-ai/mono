@@ -70,8 +70,14 @@ export class CloseSyncService {
       );
     }
 
+    if (!targetDb.connection.connection_string) {
+      throw new Error(
+        `MongoDB connection string is required for data source ${targetDb.name}`,
+      );
+    }
+
     // Create new connection
-    const client = new MongoClient(targetDb.connection.connection_string!);
+    const client = new MongoClient(targetDb.connection.connection_string);
     await client.connect();
     const db = client.db(targetDb.connection.database);
 
