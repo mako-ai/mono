@@ -13,6 +13,8 @@ import {
   Chip,
   SvgIcon,
   Skeleton,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
@@ -23,12 +25,14 @@ import {
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
   Add as AddIcon,
+  DeleteOutline as DeleteIcon,
 } from "@mui/icons-material";
 import { Database as DatabaseIcon } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
 import CreateDatabaseDialog from "./CreateDatabaseDialog";
 import { useDatabaseStore } from "../store/databaseStore";
+import { useConsoleStore } from "../store/consoleStore";
 
 const MongoDBIcon = () => (
   <SvgIcon>
@@ -107,6 +111,8 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   } = useDatabaseStore();
 
   const { currentWorkspace } = useWorkspace();
+
+  const { addConsoleTab, setActiveConsole } = useConsoleStore();
 
   const servers = currentWorkspace ? serversMap[currentWorkspace.id] || [] : [];
   const loading = currentWorkspace ? !!loadingMap[currentWorkspace.id] : false;
@@ -254,6 +260,40 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
         </ListItemButton>
       </ListItem>
     ));
+  };
+
+  // ---------------- Context menu for collections ----------------
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    item: { databaseId: string; collectionName: string };
+  } | null>(null);
+
+  const handleCollectionContextMenu = (
+    event: React.MouseEvent,
+    databaseId: string,
+    collectionName: string,
+  ) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      item: { databaseId, collectionName },
+    });
+  };
+
+  const handleDropCollection = () => {
+    if (!contextMenu) return;
+    const { databaseId, collectionName } = contextMenu.item;
+    const command = `db.getCollection("${collectionName}").drop()`;
+    const tabId = addConsoleTab({
+      title: `Drop ${collectionName}`,
+      content: command,
+      initialContent: command,
+      databaseId,
+    });
+    setActiveConsole(tabId);
+    setContextMenu(null);
   };
 
   if (error) {
@@ -515,6 +555,13 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                 collection,
                                               )
                                             }
+                                            onContextMenu={e =>
+                                              handleCollectionContextMenu(
+                                                e,
+                                                database.id,
+                                                collection.name,
+                                              )
+                                            }
                                             sx={{ py: 0.25, pl: 7.5 }}
                                           >
                                             <ListItemIcon sx={{ minWidth: 28 }}>
@@ -676,6 +723,41 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
         onClose={() => setCreateDialogOpen(false)}
         onSuccess={handleDatabaseCreated}
       />
+
+      {/* Context Menu for collection */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={() => setContextMenu(null)}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+        PaperProps={{
+          elevation: 2,
+          sx: {
+            boxShadow: "0px 2px 4px rgba(0,0,0,0.12)",
+            minWidth: 180,
+          },
+        }}
+      >
+        <MenuItem
+          onClick={handleDropCollection}
+          sx={{
+            pl: 1,
+            pr: 1,
+            "& .MuiListItemIcon-root": {
+              minWidth: 26,
+            },
+          }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" />
+          </ListItemIcon>
+          Delete collection
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };
