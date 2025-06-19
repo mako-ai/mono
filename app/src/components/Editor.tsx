@@ -113,7 +113,7 @@ function Editor() {
     const updateContent = () => {
       if (activeConsoleId && consoleRefs.current[activeConsoleId]?.current) {
         const content =
-          consoleRefs.current[activeConsoleId].current!.getCurrentContent();
+          consoleRefs.current[activeConsoleId].current.getCurrentContent();
         setActiveEditorContent(content);
       } else {
         setActiveEditorContent(undefined);

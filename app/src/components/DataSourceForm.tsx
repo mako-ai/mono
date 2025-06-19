@@ -142,9 +142,6 @@ function DataSourceForm({
   >({});
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
-  // ---------------- Draft store integration ----------------
-  const upsertDraft = useDataSourceStore(state => state.upsertDraft);
-
   // Avoid subscribing to draft changes to prevent re-renders on every keystroke
   const draftRef = useRef<Record<string, any> | undefined>(
     tabId ? useDataSourceStore.getState().drafts[tabId]?.values : undefined,
