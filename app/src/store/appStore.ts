@@ -25,6 +25,7 @@ export interface ConsoleTab {
   filePath?: string;
   kind?: "console" | "settings" | "sources" | "members";
   isDirty?: boolean; // false/undefined = pristine (replaceable), true = dirty (persistent)
+  icon?: string; // URL or path to icon, e.g., "/api/connectors/stripe/icon.svg"
 }
 
 export interface GlobalState {
@@ -130,6 +131,7 @@ export type Action =
   | { type: "UPDATE_CONSOLE_CONTENT"; payload: { id: string; content: string } }
   | { type: "UPDATE_CONSOLE_TITLE"; payload: { id: string; title: string } }
   | { type: "UPDATE_CONSOLE_DIRTY"; payload: { id: string; isDirty: boolean } }
+  | { type: "UPDATE_CONSOLE_ICON"; payload: { id: string; icon: string } }
   | {
       type: "UPDATE_CONSOLE_DATABASE";
       payload: { id: string; databaseId?: string };
@@ -176,8 +178,16 @@ export type Action =
 export const reducer = (state: GlobalState, action: Action): void => {
   switch (action.type) {
     case "OPEN_CONSOLE_TAB": {
-      const { id, title, content, initialContent, databaseId, filePath, kind } =
-        action.payload;
+      const {
+        id,
+        title,
+        content,
+        initialContent,
+        databaseId,
+        filePath,
+        kind,
+        icon,
+      } = action.payload;
 
       // Check if there's an existing pristine tab to replace
       const pristineTabId = Object.keys(state.consoles.tabs).find(
@@ -199,6 +209,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         filePath,
         kind: kind || "console",
         isDirty: false, // New tabs start as pristine
+        icon,
       };
       state.consoles.activeTabId = id;
 
@@ -313,6 +324,11 @@ export const reducer = (state: GlobalState, action: Action): void => {
     case "UPDATE_CONSOLE_DIRTY": {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.isDirty = action.payload.isDirty;
+      break;
+    }
+    case "UPDATE_CONSOLE_ICON": {
+      const tab = state.consoles.tabs[action.payload.id];
+      if (tab) tab.icon = action.payload.icon;
       break;
     }
     case "UPDATE_CONSOLE_DATABASE": {

@@ -425,7 +425,7 @@ const Chat3: React.FC = () => {
       const res = await fetch(`/api/workspaces/${currentWorkspace.id}/chats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "New Agent Chat" }),
+        body: JSON.stringify({ title: "New Chat" }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -633,7 +633,7 @@ const Chat3: React.FC = () => {
                 whiteSpace: "nowrap",
               }}
             >
-              Agent Chat
+              Chat
             </Typography>
           </Box>
           <Box sx={{ display: "flex" }}>

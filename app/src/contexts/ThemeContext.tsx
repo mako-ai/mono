@@ -21,6 +21,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/* eslint-disable react-refresh/only-export-components */
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
@@ -167,6 +168,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         },
       },
       MuiSelect: {
+        defaultProps: {
+          size: "small",
+        },
         styleOverrides: {
           root: ({ theme, ownerState }: any) => ({
             fontSize: "0.9em",
@@ -236,6 +240,57 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           },
         },
       },
+      MuiInputLabel: {
+        defaultProps: {
+          shrink: true,
+        },
+        styleOverrides: {
+          root: ({ theme }: any) => ({
+            transform: "none",
+            position: "relative",
+            top: 0,
+            left: 0,
+            marginBottom: 6,
+            transition: "none",
+            fontSize: "0.9rem",
+            fontWeight: 500,
+            color: theme.palette.text.primary,
+            "&.MuiInputLabel-shrink": {
+              transform: "none",
+            },
+          }),
+        },
+      },
+      MuiFormLabel: {
+        styleOverrides: {
+          root: ({ theme }: any) => ({
+            transform: "none",
+            position: "relative",
+            top: 0,
+            left: 0,
+            marginBottom: 4,
+            transition: "none",
+            fontSize: "1rem",
+            fontWeight: 600,
+            color: theme.palette.text.primary,
+            "&.MuiInputLabel-shrink, &.MuiFormLabel-filled": {
+              transform: "none",
+            },
+          }),
+        },
+      },
+      MuiOutlinedInput: {
+        defaultProps: {
+          size: "small",
+        },
+        styleOverrides: {
+          root: {
+            "& legend": {
+              width: "0 !important",
+            },
+          },
+        },
+      },
       MuiCssBaseline: {
         styleOverrides: (theme: any) => {
           const thumbColor = alpha(theme.palette.text.primary, 0.1);
@@ -301,6 +356,26 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       MuiButtonBase: {
         defaultProps: {
           disableRipple: true,
+        },
+      },
+      MuiTextField: {
+        defaultProps: {
+          size: "small",
+          autoComplete: "off",
+          // Forward HTML input attributes to the underlying <input /> element
+          inputProps: {
+            autoComplete: "off",
+            autoCorrect: "off",
+            autoCapitalize: "off",
+          },
+          // For the new slot-based API (v5+)
+          slotProps: {
+            input: {
+              autoComplete: "off",
+              autoCorrect: "off",
+              autoCapitalize: "off",
+            },
+          },
         },
       },
     },

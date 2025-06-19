@@ -1,9 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   TextField,
   FormControl,
@@ -12,680 +8,999 @@ import {
   MenuItem,
   Box,
   Typography,
-  IconButton,
-  Grid,
   Switch,
   FormControlLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Divider,
-  InputAdornment,
+  Alert,
+  CircularProgress,
+  IconButton,
+  Tooltip,
+  Snackbar,
 } from "@mui/material";
 import {
-  Close as CloseIcon,
-  ExpandMore as ExpandMoreIcon,
   Visibility,
   VisibilityOff,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 
-interface DataSource {
-  _id?: string;
+import {
+  useForm,
+  Controller,
+  UseFormReturn,
+  useFieldArray,
+} from "react-hook-form";
+
+// Zustand stores
+import { useDataSourceStore } from "../store/dataSourceStore";
+import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
+
+/**
+ * Generic field description coming from the API schema
+ */
+export interface ConnectorFieldSchema {
+  /** config key, e.g. "api_key" */
   name: string;
-  description?: string;
-  source: string;
-  enabled: boolean;
-  config: {
-    api_key?: string;
-    api_base_url?: string;
-    username?: string;
-    password?: string;
-    host?: string;
-    port?: number;
-    database?: string;
-    [key: string]: any;
-  };
-  settings: {
-    sync_batch_size: number;
-    rate_limit_delay_ms: number;
-    max_retries?: number;
-    timeout_ms?: number;
-  };
-  tenant?: string;
+  /** Human readable label */
+  label: string;
+  /** Field type */
+  type:
+    | "string"
+    | "number"
+    | "boolean"
+    | "password"
+    | "textarea"
+    | "object_array";
+  /** Whether it is required */
+  required?: boolean;
+  /** Default value if not supplied */
+  default?: any;
+  /** Optional helper text */
+  helperText?: string;
+  /** Placeholder value */
+  placeholder?: string;
+  /** Additional options for select inputs */
+  options?: Array<{ label: string; value: any }>;
+  /** Number of rows for textarea */
+  rows?: number;
+  /** Whether this field is encrypted when stored */
+  encrypted?: boolean;
+  /** Nested schema for array items (only for object_array) */
+  itemFields?: ConnectorFieldSchema[];
+}
+
+export interface ConnectorSchemaResponse {
+  /** Array of configuration fields */
+  fields: ConnectorFieldSchema[];
 }
 
 interface DataSourceFormProps {
-  open: boolean;
-  onClose: () => void;
+  /** Optional tab id when the form is rendered inside a console sources tab. */
+  tabId?: string;
+  variant?: "dialog" | "inline";
+  open?: boolean;
+  onClose?: () => void;
   onSubmit: (data: any) => void;
-  dataSource?: DataSource | null;
+  /** Existing data source (for edit) */
+  dataSource?: any | null;
+  /** List of available connector types supplied by parent */
+  connectorTypes?: Array<{
+    type: string;
+    name: string;
+    version: string;
+    description: string;
+    supportedEntities: string[];
+  }>;
+  errorMessage?: string | null;
+  /** Notify parent when dirty status changes */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Preserve title change callback for backward compatibility (no longer used internally) */
+  onTitleChange?: (title: string) => void;
 }
 
-const sourceTypes = [
-  { value: "close", label: "Close CRM" },
-  { value: "stripe", label: "Stripe" },
-  { value: "postgres", label: "PostgreSQL" },
-  { value: "mysql", label: "MySQL" },
-  { value: "graphql", label: "GraphQL API" },
-  { value: "rest", label: "REST API" },
-  { value: "api", label: "Generic API" },
-];
+function generateDefaultValues(
+  schema?: ConnectorSchemaResponse,
+): Record<string, any> {
+  if (!schema) return {};
+  const defaults: Record<string, any> = {};
+  schema.fields.forEach(f => {
+    if (f.default !== undefined) {
+      defaults[f.name] = f.default;
+    } else if (f.type === "boolean") {
+      defaults[f.name] = false;
+    } else if (f.type === "object_array") {
+      // Initialize as empty array to avoid read-only property errors
+      defaults[f.name] = [];
+    } else {
+      defaults[f.name] = "";
+    }
+  });
+  return defaults;
+}
 
 function DataSourceForm({
-  open,
   onClose,
   onSubmit,
   dataSource,
+  connectorTypes = [],
+  errorMessage,
+  tabId,
+  onDirtyChange,
 }: DataSourceFormProps) {
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    source: "",
-    enabled: true,
-    config: {
-      api_key: "",
-      api_base_url: "",
-      username: "",
-      password: "",
-      host: "",
-      port: "",
-      database: "",
-    },
-    settings: {
-      sync_batch_size: 100,
-      rate_limit_delay_ms: 200,
-      max_retries: 3,
-      timeout_ms: 30000,
-    },
-    tenant: "",
-  });
+  // Fetch connector schema when the type changes
+  const [schema, setSchema] = useState<ConnectorSchemaResponse | null>(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState<string | null>(null);
 
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  // Decrypt functionality states
+  const [decryptedValues, setDecryptedValues] = useState<
+    Record<string, string>
+  >({});
+  const [decryptingFields, setDecryptingFields] = useState<
+    Record<string, boolean>
+  >({});
+  const [showDecryptedFields, setShowDecryptedFields] = useState<
+    Record<string, boolean>
+  >({});
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
-  // Password visibility state
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showApiKeyOptional, setShowApiKeyOptional] = useState(false);
-  const [showPasswordOptional, setShowPasswordOptional] = useState(false);
-
+  // Avoid subscribing to draft changes to prevent re-renders on every keystroke
+  const draftRef = useRef<Record<string, any> | undefined>(
+    tabId ? useDataSourceStore.getState().drafts[tabId]?.values : undefined,
+  );
+  // Update snapshot if tabId changes
   useEffect(() => {
+    if (tabId) {
+      draftRef.current = useDataSourceStore.getState().drafts[tabId]?.values;
+    }
+  }, [tabId]);
+
+  // React Hook Form setup
+  const defaultValues = useMemo(() => {
+    let base: Record<string, any>;
     if (dataSource) {
-      setFormData({
+      base = {
         name: dataSource.name || "",
         description: dataSource.description || "",
-        source: dataSource.source || "",
-        enabled: dataSource.enabled ?? true,
-        config: {
-          api_key: dataSource.config?.api_key || "",
-          api_base_url: dataSource.config?.api_base_url || "",
-          username: dataSource.config?.username || "",
-          password: dataSource.config?.password || "",
-          host: dataSource.config?.host || "",
-          port: dataSource.config?.port?.toString() || "",
-          database: dataSource.config?.database || "",
-        },
-        settings: {
-          sync_batch_size: dataSource.settings?.sync_batch_size || 100,
-          rate_limit_delay_ms: dataSource.settings?.rate_limit_delay_ms || 200,
-          max_retries: dataSource.settings?.max_retries || 3,
-          timeout_ms: dataSource.settings?.timeout_ms || 30000,
-        },
-        tenant: dataSource.tenant || "",
-      });
+        type: dataSource.type || "",
+        isActive: dataSource.isActive ?? true,
+        ...dataSource.config,
+        settings_sync_batch_size: dataSource.settings?.sync_batch_size ?? 100,
+        settings_rate_limit_delay_ms:
+          dataSource.settings?.rate_limit_delay_ms ?? 200,
+        settings_max_retries: dataSource.settings?.max_retries ?? 3,
+        settings_timeout_ms: dataSource.settings?.timeout_ms ?? 30000,
+      };
     } else {
-      // Reset form for new data source
-      setFormData({
+      base = {
         name: "",
         description: "",
-        source: "",
-        enabled: true,
-        config: {
-          api_key: "",
-          api_base_url: "",
-          username: "",
-          password: "",
-          host: "",
-          port: "",
-          database: "",
-        },
-        settings: {
-          sync_batch_size: 100,
-          rate_limit_delay_ms: 200,
-          max_retries: 3,
-          timeout_ms: 30000,
-        },
-        tenant: "",
+        type: "",
+        isActive: true,
+      };
+    }
+
+    // If we have a persisted draft for this tab, merge it over base
+    if (draftRef.current) {
+      base = { ...base, ...draftRef.current };
+    }
+
+    // Deep clone to ensure all values (including nested arrays) are mutable
+    // This is necessary because values from Immer stores are frozen/immutable
+    const deepClone = (obj: any): any => {
+      if (obj === null || typeof obj !== "object") return obj;
+      if (obj instanceof Date) return new Date(obj);
+      if (Array.isArray(obj)) {
+        return obj.map(item => deepClone(item));
+      }
+      const cloned: Record<string, any> = {};
+      for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+          cloned[key] = deepClone(obj[key]);
+        }
+      }
+      return cloned;
+    };
+
+    return deepClone(base);
+  }, [dataSource]);
+
+  const form = useForm({
+    defaultValues,
+    // Ensure arrays are mutable
+    mode: "onChange",
+    // Disable automatic unregister to prevent issues with dynamic fields
+    shouldUnregister: false,
+  });
+
+  const {
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors, isDirty },
+  } = form;
+
+  // Watch selected connector type
+  const selectedType = watch("type");
+
+  // Removed automatic reset on every defaultValues change to avoid update loops.
+  // If the dataSource prop itself changes (switching from new to edit mode), we manually reset.
+  useEffect(() => {
+    if (dataSource) {
+      // Deep clone defaultValues to ensure arrays are mutable
+      const mutableDefaults = JSON.parse(JSON.stringify(defaultValues));
+      reset(mutableDefaults);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSource?._id]);
+
+  const { schemas, fetchSchema } = useConnectorCatalogStore();
+
+  // Fetch schema when connector type changes using cache
+  useEffect(() => {
+    if (!selectedType) {
+      setSchema(null);
+      return;
+    }
+    if (schemas[selectedType]) {
+      setSchema(schemas[selectedType]);
+      // When schema is set, ensure all array fields are initialized
+      const currentValues = form.getValues();
+      schemas[selectedType].fields.forEach((field: any) => {
+        if (field.type === "object_array" && !currentValues[field.name]) {
+          form.setValue(field.name, []);
+        }
       });
+      return;
     }
-    setErrors({});
-  }, [dataSource, open]);
+    setSchemaLoading(true);
+    setSchemaError(null);
+    fetchSchema(selectedType).then(res => {
+      if (res) {
+        setSchema(res);
+        const defaults = generateDefaultValues(res);
+        Object.entries(defaults).forEach(([key, value]) => {
+          if (form.getValues(key as any) === undefined) {
+            // Ensure arrays are mutable when setting values
+            const mutableValue = Array.isArray(value) ? [...value] : value;
+            form.setValue(key as any, mutableValue);
+          }
+        });
+      } else {
+        setSchemaError("Failed to load connector schema");
+      }
+      setSchemaLoading(false);
+    });
+  }, [selectedType, schemas, fetchSchema, form]);
 
-  const handleInputChange = (field: string, value: any) => {
-    if (field.startsWith("config.")) {
-      const configField = field.replace("config.", "");
-      setFormData(prev => ({
-        ...prev,
-        config: {
-          ...prev.config,
-          [configField]: value,
-        },
-      }));
-    } else if (field.startsWith("settings.")) {
-      const settingsField = field.replace("settings.", "");
-      setFormData(prev => ({
-        ...prev,
-        settings: {
-          ...prev.settings,
-          [settingsField]: value,
-        },
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [field]: value,
-      }));
-    }
-
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({
-        ...prev,
-        [field]: "",
-      }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Name is required";
-    }
-
-    if (!formData.source) {
-      newErrors.source = "Source type is required";
-    }
-
-    // Source-specific validation
-    switch (formData.source) {
-      case "close":
-      case "stripe":
-        if (!formData.config.api_key.trim()) {
-          newErrors["config.api_key"] = "API key is required";
-        }
-        break;
-      case "postgres":
-      case "mysql":
-        if (!formData.config.host.trim()) {
-          newErrors["config.host"] = "Host is required";
-        }
-        if (!formData.config.database.trim()) {
-          newErrors["config.database"] = "Database name is required";
-        }
-        break;
-      case "graphql":
-      case "rest":
-      case "api":
-        if (!formData.config.api_base_url.trim()) {
-          newErrors["config.api_base_url"] = "Base URL is required";
-        }
-        break;
-    }
-
-    // Settings validation
-    if (formData.settings.sync_batch_size < 1) {
-      newErrors["settings.sync_batch_size"] = "Batch size must be at least 1";
-    }
-
-    if (formData.settings.rate_limit_delay_ms < 0) {
-      newErrors["settings.rate_limit_delay_ms"] =
-        "Rate limit delay cannot be negative";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = () => {
-    if (!validateForm()) {
+  // Decrypt value function
+  const decryptValue = async (fieldName: string, encryptedValue: string) => {
+    if (!encryptedValue) {
+      setSnackbarMessage("No value to decrypt");
       return;
     }
 
-    // Prepare data for submission
-    const submitData: any = {
-      ...formData,
-      config: {
-        ...formData.config,
-        port: formData.config.port ? parseInt(formData.config.port) : undefined,
+    setDecryptingFields(prev => ({ ...prev, [fieldName]: true }));
+
+    try {
+      // Get workspace ID from the form or dataSource
+      const workspaceId = dataSource?.workspaceId || "default";
+
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/sources/decrypt`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ encryptedValue }),
+        },
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setDecryptedValues(prev => ({
+          ...prev,
+          [fieldName]: result.data.decryptedValue,
+        }));
+        setShowDecryptedFields(prev => ({
+          ...prev,
+          [fieldName]: true,
+        }));
+
+        if (!result.data.wasEncrypted) {
+          setSnackbarMessage("Value was not encrypted");
+        }
+      } else {
+        setSnackbarMessage(result.error || "Failed to decrypt value");
+      }
+    } catch (error) {
+      console.error("Decrypt error:", error);
+      setSnackbarMessage("Failed to decrypt value");
+    } finally {
+      setDecryptingFields(prev => ({ ...prev, [fieldName]: false }));
+    }
+  };
+
+  // Toggle decrypted value visibility
+  const toggleDecryptedVisibility = (fieldName: string) => {
+    setShowDecryptedFields(prev => ({
+      ...prev,
+      [fieldName]: !prev[fieldName],
+    }));
+  };
+
+  /** Submit handler */
+  const onSubmitInternal = (values: Record<string, any>) => {
+    // Build config from schema fields
+    const config: Record<string, any> = {};
+    if (schema) {
+      schema.fields.forEach(f => {
+        config[f.name] = values[f.name];
+      });
+    }
+
+    const payload = {
+      name: values.name,
+      description: values.description,
+      type: values.type,
+      isActive: values.isActive,
+      config,
+      settings: {
+        sync_batch_size: Number(values.settings_sync_batch_size) || 100,
+        rate_limit_delay_ms: Number(values.settings_rate_limit_delay_ms) || 200,
+        max_retries: Number(values.settings_max_retries) || 3,
+        timeout_ms: Number(values.settings_timeout_ms) || 30000,
       },
     };
 
-    // Remove empty strings from config
-    const cleanConfig: { [key: string]: any } = {};
-    Object.entries(submitData.config).forEach(([key, value]) => {
-      if (value !== "" && value !== undefined) {
-        cleanConfig[key] = value;
-      }
-    });
-    submitData.config = cleanConfig;
-
-    // Remove empty tenant
-    if (!submitData.tenant?.trim()) {
-      delete submitData.tenant;
-    }
-
-    onSubmit(submitData);
+    onSubmit(payload);
   };
 
-  const renderConfigFields = () => {
-    switch (formData.source) {
-      case "close":
-      case "stripe":
-        return (
-          <>
-            <TextField
-              fullWidth
-              label="API Key"
-              type={showApiKey ? "text" : "password"}
-              value={formData.config.api_key}
-              onChange={e =>
-                handleInputChange("config.api_key", e.target.value)
-              }
-              error={!!errors["config.api_key"]}
-              helperText={errors["config.api_key"]}
-              margin="normal"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      edge="end"
-                    >
-                      {showApiKey ? <Visibility /> : <VisibilityOff />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+  /** Renders a single dynamic config field */
+  const renderDynamicField = (
+    field: ConnectorFieldSchema,
+    form: UseFormReturn<any>,
+  ) => {
+    const { control } = form;
+    const {
+      name,
+      label,
+      type,
+      required,
+      helperText,
+      placeholder,
+      options,
+      rows,
+      encrypted,
+    } = field;
+    const fieldType = type === "password" ? "password" : "text";
+
+    // Determine if field should have decrypt button
+    const shouldShowDecrypt = encrypted === true || type === "password";
+
+    const isNested = name.includes(".");
+
+    if (type === "boolean") {
+      return (
+        <Controller
+          key={name}
+          name={name}
+          control={control}
+          rules={{ required }}
+          render={({ field }) => (
+            <FormControlLabel
+              control={<Switch {...field} checked={field.value ?? false} />}
+              label={label}
             />
-            {formData.source === "close" && (
+          )}
+        />
+      );
+    }
+
+    if (options && options.length > 0) {
+      return (
+        <Controller
+          key={name}
+          name={name}
+          control={control}
+          rules={{ required }}
+          render={({ field }) => (
+            <FormControl fullWidth margin="normal" variant="standard">
+              <InputLabel>{label}</InputLabel>
+              <Select {...field} label={label}>
+                {options.map(opt => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        />
+      );
+    }
+
+    if (type === "textarea") {
+      return (
+        <Box key={name} position="relative">
+          <Controller
+            name={name}
+            control={control}
+            rules={{ required }}
+            render={({ field, fieldState }) => (
               <TextField
+                {...field}
                 fullWidth
-                label="API Base URL"
-                value={
-                  formData.config.api_base_url || "https://api.close.com/api/v1"
-                }
-                onChange={e =>
-                  handleInputChange("config.api_base_url", e.target.value)
-                }
                 margin="normal"
+                multiline
+                rows={rows ?? 8}
+                label={label}
+                placeholder={placeholder}
+                error={!!fieldState.error}
+                helperText={
+                  fieldState.error ? "This field is required" : helperText
+                }
+                type={showDecryptedFields[name] ? "text" : fieldType}
+                value={
+                  showDecryptedFields[name] && decryptedValues[name]
+                    ? decryptedValues[name]
+                    : field.value
+                }
+                autoComplete="false"
+                name={`config_${name}`}
+                slotProps={{
+                  input: {
+                    autoComplete: "false",
+                    style: { fontFamily: "monospace", fontSize: "0.875rem" },
+                    ...(isNested
+                      ? {}
+                      : {
+                          readOnly: true,
+                          onFocus: (e: any) => {
+                            setTimeout(() => {
+                              e.target.removeAttribute("readonly");
+                            }, 100);
+                          },
+                        }),
+                    endAdornment: shouldShowDecrypt && field.value && (
+                      <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
+                        <Tooltip
+                          title={
+                            showDecryptedFields[name]
+                              ? "Hide decrypted"
+                              : "Show decrypted"
+                          }
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              if (
+                                !decryptedValues[name] &&
+                                !showDecryptedFields[name]
+                              ) {
+                                decryptValue(name, field.value);
+                              } else {
+                                toggleDecryptedVisibility(name);
+                              }
+                            }}
+                            disabled={decryptingFields[name]}
+                          >
+                            {decryptingFields[name] ? (
+                              <CircularProgress size={20} />
+                            ) : showDecryptedFields[name] ? (
+                              <VisibilityOff />
+                            ) : (
+                              <Visibility />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    ),
+                  },
+                }}
               />
             )}
-          </>
-        );
+          />
+        </Box>
+      );
+    }
 
-      case "postgres":
-      case "mysql":
-        return (
-          <>
-            <Grid container spacing={2}>
-              <Grid size={8}>
-                <TextField
-                  fullWidth
-                  label="Host"
-                  value={formData.config.host}
-                  onChange={e =>
-                    handleInputChange("config.host", e.target.value)
-                  }
-                  error={!!errors["config.host"]}
-                  helperText={errors["config.host"]}
-                  margin="normal"
-                />
-              </Grid>
-              <Grid size={4}>
-                <TextField
-                  fullWidth
-                  label="Port"
-                  type="number"
-                  value={formData.config.port}
-                  onChange={e =>
-                    handleInputChange("config.port", e.target.value)
-                  }
-                  margin="normal"
-                  placeholder={formData.source === "postgres" ? "5432" : "3306"}
-                />
-              </Grid>
-            </Grid>
-            <TextField
-              fullWidth
-              label="Database Name"
-              value={formData.config.database}
-              onChange={e =>
-                handleInputChange("config.database", e.target.value)
-              }
-              error={!!errors["config.database"]}
-              helperText={errors["config.database"]}
-              margin="normal"
-            />
-            <Grid container spacing={2}>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Username"
-                  value={formData.config.username}
-                  onChange={e =>
-                    handleInputChange("config.username", e.target.value)
-                  }
-                  margin="normal"
-                />
-              </Grid>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Password"
-                  type={showPassword ? "text" : "password"}
-                  value={formData.config.password}
-                  onChange={e =>
-                    handleInputChange("config.password", e.target.value)
-                  }
-                  margin="normal"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          onClick={() => setShowPassword(!showPassword)}
-                          edge="end"
-                        >
-                          {showPassword ? <Visibility /> : <VisibilityOff />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </>
-        );
+    // Special handling for object_array
+    if (field.type === "object_array") {
+      return <ObjectArrayField key={field.name} field={field} form={form} />;
+    }
 
-      case "graphql":
-      case "rest":
-      case "api":
-        return (
-          <>
+    // Default: TextField
+    return (
+      <Box key={name} position="relative">
+        <Controller
+          name={name}
+          control={control}
+          rules={{ required }}
+          render={({ field, fieldState }) => (
             <TextField
+              {...field}
               fullWidth
-              label="Base URL"
-              value={formData.config.api_base_url}
-              onChange={e =>
-                handleInputChange("config.api_base_url", e.target.value)
-              }
-              error={!!errors["config.api_base_url"]}
-              helperText={errors["config.api_base_url"]}
               margin="normal"
-              placeholder="https://api.example.com"
-            />
-            <TextField
-              fullWidth
-              label="API Key (optional)"
-              type={showApiKeyOptional ? "text" : "password"}
-              value={formData.config.api_key}
-              onChange={e =>
-                handleInputChange("config.api_key", e.target.value)
+              type={showDecryptedFields[name] ? "text" : fieldType}
+              value={
+                showDecryptedFields[name] && decryptedValues[name]
+                  ? decryptedValues[name]
+                  : field.value
               }
-              margin="normal"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowApiKeyOptional(!showApiKeyOptional)}
-                      edge="end"
-                    >
-                      {showApiKeyOptional ? <Visibility /> : <VisibilityOff />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <Grid container spacing={2}>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Username (optional)"
-                  value={formData.config.username}
-                  onChange={e =>
-                    handleInputChange("config.username", e.target.value)
-                  }
-                  margin="normal"
-                />
-              </Grid>
-              <Grid size={6}>
-                <TextField
-                  fullWidth
-                  label="Password (optional)"
-                  type={showPasswordOptional ? "text" : "password"}
-                  value={formData.config.password}
-                  onChange={e =>
-                    handleInputChange("config.password", e.target.value)
-                  }
-                  margin="normal"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
+              label={label}
+              placeholder={placeholder}
+              error={!!fieldState.error}
+              helperText={
+                fieldState.error ? "This field is required" : helperText
+              }
+              name={`config_${name}`}
+              slotProps={{
+                input: {
+                  endAdornment: shouldShowDecrypt && field.value && (
+                    <Box sx={{ display: "flex", gap: 0.5, mr: 1 }}>
+                      <Tooltip
+                        title={
+                          showDecryptedFields[name]
+                            ? "Hide decrypted"
+                            : "Show decrypted"
+                        }
+                      >
                         <IconButton
-                          onClick={() =>
-                            setShowPasswordOptional(!showPasswordOptional)
-                          }
-                          edge="end"
+                          size="small"
+                          onClick={() => {
+                            if (
+                              !decryptedValues[name] &&
+                              !showDecryptedFields[name]
+                            ) {
+                              decryptValue(name, field.value);
+                            } else {
+                              toggleDecryptedVisibility(name);
+                            }
+                          }}
+                          disabled={decryptingFields[name]}
                         >
-                          {showPasswordOptional ? (
-                            <Visibility />
-                          ) : (
+                          {decryptingFields[name] ? (
+                            <CircularProgress size={20} />
+                          ) : showDecryptedFields[name] ? (
                             <VisibilityOff />
+                          ) : (
+                            <Visibility />
                           )}
                         </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-            </Grid>
-          </>
-        );
-
-      default:
-        return (
-          <Typography color="text.secondary" sx={{ mt: 2 }}>
-            Select a source type to configure connection settings
-          </Typography>
-        );
-    }
+                      </Tooltip>
+                    </Box>
+                  ),
+                },
+              }}
+            />
+          )}
+        />
+      </Box>
+    );
   };
 
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          {dataSource ? "Edit Data Source" : "Add Data Source"}
-          <IconButton onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
-        </Box>
-      </DialogTitle>
+  /** Component to render an array of objects (e.g., GraphQL queries list) */
+  const ObjectArrayField = ({
+    field,
+    form,
+  }: {
+    field: ConnectorFieldSchema;
+    form: UseFormReturn<any>;
+  }) => {
+    const { control } = form;
 
-      <DialogContent>
-        <Box sx={{ mt: 1 }}>
-          {/* Basic Information */}
-          <Typography variant="h6" gutterBottom>
-            Basic Information
-          </Typography>
+    // Initialise field array hook
+    const {
+      fields: arrayFields,
+      append,
+      remove,
+    } = useFieldArray({ control, name: field.name as any });
 
-          <TextField
-            fullWidth
-            label="Name"
-            value={formData.name}
-            onChange={e => handleInputChange("name", e.target.value)}
-            error={!!errors.name}
-            helperText={errors.name}
-            margin="normal"
-          />
+    // Helper: create a new item populated with sensible defaults
+    const createNewItem = () => {
+      const newItem: Record<string, any> = {};
+      field.itemFields?.forEach(subField => {
+        if (subField.default !== undefined) {
+          newItem[subField.name] = subField.default;
+        } else if (subField.type === "boolean") {
+          newItem[subField.name] = false;
+        } else {
+          newItem[subField.name] = "";
+        }
+      });
+      return newItem;
+    };
 
-          <TextField
-            fullWidth
-            label="Description (optional)"
-            multiline
-            rows={2}
-            value={formData.description}
-            onChange={e => handleInputChange("description", e.target.value)}
-            margin="normal"
-          />
+    return (
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="subtitle1" fontWeight="medium" sx={{ mb: 1 }}>
+          {field.label}
+        </Typography>
 
-          <FormControl fullWidth margin="normal" error={!!errors.source}>
-            <InputLabel>Source Type</InputLabel>
-            <Select
-              value={formData.source}
-              onChange={e => handleInputChange("source", e.target.value)}
-              label="Source Type"
-            >
-              {sourceTypes.map(type => (
-                <MenuItem key={type.value} value={type.value}>
-                  {type.label}
-                </MenuItem>
-              ))}
-            </Select>
-            {errors.source && (
-              <Typography variant="caption" color="error" sx={{ ml: 2 }}>
-                {errors.source}
+        {arrayFields.map((item, index) => (
+          <Box
+            key={item.id}
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              p: 2,
+              mb: 2,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", mb: 1, gap: 1 }}>
+              <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+                {field.label} {index + 1}
               </Typography>
-            )}
-          </FormControl>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => remove(index)}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
 
-          <TextField
-            fullWidth
-            label="Tenant (optional)"
-            value={formData.tenant}
-            onChange={e => handleInputChange("tenant", e.target.value)}
-            margin="normal"
-            helperText="Associate this data source with a specific tenant"
-          />
+            {field.itemFields?.map(subField => {
+              const fieldPath = `${field.name}.${index}.${subField.name}`;
 
-          <FormControlLabel
-            control={
-              <Switch
-                checked={formData.enabled}
-                onChange={e => handleInputChange("enabled", e.target.checked)}
-              />
-            }
-            label="Enabled"
-            sx={{ mt: 2 }}
-          />
+              const registerProps = form.register(fieldPath);
 
-          {/* Connection Configuration */}
-          <Divider sx={{ my: 3 }} />
-          <Typography variant="h6" gutterBottom>
-            Connection Configuration
-          </Typography>
+              const commonTextProps = {
+                fullWidth: true,
+                margin: "normal" as const,
+                label: subField.label,
+                placeholder: subField.placeholder,
+                helperText: subField.helperText,
+                defaultValue: (item as any)[subField.name] || "",
+              };
 
-          {renderConfigFields()}
-
-          {/* Advanced Settings */}
-          <Accordion sx={{ mt: 3 }}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="h6">Advanced Settings</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <Grid container spacing={2}>
-                <Grid size={6}>
+              if (subField.type === "textarea") {
+                return (
                   <TextField
-                    fullWidth
-                    label="Sync Batch Size"
-                    type="number"
-                    value={formData.settings.sync_batch_size}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.sync_batch_size",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    error={!!errors["settings.sync_batch_size"]}
-                    helperText={
-                      errors["settings.sync_batch_size"] ||
-                      "Number of records to process at once"
-                    }
-                    margin="normal"
-                    inputProps={{ min: 1 }}
+                    key={fieldPath}
+                    {...commonTextProps}
+                    multiline
+                    rows={subField.rows ?? 4}
+                    inputRef={registerProps.ref}
+                    name={registerProps.name}
+                    onChange={registerProps.onChange}
                   />
-                </Grid>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Rate Limit Delay (ms)"
-                    type="number"
-                    value={formData.settings.rate_limit_delay_ms}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.rate_limit_delay_ms",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    error={!!errors["settings.rate_limit_delay_ms"]}
-                    helperText={
-                      errors["settings.rate_limit_delay_ms"] ||
-                      "Delay between API calls"
-                    }
-                    margin="normal"
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Max Retries"
-                    type="number"
-                    value={formData.settings.max_retries}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.max_retries",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    margin="normal"
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid size={6}>
-                  <TextField
-                    fullWidth
-                    label="Timeout (ms)"
-                    type="number"
-                    value={formData.settings.timeout_ms}
-                    onChange={e =>
-                      handleInputChange(
-                        "settings.timeout_ms",
-                        parseInt(e.target.value) || 0,
-                      )
-                    }
-                    margin="normal"
-                    inputProps={{ min: 1000 }}
-                  />
-                </Grid>
-              </Grid>
-            </AccordionDetails>
-          </Accordion>
-        </Box>
-      </DialogContent>
+                );
+              }
 
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" disableElevation>
-          {dataSource ? "Update" : "Create"}
+              // Boolean switch (controlled minimal impact)
+              if (subField.type === "boolean") {
+                return (
+                  <FormControlLabel
+                    key={fieldPath}
+                    control={
+                      <Switch
+                        checked={(item as any)[subField.name] || false}
+                        onChange={e =>
+                          form.setValue(fieldPath, e.target.checked, {
+                            shouldDirty: true,
+                          })
+                        }
+                      />
+                    }
+                    label={subField.label}
+                  />
+                );
+              }
+
+              return (
+                <TextField
+                  key={fieldPath}
+                  {...commonTextProps}
+                  type={subField.type === "number" ? "number" : "text"}
+                  inputRef={registerProps.ref}
+                  name={registerProps.name}
+                  onChange={registerProps.onChange}
+                />
+              );
+            })}
+          </Box>
+        ))}
+
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => append(createNewItem())}
+        >
+          Add Query
         </Button>
-      </DialogActions>
-    </Dialog>
+      </Box>
+    );
+  };
+
+  // -------------------------------------------------
+  // UI Sections
+  // -------------------------------------------------
+
+  const typeSelect = (
+    <FormControl fullWidth margin="normal">
+      <InputLabel>Source Type</InputLabel>
+      <Controller
+        name="type"
+        control={control}
+        rules={{ required: true }}
+        render={({ field }) => (
+          <Select {...field} variant="outlined" size="small">
+            {connectorTypes.map(connector => (
+              <MenuItem key={connector.type} value={connector.type}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box
+                    component="img"
+                    src={`/api/connectors/${connector.type}/icon.svg`}
+                    alt={`${connector.type} icon`}
+                    sx={{ width: 20, height: 20 }}
+                  />
+                  {connector.name}
+                </Box>
+              </MenuItem>
+            ))}
+          </Select>
+        )}
+      />
+      {errors.type && (
+        <Typography variant="caption" color="error" sx={{ ml: 2 }}>
+          Source type is required
+        </Typography>
+      )}
+    </FormControl>
+  );
+
+  const basicInformationSection = (
+    <Box sx={{ mb: 3 }}>
+      <Controller
+        name="name"
+        control={control}
+        rules={{ required: true }}
+        render={({ field, fieldState }) => (
+          <TextField
+            {...field}
+            fullWidth
+            margin="normal"
+            label="Name"
+            error={!!fieldState.error}
+            helperText={fieldState.error ? "Name is required" : undefined}
+            name="datasource_title"
+          />
+        )}
+      />
+    </Box>
+  );
+
+  const connectionConfigSection = (
+    <>
+      {schemaLoading && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <CircularProgress size={20} />
+          <Typography variant="body2">Loading schema…</Typography>
+        </Box>
+      )}
+      {schemaError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {schemaError}
+        </Alert>
+      )}
+      {schema && schema.fields.map(f => renderDynamicField(f, form))}
+      {!schemaLoading && !schema && (
+        <Typography color="text.secondary" sx={{ mt: 2 }}>
+          Select a source type to load configuration fields.
+        </Typography>
+      )}
+    </>
+  );
+
+  const advancedSettingsSection = (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+        gap: 2,
+      }}
+    >
+      <Box>
+        <Controller
+          name="settings_sync_batch_size"
+          control={control}
+          rules={{ min: 1, required: true }}
+          render={({ field, fieldState }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Sync Batch Size"
+              type="number"
+              margin="normal"
+              error={!!fieldState.error}
+              helperText={
+                fieldState.error ? "Must be at least 1" : "Records per batch"
+              }
+            />
+          )}
+        />
+      </Box>
+      <Box>
+        <Controller
+          name="settings_rate_limit_delay_ms"
+          control={control}
+          rules={{ min: 0, required: true }}
+          render={({ field, fieldState }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Rate Limit Delay (ms)"
+              type="number"
+              margin="normal"
+              error={!!fieldState.error}
+              helperText={
+                fieldState.error
+                  ? "Cannot be negative"
+                  : "Delay between API calls"
+              }
+            />
+          )}
+        />
+      </Box>
+      <Box>
+        <Controller
+          name="settings_max_retries"
+          control={control}
+          rules={{ min: 0, required: true }}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Max Retries"
+              type="number"
+              margin="normal"
+            />
+          )}
+        />
+      </Box>
+      <Box>
+        <Controller
+          name="settings_timeout_ms"
+          control={control}
+          rules={{ min: 1000, required: true }}
+          render={({ field }) => (
+            <TextField
+              {...field}
+              fullWidth
+              label="Timeout (ms)"
+              type="number"
+              margin="normal"
+              inputProps={{
+                min: 1000,
+                autoComplete: "nope",
+                "data-lpignore": "true",
+                "data-form-type": "other",
+              }}
+              autoComplete="nope"
+            />
+          )}
+        />
+      </Box>
+    </Box>
+  );
+
+  // --------------------------------------------------------------------
+  // Variant rendering (inline vs dialog)
+  // --------------------------------------------------------------------
+
+  const formContent = (
+    <Box sx={{ py: 1 }}>
+      {/* CSS to disable autocomplete dropdown */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+          input:-webkit-autofill,
+          input:-webkit-autofill:hover,
+          input:-webkit-autofill:focus,
+          input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px white inset !important;
+            transition: background-color 5000s ease-in-out 0s;
+          }
+          input[readonly] {
+            background-color: transparent !important;
+          }
+        `,
+        }}
+      />
+
+      {/* Optional error message */}
+      {errorMessage && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {errorMessage}
+        </Alert>
+      )}
+
+      {/* Source Type dropdown first */}
+      {typeSelect}
+
+      {/* Render rest only if type selected */}
+      {selectedType && (
+        <>
+          {/* Display selected connector icon and name */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              mb: 2,
+              mt: 2,
+              p: 2,
+              bgcolor: "action.hover",
+              borderRadius: 1,
+            }}
+          >
+            <Box
+              component="img"
+              src={`/api/connectors/${selectedType}/icon.svg`}
+              alt={`${selectedType} icon`}
+              sx={{ width: 32, height: 32 }}
+            />
+            <Box>
+              <Typography variant="subtitle1" fontWeight="medium">
+                {connectorTypes.find(c => c.type === selectedType)?.name ||
+                  selectedType}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {connectorTypes.find(c => c.type === selectedType)?.description}
+              </Typography>
+            </Box>
+          </Box>
+
+          {basicInformationSection}
+          {connectionConfigSection}
+          {advancedSettingsSection}
+          <Box
+            sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}
+          >
+            <Button onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="contained" disableElevation>
+              {dataSource ? "Update" : "Create"}
+            </Button>
+          </Box>
+        </>
+      )}
+    </Box>
+  );
+
+  // bubble dirty state to parent
+  const lastDirty = useRef<boolean>(false);
+  useEffect(() => {
+    if (onDirtyChange && lastDirty.current !== isDirty) {
+      lastDirty.current = isDirty;
+      onDirtyChange(isDirty);
+    }
+  }, [isDirty, onDirtyChange]);
+
+  return (
+    <Box
+      component="form"
+      autoComplete="nope"
+      noValidate
+      onSubmit={handleSubmit(onSubmitInternal)}
+      sx={{ p: 2, maxWidth: "800px", mx: "auto" }}
+      data-form-type="other"
+    >
+      {/* Form fields */}
+      {formContent}
+
+      {/* Snackbar for messages */}
+      <Snackbar
+        open={!!snackbarMessage}
+        autoHideDuration={4000}
+        onClose={() => setSnackbarMessage(null)}
+        message={snackbarMessage}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
+    </Box>
   );
 }
 

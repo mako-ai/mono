@@ -13,6 +13,8 @@ import {
   Chip,
   SvgIcon,
   Skeleton,
+  Menu,
+  MenuItem,
 } from "@mui/material";
 import {
   DnsOutlined as ServerIcon,
@@ -23,11 +25,14 @@ import {
   ChevronRight as ChevronRightIcon,
   FolderOutlined as FolderIcon,
   Add as AddIcon,
+  DeleteOutline as DeleteIcon,
 } from "@mui/icons-material";
 import { Database as DatabaseIcon } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
 import CreateDatabaseDialog from "./CreateDatabaseDialog";
+import { useDatabaseStore } from "../store/databaseStore";
+import { useConsoleStore } from "../store/consoleStore";
 
 const MongoDBIcon = () => (
   <SvgIcon>
@@ -94,17 +99,28 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   onCollectionSelect,
   onCollectionClick,
 }) => {
-  const [servers, setServers] = useState<Server[]>([]);
-  const [collections, setCollections] = useState<
-    Record<string, CollectionInfo[]>
-  >({});
-  const [views, setViews] = useState<Record<string, CollectionInfo[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const {
+    servers: serversMap,
+    collections,
+    views,
+    loading: loadingMap,
+    fetchServers: fetchServersStore,
+    refreshServers,
+    initServers,
+    fetchDatabaseData,
+  } = useDatabaseStore();
 
-  // Use the store for expanded states
+  const { currentWorkspace } = useWorkspace();
+
+  const { addConsoleTab, setActiveConsole } = useConsoleStore();
+
+  const servers = currentWorkspace ? serversMap[currentWorkspace.id] || [] : [];
+  const loading = currentWorkspace ? !!loadingMap[currentWorkspace.id] : false;
+  const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
+  const error = currentWorkspace
+    ? useDatabaseStore.getState().error[currentWorkspace.id]
+    : null;
+
   const {
     expandedServers,
     expandedDatabases,
@@ -119,131 +135,43 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     isDatabaseExpanded,
   } = useDatabaseExplorerStore();
 
-  // Use the workspace context
-  const { currentWorkspace } = useWorkspace();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  const refreshServersLocal = async () => {
+    if (!currentWorkspace) return;
+    await refreshServers(currentWorkspace.id);
+  };
 
   useEffect(() => {
-    fetchServers();
-  }, [currentWorkspace]);
+    if (currentWorkspace) {
+      initServers(currentWorkspace.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspace?.id]);
 
-  const fetchServers = async () => {
+  const fetchDatabaseDataLocal = async (databaseId: string) => {
     if (!currentWorkspace) return;
+    setLoadingData(prev => new Set(prev).add(databaseId));
+    await fetchDatabaseData(currentWorkspace.id, databaseId);
+    setLoadingData(prev => {
+      const next = new Set(prev);
+      next.delete(databaseId);
+      return next;
+    });
+  };
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/databases`,
-      );
-      const data = await response.json();
-
-      if (data.success) {
-        // Group databases by host on the frontend
-        const serverMap = new Map<string, Server>();
-
-        data.data.forEach((db: Database) => {
-          const hostKey = db.hostKey;
-
-          if (!serverMap.has(hostKey)) {
-            serverMap.set(hostKey, {
-              id: hostKey,
-              name: db.hostName,
-              description: "",
-              connectionString: db.hostKey,
-              active: true,
-              databases: [],
-            });
-          }
-
-          const server = serverMap.get(hostKey)!;
-          server.databases.push(db);
-        });
-
-        // Convert map to array
-        const serversData = Array.from(serverMap.values());
-        setServers(serversData);
-
-        // Clear any previously cached collections/views so we always show fresh data
-        setCollections({});
-        setViews({});
-
-        // Automatically fetch collections/views for every database so that the
-        // data tree is fully up-to-date after a refresh.
-        data.data.forEach((db: Database) => {
-          fetchDatabaseData(db.id);
-        });
-
-        // Only auto-expand the first server/database if nothing is expanded yet
-        if (serversData.length > 0 && expandedServers.size === 0) {
-          const firstServerId = serversData[0].id;
-          expandServer(firstServerId);
-          if (serversData[0].databases.length > 0) {
-            const firstDbId = serversData[0].databases[0].id;
-            expandDatabase(firstDbId);
-          }
+  // Prefetch collections/views for every database under every server when servers change
+  useEffect(() => {
+    if (!currentWorkspace) return;
+    servers.forEach(s => {
+      s.databases.forEach(db => {
+        if (!collections[db.id] && !views[db.id]) {
+          fetchDatabaseDataLocal(db.id);
         }
-      } else {
-        setError(data.error || "Failed to fetch databases");
-      }
-    } catch (err) {
-      setError("Failed to connect to the database API");
-      console.error("Error fetching databases:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDatabaseData = async (databaseId: string) => {
-    if (!currentWorkspace) return;
-
-    try {
-      setLoadingData(prev => new Set(prev).add(databaseId));
-
-      // Fetch both collections and views in parallel
-      const [collectionsResponse, viewsResponse] = await Promise.all([
-        fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/collections`,
-        ),
-        fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/views`,
-        ),
-      ]);
-
-      const collectionsData = await collectionsResponse.json();
-      const viewsData = await viewsResponse.json();
-
-      if (collectionsData.success) {
-        const sortedCollections = collectionsData.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) =>
-            a.name.localeCompare(b.name),
-        );
-        setCollections(prev => ({
-          ...prev,
-          [databaseId]: sortedCollections,
-        }));
-      }
-
-      if (viewsData.success) {
-        const sortedViews = viewsData.data.sort(
-          (a: CollectionInfo, b: CollectionInfo) =>
-            a.name.localeCompare(b.name),
-        );
-        setViews(prev => ({
-          ...prev,
-          [databaseId]: sortedViews,
-        }));
-      }
-    } catch (err) {
-      console.error(`Error fetching data for ${databaseId}:`, err);
-    } finally {
-      setLoadingData(prev => {
-        const next = new Set(prev);
-        next.delete(databaseId);
-        return next;
       });
-    }
-  };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servers]);
 
   const handleServerToggle = (serverId: string) => {
     toggleServer(serverId);
@@ -257,7 +185,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
       !collections[databaseId] &&
       !views[databaseId]
     ) {
-      fetchDatabaseData(databaseId);
+      fetchDatabaseDataLocal(databaseId);
     }
   };
 
@@ -279,11 +207,9 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   const handleRefresh = () => {
     // Clear cached data so we don't keep stale information around between refreshes
-    setCollections({});
-    setViews({});
     setLoadingData(new Set());
 
-    fetchServers();
+    refreshServersLocal();
   };
 
   const handleDatabaseCreated = () => {
@@ -334,6 +260,40 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
         </ListItemButton>
       </ListItem>
     ));
+  };
+
+  // ---------------- Context menu for collections ----------------
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    item: { databaseId: string; collectionName: string };
+  } | null>(null);
+
+  const handleCollectionContextMenu = (
+    event: React.MouseEvent,
+    databaseId: string,
+    collectionName: string,
+  ) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      item: { databaseId, collectionName },
+    });
+  };
+
+  const handleDropCollection = () => {
+    if (!contextMenu) return;
+    const { databaseId, collectionName } = contextMenu.item;
+    const command = `db.getCollection("${collectionName}").drop()`;
+    const tabId = addConsoleTab({
+      title: `Drop ${collectionName}`,
+      content: command,
+      initialContent: command,
+      databaseId,
+    });
+    setActiveConsole(tabId);
+    setContextMenu(null);
   };
 
   if (error) {
@@ -595,6 +555,13 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                 collection,
                                               )
                                             }
+                                            onContextMenu={e =>
+                                              handleCollectionContextMenu(
+                                                e,
+                                                database.id,
+                                                collection.name,
+                                              )
+                                            }
                                             sx={{ py: 0.25, pl: 7.5 }}
                                           >
                                             <ListItemIcon sx={{ minWidth: 28 }}>
@@ -756,6 +723,41 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
         onClose={() => setCreateDialogOpen(false)}
         onSuccess={handleDatabaseCreated}
       />
+
+      {/* Context Menu for collection */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={() => setContextMenu(null)}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+        PaperProps={{
+          elevation: 2,
+          sx: {
+            boxShadow: "0px 2px 4px rgba(0,0,0,0.12)",
+            minWidth: 180,
+          },
+        }}
+      >
+        <MenuItem
+          onClick={handleDropCollection}
+          sx={{
+            pl: 1,
+            pr: 1,
+            "& .MuiListItemIcon-root": {
+              minWidth: 26,
+            },
+          }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" />
+          </ListItemIcon>
+          Delete collection
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };
