@@ -97,7 +97,7 @@ function MainApp() {
         return (
           <DatabaseExplorer
             onCollectionClick={(dbId, collection) => {
-              const prefill = `db.${collection.name}.find({}).limit(500)`;
+              const prefill = `db.getCollection("${collection.name}").find({}).limit(500)`;
               openOrFocusConsoleTab(collection.name, prefill, dbId, [
                 {
                   id: "collection-" + collection.name,

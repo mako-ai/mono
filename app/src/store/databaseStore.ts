@@ -39,6 +39,7 @@ interface DatabaseState {
   refreshServers: (workspaceId: string) => Promise<Server[]>;
   initServers: (workspaceId: string) => Promise<void>;
   fetchDatabaseData: (workspaceId: string, databaseId: string) => Promise<void>;
+  clearDatabaseData: (workspaceId: string) => void;
 }
 
 export const useDatabaseStore = create<DatabaseState>()(
@@ -95,6 +96,8 @@ export const useDatabaseStore = create<DatabaseState>()(
       }
     },
     refreshServers: async workspaceId => {
+      // Clear cached collections/views first so any new server state triggers fresh fetches
+      get().clearDatabaseData(workspaceId);
       return await get().fetchServers(workspaceId);
     },
     initServers: async workspaceId => {
@@ -141,6 +144,26 @@ export const useDatabaseStore = create<DatabaseState>()(
           delete state.loading[loadingKey];
         });
       }
+    },
+    /**
+     * Clears cached collections and views that belong to the provided workspace.
+     * This is useful when refreshing the list of databases to ensure nested data
+     * is fetched again and reflects the latest state on the server.
+     */
+    clearDatabaseData: (workspaceId: string) => {
+      const serversForWorkspace = get().servers[workspaceId] || [];
+      const dbIdsToClear = serversForWorkspace.flatMap(s =>
+        s.databases.map(db => db.id),
+      );
+
+      if (dbIdsToClear.length === 0) return;
+
+      set(state => {
+        dbIdsToClear.forEach(dbId => {
+          delete state.collections[dbId];
+          delete state.views[dbId];
+        });
+      });
     },
   })),
 );
