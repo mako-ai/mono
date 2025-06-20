@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { nanoid } from "nanoid";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * User model interface
@@ -40,7 +40,7 @@ const UserSchema = new Schema<IUser>(
   {
     _id: {
       type: String,
-      default: () => nanoid(),
+      default: () => uuidv4(),
     },
     email: {
       type: String,
@@ -65,7 +65,7 @@ const UserSchema = new Schema<IUser>(
 const SessionSchema = new Schema<ISession>({
   _id: {
     type: String,
-    default: () => nanoid(),
+    default: () => uuidv4(),
   },
   userId: {
     type: String,

@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { DataSource } from "../database/workspace-schema";
 import { connectorRegistry } from "../connectors/registry";
-import { getUserFromRequest } from "../middleware/auth";
 import * as crypto from "crypto";
 
 export const dataSourceRoutes = new Hono();
@@ -310,29 +309,6 @@ dataSourceRoutes.patch("/:id/enable", async c => {
       message: `Data source ${
         body.enabled ? "enabled" : "disabled"
       } successfully`,
-    });
-  } catch (error) {
-    return c.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      500,
-    );
-  }
-});
-
-// GET /api/workspaces/:workspaceId/sources/connectors/types - Get available connectors
-dataSourceRoutes.get("/connectors/types", async c => {
-  try {
-    const connectors = connectorRegistry.getAllMetadata();
-
-    return c.json({
-      success: true,
-      data: connectors.map(c => ({
-        type: c.type,
-        ...c.metadata,
-      })),
     });
   } catch (error) {
     return c.json(

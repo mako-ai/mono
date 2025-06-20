@@ -28,3 +28,26 @@ connectorSchemaRoutes.get("/:type/schema", async c => {
 
   return c.json({ success: true, data: schema });
 });
+
+// GET /api/connectors/types - list all available connector types
+connectorSchemaRoutes.get("/types", async c => {
+  try {
+    const connectors = connectorRegistry.getAllMetadata();
+
+    return c.json({
+      success: true,
+      data: connectors.map(c => ({
+        type: c.type,
+        ...c.metadata,
+      })),
+    });
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});

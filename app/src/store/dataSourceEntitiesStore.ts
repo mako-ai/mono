@@ -71,7 +71,6 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
           return data.data;
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error("Failed to fetch data source", err);
       } finally {
         set(state => {

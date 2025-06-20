@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "pnpm run lint && pnpm exec tsc",
-    "start": "node dist/index.js",
+    "start": "tsx src/index.ts",
     "migrate:workspaces": "tsx src/migrations/migrate-to-workspaces.ts",
     "lint": "eslint . --ext ts --report-unused-disable-directives",
     "lint:fix": "eslint . --ext ts --fix"
@@ -26,11 +26,13 @@
     "mongoose": "^8.15.1",
     "mssql": "^11.0.1",
     "mysql2": "^3.14.1",
-    "nanoid": "^5.1.5",
+    "uuid": "^9.0.0",
     "openai": "^5.2.0",
     "pg": "^8.16.0",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "stripe": "^14.25.0",
+    "axios": "^1.6.2"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -38,6 +40,7 @@
     "@types/js-yaml": "^4.0.9",
     "@types/mssql": "^9.1.7",
     "@types/node": "^24.0.0",
+    "@types/uuid": "^9.0.0",
     "@types/pg": "^8.15.4",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",

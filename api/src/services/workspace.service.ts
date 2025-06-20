@@ -8,7 +8,7 @@ import {
   IWorkspaceInvite,
 } from "../database/workspace-schema";
 import { Session } from "../database/schema";
-import { nanoid } from "nanoid";
+import { v4 as uuidv4 } from "uuid";
 
 export class WorkspaceService {
   /**
@@ -264,7 +264,7 @@ export class WorkspaceService {
     const invite = new WorkspaceInvite({
       workspaceId: new Types.ObjectId(workspaceId),
       email,
-      token: nanoid(32),
+      token: uuidv4().replace(/-/g, ""),
       role,
       invitedBy: invitedBy,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
