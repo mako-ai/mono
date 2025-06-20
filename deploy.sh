@@ -10,12 +10,53 @@ export BASE_URL="https://revops.realadvisor.com"
 export CLIENT_URL="https://revops.realadvisor.com"  
 export VITE_API_URL="https://revops.realadvisor.com/api"
 
+# Install dependencies
+echo "Installing dependencies..."
+if ! pnpm install --frozen-lockfile; then
+  echo "❌ Dependency installation failed! Aborting deploy."
+  exit 1
+fi
+
 # Run eslint before building - fail on errors, allow warnings
 echo "Running ESLint checks..."
 pnpm run --filter app lint
 pnpm run --filter api lint
 
-echo "ESLint checks passed. Proceeding with build..."
+echo "ESLint checks passed. Proceeding with local build..."
+
+# -------------------------------------------------------------
+# Local verification step (build & quick start)
+# -------------------------------------------------------------
+
+# Attempt to build both front-end and API locally. If this fails, abort early.
+echo "Building app and API with pnpm..."
+if ! pnpm run build; then
+  echo "❌ pnpm build failed! Aborting deploy."
+  exit 1
+fi
+
+# Quickly start the API to ensure it boots up. Run in the background, wait a few seconds, then kill.
+echo "Starting API locally to verify it starts..."
+pnpm run api:start &
+API_PID=$!
+
+# Give the server a few seconds to initialise
+sleep 7
+
+# Check if the process is still running (i.e. the API did not crash)
+if ! ps -p $API_PID > /dev/null; then
+  echo "❌ API failed to start correctly. Check the logs above for details. Aborting deploy."
+  exit 1
+fi
+
+# Stop the temporarily-started API process
+kill $API_PID 2>/dev/null || true
+wait $API_PID 2>/dev/null || true
+echo "API startup verification succeeded."
+
+# -------------------------------------------------------------
+# Docker build & verification
+# -------------------------------------------------------------
 
 # Configure Docker authentication for Artifact Registry (only do this once)
 # gcloud auth configure-docker $REGION-docker.pkg.dev
@@ -31,6 +72,20 @@ if ! docker build --platform linux/amd64 -t $IMAGE_NAME:latest .; then
     echo "❌ Docker build failed!"
     exit 1
 fi
+
+# Verify that the freshly built image can start successfully.
+echo "Testing Docker image locally..."
+if ! docker run --rm -d --name revops_test -p 8080:8080 $IMAGE_NAME:latest; then
+    echo "❌ Docker container failed to start! Aborting deploy."
+    exit 1
+fi
+# Give the container a few seconds to initialise
+sleep 7
+# Show recent logs for visibility
+docker logs --tail 20 revops_test | cat
+# Stop and remove the test container
+docker stop revops_test || true
+echo "Docker image verification succeeded."
 
 echo "Tagging and pushing Docker image..."
 docker tag $IMAGE_NAME:latest $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest

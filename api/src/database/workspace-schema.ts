@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
-import { nanoid } from "nanoid";
+import { v4 as uuidv4 } from "uuid";
 import * as crypto from "crypto";
 
 // Encryption helper functions
@@ -454,7 +454,7 @@ const WorkspaceInviteSchema = new Schema<IWorkspaceInvite>({
     type: String,
     required: true,
     unique: true,
-    default: () => nanoid(32),
+    default: () => uuidv4().replace(/-/g, ""),
   },
   role: {
     type: String,

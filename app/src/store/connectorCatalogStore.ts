@@ -37,16 +37,14 @@ export const useConnectorCatalogStore = create<CatalogState>()(
       error: null,
       schemas: {},
       schemaLoading: {},
-      fetchCatalog: async (workspaceId: string, force = false) => {
+      fetchCatalog: async (_workspaceId: string, force = false) => {
         set(state => {
           if (state.types && !force) return; // already fetched
           state.loading = true;
           state.error = null;
         });
         try {
-          const response = await fetch(
-            `/api/workspaces/${workspaceId}/sources/connectors/types`,
-          );
+          const response = await fetch("/api/connectors/types");
           const data = await response.json();
           if (data.success) {
             set(state => {
@@ -88,7 +86,6 @@ export const useConnectorCatalogStore = create<CatalogState>()(
             return json.data;
           }
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.error("Failed to fetch schema", err);
         } finally {
           set(state => {
