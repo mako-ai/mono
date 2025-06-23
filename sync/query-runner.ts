@@ -8,7 +8,7 @@ dotenv.config();
 
 class QueryRunner {
   private connections: Map<string, { client: MongoClient; db: Db }> = new Map();
-  private currentDataSource: string = "analytics_db";
+  private currentDataSource: string | null = null;
 
   constructor() {
     // Initialize with primary database
@@ -32,6 +32,12 @@ class QueryRunner {
     dataSourceId?: string,
   ): Promise<{ client: MongoClient; db: Db }> {
     const sourceId = dataSourceId || this.currentDataSource;
+
+    if (!sourceId) {
+      throw new Error(
+        "No data source specified and no default data source available. Please specify a data source ID or add a database to your workspace.",
+      );
+    }
 
     // Check if connection already exists
     if (this.connections.has(sourceId)) {
@@ -90,7 +96,7 @@ class QueryRunner {
       }
 
       // Extract collection name from the first stage if it's a $from stage
-      let collectionName = "leads"; // default collection
+      let collectionName = "data"; // default collection name
       if (
         pipeline.length > 0 &&
         pipeline[0].$from &&
@@ -102,7 +108,7 @@ class QueryRunner {
 
       console.log(`Executing query on collection: ${collectionName}`);
       console.log(
-        `Using data source: ${dataSourceId || this.currentDataSource}`,
+        `Using data source: ${dataSourceId || this.currentDataSource || "none"}`,
       );
 
       // Execute the aggregation pipeline
