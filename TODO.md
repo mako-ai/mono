@@ -1,2 +1,0 @@
-- Add a filter on updated_at to only sync latest leads in the sync-close.ts script (search for most recent updated_at from the mongo collection to determine the last sync time)
-- Create small web client to execute queries against the mongo database
