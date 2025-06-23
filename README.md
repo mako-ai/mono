@@ -8,38 +8,18 @@ The platform uses a data source-based architecture where each connection (API or
 
 ## Configuration
 
-All data sources are configured in `config/config.yaml`:
+Data sources and databases are now managed through the web interface, stored in MongoDB. This provides:
 
-```yaml
-data_sources:
-  close_spain:
-    name: "Spain Close CRM"
-    type: "close"
-    active: true
-    connection:
-      api_key: "${CLOSE_API_KEY_SPAIN}"
-    settings:
-      sync_batch_size: 100
-      rate_limit_delay_ms: 200
+- Secure encrypted storage of API keys and connection strings
+- Multi-workspace support
+- Real-time configuration updates
+- Database connection testing
 
-  stripe_spain:
-    name: "Spain Stripe Payments"
-    type: "stripe"
-    active: true
-    connection:
-      api_key: "${STRIPE_API_KEY_SPAIN}"
-    settings:
-      sync_batch_size: 50
-      rate_limit_delay_ms: 300
-
-  analytics_db:
-    name: "Main Analytics Database"
-    type: "mongodb"
-    active: true
-    connection:
-      connection_string: "mongodb://localhost:27018/multi_tenant_analytics"
-      database: "multi_tenant_analytics"
-```
+Access the web interface at http://localhost:3000 to:
+- Add and configure data sources (Close.com, Stripe, GraphQL)
+- Manage database connections
+- Set up sync schedules
+- Monitor sync status
 
 ## Sync Commands
 
@@ -85,15 +65,15 @@ pnpm run sync close_spain leads --db=analytics_db
 ## Management Commands
 
 ```bash
-# Configuration management
-pnpm run config:validate    # Validate configuration
-pnpm run config:list        # List all data sources
-pnpm run config:show <id>   # Show specific data source details
-
 # Docker management
 pnpm run docker:up          # Start MongoDB and other services
 pnpm run docker:down        # Stop all services
 pnpm run docker:logs        # View logs
+
+# Development
+pnpm run dev                # Start both API and frontend in dev mode
+pnpm run api:dev            # Start API server only
+pnpm run app:dev            # Start frontend only
 ```
 
 ## Query Runner
@@ -123,11 +103,9 @@ pnpm run query queries/example.js --db=analytics_db
 2. Configure environment variables in `.env`:
 
    ```env
-   CLOSE_API_KEY_SPAIN=your_api_key
-   CLOSE_API_KEY_ITALY=your_api_key
-   STRIPE_API_KEY_SPAIN=your_api_key
-   MONGODB_CONNECTION_STRING=mongodb://localhost:27018
-   MONGODB_DATABASE=multi_tenant_analytics
+   DATABASE_URL=mongodb://localhost:27017/mako
+   ENCRYPTION_KEY=your_32_character_hex_key_for_encryption
+   PORT=3001
    ```
 
 3. Start MongoDB:
@@ -144,28 +122,23 @@ pnpm run query queries/example.js --db=analytics_db
 
 ## Adding New Data Sources
 
-Simply add the configuration to `config/config.yaml` and start using it immediately:
+Add new data sources through the web interface:
 
-```yaml
-data_sources:
-  my_new_source:
-    name: "My New Data Source"
-    type: "close" # or "stripe", etc.
-    active: true
-    connection:
-      api_key: "${MY_API_KEY}"
-    settings:
-      sync_batch_size: 100
-      rate_limit_delay_ms: 200
-```
+1. Open http://localhost:3000
+2. Navigate to the Data Sources page
+3. Click "Add Data Source"
+4. Choose your connector type (Close.com, Stripe, GraphQL)
+5. Enter your connection details (API keys, endpoints, etc.)
+6. Test the connection
+7. Save the configuration
 
-Then sync it:
+Then sync it using the data source ID:
 
 ```bash
-pnpm run sync my_new_source
+pnpm run sync <data_source_id>
 ```
 
-No additional setup required!
+All configuration is securely stored and encrypted in the database!
 
 ## Data Source Types
 
@@ -282,17 +255,26 @@ Example queries:
 
 ```
 data-analytics-platform/
-├── src/
+├── sync/                    # Sync scripts and utilities
 │   ├── sync.ts              # Unified sync command
-│   ├── sync-close.ts        # Close.com sync implementation
-│   ├── sync-stripe.ts       # Stripe sync implementation
-│   ├── data-source-manager.ts # Configuration manager
+│   ├── connector-registry.ts # Connector bridge
+│   ├── database-data-source-manager.ts # Database-based config
 │   └── query-runner.ts      # Query execution
-├── config/
-│   └── config.yaml          # Data source configuration
-├── scripts/
-│   └── config.ts            # Configuration utilities
-├── queries/                 # MongoDB query library
+├── api/                     # Backend API server
+│   └── src/
+│       ├── connectors/      # Connector implementations
+│       │   ├── close/       # Close.com connector
+│       │   ├── stripe/      # Stripe connector
+│       │   └── graphql/     # GraphQL connector
+│       ├── routes/          # API endpoints
+│       ├── database/        # Database schemas
+│       └── auth/            # Authentication
+├── app/                     # Frontend React application
+│   └── src/
+│       ├── components/      # React components
+│       ├── pages/           # Page components
+│       └── store/           # State management
+├── consoles/                # MongoDB query library
 ├── docker-compose.yml       # Docker services
 ├── .env                     # Environment variables
 └── package.json            # Dependencies

@@ -1,6 +1,6 @@
 import { MongoClient, Db, MongoClientOptions } from "mongodb";
 import dotenv from "dotenv";
-import { configLoader } from "./config-loader";
+import { Database } from "../database/workspace-schema";
 
 dotenv.config({ path: "../../.env" });
 
@@ -66,8 +66,8 @@ class MongoDBConnection {
     this.connectingDatabases.add(dataSourceId);
 
     try {
-      // Get the data source config
-      const dataSource = configLoader.getMongoDBSource(dataSourceId);
+      // Get the data source config from database
+      const dataSource = await Database.findById(dataSourceId);
 
       if (!dataSource) {
         throw new Error(
@@ -75,33 +75,33 @@ class MongoDBConnection {
         );
       }
 
-      if (!dataSource.connectionString) {
+      if (!dataSource.connection.connectionString) {
         throw new Error(
           `Data source '${dataSourceId}' is missing connection string`,
         );
       }
 
-      if (!dataSource.database) {
+      if (!dataSource.connection.database) {
         throw new Error(
           `Data source '${dataSourceId}' is missing database name`,
         );
       }
 
       console.log(
-        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.database} on ${dataSource.serverName}`,
+        `🔌 Connecting to MongoDB '${dataSourceId}': ${dataSource.connection.database} on ${dataSource.name}`,
       );
 
       const options: MongoClientOptions = {
-        maxPoolSize: dataSource.settings?.max_pool_size || 10,
-        minPoolSize: dataSource.settings?.min_pool_size || 2,
+        maxPoolSize: 10,
+        minPoolSize: 2,
         maxIdleTimeMS: 30000,
         serverSelectionTimeoutMS: 5000,
       };
 
-      const client = new MongoClient(dataSource.connectionString, options);
+      const client = new MongoClient(dataSource.connection.connectionString, options);
 
       await client.connect();
-      const db = client.db(dataSource.database);
+      const db = client.db(dataSource.connection.database);
 
       // Store the connection
       this.connections.set(dataSourceId, { client, db });
@@ -157,31 +157,29 @@ class MongoDBConnection {
    * Returns the first available MongoDB database
    */
   public async getDb(): Promise<Db> {
-    const mongoSources = configLoader.getMongoDBSources();
+    const mongoSources = await Database.find({}).sort({ createdAt: -1 }).limit(1);
     if (mongoSources.length === 0) {
       throw new Error("No MongoDB data sources configured");
     }
 
-    // Try to use analytics_db first for backward compatibility
-    const primarySource =
-      mongoSources.find(s => s.id.endsWith("analytics_db")) || mongoSources[0];
-    return this.getDatabase(primarySource.id);
+    // Use the first available database
+    const primarySource = mongoSources[0];
+    return this.getDatabase(primarySource._id.toString());
   }
 
   /**
    * Legacy method for backward compatibility
    */
   public async getClient(): Promise<MongoClient> {
-    const mongoSources = configLoader.getMongoDBSources();
+    const mongoSources = await Database.find({}).sort({ createdAt: -1 }).limit(1);
     if (mongoSources.length === 0) {
       throw new Error("No MongoDB data sources configured");
     }
 
-    const primarySource =
-      mongoSources.find(s => s.id.endsWith("analytics_db")) || mongoSources[0];
-    await this.getDatabase(primarySource.id); // Ensure connected
+    const primarySource = mongoSources[0];
+    await this.getDatabase(primarySource._id.toString()); // Ensure connected
 
-    const connection = this.connections.get(primarySource.id);
+    const connection = this.connections.get(primarySource._id.toString());
     if (!connection) {
       throw new Error("MongoDB client not connected");
     }

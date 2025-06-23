@@ -9,7 +9,7 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:prettier/recommended',
   ],
-  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules', 'app/', 'api/', 'consoles/', 'scripts/', 'docs/', 'config/'],
+  ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules', 'app/', 'api/', 'consoles/', 'docs/'],
   parser: '@typescript-eslint/parser',
   parserOptions: {
     ecmaVersion: 'latest',

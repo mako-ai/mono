@@ -2,7 +2,7 @@ import { MongoClient, Db } from "mongodb";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
-import { dataSourceManager } from "./data-source-manager";
+import { Database } from "../api/src/database/workspace-schema";
 
 dotenv.config();
 
@@ -12,9 +12,19 @@ class QueryRunner {
 
   constructor() {
     // Initialize with primary database
-    const primaryDb = dataSourceManager.getPrimaryDatabase();
-    if (primaryDb) {
-      this.currentDataSource = primaryDb.id;
+    void this.initializePrimaryDatabase();
+  }
+
+  private async initializePrimaryDatabase() {
+    try {
+      const databases = await Database.find({})
+        .sort({ createdAt: -1 })
+        .limit(1);
+      if (databases.length > 0) {
+        this.currentDataSource = databases[0]._id.toString();
+      }
+    } catch (error) {
+      console.error("Failed to initialize primary database:", error);
     }
   }
 
@@ -29,13 +39,13 @@ class QueryRunner {
     }
 
     // Get data source configuration
-    const dataSource = dataSourceManager.getDataSource(sourceId);
-    if (!dataSource || dataSource.type !== "mongodb") {
+    const dataSource = await Database.findById(sourceId);
+    if (!dataSource) {
       throw new Error(`MongoDB data source '${sourceId}' not found`);
     }
 
     // Create new connection
-    const client = new MongoClient(dataSource.connection.connection_string!);
+    const client = new MongoClient(dataSource.connection.connectionString!);
     await client.connect();
     const db = client.db(dataSource.connection.database);
 
@@ -143,24 +153,32 @@ class QueryRunner {
   /**
    * List all available MongoDB data sources
    */
-  listAvailableDataSources(): {
-    id: string;
-    name: string;
-    description?: string;
-  }[] {
-    return dataSourceManager.getMongoDBSources().map(source => ({
-      id: source.id,
-      name: source.name,
-      description: source.description,
-    }));
+  async listAvailableDataSources(): Promise<
+    {
+      id: string;
+      name: string;
+      description?: string;
+    }[]
+  > {
+    try {
+      const databases = await Database.find({}).sort({ createdAt: -1 });
+      return databases.map(db => ({
+        id: db._id.toString(),
+        name: db.name,
+        description: "",
+      }));
+    } catch (error) {
+      console.error("Failed to list data sources:", error);
+      return [];
+    }
   }
 
   /**
    * Switch the default data source for queries
    */
-  setDefaultDataSource(dataSourceId: string): void {
-    const source = dataSourceManager.getDataSource(dataSourceId);
-    if (!source || source.type !== "mongodb") {
+  async setDefaultDataSource(dataSourceId: string): Promise<void> {
+    const source = await Database.findById(dataSourceId);
+    if (!source) {
       throw new Error(`MongoDB data source '${dataSourceId}' not found`);
     }
     this.currentDataSource = dataSourceId;
