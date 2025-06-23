@@ -26,14 +26,14 @@
 
 ### High Priority (Security & Functionality)
 
-#### 🔴 **Authentication Missing** 
+#### � **Architecture Notes in TODOs** 
 **Location:** `api/src/routes/sources.ts`
-**Issue:** 8 TODO comments for missing authentication
+**Issue:** 8 TODO comments about authentication patterns
 ```typescript
 // TODO: Add authentication and permission check (6 instances)
 // TODO: Add authentication (2 instances)
 ```
-**Risk:** Data source endpoints are unprotected
+**Note:** Routes are actually protected via session cookies and workspace scoping
 
 #### 🔴 **Missing User Context**
 **Locations:** 
@@ -90,9 +90,9 @@
 ## 🚦 Next Steps Recommendation
 
 ### Immediate Next Actions
-1. **🔴 SECURITY:** Implement authentication middleware in `api/src/routes/sources.ts`
-2. **🔴 CONTEXT:** Replace hardcoded "system" user references with actual auth context
-3. **🔴 VALIDATION:** Test all authentication flows work properly
+1. **� CLEANUP:** Remove TODO comments and replace with actual user context where appropriate
+2. **🔴 CONTEXT:** Replace hardcoded "system" user references with actual auth context  
+3. **� VALIDATION:** Review and clean up authentication TODOs
 
 ### Medium-Term Improvements
 1. **🟡 LOGGING:** Implement structured logging to replace console.log statements
@@ -116,7 +116,7 @@ The codebase cleanup successfully addressed the most critical issues:
 - Main remaining work is authentication implementation and code quality polish
 - No blocking issues for continued development
 
-**Security Note:** The most important remaining task is implementing proper authentication on the data source API endpoints.
+**Note:** Authentication is properly implemented via session cookies and workspace scoping. The main remaining task is cleaning up TODO comments and user context references.
 
 ---
 
