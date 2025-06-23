@@ -1,29 +1,20 @@
-import axios, { AxiosError } from "axios";
-import { MongoClient, Db } from "mongodb";
+import axios from "axios";
 import * as dotenv from "dotenv";
 import { IDataSource } from "../../database/workspace-schema";
+import {
+  BaseSyncService,
+  ProgressReporter,
+  SimpleProgressReporter,
+} from "../base/BaseSyncService";
 
 dotenv.config();
 
-export interface ProgressReporter {
-  updateTotal(total: number): void;
-  reportBatch(batchSize: number): void;
-  reportComplete(): void;
-}
-
-export class CloseSyncService {
-  private mongoConnections: Map<string, { client: MongoClient; db: Db }> = new Map();
-  private dataSource: IDataSource;
+export class CloseSyncService extends BaseSyncService {
   private closeApiKey: string;
   private closeApiUrl: string;
-  private settings: {
-    batchSize: number;
-    rateLimitDelay: number;
-    maxRetries: number;
-  };
 
   constructor(dataSource: IDataSource) {
-    this.dataSource = dataSource;
+    super(dataSource);
 
     // Get Close configuration
     if (!dataSource.config.api_key) {
@@ -36,66 +27,44 @@ export class CloseSyncService {
     this.closeApiUrl =
       dataSource.config.api_base_url || "https://api.close.com/api/v1";
 
-    // Get settings with defaults
-    this.settings = {
-      batchSize: dataSource.settings?.sync_batch_size || 100,
-      rateLimitDelay: dataSource.settings?.rate_limit_delay_ms || 200,
-      maxRetries: dataSource.settings?.max_retries || 5,
-    };
+    // Override settings for Close-specific defaults
+    this.settings.batchSize = dataSource.settings?.sync_batch_size || 100;
+    this.settings.rateLimitDelay =
+      dataSource.settings?.rate_limit_delay_ms || 200;
   }
 
-  private async getMongoConnection(
-    targetDb: any,
-  ): Promise<{ client: MongoClient; db: Db }> {
-    // Use default if no target specified
-    if (!targetDb) {
-      throw new Error("No target database specified and no default found");
+  /**
+   * Test Close connection
+   */
+  async testConnection(): Promise<{ success: boolean; message: string }> {
+    try {
+      // Test connection by fetching user info
+      await axios.get(`${this.closeApiUrl}/me/`, {
+        headers: {
+          Authorization: `Basic ${Buffer.from(this.closeApiKey + ":").toString(
+            "base64",
+          )}`,
+          Accept: "application/json",
+        },
+      });
+
+      return {
+        success: true,
+        message: "Close connection successful",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `Close connection failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      };
     }
-
-    const connectionKey = targetDb.id || targetDb.name;
-
-    // Check if connection already exists
-    if (this.mongoConnections.has(connectionKey)) {
-      const existingConnection = this.mongoConnections.get(connectionKey);
-      if (existingConnection) {
-        return existingConnection;
-      }
-    }
-
-    if (!targetDb || targetDb.type !== "mongodb") {
-      throw new Error(
-        `MongoDB data source '${connectionKey}' not found or invalid type`,
-      );
-    }
-
-    if (!targetDb.connection.connection_string) {
-      throw new Error(
-        `MongoDB connection string is required for data source ${targetDb.name}`,
-      );
-    }
-
-    // Create new connection
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-
-    const connection = { client, db };
-    this.mongoConnections.set(connectionKey, connection);
-
-    console.log(
-      `Connected to MongoDB: ${targetDb.name} for Close source: ${this.dataSource.name}`,
-    );
-    return connection;
   }
 
-  private async disconnect(): Promise<void> {
-    for (const [dbId, connection] of this.mongoConnections.entries()) {
-      await connection.client.close();
-      console.log(`Disconnected from MongoDB: ${dbId}`);
-    }
-    this.mongoConnections.clear();
-  }
-
+  /**
+   * Fetch data from Close API with pagination
+   */
   private async fetchCloseData(
     endpoint: string,
     params: any = {},
@@ -136,82 +105,74 @@ export class CloseSyncService {
       }
     }
 
+    let totalFetched = 0;
+    let expectedTotal = 0;
+
     while (hasMore) {
-      let attempts = 0;
+      const response = await this.executeWithRetry(async () => {
+        const res = await axios.get(`${this.closeApiUrl}/${endpoint}`, {
+          headers: {
+            Authorization: `Basic ${Buffer.from(
+              this.closeApiKey + ":",
+            ).toString("base64")}`,
+            Accept: "application/json",
+          },
+          params: {
+            ...params,
+            _skip: skip,
+            _limit: this.settings.batchSize,
+          },
+        });
+        return res;
+      }, `fetch Close ${endpoint}`);
 
-      while (attempts <= this.settings.maxRetries) {
-        try {
-          const response = await axios.get(`${this.closeApiUrl}/${endpoint}`, {
-            headers: {
-              Authorization: `Basic ${Buffer.from(
-                this.closeApiKey + ":",
-              ).toString("base64")}`,
-              Accept: "application/json",
-            },
-            params: {
-              ...params,
-              _skip: skip,
-              _limit: this.settings.batchSize,
-            },
-          });
+      const data = response.data.data || [];
 
-          const data = response.data.data || [];
-          if (onBatch) {
-            await onBatch(data);
-          } else {
-            results.push(...data);
-          }
+      // Track total results if available
+      if (response.data.total_results !== undefined && expectedTotal === 0) {
+        expectedTotal = response.data.total_results;
+      }
 
-          if (progress && data.length > 0) {
-            progress.reportBatch(data.length);
-          }
+      if (onBatch) {
+        await onBatch(data);
+      } else {
+        results.push(...data);
+      }
 
-          hasMore = response.data.has_more || false;
-          skip += this.settings.batchSize;
+      totalFetched += data.length;
 
-          if (hasMore) {
-            await this.delay(this.settings.rateLimitDelay);
-          }
+      if (progress && data.length > 0) {
+        progress.reportBatch(data.length);
+      }
 
-          break;
-        } catch (error: any) {
-          const axiosError: AxiosError | any = error;
+      // Check if we should continue
+      hasMore = response.data.has_more || false;
 
-          if (axiosError.response?.status === 429) {
-            const retryAfterHeader =
-              axiosError.response.headers?.["retry-after"];
-            const retryAfterSeconds = retryAfterHeader
-              ? parseInt(retryAfterHeader, 10)
-              : NaN;
-            const delayMs = !isNaN(retryAfterSeconds)
-              ? retryAfterSeconds * 1000
-              : 1000 * Math.pow(2, attempts);
+      // Additional check: stop if we've fetched the expected total
+      if (expectedTotal > 0 && totalFetched >= expectedTotal) {
+        console.log(
+          `Stopping: fetched ${totalFetched} records, expected ${expectedTotal}`,
+        );
+        hasMore = false;
+      }
 
-            console.warn(
-              `⏳ Received 429 Too Many Requests from Close API. Waiting ${delayMs}ms before retrying (attempt ${attempts + 1}/${this.settings.maxRetries}).`,
-            );
-            await this.delay(delayMs);
-            attempts++;
-            continue;
-          }
+      // Also stop if we got an empty batch
+      if (data.length === 0) {
+        console.log("Stopping: received empty batch");
+        hasMore = false;
+      }
 
-          const isRetryable = this.isRetryableAxiosError(error);
-          attempts++;
+      // Log mismatch between total_results and actual fetched
+      if (!hasMore && totalFetched > expectedTotal && expectedTotal > 0) {
+        console.log(
+          `⚠️ Fetched more records than expected: ${totalFetched} > ${expectedTotal}`,
+        );
+      }
 
-          if (!isRetryable || attempts > this.settings.maxRetries) {
-            console.error(
-              `❌ Failed to fetch from ${endpoint} after ${attempts} attempt(s).`,
-              error,
-            );
-            throw error;
-          }
+      skip += this.settings.batchSize;
 
-          const backoff = 500 * Math.pow(2, attempts);
-          console.warn(
-            `⚠️  Error fetching from ${endpoint} (attempt ${attempts}/${this.settings.maxRetries}). Retrying in ${backoff}ms …`,
-          );
-          await this.delay(backoff);
-        }
+      if (hasMore) {
+        await this.delay(this.settings.rateLimitDelay);
       }
     }
 
@@ -222,347 +183,9 @@ export class CloseSyncService {
     return results;
   }
 
-  private isRetryableAxiosError(error: any): boolean {
-    if (!error || !error.code) return false;
-
-    const retryableNetworkErrors = [
-      "ECONNRESET",
-      "ETIMEDOUT",
-      "EAI_AGAIN",
-      "ENOTFOUND",
-      "ECONNABORTED",
-    ];
-    if (retryableNetworkErrors.includes(error.code)) return true;
-
-    const status = error.response?.status;
-    if (status && [500, 502, 503, 504, 429].includes(status)) {
-      return true;
-    }
-
-    return false;
-  }
-
-  async syncLeads(targetDb?: any, progress?: ProgressReporter): Promise<void> {
-    console.log(`Starting leads sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDb);
-
-    const collectionName = await this.resolveCollectionName(db, "leads");
-    const stagingCollectionName = `${collectionName}_staging`;
-
-    if (await db.listCollections({ name: stagingCollectionName }).hasNext()) {
-      await db.collection(stagingCollectionName).drop();
-    }
-    const stagingCollection = db.collection(stagingCollectionName);
-
-    try {
-      await this.fetchCloseData("lead", {}, progress, async batch => {
-        if (batch.length === 0) return;
-        const processedLeads = batch.map(lead => ({
-          ...lead,
-          _dataSourceId: this.dataSource._id.toString(),
-          _dataSourceName: this.dataSource.name,
-          _syncedAt: new Date(),
-        }));
-
-        const bulkOps = processedLeads.map(lead => ({
-          replaceOne: {
-            filter: { id: lead.id, _dataSourceId: this.dataSource._id.toString() },
-            replacement: lead,
-            upsert: true,
-          },
-        }));
-
-        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-      });
-
-      if (await db.listCollections({ name: collectionName }).hasNext()) {
-        await db.collection(collectionName).drop();
-      }
-      await stagingCollection.rename(collectionName, { dropTarget: true });
-
-      console.log(
-        `✅ Leads synced and collection swapped successfully (${collectionName})`,
-      );
-    } catch (error) {
-      console.error("Lead sync failed:", error);
-      throw error;
-    }
-  }
-
-  async syncOpportunities(
-    targetDb?: any,
-    progress?: ProgressReporter,
-  ): Promise<void> {
-    console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDb);
-
-    const mainName = `${this.dataSource._id}_opportunities`;
-    const stagingName = `${mainName}_staging`;
-
-    if (await db.listCollections({ name: stagingName }).hasNext()) {
-      await db.collection(stagingName).drop();
-    }
-
-    const stagingCollection = db.collection(stagingName);
-
-    try {
-      await this.fetchCloseData("opportunity", {}, progress, async batch => {
-        if (batch.length === 0) return;
-        const processed = batch.map(opp => ({
-          ...opp,
-          _dataSourceId: this.dataSource._id.toString(),
-          _dataSourceName: this.dataSource.name,
-          _syncedAt: new Date(),
-        }));
-
-        const bulkOps = processed.map(opp => ({
-          replaceOne: {
-            filter: { id: opp.id, _dataSourceId: this.dataSource._id.toString() },
-            replacement: opp,
-            upsert: true,
-          },
-        }));
-
-        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-      });
-
-      if (await db.listCollections({ name: mainName }).hasNext()) {
-        await db.collection(mainName).drop();
-      }
-      await stagingCollection.rename(mainName, { dropTarget: true });
-
-      console.log(
-        `✅ Opportunities synced and collection swapped successfully (${mainName})`,
-      );
-    } catch (error) {
-      console.error("Opportunity sync failed:", error);
-      throw error;
-    }
-  }
-
-  async syncContacts(
-    targetDb?: any,
-    progress?: ProgressReporter,
-  ): Promise<void> {
-    console.log(`Starting contacts sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDb);
-
-    const mainName = `${this.dataSource._id}_contacts`;
-    const stagingName = `${mainName}_staging`;
-
-    if (await db.listCollections({ name: stagingName }).hasNext()) {
-      await db.collection(stagingName).drop();
-    }
-    const stagingCollection = db.collection(stagingName);
-
-    try {
-      await this.fetchCloseData("contact", {}, progress, async batch => {
-        if (batch.length === 0) return;
-        const processed = batch.map(contact => ({
-          ...contact,
-          _dataSourceId: this.dataSource._id.toString(),
-          _dataSourceName: this.dataSource.name,
-          _syncedAt: new Date(),
-        }));
-
-        const bulkOps = processed.map(contact => ({
-          replaceOne: {
-            filter: { id: contact.id, _dataSourceId: this.dataSource._id.toString() },
-            replacement: contact,
-            upsert: true,
-          },
-        }));
-
-        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-      });
-
-      if (await db.listCollections({ name: mainName }).hasNext()) {
-        await db.collection(mainName).drop();
-      }
-      await stagingCollection.rename(mainName, { dropTarget: true });
-
-      console.log(
-        `✅ Contacts synced and collection swapped successfully (${mainName})`,
-      );
-    } catch (error) {
-      console.error("Contact sync failed:", error);
-      throw error;
-    }
-  }
-
-  async syncUsers(targetDb?: any, progress?: ProgressReporter): Promise<void> {
-    console.log(`Starting users sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDb);
-
-    const mainName = `${this.dataSource._id}_users`;
-    const stagingName = `${mainName}_staging`;
-
-    if (await db.listCollections({ name: stagingName }).hasNext()) {
-      await db.collection(stagingName).drop();
-    }
-    const stagingCollection = db.collection(stagingName);
-
-    try {
-      await this.fetchCloseData("user", {}, progress, async batch => {
-        if (batch.length === 0) return;
-        const processed = batch.map(user => ({
-          ...user,
-          _dataSourceId: this.dataSource._id.toString(),
-          _dataSourceName: this.dataSource.name,
-          _syncedAt: new Date(),
-        }));
-
-        const bulkOps = processed.map(user => ({
-          replaceOne: {
-            filter: { id: user.id, _dataSourceId: this.dataSource._id.toString() },
-            replacement: user,
-            upsert: true,
-          },
-        }));
-
-        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-      });
-
-      if (await db.listCollections({ name: mainName }).hasNext()) {
-        await db.collection(mainName).drop();
-      }
-      await stagingCollection.rename(mainName, { dropTarget: true });
-
-      console.log(
-        `✅ Users synced and collection swapped successfully (${mainName})`,
-      );
-    } catch (error) {
-      console.error("User sync failed:", error);
-      throw error;
-    }
-  }
-
-  async syncActivities(
-    targetDb?: any,
-    progress?: ProgressReporter,
-  ): Promise<void> {
-    console.log(`Starting activities sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDb);
-
-    const mainName = `${this.dataSource._id}_activities`;
-    const stagingName = `${mainName}_staging`;
-
-    if (await db.listCollections({ name: stagingName }).hasNext()) {
-      await db.collection(stagingName).drop();
-    }
-    const stagingCollection = db.collection(stagingName);
-
-    try {
-      await this.fetchCloseData("activity", {}, progress, async batch => {
-        if (batch.length === 0) return;
-        const processed = batch.map(activity => ({
-          ...activity,
-          _dataSourceId: this.dataSource._id.toString(),
-          _dataSourceName: this.dataSource.name,
-          _syncedAt: new Date(),
-        }));
-
-        const bulkOps = processed.map(activity => ({
-          replaceOne: {
-            filter: { id: activity.id, _dataSourceId: this.dataSource._id.toString() },
-            replacement: activity,
-            upsert: true,
-          },
-        }));
-
-        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-      });
-
-      if (await db.listCollections({ name: mainName }).hasNext()) {
-        await db.collection(mainName).drop();
-      }
-      await stagingCollection.rename(mainName, { dropTarget: true });
-
-      console.log(
-        `✅ Activities synced and collection swapped successfully (${mainName})`,
-      );
-    } catch (error) {
-      console.error("Activity sync failed:", error);
-      throw error;
-    }
-  }
-
-  async syncCustomFields(
-    targetDb?: any,
-    progress?: ProgressReporter,
-  ): Promise<void> {
-    console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
-    const { db } = await this.getMongoConnection(targetDb);
-
-    const mainName = `${this.dataSource._id}_custom_fields`;
-    const stagingName = `${mainName}_staging`;
-
-    if (await db.listCollections({ name: stagingName }).hasNext()) {
-      await db.collection(stagingName).drop();
-    }
-    const stagingCollection = db.collection(stagingName);
-
-    try {
-      const customFieldTypes = [
-        "custom_field/lead",
-        "custom_field/contact",
-        "custom_field/opportunity",
-        "custom_field/activity",
-      ];
-
-      for (const fieldType of customFieldTypes) {
-        try {
-          await this.fetchCloseData(fieldType, {}, progress, async batch => {
-            if (batch.length === 0) return;
-            const processed = batch.map((field: any) => ({
-              ...field,
-              field_type: fieldType.replace("custom_field/", ""),
-              _dataSourceId: this.dataSource._id.toString(),
-              _dataSourceName: this.dataSource.name,
-              _syncedAt: new Date(),
-            }));
-
-            if (progress) {
-              progress.reportBatch(batch.length);
-            }
-
-            const bulkOps = processed.map(field => ({
-              replaceOne: {
-                filter: {
-                  id: field.id,
-                  field_type: field.field_type,
-                  _dataSourceId: this.dataSource._id.toString(),
-                },
-                replacement: field,
-                upsert: true,
-              },
-            }));
-
-            await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-          });
-        } catch (error) {
-          console.warn(`Failed to fetch ${fieldType}:`, error);
-        }
-      }
-
-      if (await db.listCollections({ name: mainName }).hasNext()) {
-        await db.collection(mainName).drop();
-      }
-      await stagingCollection.rename(mainName, { dropTarget: true });
-
-      console.log(
-        `✅ Custom fields synced and collection swapped successfully (${mainName})`,
-      );
-
-      if (progress) {
-        progress.reportComplete();
-      }
-    } catch (error) {
-      console.error("Custom fields sync failed:", error);
-      throw error;
-    }
-  }
-
+  /**
+   * Sync all Close entities
+   */
   async syncAll(targetDb?: any): Promise<void> {
     console.log(
       `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
@@ -609,93 +232,359 @@ export class CloseSyncService {
     }
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
+  // Sync methods using base class patterns
+  async syncLeads(targetDb?: any, progress?: ProgressReporter): Promise<void> {
+    console.log(`Starting leads sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
 
-  private async resolveCollectionName(
-    db: Db,
-    baseSuffix: string,
-  ): Promise<string> {
-    const primary = `${this.dataSource._id}_${baseSuffix}`;
-    const alt = `${this.dataSource.name.replace(/\s+/g, "_").toLowerCase()}_${baseSuffix}`;
-
-    const primaryExists = await db.listCollections({ name: primary }).hasNext();
-    if (primaryExists) return primary;
-
-    const altExists = await db.listCollections({ name: alt }).hasNext();
-    if (altExists) return alt;
-
-    return primary;
-  }
-}
-
-// Simple progress reporter implementation
-class SimpleProgressReporter implements ProgressReporter {
-  private startTime: Date;
-  private totalRecords: number;
-  private currentRecords: number = 0;
-  private entityName: string;
-
-  constructor(entityName: string, totalRecords?: number) {
-    this.entityName = entityName;
-    this.totalRecords = totalRecords || 0;
-    this.startTime = new Date();
-  }
-
-  updateTotal(total: number) {
-    this.totalRecords = total;
-  }
-
-  reportBatch(batchSize: number) {
-    this.currentRecords += batchSize;
-    this.displayProgress();
-  }
-
-  reportComplete() {
-    this.currentRecords = this.totalRecords;
-    this.displayProgress();
-    console.log();
-  }
-
-  private displayProgress() {
-    const elapsed = Date.now() - this.startTime.getTime();
-    const elapsedStr = this.formatTime(elapsed);
-
-    if (this.totalRecords > 0) {
-      const percentage = Math.floor(
-        (this.currentRecords / this.totalRecords) * 100,
+    try {
+      await this.syncWithStaging(
+        "leads",
+        async (batchCallback?: (batch: any[]) => Promise<void>) => {
+          await this.fetchCloseData("lead", {}, progress, batchCallback);
+          return [];
+        },
+        lead => this.processRecordWithMetadata(lead),
+        db,
+        progress,
       );
-      const progressBar = this.createProgressBar(percentage);
-
-      process.stdout.write(
-        `\r🟢 Syncing ${this.entityName}: ${progressBar} ${percentage}% (${this.currentRecords.toLocaleString()}/${this.totalRecords.toLocaleString()}) | ⏱️  ${elapsedStr}`,
-      );
-    } else {
-      process.stdout.write(
-        `\r🟢 Syncing ${this.entityName}: ${this.currentRecords.toLocaleString()} records | ⏱️  ${elapsedStr}`,
-      );
+    } finally {
+      await this.disconnect();
     }
   }
 
-  private createProgressBar(percentage: number): string {
-    const width = 20;
-    const filled = Math.floor((width * percentage) / 100);
-    const empty = width - filled;
-    return "█".repeat(filled) + "░".repeat(empty);
+  async syncLeadsIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting incremental leads sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
+
+    await this.syncIncremental(
+      "leads",
+      async (lastSyncDate?: Date) => {
+        const params: any = {};
+        if (lastSyncDate) {
+          params.query = { updated_gt: lastSyncDate.toISOString() };
+        }
+        return this.fetchCloseData("lead", params, progress);
+      },
+      lead => this.processRecordWithMetadata(lead),
+      db,
+      progress,
+    );
   }
 
-  private formatTime(milliseconds: number): string {
-    const seconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
+  async syncOpportunities(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting opportunities sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
 
-    if (hours > 0) {
-      return `${hours}h${(minutes % 60).toString().padStart(2, "0")}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m${(seconds % 60).toString().padStart(2, "0")}s`;
-    } else {
-      return `${seconds}s`;
+    try {
+      await this.syncWithStaging(
+        "opportunities",
+        async (batchCallback?: (batch: any[]) => Promise<void>) => {
+          // fetchCloseData handles the batch callback internally
+          await this.fetchCloseData("opportunity", {}, progress, batchCallback);
+          return []; // Return empty array since we're using batch callback
+        },
+        opp => this.processRecordWithMetadata(opp),
+        db,
+        progress,
+      );
+    } finally {
+      await this.disconnect();
     }
   }
+
+  async syncOpportunitiesIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(
+      `Starting incremental opportunities sync for: ${this.dataSource.name}`,
+    );
+    const { db } = await this.getMongoConnection(targetDb);
+
+    await this.syncIncremental(
+      "opportunities",
+      async (lastSyncDate?: Date) => {
+        const params: any = {};
+        if (lastSyncDate) {
+          params.query = { updated_gt: lastSyncDate.toISOString() };
+        }
+        return this.fetchCloseData("opportunity", params, progress);
+      },
+      opp => this.processRecordWithMetadata(opp),
+      db,
+      progress,
+    );
+  }
+
+  async syncContacts(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting contacts sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
+
+    try {
+      await this.syncWithStaging(
+        "contacts",
+        async (batchCallback?: (batch: any[]) => Promise<void>) => {
+          await this.fetchCloseData("contact", {}, progress, batchCallback);
+          return [];
+        },
+        contact => this.processRecordWithMetadata(contact),
+        db,
+        progress,
+      );
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  async syncContactsIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(
+      `Starting incremental contacts sync for: ${this.dataSource.name}`,
+    );
+    const { db } = await this.getMongoConnection(targetDb);
+
+    await this.syncIncremental(
+      "contacts",
+      async (lastSyncDate?: Date) => {
+        const params: any = {};
+        if (lastSyncDate) {
+          params.query = { updated_gt: lastSyncDate.toISOString() };
+        }
+        return this.fetchCloseData("contact", params, progress);
+      },
+      contact => this.processRecordWithMetadata(contact),
+      db,
+      progress,
+    );
+  }
+
+  async syncUsers(targetDb?: any, progress?: ProgressReporter): Promise<void> {
+    console.log(`Starting users sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
+
+    try {
+      await this.syncWithStaging(
+        "users",
+        async (batchCallback?: (batch: any[]) => Promise<void>) => {
+          await this.fetchCloseData("user", {}, progress, batchCallback);
+          return [];
+        },
+        user => this.processRecordWithMetadata(user),
+        db,
+        progress,
+      );
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  async syncUsersIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting incremental users sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
+
+    await this.syncIncremental(
+      "users",
+      async (lastSyncDate?: Date) => {
+        const params: any = {};
+        if (lastSyncDate) {
+          params.query = { updated_gt: lastSyncDate.toISOString() };
+        }
+        return this.fetchCloseData("user", params, progress);
+      },
+      user => this.processRecordWithMetadata(user),
+      db,
+      progress,
+    );
+  }
+
+  async syncActivities(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting activities sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
+
+    try {
+      await this.syncWithStaging(
+        "activities",
+        async (batchCallback?: (batch: any[]) => Promise<void>) => {
+          await this.fetchCloseData("activity", {}, progress, batchCallback);
+          return [];
+        },
+        activity => this.processRecordWithMetadata(activity),
+        db,
+        progress,
+      );
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  async syncActivitiesIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(
+      `Starting incremental activities sync for: ${this.dataSource.name}`,
+    );
+    const { db } = await this.getMongoConnection(targetDb);
+
+    await this.syncIncremental(
+      "activities",
+      async (lastSyncDate?: Date) => {
+        const params: any = {};
+        if (lastSyncDate) {
+          params.query = { updated_gt: lastSyncDate.toISOString() };
+        }
+        return this.fetchCloseData("activity", params, progress);
+      },
+      activity => this.processRecordWithMetadata(activity),
+      db,
+      progress,
+    );
+  }
+
+  async syncCustomFields(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(`Starting custom fields sync for: ${this.dataSource.name}`);
+    const { db } = await this.getMongoConnection(targetDb);
+
+    const mainName = `${this.dataSource._id}_custom_fields`;
+    const stagingName = `${mainName}_staging`;
+
+    if (await db.listCollections({ name: stagingName }).hasNext()) {
+      await db.collection(stagingName).drop();
+    }
+    const stagingCollection = db.collection(stagingName);
+
+    try {
+      const customFieldTypes = [
+        "custom_field/lead",
+        "custom_field/contact",
+        "custom_field/opportunity",
+        "custom_field/activity",
+      ];
+
+      for (const fieldType of customFieldTypes) {
+        try {
+          await this.fetchCloseData(fieldType, {}, progress, async batch => {
+            if (batch.length === 0) return;
+            const processed = batch.map((field: any) => ({
+              ...this.processRecordWithMetadata(field),
+              field_type: fieldType.replace("custom_field/", ""),
+            }));
+
+            if (progress) {
+              progress.reportBatch(batch.length);
+            }
+
+            const bulkOps = processed.map(field => ({
+              replaceOne: {
+                filter: {
+                  id: field.id,
+                  field_type: field.field_type,
+                  _dataSourceId: this.dataSource._id.toString(),
+                },
+                replacement: field,
+                upsert: true,
+              },
+            }));
+
+            await stagingCollection.bulkWrite(bulkOps, { ordered: false });
+          });
+        } catch (error) {
+          console.warn(`Failed to fetch ${fieldType}:`, error);
+        }
+      }
+
+      if (await db.listCollections({ name: mainName }).hasNext()) {
+        await db.collection(mainName).drop();
+      }
+      await stagingCollection.rename(mainName, { dropTarget: true });
+
+      console.log(
+        `✅ Custom fields synced and collection swapped successfully (${mainName})`,
+      );
+
+      if (progress) {
+        progress.reportComplete();
+      }
+    } catch (error) {
+      console.error("Custom fields sync failed:", error);
+      throw error;
+    }
+  }
+
+  async syncCustomFieldsIncremental(
+    targetDb?: any,
+    progress?: ProgressReporter,
+  ): Promise<void> {
+    console.log(
+      `Starting incremental custom fields sync for: ${this.dataSource.name}`,
+    );
+    const { db } = await this.getMongoConnection(targetDb);
+
+    const mainName = `${this.dataSource._id}_custom_fields`;
+    const collection = db.collection(mainName);
+
+    // Custom fields don't support filtering by date, so we'll just do a full sync
+    console.log(
+      "Custom fields don't support incremental sync, performing full update",
+    );
+
+    try {
+      await this.fetchCloseData("custom_field", {}, progress, async batch => {
+        if (batch.length === 0) return;
+        const processed = batch.map(customField =>
+          this.processRecordWithMetadata(customField),
+        );
+
+        const bulkOps = processed.map(customField => ({
+          replaceOne: {
+            filter: {
+              id: customField.id,
+              _dataSourceId: this.dataSource._id.toString(),
+            },
+            replacement: customField,
+            upsert: true,
+          },
+        }));
+
+        await collection.bulkWrite(bulkOps, { ordered: false });
+      });
+
+      console.log(`✅ Custom fields sync completed (${mainName})`);
+    } catch (error) {
+      console.error("Custom field sync failed:", error);
+      throw error;
+    }
+  }
+
+  protected getCollectionPrefix(): string {
+    return this.dataSource.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+  }
 }
+
+// Re-export for backward compatibility
+export { ProgressReporter };
