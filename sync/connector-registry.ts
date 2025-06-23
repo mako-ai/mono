@@ -1,8 +1,9 @@
 import { DataSourceConfig } from "./database-data-source-manager";
+import { BaseConnector } from "../api/src/connectors/base/BaseConnector";
 
 interface ConnectorRegistryEntry {
   type: string;
-  syncServiceClass: any;
+  connectorClass: any;
   metadata: {
     name: string;
     version: string;
@@ -12,27 +13,82 @@ interface ConnectorRegistryEntry {
 }
 
 /**
- * Simple connector registry for the sync script
- * Dynamically loads sync services based on connector type
+ * Connector registry for the sync script
+ * Dynamically loads connectors based on connector type
  */
 class SyncConnectorRegistry {
   private connectors: Map<string, ConnectorRegistryEntry> = new Map();
   private initialized = false;
 
   constructor() {
-    this.initializeBuiltInConnectors();
+    void this.initializeBuiltInConnectors();
   }
 
   /**
    * Initialize built-in connectors
    */
-  private initializeBuiltInConnectors() {
+  private async initializeBuiltInConnectors() {
     if (this.initialized) return;
 
-    // Register known connector types
+    // Dynamically load and register connectors
+    try {
+      // Close connector
+      const closeModule = await import("../api/src/connectors/close");
+      const closeConnector = new closeModule.CloseConnector({
+        config: {},
+      } as any);
+      const closeMetadata = closeConnector.getMetadata();
+
+      this.register({
+        type: "close",
+        connectorClass: closeModule.CloseConnector,
+        metadata: closeMetadata,
+      });
+
+      // Stripe connector
+      const stripeModule = await import("../api/src/connectors/stripe");
+      const stripeConnector = new stripeModule.StripeConnector({
+        config: {},
+      } as any);
+      const stripeMetadata = stripeConnector.getMetadata();
+
+      this.register({
+        type: "stripe",
+        connectorClass: stripeModule.StripeConnector,
+        metadata: stripeMetadata,
+      });
+
+      // GraphQL connector
+      const graphqlModule = await import("../api/src/connectors/graphql");
+      const graphqlConnector = new graphqlModule.GraphQLConnector({
+        config: { queries: [] },
+      } as any);
+      const graphqlMetadata = graphqlConnector.getMetadata();
+
+      this.register({
+        type: "graphql",
+        connectorClass: graphqlModule.GraphQLConnector,
+        metadata: graphqlMetadata,
+      });
+    } catch (error) {
+      console.error("Failed to initialize connectors:", error);
+      // Continue with static registration as fallback
+      this.registerStaticConnectors();
+    }
+
+    this.initialized = true;
+    console.log(
+      `✅ Sync connector registry initialized with ${this.connectors.size} connector types`,
+    );
+  }
+
+  /**
+   * Fallback static registration
+   */
+  private registerStaticConnectors() {
     this.register({
       type: "close",
-      syncServiceClass: null, // Will be loaded dynamically
+      connectorClass: null,
       metadata: {
         name: "Close",
         version: "1.0.0",
@@ -50,7 +106,7 @@ class SyncConnectorRegistry {
 
     this.register({
       type: "stripe",
-      syncServiceClass: null, // Will be loaded dynamically
+      connectorClass: null,
       metadata: {
         name: "Stripe",
         version: "1.0.0",
@@ -68,7 +124,7 @@ class SyncConnectorRegistry {
 
     this.register({
       type: "graphql",
-      syncServiceClass: null, // Will be loaded dynamically
+      connectorClass: null,
       metadata: {
         name: "GraphQL",
         version: "1.0.0",
@@ -76,11 +132,6 @@ class SyncConnectorRegistry {
         supportedEntities: ["custom"],
       },
     });
-
-    this.initialized = true;
-    console.log(
-      `✅ Sync connector registry initialized with ${this.connectors.size} connector types`,
-    );
   }
 
   /**
@@ -91,49 +142,60 @@ class SyncConnectorRegistry {
   }
 
   /**
-   * Get a sync service instance for a data source
+   * Get a connector instance for a data source
    */
-  async getSyncService(dataSource: DataSourceConfig): Promise<any | null> {
+  async getConnector(
+    dataSource: DataSourceConfig,
+  ): Promise<BaseConnector | null> {
     const entry = this.connectors.get(dataSource.type);
     if (!entry) {
       return null;
     }
 
-    // Dynamically import the sync service if not already loaded
-    if (!entry.syncServiceClass) {
+    // Dynamically import the connector if not already loaded
+    if (!entry.connectorClass) {
       try {
-        let syncServiceClass;
+        let connectorClass;
         switch (dataSource.type) {
           case "close": {
             const closeModule = await import("../api/src/connectors/close");
-            syncServiceClass = closeModule.CloseSyncService;
+            connectorClass = closeModule.CloseConnector;
             break;
           }
           case "stripe": {
             const stripeModule = await import("../api/src/connectors/stripe");
-            syncServiceClass = stripeModule.StripeSyncService;
+            connectorClass = stripeModule.StripeConnector;
             break;
           }
           case "graphql": {
             const graphqlModule = await import("../api/src/connectors/graphql");
-            syncServiceClass = graphqlModule.GraphQLSyncService;
+            connectorClass = graphqlModule.GraphQLConnector;
             break;
           }
           default:
             throw new Error(`Unknown connector type: ${dataSource.type}`);
         }
 
-        entry.syncServiceClass = syncServiceClass;
+        entry.connectorClass = connectorClass;
       } catch (error) {
         console.error(
-          `Failed to load sync service for ${dataSource.type}:`,
+          `Failed to load connector for ${dataSource.type}:`,
           error,
         );
         return null;
       }
     }
 
-    return new entry.syncServiceClass(dataSource);
+    // Transform the data source to match what the connector expects
+    const connectorDataSource = {
+      _id: dataSource.id,
+      name: dataSource.name,
+      type: dataSource.type,
+      config: dataSource.connection,
+      settings: dataSource.settings,
+    };
+
+    return new entry.connectorClass(connectorDataSource);
   }
 
   /**
@@ -155,6 +217,14 @@ class SyncConnectorRegistry {
    */
   getMetadata(type: string): ConnectorRegistryEntry | null {
     return this.connectors.get(type) || null;
+  }
+
+  /**
+   * Get supported entities for a connector type
+   */
+  getSupportedEntities(type: string): string[] {
+    const entry = this.connectors.get(type);
+    return entry?.metadata.supportedEntities || [];
   }
 }
 

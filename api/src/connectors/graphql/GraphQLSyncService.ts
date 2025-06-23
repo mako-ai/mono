@@ -1,12 +1,10 @@
-import { MongoClient, Db } from "mongodb";
 import axios, { AxiosError } from "axios";
 import { IDataSource } from "../../database/workspace-schema";
-
-export interface ProgressReporter {
-  updateTotal(total: number): void;
-  reportBatch(batchSize: number): void;
-  reportComplete(): void;
-}
+import {
+  BaseSyncService,
+  ProgressReporter,
+  SimpleProgressReporter,
+} from "../base/BaseSyncService";
 
 interface GraphQLQuery {
   name: string;
@@ -26,20 +24,12 @@ interface GraphQLHeaders {
   [key: string]: string;
 }
 
-export class GraphQLSyncService {
-  private mongoConnections: Map<string, { client: MongoClient; db: Db }> = new Map();
-  private dataSource: IDataSource;
+export class GraphQLSyncService extends BaseSyncService {
   private graphqlEndpoint: string;
   private headers: GraphQLHeaders;
-  private settings: {
-    batchSize: number;
-    rateLimitDelay: number;
-    maxRetries: number;
-    timeout: number;
-  };
 
   constructor(dataSource: IDataSource) {
-    this.dataSource = dataSource;
+    super(dataSource);
 
     // Get GraphQL configuration
     if (!dataSource.config.endpoint) {
@@ -86,13 +76,12 @@ export class GraphQLSyncService {
       this.headers["Authorization"] = `Bearer ${dataSource.config.api_key}`;
     }
 
-    // Get settings with defaults
-    this.settings = {
-      batchSize: dataSource.settings?.sync_batch_size || 100,
-      rateLimitDelay: dataSource.settings?.rate_limit_delay_ms || 200,
-      maxRetries: dataSource.settings?.max_retries || 5,
-      timeout: dataSource.settings?.timeout_ms || 30000,
-    };
+    // Override settings based on data source config
+    this.settings.batchSize = dataSource.settings?.sync_batch_size || 100;
+    this.settings.rateLimitDelay =
+      dataSource.settings?.rate_limit_delay_ms || 200;
+    this.settings.maxRetries = dataSource.settings?.max_retries || 5;
+    this.settings.timeout = dataSource.settings?.timeout_ms || 30000;
 
     // Ensure batch size is a valid number
     if (!this.settings.batchSize || this.settings.batchSize <= 0) {
@@ -101,36 +90,6 @@ export class GraphQLSyncService {
       );
       this.settings.batchSize = 100;
     }
-  }
-
-  private async getMongoConnection(
-    targetDb: any,
-  ): Promise<{ client: MongoClient; db: Db }> {
-    // If targetDb is an object with connection info, use it directly
-    if (typeof targetDb === "object" && targetDb.connection) {
-      const client = new MongoClient(targetDb.connection.connection_string);
-      await client.connect();
-      const db = client.db(targetDb.connection.database);
-
-      console.log(
-        `Connected to MongoDB: ${targetDb.name} for GraphQL source: ${this.dataSource.name}`,
-      );
-
-      return { client, db };
-    }
-
-    // Legacy string ID not supported anymore
-    throw new Error(
-      `GraphQL sync requires a database object, not a string ID. Received: ${targetDb}`,
-    );
-  }
-
-  private async disconnect(): Promise<void> {
-    for (const [dbId, connection] of this.mongoConnections.entries()) {
-      await connection.client.close();
-      console.log(`Disconnected from MongoDB: ${dbId}`);
-    }
-    this.mongoConnections.clear();
   }
 
   /**
@@ -568,7 +527,7 @@ export class GraphQLSyncService {
   /**
    * Get value from object using dot notation path
    */
-  private getValueByPath(obj: any, path: string): any {
+  protected getValueByPath(obj: any, path: string): any {
     return path.split(".").reduce((current, key) => {
       return current && current[key] !== undefined ? current[key] : null;
     }, obj);
@@ -577,7 +536,7 @@ export class GraphQLSyncService {
   /**
    * Check if an axios error is retryable
    */
-  private isRetryableAxiosError(error: any): boolean {
+  protected isRetryableAxiosError(error: any): boolean {
     if (!error.response) {
       // Network errors, timeouts, etc. are retryable
       return true;
@@ -592,7 +551,7 @@ export class GraphQLSyncService {
   /**
    * Delay utility for rate limiting and retries
    */
-  private delay(ms: number): Promise<void> {
+  protected delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
@@ -609,75 +568,5 @@ export class GraphQLSyncService {
       cursorPath: q.cursorPath ?? q.cursor_path,
       totalCountPath: q.totalCountPath ?? q.total_count_path,
     } as GraphQLQuery;
-  }
-}
-
-// Simple progress reporter implementation
-class SimpleProgressReporter implements ProgressReporter {
-  private startTime: Date;
-  private totalRecords: number;
-  private currentRecords: number = 0;
-  private entityName: string;
-
-  constructor(entityName: string, totalRecords?: number) {
-    this.entityName = entityName;
-    this.totalRecords = totalRecords || 0;
-    this.startTime = new Date();
-  }
-
-  updateTotal(total: number) {
-    this.totalRecords = total;
-  }
-
-  reportBatch(batchSize: number) {
-    this.currentRecords += batchSize;
-    this.displayProgress();
-  }
-
-  reportComplete() {
-    this.currentRecords = this.totalRecords;
-    this.displayProgress();
-    console.log();
-  }
-
-  private displayProgress() {
-    const elapsed = Date.now() - this.startTime.getTime();
-    const elapsedStr = this.formatTime(elapsed);
-
-    if (this.totalRecords > 0) {
-      const percentage = Math.floor(
-        (this.currentRecords / this.totalRecords) * 100,
-      );
-      const progressBar = this.createProgressBar(percentage);
-
-      process.stdout.write(
-        `\r🟢 Syncing ${this.entityName}: ${progressBar} ${percentage}% (${this.currentRecords.toLocaleString()}/${this.totalRecords.toLocaleString()}) | ⏱️  ${elapsedStr}`,
-      );
-    } else {
-      process.stdout.write(
-        `\r🟢 Syncing ${this.entityName}: ${this.currentRecords.toLocaleString()} records | ⏱️  ${elapsedStr}`,
-      );
-    }
-  }
-
-  private createProgressBar(percentage: number): string {
-    const width = 20;
-    const filled = Math.floor((width * percentage) / 100);
-    const empty = width - filled;
-    return "█".repeat(filled) + "░".repeat(empty);
-  }
-
-  private formatTime(milliseconds: number): string {
-    const seconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}h${(minutes % 60).toString().padStart(2, "0")}m`;
-    } else if (minutes > 0) {
-      return `${minutes}m${(seconds % 60).toString().padStart(2, "0")}s`;
-    } else {
-      return `${seconds}s`;
-    }
   }
 }

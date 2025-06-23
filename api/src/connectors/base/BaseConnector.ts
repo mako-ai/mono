@@ -16,6 +16,7 @@ export interface SyncOptions {
   targetDatabase?: any;
   progress?: SyncProgress;
   entity?: string;
+  syncMode?: "full" | "incremental";
 }
 
 export abstract class BaseConnector {

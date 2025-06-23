@@ -3,11 +3,12 @@ import {
   ConnectionTestResult,
   SyncOptions,
 } from "../base/BaseConnector";
-import { MongoClient } from "mongodb";
+import { CloseSyncService } from "./CloseSyncService";
 import axios, { AxiosInstance } from "axios";
 
 export class CloseConnector extends BaseConnector {
   private closeApi: AxiosInstance | null = null;
+  private syncService: CloseSyncService | null = null;
 
   static getConfigSchema() {
     return {
@@ -77,6 +78,13 @@ export class CloseConnector extends BaseConnector {
     return this.closeApi;
   }
 
+  private getSyncService(): CloseSyncService {
+    if (!this.syncService) {
+      this.syncService = new CloseSyncService(this.dataSource);
+    }
+    return this.syncService;
+  }
+
   async testConnection(): Promise<ConnectionTestResult> {
     try {
       const validation = this.validateConfig();
@@ -125,411 +133,65 @@ export class CloseConnector extends BaseConnector {
   }
 
   async syncEntity(entity: string, options: SyncOptions): Promise<void> {
-    const { targetDatabase, progress } = options;
+    const { targetDatabase, progress, syncMode = "full" } = options;
 
     if (!targetDatabase) {
       throw new Error("Target database is required for sync");
     }
 
+    const syncService = this.getSyncService();
+
     switch (entity.toLowerCase()) {
       case "leads":
-        await this.syncLeads(targetDatabase, progress);
+        if (syncMode === "incremental") {
+          await syncService.syncLeadsIncremental(targetDatabase, progress);
+        } else {
+          await syncService.syncLeads(targetDatabase, progress);
+        }
         break;
       case "opportunities":
-        await this.syncOpportunities(targetDatabase, progress);
+        if (syncMode === "incremental") {
+          await syncService.syncOpportunitiesIncremental(
+            targetDatabase,
+            progress,
+          );
+        } else {
+          await syncService.syncOpportunities(targetDatabase, progress);
+        }
         break;
       case "activities":
-        await this.syncActivities(targetDatabase, progress);
+        if (syncMode === "incremental") {
+          await syncService.syncActivitiesIncremental(targetDatabase, progress);
+        } else {
+          await syncService.syncActivities(targetDatabase, progress);
+        }
         break;
       case "contacts":
-        await this.syncContacts(targetDatabase, progress);
+        if (syncMode === "incremental") {
+          await syncService.syncContactsIncremental(targetDatabase, progress);
+        } else {
+          await syncService.syncContacts(targetDatabase, progress);
+        }
         break;
       case "users":
-        await this.syncUsers(targetDatabase, progress);
+        if (syncMode === "incremental") {
+          await syncService.syncUsersIncremental(targetDatabase, progress);
+        } else {
+          await syncService.syncUsers(targetDatabase, progress);
+        }
         break;
       case "custom_fields":
-        await this.syncCustomFields(targetDatabase, progress);
+        if (syncMode === "incremental") {
+          await syncService.syncCustomFieldsIncremental(
+            targetDatabase,
+            progress,
+          );
+        } else {
+          await syncService.syncCustomFields(targetDatabase, progress);
+        }
         break;
       default:
         throw new Error(`Unknown entity: ${entity}`);
-    }
-  }
-
-  private async syncLeads(targetDb: any, progress?: any) {
-    const api = this.getCloseClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("close_leads");
-
-    try {
-      let hasMore = true;
-      let offset = 0;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const response = await api.get("/lead/", {
-          params: {
-            _limit: batchSize,
-            _skip: offset,
-          },
-        });
-
-        const leads = response.data.data;
-
-        if (leads.length > 0) {
-          const documents = leads.map((lead: any) => ({
-            closeId: lead.id,
-            ...lead,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map((doc: any) => ({
-              replaceOne: {
-                filter: { closeId: doc.closeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-        }
-
-        hasMore = response.data.has_more;
-        offset += batchSize;
-
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} leads`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncOpportunities(targetDb: any, progress?: any) {
-    const api = this.getCloseClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("close_opportunities");
-
-    try {
-      let hasMore = true;
-      let offset = 0;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const response = await api.get("/opportunity/", {
-          params: {
-            _limit: batchSize,
-            _skip: offset,
-          },
-        });
-
-        const opportunities = response.data.data;
-
-        if (opportunities.length > 0) {
-          const documents = opportunities.map((opportunity: any) => ({
-            closeId: opportunity.id,
-            ...opportunity,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map((doc: any) => ({
-              replaceOne: {
-                filter: { closeId: doc.closeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-        }
-
-        hasMore = response.data.has_more;
-        offset += batchSize;
-
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} opportunities`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncActivities(targetDb: any, progress?: any) {
-    const api = this.getCloseClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("close_activities");
-
-    try {
-      let hasMore = true;
-      let offset = 0;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const response = await api.get("/activity/", {
-          params: {
-            _limit: batchSize,
-            _skip: offset,
-          },
-        });
-
-        const activities = response.data.data;
-
-        if (activities.length > 0) {
-          const documents = activities.map((activity: any) => ({
-            closeId: activity.id,
-            ...activity,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map((doc: any) => ({
-              replaceOne: {
-                filter: { closeId: doc.closeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-        }
-
-        hasMore = response.data.has_more;
-        offset += batchSize;
-
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} activities`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncContacts(targetDb: any, progress?: any) {
-    const api = this.getCloseClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("close_contacts");
-
-    try {
-      let hasMore = true;
-      let offset = 0;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const response = await api.get("/contact/", {
-          params: {
-            _limit: batchSize,
-            _skip: offset,
-          },
-        });
-
-        const contacts = response.data.data;
-
-        if (contacts.length > 0) {
-          const documents = contacts.map((contact: any) => ({
-            closeId: contact.id,
-            ...contact,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map((doc: any) => ({
-              replaceOne: {
-                filter: { closeId: doc.closeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-        }
-
-        hasMore = response.data.has_more;
-        offset += batchSize;
-
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} contacts`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncUsers(targetDb: any, progress?: any) {
-    const api = this.getCloseClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("close_users");
-
-    try {
-      let hasMore = true;
-      let offset = 0;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const response = await api.get("/user/", {
-          params: {
-            _limit: batchSize,
-            _skip: offset,
-          },
-        });
-
-        const users = response.data.data;
-
-        if (users.length > 0) {
-          const documents = users.map((user: any) => ({
-            closeId: user.id,
-            ...user,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map((doc: any) => ({
-              replaceOne: {
-                filter: { closeId: doc.closeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-        }
-
-        hasMore = response.data.has_more;
-        offset += batchSize;
-
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} users`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncCustomFields(targetDb: any, progress?: any) {
-    const api = this.getCloseClient();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("close_custom_fields");
-
-    try {
-      // Custom fields don't paginate the same way
-      const response = await api.get("/custom_field/");
-      const customFields = response.data.data;
-
-      if (customFields.length > 0) {
-        const documents = customFields.map((field: any) => ({
-          closeId: field.id,
-          ...field,
-          _syncedAt: new Date(),
-          _dataSourceId: this.dataSource._id.toString(),
-        }));
-
-        await collection.bulkWrite(
-          documents.map((doc: any) => ({
-            replaceOne: {
-              filter: { closeId: doc.closeId },
-              replacement: doc,
-              upsert: true,
-            },
-          })),
-        );
-
-        if (progress) {
-          progress.reportBatch(documents.length);
-          progress.reportComplete();
-        }
-
-        console.log(`✓ Synced ${documents.length} custom fields`);
-      }
-    } finally {
-      await client.close();
     }
   }
 }

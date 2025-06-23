@@ -122,6 +122,7 @@ class DatabaseDataSourceManager {
   private client: MongoClient;
   private db!: Db;
   private schemaCache: Map<string, ConnectorSchema> = new Map();
+  private databaseName: string;
 
   constructor() {
     if (!process.env.DATABASE_URL) {
@@ -129,11 +130,30 @@ class DatabaseDataSourceManager {
     }
     const connectionString = process.env.DATABASE_URL;
     this.client = new MongoClient(connectionString);
+
+    // Extract database name from the connection string or use environment variable
+    this.databaseName =
+      process.env.DATABASE_NAME ||
+      this.extractDatabaseName(connectionString) ||
+      "mako";
+  }
+
+  private extractDatabaseName(connectionString: string): string | null {
+    try {
+      const url = new URL(connectionString);
+      const pathname = url.pathname;
+      if (pathname && pathname.length > 1) {
+        return pathname.substring(1); // Remove leading slash
+      }
+    } catch {
+      // Invalid URL, return null
+    }
+    return null;
   }
 
   private async connect(): Promise<void> {
     await this.client.connect();
-    this.db = this.client.db("mako");
+    this.db = this.client.db(this.databaseName);
   }
 
   private async disconnect(): Promise<void> {
