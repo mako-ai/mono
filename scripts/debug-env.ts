@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-import { dataSourceManager } from "../src/data-source-manager";
+import { dataSourceManager } from "../sync/data-source-manager";
 
 // Load environment variables
 dotenv.config();

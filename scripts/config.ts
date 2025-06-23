@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 
-import { dataSourceManager } from "../src/data-source-manager";
+import { dataSourceManager } from "../sync/data-source-manager";
 import * as dotenv from "dotenv";
 
 // Load environment variables

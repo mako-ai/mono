@@ -105,17 +105,17 @@ class SyncConnectorRegistry {
         let syncServiceClass;
         switch (dataSource.type) {
           case "close": {
-            const closeModule = await import("./sync-close");
+            const closeModule = await import("../api/src/connectors/close");
             syncServiceClass = closeModule.CloseSyncService;
             break;
           }
           case "stripe": {
-            const stripeModule = await import("./sync-stripe");
+            const stripeModule = await import("../api/src/connectors/stripe");
             syncServiceClass = stripeModule.StripeSyncService;
             break;
           }
           case "graphql": {
-            const graphqlModule = await import("./sync-graphql");
+            const graphqlModule = await import("../api/src/connectors/graphql");
             syncServiceClass = graphqlModule.GraphQLSyncService;
             break;
           }
