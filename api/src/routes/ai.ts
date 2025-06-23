@@ -47,7 +47,7 @@ const chatTools: any[] = [
         databaseId: {
           type: "string",
           description:
-            "The id of the database to list collections for (e.g. server1.analytics_db)",
+            "The id of the database to list collections for (use database ID from web interface)",
         },
       },
       required: ["databaseId"],
@@ -69,7 +69,7 @@ const chatTools: any[] = [
         databaseId: {
           type: "string",
           description:
-            "The database identifier to execute the query against (e.g. server1.analytics_db)",
+            "The database identifier to execute the query against (use database ID from web interface)",
         },
       },
       required: ["query", "databaseId"],
