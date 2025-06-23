@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "pnpm run lint && pnpm exec tsc",
+    "build": "pnpm run lint && pnpm exec tsc && copyfiles -u 1 'src/**/*.svg' dist",
     "start": "tsx src/index.ts",
     "migrate:workspaces": "tsx src/migrations/migrate-to-workspaces.ts",
     "lint": "eslint . --ext ts --report-unused-disable-directives",
@@ -15,6 +15,7 @@
     "@hono/node-server": "^1.14.4",
     "@openai/agents": "^0.0.5",
     "arctic": "^3.7.0",
+    "axios": "^1.6.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
@@ -26,13 +27,12 @@
     "mongoose": "^8.15.1",
     "mssql": "^11.0.1",
     "mysql2": "^3.14.1",
-    "uuid": "^9.0.0",
     "openai": "^5.2.0",
     "pg": "^8.16.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
     "stripe": "^14.25.0",
-    "axios": "^1.6.2"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
@@ -40,10 +40,11 @@
     "@types/js-yaml": "^4.0.9",
     "@types/mssql": "^9.1.7",
     "@types/node": "^24.0.0",
-    "@types/uuid": "^9.0.0",
     "@types/pg": "^8.15.4",
+    "@types/uuid": "^9.0.0",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
+    "copyfiles": "^2.4.1",
     "eslint": "^8.57.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
