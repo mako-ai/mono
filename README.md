@@ -23,24 +23,26 @@ Access the web interface at http://localhost:3000 to:
 
 ## Sync Commands
 
-The platform provides a unified sync command that works with any data source defined in your configuration:
+The platform provides a unified sync command that works with any data source configured in your workspace:
 
 ```bash
 # Show sync command usage
 pnpm run sync
 
-# Sync all entities from a data source
-pnpm run sync close_spain
+# Sync all entities from a data source (use data source ID from web interface)
+pnpm run sync <data_source_id>
 
 # Sync specific entity from a data source
-pnpm run sync close_spain leads
-pnpm run sync close_spain opportunities
-pnpm run sync stripe_spain customers
+pnpm run sync <data_source_id> leads
+pnpm run sync <data_source_id> opportunities
+pnpm run <data_source_id> customers
 
 # Sync to a different target database
-pnpm run sync close_spain --db=warehouse_db
-pnpm run sync close_spain leads --db=analytics_db
+pnpm run sync <data_source_id> --db=<target_database_id>
+pnpm run sync <data_source_id> leads --db=<target_database_id>
 ```
+
+**Note:** Data source IDs are automatically generated when you add data sources through the web interface. You can find these IDs in the Data Sources page.
 
 ### Available Entities
 
@@ -81,12 +83,14 @@ pnpm run app:dev            # Start frontend only
 Run MongoDB queries across different databases:
 
 ```bash
-# Run query on default database
+# Run query on default database (automatically uses most recent database)
 pnpm run query queries/example.js
 
-# Run query on specific database
-pnpm run query queries/example.js --db=analytics_db
+# Run query on specific database (use database ID from web interface)
+pnpm run query queries/example.js --db=<database_id>
 ```
+
+**Note:** Database IDs are automatically generated when you add databases through the web interface. You can find these IDs in the Databases page.
 
 ## Setup
 
@@ -114,10 +118,21 @@ pnpm run query queries/example.js --db=analytics_db
    pnpm run docker:up
    ```
 
-4. Start syncing:
+4. Start the development servers:
    ```bash
-   pnpm run sync close_spain
-   pnpm run sync stripe_spain customers
+   pnpm run dev
+   ```
+
+5. Configure your first data source:
+   - Open http://localhost:3000 in your browser
+   - Navigate to Data Sources and add your first connector
+   - Add a target database in the Databases section
+
+6. Start syncing:
+   ```bash
+   # Replace <data_source_id> with the ID from your web interface
+   pnpm run sync <data_source_id>
+   pnpm run sync <data_source_id> customers
    ```
 
 ## Adding New Data Sources
@@ -186,44 +201,47 @@ This ensures your queries never see partial data.
 
 ## Querying Data
 
-### Using Mongo Express
-
-1. Open http://localhost:8081
-2. Navigate to `multi_tenant_analytics` database
-3. Browse collections and run queries
-
 ### Using MongoDB Compass
 
-Connect to: `mongodb://localhost:27018/multi_tenant_analytics`
+Connect to: `mongodb://localhost:27017/mako`
+
+### Using the Web Interface
+
+1. Open http://localhost:3000
+2. Navigate to the chat interface
+3. Use natural language to query your data
+4. The AI assistant will help you explore your databases
 
 ### Command Line
 
 ```bash
-# Connect to MongoDB container
-docker exec -it mongo mongosh multi_tenant_analytics
+# Connect to MongoDB directly
+mongosh mongodb://localhost:27017/mako
 
-# Example query
-db.leads.find({_dataSourceId: "close_spain"}).count()
+# Example query (replace data_source_id with your actual ID)
+db.leads.find({_dataSourceId: "<your_data_source_id>"}).count()
 ```
 
 ## Sample Analytics Queries
 
-Ready-made queries are available in the `queries/` folder:
+Ready-made queries are available in the `consoles/` folder:
 
 ```bash
 # Run a specific query
-pnpm run query <query_name>
+pnpm run query consoles/all/leads_by_closer_by_status.js
 
-# List available queries
-pnpm run query --list
+# Run query on specific database
+pnpm run query consoles/all/opps_created_by_month.js --db=<database_id>
 ```
 
-Example queries:
+Example queries available:
 
-- Sales by salesperson by month
-- Average time to close by salesperson
-- Open opportunities by salesperson
-- Stale opportunities analysis
+- `consoles/all/leads_by_closer_by_status.js` - Lead distribution by sales rep
+- `consoles/all/opps_created_by_month.js` - Opportunity creation trends
+- `consoles/all/time_to_close.js` - Sales cycle analysis
+- `consoles/all/top_sales_people.js` - Top performer analysis
+
+**Note:** These queries are designed to work with data sources that have been synced through the platform.
 
 ## Troubleshooting
 
@@ -259,25 +277,37 @@ data-analytics-platform/
 │   ├── sync.ts              # Unified sync command
 │   ├── connector-registry.ts # Connector bridge
 │   ├── database-data-source-manager.ts # Database-based config
-│   └── query-runner.ts      # Query execution
+│   ├── query-runner.ts      # Query execution
+│   └── test-sync.ts         # Testing utilities
 ├── api/                     # Backend API server
 │   └── src/
 │       ├── connectors/      # Connector implementations
+│       │   ├── base/        # Base connector interface
 │       │   ├── close/       # Close.com connector
 │       │   ├── stripe/      # Stripe connector
-│       │   └── graphql/     # GraphQL connector
+│       │   ├── graphql/     # GraphQL connector
+│       │   └── registry.ts  # Connector registry
 │       ├── routes/          # API endpoints
 │       ├── database/        # Database schemas
-│       └── auth/            # Authentication
+│       ├── auth/            # Authentication system
+│       ├── services/        # Business logic services
+│       └── middleware/      # Express middleware
 ├── app/                     # Frontend React application
 │   └── src/
 │       ├── components/      # React components
 │       ├── pages/           # Page components
-│       └── store/           # State management
-├── consoles/                # MongoDB query library
-├── docker-compose.yml       # Docker services
+│       ├── contexts/        # React contexts
+│       ├── hooks/           # Custom React hooks
+│       ├── lib/             # Utility libraries
+│       └── store/           # State management (Zustand)
+├── consoles/                # MongoDB analytics queries
+│   ├── all/                 # Cross-workspace queries
+│   ├── ch/                  # Switzerland-specific queries
+│   ├── es/                  # Spain-specific queries
+│   └── it/                  # Italy-specific queries
+├── docs/                    # Documentation
 ├── .env                     # Environment variables
-└── package.json            # Dependencies
+└── package.json             # Dependencies and scripts
 ```
 
 ## Next Steps
