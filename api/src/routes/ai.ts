@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import OpenAI from "openai";
-import { configLoader } from "../utils/config-loader";
 import { mongoConnection } from "../utils/mongodb-connection";
 import { QueryExecutor } from "../utils/query-executor";
 import { ObjectId } from "mongodb";
+import { Database } from "../database/workspace-schema";
 
 export const aiRoutes = new Hono();
 
@@ -78,18 +78,23 @@ const chatTools: any[] = [
 ];
 
 // --- Helper functions that implement the tools ----
-const listDatabases = () => {
+const listDatabases = async () => {
   console.log("DATA BASES LISTING");
-  const mongoSources = configLoader.getMongoDBSources();
-  return mongoSources.map(source => ({
-    id: source.id,
-    name: source.name,
-    description: source.description || "",
-    database: source.database,
-    active: source.active,
-    serverId: source.serverId,
-    serverName: source.serverName,
-  }));
+  try {
+    const databases = await Database.find({}).sort({ createdAt: -1 });
+    return databases.map(db => ({
+      id: db._id.toString(),
+      name: db.name,
+      description: "",
+      database: db.connection.database,
+      active: true,
+      serverId: db._id.toString(),
+      serverName: db.name,
+    }));
+  } catch (error) {
+    console.error("Error fetching databases:", error);
+    return [];
+  }
 };
 
 const listCollections = async (databaseId: string) => {
@@ -117,7 +122,7 @@ const executeToolCall = async (fc: any) => {
   try {
     switch (fc.name) {
       case "list_databases":
-        result = listDatabases();
+        result = await listDatabases();
         break;
       case "list_collections":
         if (!parsedArgs.databaseId) {
