@@ -65,7 +65,7 @@ Configure the following variables:
 
 ```env
 # Database
-DATABASE_URL=mongodb://localhost:27017/myapp
+DATABASE_URL=mongodb://localhost:27017/mako
 
 # OAuth Providers
 GOOGLE_CLIENT_ID=your_google_client_id
@@ -74,8 +74,8 @@ GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 
 # Application URLs
-BASE_URL=http://localhost:8080
-CLIENT_URL=http://localhost:5173
+BASE_URL=http://localhost:3001
+CLIENT_URL=http://localhost:3000
 
 # Session Configuration
 SESSION_SECRET=generate_32_char_random_string
@@ -95,14 +95,14 @@ RATE_LIMIT_MAX_REQUESTS=5
 2. Create a new project or select existing
 3. Enable Google+ API
 4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `http://localhost:8080/api/auth/google/callback`
+5. Add authorized redirect URI: `http://localhost:3001/api/auth/google/callback`
 6. Copy Client ID and Client Secret to `.env`
 
 #### GitHub OAuth Setup
 
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Create a new OAuth App
-3. Set Authorization callback URL: `http://localhost:8080/api/auth/github/callback`
+3. Set Authorization callback URL: `http://localhost:3001/api/auth/github/callback`
 4. Copy Client ID and Client Secret to `.env`
 
 ### 3. Database Setup
@@ -110,7 +110,10 @@ RATE_LIMIT_MAX_REQUESTS=5
 Ensure MongoDB is running:
 
 ```bash
-# Using Docker
+# Using Docker Compose (recommended)
+pnpm run docker:up
+
+# Or using Docker directly
 docker run -d -p 27017:27017 --name mongodb mongo
 
 # Or start local MongoDB
@@ -121,10 +124,10 @@ mongod
 
 ```bash
 # Install dependencies
-pnpm install:all
+pnpm install
 
 # Start development servers
-pnpm dev
+pnpm run dev
 ```
 
 ## Usage Guide

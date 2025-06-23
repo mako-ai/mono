@@ -11,15 +11,24 @@ The connector system is designed to be extensible, allowing easy addition of new
 ```
 connectors/
 ├── base/
-│   └── BaseConnector.ts    # Abstract base class for all connectors
+│   └── BaseConnector.ts     # Abstract base class for all connectors
 ├── stripe/
-│   └── StripeConnector.ts  # Stripe payment platform connector
+│   ├── StripeConnector.ts   # Stripe payment platform connector
+│   ├── StripeSyncService.ts # Stripe sync service implementation
+│   ├── index.ts             # Module exports
+│   └── icon.svg             # Stripe connector icon
 ├── close/
-│   └── CloseConnector.ts   # Close CRM connector
+│   ├── CloseConnector.ts    # Close CRM connector
+│   ├── CloseSyncService.ts  # Close sync service implementation
+│   ├── index.ts             # Module exports
+│   └── icon.svg             # Close connector icon
 ├── graphql/
-│   └── GraphQLConnector.ts # Generic GraphQL API connector
-├── registry.ts             # Connector registry and management
-└── README.md              # This file
+│   ├── GraphQLConnector.ts  # Generic GraphQL API connector
+│   ├── GraphQLSyncService.ts # GraphQL sync service implementation
+│   ├── index.ts             # Module exports
+│   └── icon.svg             # GraphQL connector icon
+├── registry.ts              # Connector registry and management
+└── README.md               # This file
 ```
 
 ## Creating a New Connector
@@ -28,8 +37,10 @@ To add support for a new data source type:
 
 1. Create a new directory for your connector (e.g., `salesforce/`)
 2. Create a connector class that extends `BaseConnector`
-3. Implement all required methods
-4. Register your connector in `registry.ts`
+3. Create a sync service class (optional, for complex sync logic)
+4. Add an `index.ts` file to export your connector
+5. Include an `icon.svg` file for the web interface
+6. Register your connector in `registry.ts`
 
 ### Example Connector Implementation
 
