@@ -41,10 +41,6 @@ RUN cd node_modules/.pnpm/sqlite3@*/node_modules/sqlite3 && npm run install --ta
 COPY --from=builder /app/api/dist ./dist
 COPY --from=builder /app/app/dist ./public
 
-# Copy config directory
-COPY --from=builder /app/config /config
-COPY --from=builder /app/consoles /consoles
-
 ENV PORT=8080
 EXPOSE 8080
 
