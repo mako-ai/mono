@@ -126,10 +126,8 @@ export class CloseConnector extends BaseConnector {
   }
 
   async syncAll(options: SyncOptions): Promise<void> {
-    const entities = this.getAvailableEntities();
-    for (const entity of entities) {
-      await this.syncEntity(entity, options);
-    }
+    const syncService = this.getSyncService();
+    await syncService.syncAll(options.targetDatabase);
   }
 
   async syncEntity(entity: string, options: SyncOptions): Promise<void> {
@@ -140,58 +138,9 @@ export class CloseConnector extends BaseConnector {
     }
 
     const syncService = this.getSyncService();
+    const incremental = syncMode === "incremental";
 
-    switch (entity.toLowerCase()) {
-      case "leads":
-        if (syncMode === "incremental") {
-          await syncService.syncLeadsIncremental(targetDatabase, progress);
-        } else {
-          await syncService.syncLeads(targetDatabase, progress);
-        }
-        break;
-      case "opportunities":
-        if (syncMode === "incremental") {
-          await syncService.syncOpportunitiesIncremental(
-            targetDatabase,
-            progress,
-          );
-        } else {
-          await syncService.syncOpportunities(targetDatabase, progress);
-        }
-        break;
-      case "activities":
-        if (syncMode === "incremental") {
-          await syncService.syncActivitiesIncremental(targetDatabase, progress);
-        } else {
-          await syncService.syncActivities(targetDatabase, progress);
-        }
-        break;
-      case "contacts":
-        if (syncMode === "incremental") {
-          await syncService.syncContactsIncremental(targetDatabase, progress);
-        } else {
-          await syncService.syncContacts(targetDatabase, progress);
-        }
-        break;
-      case "users":
-        if (syncMode === "incremental") {
-          await syncService.syncUsersIncremental(targetDatabase, progress);
-        } else {
-          await syncService.syncUsers(targetDatabase, progress);
-        }
-        break;
-      case "custom_fields":
-        if (syncMode === "incremental") {
-          await syncService.syncCustomFieldsIncremental(
-            targetDatabase,
-            progress,
-          );
-        } else {
-          await syncService.syncCustomFields(targetDatabase, progress);
-        }
-        break;
-      default:
-        throw new Error(`Unknown entity: ${entity}`);
-    }
+    // Use the generic syncEntity method
+    await syncService.syncEntity(entity, targetDatabase, progress, incremental);
   }
 }
