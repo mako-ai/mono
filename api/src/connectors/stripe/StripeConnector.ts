@@ -3,11 +3,12 @@ import {
   ConnectionTestResult,
   SyncOptions,
 } from "../base/BaseConnector";
-import { MongoClient } from "mongodb";
+import { StripeSyncService } from "./StripeSyncService";
 import Stripe from "stripe";
 
 export class StripeConnector extends BaseConnector {
   private stripe: Stripe | null = null;
+  private syncService: StripeSyncService | null = null;
 
   // Schema describing required configuration for this connector (used by frontend)
   static getConfigSchema() {
@@ -70,6 +71,13 @@ export class StripeConnector extends BaseConnector {
     return this.stripe;
   }
 
+  private getSyncService(): StripeSyncService {
+    if (!this.syncService) {
+      this.syncService = new StripeSyncService(this.dataSource);
+    }
+    return this.syncService;
+  }
+
   async testConnection(): Promise<ConnectionTestResult> {
     try {
       const validation = this.validateConfig();
@@ -81,15 +89,8 @@ export class StripeConnector extends BaseConnector {
         };
       }
 
-      const stripe = this.getStripeClient();
-
-      // Test connection by fetching a single customer
-      await stripe.customers.list({ limit: 1 });
-
-      return {
-        success: true,
-        message: "Successfully connected to Stripe API",
-      };
+      const syncService = this.getSyncService();
+      return await syncService.testConnection();
     } catch (error) {
       return {
         success: false,
@@ -111,10 +112,8 @@ export class StripeConnector extends BaseConnector {
   }
 
   async syncAll(options: SyncOptions): Promise<void> {
-    const entities = this.getAvailableEntities();
-    for (const entity of entities) {
-      await this.syncEntity(entity, options);
-    }
+    const syncService = this.getSyncService();
+    await syncService.syncAll(options.targetDatabase);
   }
 
   async syncEntity(entity: string, options: SyncOptions): Promise<void> {
@@ -124,407 +123,10 @@ export class StripeConnector extends BaseConnector {
       throw new Error("Target database is required for sync");
     }
 
-    switch (entity.toLowerCase()) {
-      case "customers":
-        await this.syncCustomers(targetDatabase, progress);
-        break;
-      case "subscriptions":
-        await this.syncSubscriptions(targetDatabase, progress);
-        break;
-      case "charges":
-        await this.syncCharges(targetDatabase, progress);
-        break;
-      case "invoices":
-        await this.syncInvoices(targetDatabase, progress);
-        break;
-      case "products":
-        await this.syncProducts(targetDatabase, progress);
-        break;
-      case "plans":
-        await this.syncPlans(targetDatabase, progress);
-        break;
-      default:
-        throw new Error(`Unknown entity: ${entity}`);
-    }
-  }
-
-  private async syncCustomers(targetDb: any, progress?: any) {
-    const stripe = this.getStripeClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    // Connect to target database
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("stripe_customers");
-
-    try {
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const customers = await stripe.customers.list({
-          limit: batchSize,
-          starting_after: startingAfter,
-        });
-
-        if (customers.data.length > 0) {
-          const documents = customers.data.map(customer => ({
-            stripeId: customer.id,
-            ...customer,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map(doc => ({
-              replaceOne: {
-                filter: { stripeId: doc.stripeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-
-          startingAfter = customers.data[customers.data.length - 1].id;
-        }
-
-        hasMore = customers.has_more;
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} customers`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncSubscriptions(targetDb: any, progress?: any) {
-    const stripe = this.getStripeClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("stripe_subscriptions");
-
-    try {
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const subscriptions = await stripe.subscriptions.list({
-          limit: batchSize,
-          starting_after: startingAfter,
-          expand: ["data.customer", "data.items"],
-        });
-
-        if (subscriptions.data.length > 0) {
-          const documents = subscriptions.data.map(subscription => ({
-            stripeId: subscription.id,
-            ...subscription,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map(doc => ({
-              replaceOne: {
-                filter: { stripeId: doc.stripeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-
-          startingAfter = subscriptions.data[subscriptions.data.length - 1].id;
-        }
-
-        hasMore = subscriptions.has_more;
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} subscriptions`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncCharges(targetDb: any, progress?: any) {
-    const stripe = this.getStripeClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("stripe_charges");
-
-    try {
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const charges = await stripe.charges.list({
-          limit: batchSize,
-          starting_after: startingAfter,
-        });
-
-        if (charges.data.length > 0) {
-          const documents = charges.data.map(charge => ({
-            stripeId: charge.id,
-            ...charge,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map(doc => ({
-              replaceOne: {
-                filter: { stripeId: doc.stripeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-
-          startingAfter = charges.data[charges.data.length - 1].id;
-        }
-
-        hasMore = charges.has_more;
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} charges`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncInvoices(targetDb: any, progress?: any) {
-    const stripe = this.getStripeClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("stripe_invoices");
-
-    try {
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const invoices = await stripe.invoices.list({
-          limit: batchSize,
-          starting_after: startingAfter,
-        });
-
-        if (invoices.data.length > 0) {
-          const documents = invoices.data.map(invoice => ({
-            stripeId: invoice.id,
-            ...invoice,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map(doc => ({
-              replaceOne: {
-                filter: { stripeId: doc.stripeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-
-          startingAfter = invoices.data[invoices.data.length - 1].id;
-        }
-
-        hasMore = invoices.has_more;
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} invoices`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncProducts(targetDb: any, progress?: any) {
-    const stripe = this.getStripeClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("stripe_products");
-
-    try {
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const products = await stripe.products.list({
-          limit: batchSize,
-          starting_after: startingAfter,
-        });
-
-        if (products.data.length > 0) {
-          const documents = products.data.map(product => ({
-            stripeId: product.id,
-            ...product,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map(doc => ({
-              replaceOne: {
-                filter: { stripeId: doc.stripeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-
-          startingAfter = products.data[products.data.length - 1].id;
-        }
-
-        hasMore = products.has_more;
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} products`);
-    } finally {
-      await client.close();
-    }
-  }
-
-  private async syncPlans(targetDb: any, progress?: any) {
-    const stripe = this.getStripeClient();
-    const batchSize = this.getBatchSize();
-    const delay = this.getRateLimitDelay();
-
-    const client = new MongoClient(targetDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(targetDb.connection.database);
-    const collection = db.collection("stripe_plans");
-
-    try {
-      let hasMore = true;
-      let startingAfter: string | undefined;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        const plans = await stripe.plans.list({
-          limit: batchSize,
-          starting_after: startingAfter,
-        });
-
-        if (plans.data.length > 0) {
-          const documents = plans.data.map(plan => ({
-            stripeId: plan.id,
-            ...plan,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          await collection.bulkWrite(
-            documents.map(doc => ({
-              replaceOne: {
-                filter: { stripeId: doc.stripeId },
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-
-          startingAfter = plans.data[plans.data.length - 1].id;
-        }
-
-        hasMore = plans.has_more;
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} plans`);
-    } finally {
-      await client.close();
-    }
+    const syncService = this.getSyncService();
+    const useStaging = true; // Always use staging for Stripe sync
+
+    // Use the generic syncEntity method
+    await syncService.syncEntity(entity, targetDatabase, progress, useStaging);
   }
 }
