@@ -19,7 +19,7 @@ import {
   SquareTerminal as ConsoleIcon,
   Settings as SettingsIcon,
   CloudUpload as DataSourceIcon,
-  Clock as ClockIcon,
+  Calendar as SyncJobsIcon,
 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
@@ -349,7 +349,7 @@ function Editor() {
                       ) : tab.kind === "sources" ? (
                         <DataSourceIcon size={20} />
                       ) : tab.kind === "sync-job-editor" ? (
-                        <ClockIcon size={20} />
+                        <SyncJobsIcon size={20} />
                       ) : (
                         <ConsoleIcon size={20} />
                       )}

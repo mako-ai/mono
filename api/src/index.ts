@@ -19,6 +19,7 @@ import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
 import { connectorIconRoutes } from "./routes/connector-icons";
 import { connectorSchemaRoutes } from "./routes/connector-schema";
 import { syncJobRoutes } from "./routes/sync-jobs";
+import mongoose from "mongoose";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -39,6 +40,9 @@ connectDatabase().catch(error => {
   throw error;
 });
 
+// Store worker instance for cleanup
+let workerInstance: any = null;
+
 // Initialize sync job worker in production or when explicitly enabled
 if (
   process.env.NODE_ENV === "production" ||
@@ -46,22 +50,100 @@ if (
 ) {
   import("./worker")
     .then(({ SyncJobWorker }) => {
-      const worker = new SyncJobWorker();
-      worker.start().catch((error: Error) => {
+      workerInstance = new SyncJobWorker();
+      workerInstance.start().catch((error: Error) => {
         console.error("Failed to start sync job worker:", error);
         // Don't exit the process, just log the error
-      });
-
-      // Graceful shutdown
-      process.on("SIGTERM", () => {
-        console.log("SIGTERM received, shutting down worker...");
-        worker.stop().catch(console.error);
       });
     })
     .catch((error: Error) => {
       console.error("Failed to import worker module:", error);
     });
 }
+
+// Graceful shutdown function
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`${signal} received, shutting down gracefully...`);
+
+  if (workerInstance) {
+    try {
+      console.log("Stopping sync job worker...");
+      await workerInstance.stop();
+      console.log("Sync job worker stopped successfully");
+    } catch (error) {
+      console.error("Error stopping sync job worker:", error);
+    }
+  }
+
+  // Close database connections
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log("Database connection closed");
+    }
+  } catch (error) {
+    console.error("Error closing database connection:", error);
+  }
+
+  console.log("Graceful shutdown complete");
+}
+
+// Handle various shutdown signals and events
+process.on("SIGTERM", () => {
+  void gracefulShutdown("SIGTERM")
+    .then(() => {
+      // eslint-disable-next-line no-process-exit
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error("Error during shutdown:", error);
+      // eslint-disable-next-line no-process-exit
+      process.exit(1);
+    });
+});
+
+process.on("SIGINT", () => {
+  void gracefulShutdown("SIGINT")
+    .then(() => {
+      // eslint-disable-next-line no-process-exit
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error("Error during shutdown:", error);
+      // eslint-disable-next-line no-process-exit
+      process.exit(1);
+    });
+});
+
+process.on("SIGHUP", () => {
+  void gracefulShutdown("SIGHUP")
+    .then(() => {
+      // eslint-disable-next-line no-process-exit
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error("Error during shutdown:", error);
+      // eslint-disable-next-line no-process-exit
+      process.exit(1);
+    });
+});
+
+// Handle uncaught exceptions and rejections
+process.on("uncaughtException", error => {
+  console.error("Uncaught Exception:", error);
+  void gracefulShutdown("uncaughtException").finally(() => {
+    // eslint-disable-next-line no-process-exit
+    process.exit(1);
+  });
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  void gracefulShutdown("unhandledRejection").finally(() => {
+    // eslint-disable-next-line no-process-exit
+    process.exit(1);
+  });
+});
 
 const app = new Hono();
 
