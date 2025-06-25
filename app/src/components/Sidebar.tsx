@@ -17,7 +17,7 @@ import {
   SquareChevronRight as ConsoleIcon,
   Database as DatabaseIcon,
   CloudUpload as DataSourceIcon,
-  Clock as SyncJobsIcon,
+  Calendar as SyncJobsIcon,
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
