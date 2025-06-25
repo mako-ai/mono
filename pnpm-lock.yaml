@@ -144,6 +144,9 @@ importers:
       mysql2:
         specifier: ^3.14.1
         version: 3.14.1
+      node-cron:
+        specifier: ^3.0.3
+        version: 3.0.3
       openai:
         specifier: ^5.2.0
         version: 5.2.0(ws@8.18.2)(zod@3.25.57)
@@ -178,6 +181,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.0.0
+      '@types/node-cron':
+        specifier: ^3.0.11
+        version: 3.0.11
       '@types/pg':
         specifier: ^8.15.4
         version: 8.15.4
@@ -4494,6 +4500,10 @@ packages:
     resolution: {integrity: sha512-lytcDEdxKjGJPTLEfW4mYMigRezMlyJY8W4wxJK8zE533Jlb8L8dRuObJFWg2P+AuOIxoCgKF+2Oq4d4Zd0OUA==}
     engines: {node: ^18 || ^20 || >= 21}
 
+  node-cron@3.0.3:
+    resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
+    engines: {node: '>=6.0.0'}
+
   node-cron@4.1.1:
     resolution: {integrity: sha512-oJj9CYV7teeCVs+y2Efi5IQ4FGmAYbsXQOehc1AGLlwteec8pC7DjBCUzSyRQ0LYa+CRCgmD+vtlWQcnPpXowA==}
     engines: {node: '>=6.0.0'}
@@ -7478,7 +7488,7 @@ snapshots:
 
   '@openai/agents-core@0.0.5(ws@8.18.2)(zod@3.25.57)':
     dependencies:
-      '@openai/zod': zod@3.25.57
+      '@openai/zod': zod@3.25.67
       debug: 4.4.1(supports-color@5.5.0)
       openai: 5.2.0(ws@8.18.2)(zod@3.25.57)
     optionalDependencies:
@@ -7491,7 +7501,7 @@ snapshots:
   '@openai/agents-openai@0.0.5(ws@8.18.2)(zod@3.25.57)':
     dependencies:
       '@openai/agents-core': 0.0.5(ws@8.18.2)(zod@3.25.57)
-      '@openai/zod': zod@3.25.57
+      '@openai/zod': zod@3.25.67
       debug: 4.4.1(supports-color@5.5.0)
       openai: 5.2.0(ws@8.18.2)(zod@3.25.57)
     transitivePeerDependencies:
@@ -7502,7 +7512,7 @@ snapshots:
   '@openai/agents-realtime@0.0.5(zod@3.25.57)':
     dependencies:
       '@openai/agents-core': 0.0.5(ws@8.18.2)(zod@3.25.57)
-      '@openai/zod': zod@3.25.57
+      '@openai/zod': zod@3.25.67
       '@types/ws': 8.18.1
       debug: 4.4.1(supports-color@5.5.0)
       ws: 8.18.2
@@ -11572,6 +11582,10 @@ snapshots:
 
   node-addon-api@8.3.1: {}
 
+  node-cron@3.0.3:
+    dependencies:
+      uuid: 8.3.2
+
   node-cron@4.1.1: {}
 
   node-domexception@1.0.0: {}
@@ -13263,7 +13277,8 @@ snapshots:
       zod: 3.25.57
     optional: true
 
-  zod@3.25.57: {}
+  zod@3.25.57:
+    optional: true
 
   zod@3.25.67: {}
 
