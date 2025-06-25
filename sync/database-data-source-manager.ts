@@ -127,7 +127,7 @@ class DatabaseDataSourceManager {
 
   private initialize() {
     if (this.initialized) return;
-    
+
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL environment variable is not set");
     }
@@ -139,7 +139,7 @@ class DatabaseDataSourceManager {
       process.env.DATABASE_NAME ||
       this.extractDatabaseName(connectionString) ||
       "mako";
-      
+
     this.initialized = true;
   }
 
@@ -473,7 +473,7 @@ export const databaseDataSourceManager = {
   },
   validateConfig() {
     return getDatabaseDataSourceManager().validateConfig();
-  }
+  },
 };
 
 // Export class for custom instances

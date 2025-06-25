@@ -2,7 +2,7 @@
 
 /**
  * Example: Programmatic usage of the sync functionality
- * 
+ *
  * This example shows how to integrate the sync functionality
  * into your own scripts or automation workflows.
  */
@@ -38,7 +38,7 @@ const syncScenarios = [
 /**
  * Execute a sync command
  */
-async function executeSync(scenario: typeof syncScenarios[0]): Promise<void> {
+async function executeSync(scenario: (typeof syncScenarios)[0]): Promise<void> {
   console.log(`\n🔄 Starting ${scenario.name}...`);
   console.log(`   Source: ${scenario.source}`);
   console.log(`   Destination: ${scenario.destination}`);
@@ -64,7 +64,7 @@ async function executeSync(scenario: typeof syncScenarios[0]): Promise<void> {
       stdio: "inherit", // This will show the sync output in real-time
     });
 
-    syncProcess.on("close", (code) => {
+    syncProcess.on("close", code => {
       if (code === 0) {
         console.log(`✅ ${scenario.name} completed successfully`);
         resolve();
@@ -74,7 +74,7 @@ async function executeSync(scenario: typeof syncScenarios[0]): Promise<void> {
       }
     });
 
-    syncProcess.on("error", (error) => {
+    syncProcess.on("error", error => {
       console.error(`❌ Failed to start sync process: ${error.message}`);
       reject(error);
     });
@@ -109,15 +109,21 @@ function scheduleSyncs() {
 
   console.log("Example cron configurations:");
   console.log("  - Customer sync: Every day at 2 AM");
-  console.log("    0 2 * * * pnpm run sync stripe-prod analytics-db customers --incremental");
+  console.log(
+    "    0 2 * * * pnpm run sync stripe-prod analytics-db customers --incremental",
+  );
   console.log("");
   console.log("  - Full product sync: Every Sunday at 3 AM");
   console.log("    0 3 * * 0 pnpm run sync stripe-prod analytics-db products");
   console.log("");
   console.log("  - Leads sync: Every hour");
-  console.log("    0 * * * * pnpm run sync close-crm reporting-db leads --incremental");
+  console.log(
+    "    0 * * * * pnpm run sync close-crm reporting-db leads --incremental",
+  );
   console.log("");
-  console.log("Use these with your system's cron or a Node.js scheduler like node-cron");
+  console.log(
+    "Use these with your system's cron or a Node.js scheduler like node-cron",
+  );
 }
 
 /**
@@ -129,13 +135,13 @@ async function syncWithNotifications() {
   try {
     // Simulate a sync
     console.log("Starting sync...");
-    
+
     // In a real scenario, you would:
     // 1. Execute the sync
     // 2. Capture the output
     // 3. Parse for errors or warnings
     // 4. Send notifications (email, Slack, etc.)
-    
+
     console.log("Example notification points:");
     console.log("  - On sync start: Send 'Sync started' notification");
     console.log("  - On sync success: Send summary with record counts");
@@ -150,14 +156,18 @@ async function syncWithNotifications() {
 // Main execution
 if (require.main === module) {
   console.log("🎯 Programmatic Sync Examples\n");
-  console.log("This script demonstrates various ways to use the sync tool programmatically.");
-  console.log("Note: These are examples only and won't actually run syncs without proper setup.\n");
+  console.log(
+    "This script demonstrates various ways to use the sync tool programmatically.",
+  );
+  console.log(
+    "Note: These are examples only and won't actually run syncs without proper setup.\n",
+  );
 
   // Show scheduling example
   scheduleSyncs();
 
   // Show notification example
-  syncWithNotifications();
+  void syncWithNotifications();
 
   console.log("\n💡 To run actual syncs programmatically:");
   console.log("1. Ensure DATABASE_URL and ENCRYPTION_KEY are set");

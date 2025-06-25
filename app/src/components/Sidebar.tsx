@@ -17,6 +17,7 @@ import {
   SquareChevronRight as ConsoleIcon,
   Database as DatabaseIcon,
   CloudUpload as DataSourceIcon,
+  Clock as SyncJobsIcon,
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
@@ -45,13 +46,14 @@ const NavButton = styled(Button, {
 // Views that can appear in the sidebar navigation. Extends the core AppView
 // union with additional sidebar-specific entries that don't directly map to
 // a left-pane view managed by the app store.
-type NavigationView = AppView | "views" | "settings";
+type NavigationView = AppView | "views" | "settings" | "sync-jobs";
 
 const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
   [
     { view: "databases", icon: DatabaseIcon, label: "Databases" },
     { view: "consoles", icon: ConsoleIcon, label: "Consoles" },
     { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
+    { view: "sync-jobs", icon: SyncJobsIcon, label: "Sync Jobs" },
   ];
 
 const bottomNavigationItems: {
@@ -87,8 +89,13 @@ function Sidebar() {
 
   const handleNavigation = (view: NavigationView) => {
     // Update the left pane only for views that the store recognises.
-    if (view === "databases" || view === "consoles" || view === "sources") {
-      setActiveView(view);
+    if (
+      view === "databases" ||
+      view === "consoles" ||
+      view === "sources" ||
+      view === "sync-jobs"
+    ) {
+      setActiveView(view as AppView);
     }
 
     // Only certain views should automatically open (or focus) a tab in the editor.

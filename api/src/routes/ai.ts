@@ -4,6 +4,7 @@ import { mongoConnection } from "../utils/mongodb-connection";
 import { QueryExecutor } from "../utils/query-executor";
 import { ObjectId } from "mongodb";
 import { Database } from "../database/workspace-schema";
+import mongoose from "mongoose";
 
 export const aiRoutes = new Hono();
 
@@ -160,7 +161,10 @@ const updateChatSession = async (
   messages: { role: string; content: string }[],
 ) => {
   try {
-    const db = await mongoConnection.getDb();
+    const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error("Database connection not established");
+    }
     await db.collection("chats").updateOne(
       { _id: new ObjectId(sessionId) },
       {
@@ -182,7 +186,10 @@ const logChatInvocation = async (params: {
   toolOutputs: any[];
 }) => {
   try {
-    const db = await mongoConnection.getDb();
+    const db = mongoose.connection.db;
+    if (!db) {
+      throw new Error("Database connection not established");
+    }
     await db.collection("chat_logs").insertOne({
       chatId: params.sessionId ? params.sessionId : null,
       timestamp: new Date(),
@@ -214,7 +221,10 @@ aiRoutes.post("/chat/stream", async c => {
     } else if (sessionId) {
       // Fetch existing history from DB
       try {
-        const db = await mongoConnection.getDb();
+        const db = mongoose.connection.db;
+        if (!db) {
+          throw new Error("Database connection not established");
+        }
         const chat = await db
           .collection("chats")
           .findOne({ _id: new ObjectId(sessionId) });

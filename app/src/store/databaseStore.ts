@@ -31,6 +31,7 @@ export interface Server {
 
 interface DatabaseState {
   servers: Record<string, Server[]>; // workspaceId => servers array
+  databases: Database[]; // Flat list of all databases for current workspace
   collections: Record<string, CollectionInfo[]>; // databaseId => collections
   views: Record<string, CollectionInfo[]>; // databaseId => views
   loading: Record<string, boolean>; // workspace or database ids
@@ -40,11 +41,13 @@ interface DatabaseState {
   initServers: (workspaceId: string) => Promise<void>;
   fetchDatabaseData: (workspaceId: string, databaseId: string) => Promise<void>;
   clearDatabaseData: (workspaceId: string) => void;
+  fetchDatabases: () => Promise<void>;
 }
 
 export const useDatabaseStore = create<DatabaseState>()(
   immer((set, get) => ({
     servers: {},
+    databases: [],
     collections: {},
     views: {},
     loading: {},
@@ -77,8 +80,10 @@ export const useDatabaseStore = create<DatabaseState>()(
             server.databases.push(db);
           });
           const serversData = Array.from(serverMap.values());
+          const allDatabases = serversData.flatMap(s => s.databases);
           set(state => {
             state.servers[workspaceId] = serversData;
+            state.databases = allDatabases;
           });
           return serversData;
         }
@@ -164,6 +169,15 @@ export const useDatabaseStore = create<DatabaseState>()(
           delete state.views[dbId];
         });
       });
+    },
+
+    fetchDatabases: async () => {
+      // This is a simplified method that just ensures we have databases loaded
+      // It uses the already loaded databases from fetchServers
+      const workspaceId = localStorage.getItem("activeWorkspaceId");
+      if (workspaceId && !get().servers[workspaceId]) {
+        await get().fetchServers(workspaceId);
+      }
     },
   })),
 );

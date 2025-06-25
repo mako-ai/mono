@@ -2,19 +2,19 @@ import { CreateCollectionOptions } from "mongodb";
 import { mongoConnection } from "./mongodb-connection";
 
 export class DatabaseManager {
-  async listCollections(): Promise<any[]> {
+  async listCollections(databaseId: string): Promise<any[]> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       const collections = await db
         .listCollections({ type: "collection" })
         .toArray();
 
-      return collections.map(col => ({
+      return collections.map((col: any) => ({
         name: col.name,
         type: col.type,
-        options: (col as any).options,
-        info: (col as any).info,
+        options: col.options,
+        info: col.info,
       }));
     } catch (error) {
       console.error("❌ Error listing collections:", error);
@@ -26,17 +26,17 @@ export class DatabaseManager {
     }
   }
 
-  async listViews(): Promise<any[]> {
+  async listViews(databaseId: string): Promise<any[]> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       const views = await db.listCollections({ type: "view" }).toArray();
 
-      return views.map(view => ({
+      return views.map((view: any) => ({
         name: view.name,
         type: view.type,
-        options: (view as any).options,
-        info: (view as any).info,
+        options: view.options,
+        info: view.info,
       }));
     } catch (error) {
       console.error("❌ Error listing views:", error);
@@ -49,11 +49,12 @@ export class DatabaseManager {
   }
 
   async createCollection(
+    databaseId: string,
     name: string,
     options?: CreateCollectionOptions,
   ): Promise<any> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       // Check if collection already exists
       const existingCollections = await db.listCollections({ name }).toArray();
@@ -79,13 +80,14 @@ export class DatabaseManager {
   }
 
   async createView(
+    databaseId: string,
     name: string,
     viewOn: string,
     pipeline: any[],
     options?: any,
   ): Promise<any> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       // Check if view already exists
       const existingViews = await db.listCollections({ name }).toArray();
@@ -123,9 +125,9 @@ export class DatabaseManager {
     }
   }
 
-  async deleteCollection(name: string): Promise<any> {
+  async deleteCollection(databaseId: string, name: string): Promise<any> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       // Check if collection exists
       const existingCollections = await db.listCollections({ name }).toArray();
@@ -149,9 +151,9 @@ export class DatabaseManager {
     }
   }
 
-  async deleteView(name: string): Promise<any> {
+  async deleteView(databaseId: string, name: string): Promise<any> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       // Check if view exists
       const existingViews = await db
@@ -177,9 +179,9 @@ export class DatabaseManager {
     }
   }
 
-  async getCollectionInfo(name: string): Promise<any> {
+  async getCollectionInfo(databaseId: string, name: string): Promise<any> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       // Check if collection exists
       const collections = await db.listCollections({ name }).toArray();
@@ -223,9 +225,9 @@ export class DatabaseManager {
     }
   }
 
-  async getViewInfo(name: string): Promise<any> {
+  async getViewInfo(databaseId: string, name: string): Promise<any> {
     try {
-      const db = await mongoConnection.getDb();
+      const db = await mongoConnection.getDatabase(databaseId);
 
       // Check if view exists
       const views = await db.listCollections({ name, type: "view" }).toArray();

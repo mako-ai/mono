@@ -18,6 +18,7 @@ import { workspaceRoutes } from "./routes/workspaces";
 import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
 import { connectorIconRoutes } from "./routes/connector-icons";
 import { connectorSchemaRoutes } from "./routes/connector-schema";
+import { syncJobRoutes } from "./routes/sync-jobs";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -37,6 +38,30 @@ connectDatabase().catch(error => {
   // Re-throw to allow the unhandled rejection handler (or the runtime) to exit appropriately
   throw error;
 });
+
+// Initialize sync job worker in production or when explicitly enabled
+if (
+  process.env.NODE_ENV === "production" ||
+  process.env.ENABLE_SYNC_WORKER === "true"
+) {
+  import("./worker")
+    .then(({ SyncJobWorker }) => {
+      const worker = new SyncJobWorker();
+      worker.start().catch((error: Error) => {
+        console.error("Failed to start sync job worker:", error);
+        // Don't exit the process, just log the error
+      });
+
+      // Graceful shutdown
+      process.on("SIGTERM", () => {
+        console.log("SIGTERM received, shutting down worker...");
+        worker.stop().catch(console.error);
+      });
+    })
+    .catch((error: Error) => {
+      console.error("Failed to import worker module:", error);
+    });
+}
 
 const app = new Hono();
 
@@ -64,6 +89,7 @@ app.route("/api/workspaces/:workspaceId/consoles", consoleRoutes);
 app.route("/api/workspaces/:workspaceId/chats", chatsRoutes);
 app.route("/api/workspaces/:workspaceId/custom-prompt", customPromptRoutes);
 app.route("/api/workspaces/:workspaceId/sources", dataSourceRoutes);
+app.route("/api/workspaces/:workspaceId/sync-jobs", syncJobRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);

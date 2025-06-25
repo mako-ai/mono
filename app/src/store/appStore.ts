@@ -23,9 +23,10 @@ export interface ConsoleTab {
   initialContent: string;
   databaseId?: string;
   filePath?: string;
-  kind?: "console" | "settings" | "sources" | "members";
+  kind?: "console" | "settings" | "sources" | "members" | "sync-job-editor";
   isDirty?: boolean; // false/undefined = pristine (replaceable), true = dirty (persistent)
   icon?: string; // URL or path to icon, e.g., "/api/connectors/stripe/icon.svg"
+  metadata?: Record<string, any>; // Additional data for special tab types
 }
 
 export interface GlobalState {
@@ -68,7 +69,7 @@ export interface GlobalState {
   };
 }
 
-export type AppView = "databases" | "consoles" | "sources";
+export type AppView = "databases" | "consoles" | "sources" | "sync-jobs";
 
 /*********************
  * Initial state     *
@@ -187,6 +188,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         filePath,
         kind,
         icon,
+        metadata,
       } = action.payload;
 
       // Check if there's an existing pristine tab to replace
@@ -210,6 +212,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         kind: kind || "console",
         isDirty: false, // New tabs start as pristine
         icon,
+        metadata,
       };
       state.consoles.activeTabId = id;
 
