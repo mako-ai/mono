@@ -42,6 +42,8 @@ RUN cd node_modules/.pnpm/sqlite3@*/node_modules/sqlite3 && npm run install --ta
 # Copy built files
 COPY --from=builder /app/api/dist ./dist
 COPY --from=builder /app/app/dist ./public
+# Copy sync directory for TypeScript sync scripts
+COPY --from=builder /app/sync ./sync
 
 ENV PORT=8080
 EXPOSE 8080
