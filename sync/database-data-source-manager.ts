@@ -119,12 +119,15 @@ export interface DataSourceConfig {
 }
 
 class DatabaseDataSourceManager {
-  private client: MongoClient;
+  private client: MongoClient | null = null;
   private db!: Db;
   private schemaCache: Map<string, ConnectorSchema> = new Map();
-  private databaseName: string;
+  private databaseName: string = "";
+  private initialized = false;
 
-  constructor() {
+  private initialize() {
+    if (this.initialized) return;
+    
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL environment variable is not set");
     }
@@ -136,6 +139,8 @@ class DatabaseDataSourceManager {
       process.env.DATABASE_NAME ||
       this.extractDatabaseName(connectionString) ||
       "mako";
+      
+    this.initialized = true;
   }
 
   private extractDatabaseName(connectionString: string): string | null {
@@ -152,12 +157,16 @@ class DatabaseDataSourceManager {
   }
 
   private async connect(): Promise<void> {
+    this.initialize();
+    if (!this.client) throw new Error("Client not initialized");
     await this.client.connect();
     this.db = this.client.db(this.databaseName);
   }
 
   private async disconnect(): Promise<void> {
-    await this.client.close();
+    if (this.client) {
+      await this.client.close();
+    }
   }
 
   /**
@@ -333,6 +342,7 @@ class DatabaseDataSourceManager {
    * Validate configuration (always returns valid for database sources)
    */
   validateConfig(): { valid: boolean; errors: string[] } {
+    // Don't initialize here, just return valid
     return { valid: true, errors: [] };
   }
 
@@ -431,8 +441,40 @@ class DatabaseDataSourceManager {
   }
 }
 
-// Export singleton instance
-export const databaseDataSourceManager = new DatabaseDataSourceManager();
+// Export singleton instance with lazy initialization
+let _databaseDataSourceManager: DatabaseDataSourceManager | null = null;
+export function getDatabaseDataSourceManager(): DatabaseDataSourceManager {
+  if (!_databaseDataSourceManager) {
+    _databaseDataSourceManager = new DatabaseDataSourceManager();
+  }
+  return _databaseDataSourceManager;
+}
+
+// For backward compatibility, export a getter that returns the instance
+export const databaseDataSourceManager = {
+  get instance() {
+    return getDatabaseDataSourceManager();
+  },
+  // Proxy all methods to the singleton
+  async getActiveDataSources() {
+    return getDatabaseDataSourceManager().getActiveDataSources();
+  },
+  async getDataSource(idOrName: string) {
+    return getDatabaseDataSourceManager().getDataSource(idOrName);
+  },
+  async getDataSourcesByType(type: string) {
+    return getDatabaseDataSourceManager().getDataSourcesByType(type);
+  },
+  async listDataSourceIds() {
+    return getDatabaseDataSourceManager().listDataSourceIds();
+  },
+  async listActiveDataSourceIds() {
+    return getDatabaseDataSourceManager().listActiveDataSourceIds();
+  },
+  validateConfig() {
+    return getDatabaseDataSourceManager().validateConfig();
+  }
+};
 
 // Export class for custom instances
 export { DatabaseDataSourceManager };
