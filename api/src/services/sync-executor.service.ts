@@ -23,7 +23,11 @@ export async function performSync(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Path to the sync script
-    const syncScript = path.join(__dirname, "../../../sync/sync.ts");
+    // In production (Docker), use absolute path; in development, use relative
+    const syncScript =
+      process.env.NODE_ENV === "production"
+        ? "/app/sync/sync.ts"
+        : path.join(__dirname, "../../../sync/sync.ts");
 
     // Build command arguments
     const args = [syncScript, dataSourceId, destinationDatabaseId];
@@ -52,7 +56,10 @@ export async function performSync(
 
     // Spawn the sync process using tsx
     const syncProcess = spawn("tsx", args, {
-      cwd: path.join(__dirname, "../../.."),
+      cwd:
+        process.env.NODE_ENV === "production"
+          ? "/app"
+          : path.join(__dirname, "../../.."),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });

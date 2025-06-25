@@ -42,28 +42,77 @@ connectDatabase().catch(error => {
 
 // Store worker instance for cleanup
 let workerInstance: any = null;
+let workerStartAttempts = 0;
+let workerHealthCheckInterval: NodeJS.Timeout | null = null;
+
+// Worker supervisor function
+async function startWorkerWithSupervision() {
+  if (!workerInstance) {
+    try {
+      const { SyncJobWorker } = await import("./worker");
+      workerInstance = new SyncJobWorker();
+    } catch (error) {
+      console.error("Failed to import worker module:", error);
+      return;
+    }
+  }
+
+  try {
+    workerStartAttempts++;
+    console.log(`🔄 Starting worker (attempt ${workerStartAttempts})...`);
+    await workerInstance.start();
+    console.log("✅ Worker started successfully");
+    workerStartAttempts = 0; // Reset counter on success
+  } catch (error: any) {
+    console.error(`❌ Worker start failed: ${error.message}`);
+
+    // Retry with exponential backoff
+    const retryDelay = Math.min(
+      30000 * Math.pow(2, workerStartAttempts - 1),
+      300000,
+    ); // Max 5 minutes
+    console.log(`⏰ Will retry worker start in ${retryDelay / 1000}s`);
+
+    setTimeout(() => {
+      void startWorkerWithSupervision();
+    }, retryDelay);
+  }
+}
+
+// Health check function
+function startWorkerHealthCheck() {
+  // Check every 2 minutes if worker is alive
+  workerHealthCheckInterval = setInterval(() => {
+    if (workerInstance && !workerInstance.isRunning) {
+      console.log("💀 Worker detected as dead, restarting...");
+      workerStartAttempts = 0; // Reset attempts for fresh start
+      void startWorkerWithSupervision();
+    }
+  }, 120000); // 2 minutes
+}
 
 // Initialize sync job worker in production or when explicitly enabled
 if (
   process.env.NODE_ENV === "production" ||
   process.env.ENABLE_SYNC_WORKER === "true"
 ) {
-  import("./worker")
-    .then(({ SyncJobWorker }) => {
-      workerInstance = new SyncJobWorker();
-      workerInstance.start().catch((error: Error) => {
-        console.error("Failed to start sync job worker:", error);
-        // Don't exit the process, just log the error
-      });
-    })
-    .catch((error: Error) => {
-      console.error("Failed to import worker module:", error);
-    });
+  // Start worker with supervision
+  void startWorkerWithSupervision();
+
+  // Start health checks after a delay to let worker initialize
+  setTimeout(() => {
+    startWorkerHealthCheck();
+  }, 60000); // Start health checks after 1 minute
 }
 
 // Graceful shutdown function
 async function gracefulShutdown(signal: string): Promise<void> {
   console.log(`${signal} received, shutting down gracefully...`);
+
+  // Clear health check interval
+  if (workerHealthCheckInterval) {
+    clearInterval(workerHealthCheckInterval);
+  }
 
   if (workerInstance) {
     try {
@@ -161,6 +210,22 @@ app.use(
 // Health check
 app.get("/health", c => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Worker health check
+app.get("/health/worker", c => {
+  const workerStatus = {
+    enabled:
+      process.env.NODE_ENV === "production" ||
+      process.env.ENABLE_SYNC_WORKER === "true",
+    running: workerInstance?.isRunning || false,
+    startAttempts: workerStartAttempts,
+    lastError: workerInstance?.lastError || null,
+    timestamp: new Date().toISOString(),
+  };
+
+  const httpStatus = workerStatus.enabled && !workerStatus.running ? 503 : 200;
+  return c.json(workerStatus, httpStatus);
 });
 
 // API routes
