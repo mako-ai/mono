@@ -2,7 +2,9 @@ import inquirer from "inquirer";
 
 async function demoInteractiveSync() {
   console.log("🚀 Interactive Data Sync Tool - DEMO MODE\n");
-  console.log("This is a demonstration of the interactive sync functionality.\n");
+  console.log(
+    "This is a demonstration of the interactive sync functionality.\n",
+  );
 
   // Simulate data sources
   const dataSources = [
@@ -57,10 +59,24 @@ async function demoInteractiveSync() {
   let availableEntities: string[] = [];
   switch (selectedSource.type) {
     case "stripe":
-      availableEntities = ["customers", "subscriptions", "charges", "invoices", "products", "plans"];
+      availableEntities = [
+        "customers",
+        "subscriptions",
+        "charges",
+        "invoices",
+        "products",
+        "plans",
+      ];
       break;
     case "close":
-      availableEntities = ["leads", "opportunities", "activities", "contacts", "users", "custom_fields"];
+      availableEntities = [
+        "leads",
+        "opportunities",
+        "activities",
+        "contacts",
+        "users",
+        "custom_fields",
+      ];
       break;
     case "graphql":
       availableEntities = ["custom_query_1", "custom_query_2"];
@@ -109,7 +125,9 @@ async function demoInteractiveSync() {
   console.log(`   Source: ${selectedSource.name} (${selectedSource.type})`);
   console.log(`   Destination: ${selectedDest?.name}`);
   console.log(`   Entity: ${entity || "All entities"}`);
-  console.log(`   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`);
+  console.log(
+    `   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`,
+  );
 
   const { confirm } = await inquirer.prompt([
     {

@@ -1,5 +1,6 @@
 import { Db } from "mongodb";
 import { mongoConnection } from "./mongodb-connection";
+import mongoose from "mongoose";
 
 export class QueryExecutor {
   async executeQuery(queryContent: string, databaseId?: string): Promise<any> {
@@ -9,9 +10,17 @@ export class QueryExecutor {
       );
 
       // Get the appropriate database instance
-      const dbInstance = databaseId
-        ? await mongoConnection.getDatabase(databaseId)
-        : await mongoConnection.getDb();
+      let dbInstance: Db;
+      if (databaseId) {
+        dbInstance = await mongoConnection.getDatabase(databaseId);
+      } else {
+        // Use the main database connection via mongoose
+        const db = mongoose.connection.db;
+        if (!db) {
+          throw new Error("Main database connection not established");
+        }
+        dbInstance = db;
+      }
 
       console.log(
         `🔍 Executing query content${databaseId ? ` on database ${databaseId}` : ""}:\n${queryContent.substring(0, 200)}...`,

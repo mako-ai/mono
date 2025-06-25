@@ -1,6 +1,11 @@
 import { useAppStore, useAppDispatch, ConsoleTab } from "./appStore";
 
-export type TabKind = "console" | "settings" | "sources" | "members";
+export type TabKind =
+  | "console"
+  | "settings"
+  | "sources"
+  | "members"
+  | "sync-job-editor";
 
 // Selector helpers
 const selectConsoleState = (state: any) => state.consoles;
@@ -25,6 +30,7 @@ export const useConsoleStore = () => {
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
         icon: tab.icon,
+        metadata: (tab as any).metadata,
       },
     } as any);
     return id;
@@ -122,6 +128,7 @@ useConsoleStore.getState = () => {
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
         icon: tab.icon,
+        metadata: (tab as any).metadata,
       },
     });
     return id;

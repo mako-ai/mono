@@ -339,6 +339,33 @@ export interface IChat extends Document {
 }
 
 /**
+ * SyncJob model interface
+ */
+export interface ISyncJob extends Document {
+  _id: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  name: string;
+  dataSourceId: Types.ObjectId;
+  destinationDatabaseId: Types.ObjectId;
+  schedule: {
+    cron: string;
+    timezone?: string;
+  };
+  entityFilter?: string[]; // Optional: specific entities to sync
+  syncMode: "full" | "incremental";
+  enabled: boolean;
+  lastRunAt?: Date;
+  lastSuccessAt?: Date;
+  lastError?: string;
+  nextRunAt?: Date;
+  runCount: number;
+  avgDurationMs?: number;
+  createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
  * Workspace Schema
  */
 const WorkspaceSchema = new Schema<IWorkspace>(
@@ -778,6 +805,85 @@ const ChatSchema = new Schema<IChat>(
 ChatSchema.index({ workspaceId: 1 });
 ChatSchema.index({ workspaceId: 1, title: 1 });
 
+/**
+ * SyncJob Schema
+ */
+const SyncJobSchema = new Schema<ISyncJob>(
+  {
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    dataSourceId: {
+      type: Schema.Types.ObjectId,
+      ref: "DataSource",
+      required: true,
+    },
+    destinationDatabaseId: {
+      type: Schema.Types.ObjectId,
+      ref: "Database",
+      required: true,
+    },
+    schedule: {
+      cron: {
+        type: String,
+        required: true,
+        validate: {
+          validator: function (v: string) {
+            // Basic cron validation - 5 or 6 fields
+            const fields = v.split(" ");
+            return fields.length === 5 || fields.length === 6;
+          },
+          message: "Invalid cron expression",
+        },
+      },
+      timezone: {
+        type: String,
+        default: "UTC",
+      },
+    },
+    entityFilter: [String],
+    syncMode: {
+      type: String,
+      enum: ["full", "incremental"],
+      default: "full",
+    },
+    enabled: {
+      type: Boolean,
+      default: true,
+    },
+    lastRunAt: Date,
+    lastSuccessAt: Date,
+    lastError: String,
+    nextRunAt: Date,
+    runCount: {
+      type: Number,
+      default: 0,
+    },
+    avgDurationMs: Number,
+    createdBy: {
+      type: String,
+      ref: "User",
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+// Indexes
+SyncJobSchema.index({ workspaceId: 1, enabled: 1 });
+SyncJobSchema.index({ dataSourceId: 1 });
+SyncJobSchema.index({ destinationDatabaseId: 1 });
+SyncJobSchema.index({ nextRunAt: 1 });
+
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
   "Workspace",
@@ -805,3 +911,4 @@ export const SavedConsole = mongoose.model<ISavedConsole>(
   SavedConsoleSchema,
 );
 export const Chat = mongoose.model<IChat>("Chat", ChatSchema);
+export const SyncJob = mongoose.model<ISyncJob>("SyncJob", SyncJobSchema);

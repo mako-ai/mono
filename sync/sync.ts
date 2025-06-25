@@ -16,7 +16,7 @@ class DatabaseDestinationManager {
 
   private initialize() {
     if (this.initialized) return;
-    
+
     if (!process.env.DATABASE_URL) {
       throw new Error("DATABASE_URL environment variable is not set");
     }
@@ -28,7 +28,7 @@ class DatabaseDestinationManager {
       process.env.DATABASE_NAME ||
       this.extractDatabaseName(connectionString) ||
       "mako";
-      
+
     this.initialized = true;
   }
 
@@ -379,7 +379,9 @@ async function interactiveMode() {
     const destinations = await getDestinationManager().listDestinations();
     if (destinations.length === 0) {
       console.error("❌ No destination databases found!");
-      console.log("Please create destination databases in your application first.");
+      console.log(
+        "Please create destination databases in your application first.",
+      );
       process.exit(1);
     }
 
@@ -424,7 +426,9 @@ async function interactiveMode() {
     // Get available entities for the selected source
     const connector = await syncConnectorRegistry.getConnector(selectedSource);
     if (!connector) {
-      throw new Error(`Failed to create connector for type: ${selectedSource.type}`);
+      throw new Error(
+        `Failed to create connector for type: ${selectedSource.type}`,
+      );
     }
 
     const availableEntities = connector.getAvailableEntities();
@@ -468,9 +472,13 @@ async function interactiveMode() {
     // Confirm before proceeding
     console.log("\n📋 Sync Configuration:");
     console.log(`   Source: ${selectedSource.name} (${selectedSource.type})`);
-    console.log(`   Destination: ${destinations.find(d => d.id === destinationId)?.name}`);
+    console.log(
+      `   Destination: ${destinations.find(d => d.id === destinationId)?.name}`,
+    );
     console.log(`   Entity: ${entity || "All entities"}`);
-    console.log(`   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`);
+    console.log(
+      `   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`,
+    );
 
     const { confirm } = await inquirer.prompt([
       {
@@ -506,11 +514,14 @@ program
   .name("sync")
   .description("Sync data from various sources to destination databases")
   .version("1.0.0")
-  .helpOption('-h, --help', 'display help for command')
+  .helpOption("-h, --help", "display help for command")
   .argument("[source]", "Name or ID of the data source to sync from")
   .argument("[destination]", "Name or ID of the destination database")
   .argument("[entity]", "Specific entity to sync (optional)")
-  .option("--incremental, --inc", "Perform incremental sync (only sync new/updated records)")
+  .option(
+    "--incremental, --inc",
+    "Perform incremental sync (only sync new/updated records)",
+  )
   .option("-i, --interactive", "Run in interactive mode")
   .action(async (source, destination, entity, options) => {
     // If no arguments provided or interactive flag is set, run interactive mode
@@ -518,10 +529,14 @@ program
       await interactiveMode();
     } else if (!source || !destination) {
       // Don't show error for help command
-      if (!process.argv.includes('--help') && !process.argv.includes('-h')) {
+      if (!process.argv.includes("--help") && !process.argv.includes("-h")) {
         // If some but not all required arguments are provided, show error
-        console.error("❌ Both source and destination are required in non-interactive mode");
-        console.log("Use --interactive or -i flag to run in interactive mode.\n");
+        console.error(
+          "❌ Both source and destination are required in non-interactive mode",
+        );
+        console.log(
+          "Use --interactive or -i flag to run in interactive mode.\n",
+        );
         process.exit(1);
       }
     } else {
@@ -529,7 +544,9 @@ program
       await performSync(source, destination, entity, options.incremental);
     }
   })
-  .addHelpText("after", `
+  .addHelpText(
+    "after",
+    `
 Examples:
   $ pnpm run sync                                    # Interactive mode
   $ pnpm run sync --interactive                      # Force interactive mode
@@ -540,14 +557,15 @@ Examples:
 Available Commands:
   When run without arguments, the tool will guide you through an interactive
   selection process for all options.
-  `);
+  `,
+  );
 
 // Parse command line arguments
 try {
   program.parse(process.argv);
 } catch (error) {
   // Commander throws on help, which is expected
-  if (error && (error as any).code === 'commander.help') {
+  if (error && (error as any).code === "commander.help") {
     process.exit(0);
   }
   throw error;

@@ -7,6 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "pnpm run lint && pnpm exec tsc && copyfiles -u 1 'src/**/*.svg' dist",
     "start": "tsx src/index.ts",
+    "worker": "tsx src/worker.ts",
+    "worker:dev": "tsx watch src/worker.ts",
     "migrate:workspaces": "tsx src/migrations/migrate-to-workspaces.ts",
     "lint": "eslint . --ext ts --report-unused-disable-directives",
     "lint:fix": "eslint . --ext ts --fix"

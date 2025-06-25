@@ -3,7 +3,7 @@
  */
 
 export { lucia } from "./lucia";
-export { google, github } from "./arctic";
+export { getGoogle, getGitHub } from "./arctic";
 export { AuthService } from "./auth.service";
 export {
   authMiddleware,

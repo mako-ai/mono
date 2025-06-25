@@ -19,6 +19,7 @@ import {
   SquareTerminal as ConsoleIcon,
   Settings as SettingsIcon,
   CloudUpload as DataSourceIcon,
+  Clock as ClockIcon,
 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
@@ -26,6 +27,7 @@ import ResultsTable from "./ResultsTable";
 import Settings from "../pages/Settings";
 import DataSourceTab from "./DataSourceTab";
 import { WorkspaceMembers } from "./WorkspaceMembers";
+import { SyncJobEditor } from "./SyncJobEditor";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
@@ -346,6 +348,8 @@ function Editor() {
                         <SettingsIcon size={20} />
                       ) : tab.kind === "sources" ? (
                         <DataSourceIcon size={20} />
+                      ) : tab.kind === "sync-job-editor" ? (
+                        <ClockIcon size={20} />
                       ) : (
                         <ConsoleIcon size={20} />
                       )}
@@ -410,6 +414,18 @@ function Editor() {
                     sourceId={
                       typeof tab.content === "string" ? tab.content : undefined
                     }
+                  />
+                ) : tab.kind === "sync-job-editor" ? (
+                  <SyncJobEditor
+                    jobId={tab.metadata?.jobId}
+                    isNew={tab.metadata?.isNew}
+                    onSave={() => {
+                      // The SyncJobEditor already handles refreshing the jobs list
+                      // We don't need to close the tab anymore
+                    }}
+                    onCancel={() => {
+                      closeConsole(tab.id);
+                    }}
                   />
                 ) : (
                   /* Console tab: editor + results split */
