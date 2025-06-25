@@ -54,16 +54,3 @@ export function getGitHub(): GitHub {
   }
   return _github;
 }
-
-// Backwards compatibility exports (deprecated - use functions instead)
-export const google = {
-  get instance() {
-    return getGoogle();
-  },
-};
-
-export const github = {
-  get instance() {
-    return getGitHub();
-  },
-};

@@ -151,41 +151,6 @@ class MongoDBConnection {
     );
     await Promise.all(promises);
   }
-
-  /**
-   * Legacy method for backward compatibility
-   * Returns the first available MongoDB database
-   */
-  public async getDb(): Promise<Db> {
-    const mongoSources = await Database.find({}).sort({ createdAt: -1 }).limit(1);
-    if (mongoSources.length === 0) {
-      throw new Error("No MongoDB data sources configured");
-    }
-
-    // Use the first available database
-    const primarySource = mongoSources[0];
-    return this.getDatabase(primarySource._id.toString());
-  }
-
-  /**
-   * Legacy method for backward compatibility
-   */
-  public async getClient(): Promise<MongoClient> {
-    const mongoSources = await Database.find({}).sort({ createdAt: -1 }).limit(1);
-    if (mongoSources.length === 0) {
-      throw new Error("No MongoDB data sources configured");
-    }
-
-    const primarySource = mongoSources[0];
-    await this.getDatabase(primarySource._id.toString()); // Ensure connected
-
-    const connection = this.connections.get(primarySource._id.toString());
-    if (!connection) {
-      throw new Error("MongoDB client not connected");
-    }
-
-    return connection.client;
-  }
 }
 
 export const mongoConnection = MongoDBConnection.getInstance();

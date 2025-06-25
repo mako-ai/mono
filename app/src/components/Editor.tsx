@@ -24,7 +24,6 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
 import Settings from "../pages/Settings";
-// import DataSources from "../pages/DataSources"; // deprecated, will be removed
 import DataSourceTab from "./DataSourceTab";
 import { WorkspaceMembers } from "./WorkspaceMembers";
 import { useConsoleStore } from "../store/consoleStore";
