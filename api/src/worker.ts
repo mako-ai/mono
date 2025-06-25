@@ -727,29 +727,84 @@ class SyncWorker {
   private async acquireWorkerLock(): Promise<boolean> {
     try {
       const db = SyncJob.db;
+      const now = new Date();
+
+      // First, try to take over an expired lock
       const result = await db.collection("worker_locks").findOneAndUpdate(
         {
           _id: "sync_worker" as any,
-          $or: [
-            { expiresAt: { $lt: new Date() } },
-            { expiresAt: { $exists: false } },
-          ],
+          $or: [{ expiresAt: { $lt: now } }, { expiresAt: { $exists: false } }],
         },
         {
           $set: {
             pid: process.pid,
             hostname: process.env.HOSTNAME || "unknown",
-            startedAt: new Date(),
+            startedAt: now,
             expiresAt: new Date(Date.now() + 60000), // 1 minute
           },
         },
         {
-          upsert: true,
+          upsert: false, // Don't upsert on first attempt
           returnDocument: "after",
         },
       );
 
-      return result?.pid === process.pid;
+      if (result?.pid === process.pid) {
+        return true;
+      }
+
+      // If no expired lock exists, try to create a new one
+      try {
+        await db.collection("worker_locks").insertOne({
+          _id: "sync_worker" as any,
+          pid: process.pid,
+          hostname: process.env.HOSTNAME || "unknown",
+          startedAt: now,
+          expiresAt: new Date(Date.now() + 60000), // 1 minute
+        });
+        return true;
+      } catch (insertError: any) {
+        // If insert fails due to duplicate key, check if the existing lock is expired
+        if (insertError.code === 11000) {
+          // Force cleanup of stale lock and retry
+          const existingLock = await db.collection("worker_locks").findOne({
+            _id: "sync_worker" as any,
+          });
+
+          if (existingLock) {
+            const lockAge =
+              now.getTime() - new Date(existingLock.startedAt).getTime();
+            const isExpired = existingLock.expiresAt < now;
+            const isStale = lockAge > 90000; // 90 seconds
+
+            if (isExpired || isStale) {
+              console.log(
+                "🔓 Found stale worker lock, forcefully removing it...",
+              );
+              console.log(`  Lock PID: ${existingLock.pid}`);
+              console.log(`  Lock started: ${existingLock.startedAt}`);
+              console.log(`  Lock expires: ${existingLock.expiresAt}`);
+              console.log(`  Lock age: ${Math.round(lockAge / 1000)}s`);
+              console.log(`  Reason: ${isExpired ? "expired" : "too old"}`);
+
+              await db.collection("worker_locks").deleteOne({
+                _id: "sync_worker" as any,
+              });
+
+              // Try to acquire again
+              await db.collection("worker_locks").insertOne({
+                _id: "sync_worker" as any,
+                pid: process.pid,
+                hostname: process.env.HOSTNAME || "unknown",
+                startedAt: now,
+                expiresAt: new Date(Date.now() + 60000), // 1 minute
+              });
+              return true;
+            }
+          }
+        }
+        throw insertError;
+      }
     } catch (error) {
       console.error("Failed to acquire worker lock:", error);
       return false;
@@ -994,6 +1049,31 @@ class SyncWorker {
             },
           },
         );
+      }
+
+      // 4. Clean up stale worker lock
+      const workerLockCollection = db.collection("worker_locks");
+      const workerLockTimeout = new Date(now.getTime() - 90000); // 90 seconds (lock expires after 60s + 30s buffer)
+
+      const staleWorkerLock = await workerLockCollection.findOne({
+        _id: "sync_worker" as any,
+        $or: [
+          { expiresAt: { $lt: now } },
+          { startedAt: { $lt: workerLockTimeout } }, // Lock older than 90 seconds
+        ],
+      });
+
+      if (staleWorkerLock) {
+        console.log("🔓 Found stale worker lock during cleanup");
+        console.log(`  Lock PID: ${staleWorkerLock.pid}`);
+        console.log(`  Lock started: ${staleWorkerLock.startedAt}`);
+        console.log(`  Lock expires: ${staleWorkerLock.expiresAt}`);
+
+        await workerLockCollection.deleteOne({
+          _id: "sync_worker" as any,
+        });
+
+        console.log("🗑️  Removed stale worker lock");
       }
 
       console.log("✅ Cleanup completed");
