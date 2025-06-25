@@ -31,14 +31,14 @@ export interface ConsoleTab {
 
 export interface GlobalState {
   // Backward-compatibility top-level view props
-  activeView?: "databases" | "consoles" | "sources";
+  activeView?: "databases" | "consoles" | "sources" | "sync-jobs";
   activeEditorContent?: {
     content: string;
     fileName?: string;
     language?: string;
   };
   ui: {
-    leftPane: "databases" | "consoles" | "sources";
+    leftPane: "databases" | "consoles" | "sources" | "sync-jobs";
     loading: Record<string, boolean>; // keyed by request name
   };
   explorers: {
@@ -151,7 +151,7 @@ export type Action =
   | { type: "SET_LOADING"; payload: { key: string; value: boolean } }
   | {
       type: "NAVIGATE_LEFT_PANE";
-      payload: { pane: "databases" | "consoles" | "sources" };
+      payload: { pane: "databases" | "consoles" | "sources" | "sync-jobs" };
     }
   | {
       type: "SET_ACTIVE_EDITOR_CONTENT";
@@ -517,7 +517,9 @@ export const reducer = (state: GlobalState, action: Action): void => {
 export const useAppStore = create<
   GlobalState & {
     dispatch: (a: Action) => void;
-    setActiveView: (view: "databases" | "consoles" | "sources") => void;
+    setActiveView: (
+      view: "databases" | "consoles" | "sources" | "sync-jobs",
+    ) => void;
     setActiveEditorContent: (
       content:
         | { content: string; fileName?: string; language?: string }
