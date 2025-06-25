@@ -95,10 +95,11 @@ docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest
 # Convert KEY=value to KEY: "value" (quoted) and filter out empty lines and comments
 # First output the overridden variables, then the rest from .env (excluding the overridden ones)
 {
+  echo "NODE_ENV: \"production\""
   echo "BASE_URL: \"$BASE_URL\""
   echo "CLIENT_URL: \"$CLIENT_URL\""
   echo "VITE_API_URL: \"$VITE_API_URL\""
-  awk -F= '/^[^#]/ && NF==2 && $1!="BASE_URL" && $1!="CLIENT_URL" && $1!="VITE_API_URL" {print $1": \""$2"\""}' .env
+  awk -F= '/^[^#]/ && NF==2 && $1!="NODE_ENV" && $1!="BASE_URL" && $1!="CLIENT_URL" && $1!="VITE_API_URL" {print $1": \""$2"\""}' .env
 } > env.yaml
 
 # Update Cloud Run service
