@@ -13,14 +13,12 @@
     "format": "prettier --write \"sync/**/*.ts\"",
     "sync": "ts-node sync/sync.ts",
     "sync:help": "ts-node sync/sync.ts",
-
     "query": "ts-node sync/query-runner.ts",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "docker:rebuild": "docker compose down && docker compose build && docker compose up -d",
     "docker:clean": "docker compose down -v",
-
     "app:dev": "pnpm --filter app run dev",
     "app:build": "pnpm --filter app run build",
     "app:preview": "pnpm --filter app run preview",
@@ -46,11 +44,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/inquirer": "^8.2.11",
     "axios": "^1.6.2",
     "bson": "^6.2.0",
-    "commander": "^11.1.0",
+    "commander": "^14.0.0",
     "dotenv": "^16.3.1",
     "eslint-plugin-prettier": "^5.4.1",
+    "inquirer": "^8.2.6",
     "js-yaml": "^4.1.0",
     "mongodb": "^6.3.0",
     "stripe": "^14.25.0"
