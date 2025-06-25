@@ -142,6 +142,3 @@ class ApiClient {
 
 // Export singleton instance
 export const apiClient = new ApiClient();
-
-// Re-export for backward compatibility if needed
-export default apiClient;

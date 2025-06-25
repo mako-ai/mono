@@ -555,6 +555,3 @@ export class CloseSyncService extends BaseSyncService {
       .replace(/^_|_$/g, "");
   }
 }
-
-// Re-export for backward compatibility
-export { ProgressReporter };

@@ -336,6 +336,3 @@ export class StripeSyncService extends BaseSyncService {
       .replace(/^_|_$/g, "");
   }
 }
-
-// Re-export for backward compatibility
-export { ProgressReporter };
