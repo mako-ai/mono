@@ -417,17 +417,50 @@ class SyncWorker {
   private lockExpiry: Date | null = null;
   private lockRefreshInterval: NodeJS.Timeout | null = null;
 
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries: number,
+    delay: number = 1000,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        console.log(
+          `⚠️  Attempt ${attempt}/${maxRetries} failed:`,
+          error instanceof Error ? error.message : String(error),
+        );
+
+        if (attempt === maxRetries) {
+          throw error;
+        }
+
+        console.log(`⏳ Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 2; // Exponential backoff
+      }
+    }
+    throw new Error("Unexpected error in retry logic");
+  }
+
   async start() {
     console.log("🚀 Starting sync worker...");
 
     // Connect to database
     await connectDatabase();
 
-    // Ensure job executions collection exists
-    await ensureJobExecutionsCollection();
+    // Wait a bit to ensure database is fully ready
+    console.log("⏳ Waiting for database to be ready...");
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Try to acquire worker lock
-    const hasLock = await this.acquireWorkerLock();
+    // Ensure job executions collection exists with retry
+    await this.retryOperation(() => ensureJobExecutionsCollection(), 3);
+
+    // Try to acquire worker lock with retry
+    const hasLock = await this.retryOperation(
+      () => this.acquireWorkerLock(),
+      3,
+    );
     if (!hasLock) {
       console.log("❌ Another worker instance is already running. Exiting...");
       throw new Error("Worker already running");
@@ -441,8 +474,8 @@ class SyncWorker {
     // Start cleanup schedule for abandoned jobs
     this.startCleanupSchedule();
 
-    // Load and schedule jobs
-    await this.loadJobs();
+    // Load and schedule jobs with retry
+    await this.retryOperation(() => this.loadJobs(), 3);
 
     // Watch for job changes
     this.watchJobChanges();
