@@ -514,7 +514,16 @@ class SyncWorker {
       const activeJobs = await SyncJob.find({ enabled: true });
       console.log(`📋 Found ${activeJobs.length} active sync jobs`);
 
-      for (const job of activeJobs) {
+      // Add small startup jitter to spread out job scheduling
+      for (let i = 0; i < activeJobs.length; i++) {
+        const job = activeJobs[i];
+
+        // Small delay between scheduling each job (0-5 seconds)
+        if (i > 0) {
+          const scheduleJitter = Math.floor(Math.random() * 5000);
+          await new Promise(resolve => setTimeout(resolve, scheduleJitter));
+        }
+
         this.scheduleJob(job);
       }
     } catch (error) {
@@ -557,7 +566,13 @@ class SyncWorker {
   }
 
   private async executeJob(jobId: string) {
-    console.log(`🔄 Executing job ${jobId}`);
+    // Add jitter to prevent thundering herd - random delay 0-60 seconds
+    const jitterMs = Math.floor(Math.random() * 60000);
+    console.log(`🔄 Executing job ${jobId} (jitter: ${jitterMs}ms)`);
+
+    if (jitterMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, jitterMs));
+    }
 
     let logger: JobExecutionLogger | null = null;
     let lockHeartbeatInterval: NodeJS.Timeout | null = null;
@@ -585,7 +600,10 @@ class SyncWorker {
       );
 
       await logger.start();
-      logger.log("info", `Starting job execution for: ${job.name}`);
+      logger.log(
+        "info",
+        `Starting job execution for: ${job.name} (jitter: ${jitterMs}ms)`,
+      );
 
       // Check if job is already running (simple lock)
       const lockAcquired = await this.acquireJobLock(jobId);

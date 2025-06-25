@@ -35,6 +35,8 @@ COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
 
 # Install production dependencies and rebuild native modules
 RUN pnpm install --prod
+# Install tsx globally for running TypeScript files in production
+RUN npm install -g tsx
 RUN cd node_modules/.pnpm/sqlite3@*/node_modules/sqlite3 && npm run install --target_platform=linux --target_arch=x64
 
 # Copy built files

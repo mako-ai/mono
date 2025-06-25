@@ -38,7 +38,7 @@ export async function performSync(
       args.push("--incremental");
     }
 
-    const command = `ts-node ${args.join(" ")}`;
+    const command = `tsx ${args.join(" ")}`;
     console.log(`Executing sync command: ${command}`);
     logger?.log("info", `Executing sync command: ${command}`);
 
@@ -50,8 +50,8 @@ export async function performSync(
     logger?.log("info", `Data source: ${dataSourceId}`);
     logger?.log("info", `Destination: ${destinationDatabaseId}`);
 
-    // Spawn the sync process using ts-node
-    const syncProcess = spawn("ts-node", args, {
+    // Spawn the sync process using tsx
+    const syncProcess = spawn("tsx", args, {
       cwd: path.join(__dirname, "../../.."),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
