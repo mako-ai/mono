@@ -1,3 +1,4 @@
+/* eslint-disable no-process-exit */
 import { databaseDataSourceManager } from "./database-data-source-manager";
 
 async function testSync() {

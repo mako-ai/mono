@@ -23,11 +23,11 @@ export async function performSync(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Path to the sync script
-    // In production (Docker), use absolute path; in development, use relative
-    const syncScript =
-      process.env.NODE_ENV === "production"
-        ? "/app/sync/sync.ts"
-        : path.join(__dirname, "../../../sync/sync.ts");
+    // In production (Docker), use compiled JS; in development, use TypeScript with tsx
+    const isProduction = process.env.NODE_ENV === "production";
+    const syncScript = isProduction
+      ? "/app/api/dist/sync/sync.js"
+      : path.join(__dirname, "../sync/sync.ts");
 
     // Build command arguments
     const args = [syncScript, dataSourceId, destinationDatabaseId];
@@ -42,7 +42,10 @@ export async function performSync(
       args.push("--incremental");
     }
 
-    const command = `tsx ${args.join(" ")}`;
+    // Use absolute node path for production to avoid PATH issues, tsx for development
+    // process.execPath points to the current Node binary executing this process
+    const runtime = isProduction ? process.execPath : "tsx";
+    const command = `${runtime} ${args.join(" ")}`;
     console.log(`Executing sync command: ${command}`);
     logger?.log("info", `Executing sync command: ${command}`);
 
@@ -54,12 +57,9 @@ export async function performSync(
     logger?.log("info", `Data source: ${dataSourceId}`);
     logger?.log("info", `Destination: ${destinationDatabaseId}`);
 
-    // Spawn the sync process using tsx
-    const syncProcess = spawn("tsx", args, {
-      cwd:
-        process.env.NODE_ENV === "production"
-          ? "/app"
-          : path.join(__dirname, "../../.."),
+    // Spawn the sync process
+    const syncProcess = spawn(runtime, args, {
+      cwd: isProduction ? "/app/api" : path.join(__dirname, "../.."),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
