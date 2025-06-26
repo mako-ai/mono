@@ -366,6 +366,34 @@ export interface ISyncJob extends Document {
 }
 
 /**
+ * JobExecution model interface
+ */
+export interface IJobExecution extends Document {
+  _id: Types.ObjectId;
+  jobId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  startedAt: Date;
+  completedAt?: Date;
+  lastHeartbeat?: Date;
+  status: "running" | "completed" | "failed" | "canceled";
+  success: boolean;
+  duration?: number;
+  logs: Array<{
+    timestamp: Date;
+    level: "debug" | "info" | "warn" | "error";
+    message: string;
+    metadata?: any;
+  }>;
+  error?: {
+    message: string;
+    stack?: string;
+    code?: string | number | null;
+  } | null;
+  context?: any;
+  system?: any;
+}
+
+/**
  * Workspace Schema
  */
 const WorkspaceSchema = new Schema<IWorkspace>(
@@ -884,6 +912,52 @@ SyncJobSchema.index({ dataSourceId: 1 });
 SyncJobSchema.index({ destinationDatabaseId: 1 });
 SyncJobSchema.index({ nextRunAt: 1 });
 
+/**
+ * JobExecution Schema (binds to 'job_executions' collection)
+ */
+const JobExecutionSchema = new Schema<IJobExecution>(
+  {
+    jobId: { type: Schema.Types.ObjectId, ref: "SyncJob", required: true },
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true,
+    },
+    startedAt: { type: Date, required: true },
+    completedAt: Date,
+    lastHeartbeat: Date,
+    status: {
+      type: String,
+      enum: ["running", "completed", "failed", "canceled"],
+      required: true,
+    },
+    success: { type: Boolean, required: true },
+    duration: Number,
+    logs: [
+      {
+        timestamp: { type: Date, required: true },
+        level: {
+          type: String,
+          enum: ["debug", "info", "warn", "error"],
+          required: true,
+        },
+        message: { type: String, required: true },
+        metadata: Schema.Types.Mixed,
+      },
+    ],
+    error: Schema.Types.Mixed,
+    context: Schema.Types.Mixed,
+    system: Schema.Types.Mixed,
+  },
+  {
+    collection: "job_executions",
+    timestamps: false,
+  },
+);
+
+// Indexes
+JobExecutionSchema.index({ jobId: 1, startedAt: -1 });
+
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
   "Workspace",
@@ -912,3 +986,7 @@ export const SavedConsole = mongoose.model<ISavedConsole>(
 );
 export const Chat = mongoose.model<IChat>("Chat", ChatSchema);
 export const SyncJob = mongoose.model<ISyncJob>("SyncJob", SyncJobSchema);
+export const JobExecution = mongoose.model<IJobExecution>(
+  "JobExecution",
+  JobExecutionSchema,
+);
