@@ -1,5 +1,10 @@
 import { Hono } from "hono";
-import { SyncJob, DataSource, Database } from "../database/workspace-schema";
+import {
+  SyncJob,
+  DataSource,
+  Database,
+  JobExecution,
+} from "../database/workspace-schema";
 import { Types } from "mongoose";
 import { performSync } from "../services/sync-executor.service";
 
@@ -344,26 +349,35 @@ syncJobRoutes.get("/:jobId/history", async c => {
       return c.json({ success: false, error: "Sync job not found" }, 404);
     }
 
-    // For now, return synthetic history based on job data
-    // In a future enhancement, we could store detailed execution history
-    const history = [];
+    // Fetch executions from job_executions collection
+    const executions = await JobExecution.find({
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    })
+      .sort({ startedAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean();
 
-    if (job.lastRunAt) {
-      history.push({
-        executedAt: job.lastRunAt,
-        success: job.lastSuccessAt?.getTime() === job.lastRunAt.getTime(),
-        error: job.lastError,
-        duration: job.avgDurationMs,
-      });
-    }
+    const formatted = executions.map(ex => ({
+      executionId: ex._id,
+      executedAt: ex.startedAt,
+      status: ex.status,
+      success: ex.success,
+      error: ex.error?.message,
+      duration: ex.duration,
+    }));
 
     return c.json({
       success: true,
       data: {
-        total: history.length,
+        total: await JobExecution.countDocuments({
+          jobId: new Types.ObjectId(jobId),
+          workspaceId: new Types.ObjectId(workspaceId),
+        }),
         limit,
         offset,
-        history,
+        history: formatted,
       },
     });
   } catch (error) {
@@ -375,5 +389,53 @@ syncJobRoutes.get("/:jobId/history", async c => {
       },
       500,
     );
+  }
+});
+
+// GET full details for a specific execution
+syncJobRoutes.get("/:jobId/executions/:executionId", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+    const executionId = c.req.param("executionId");
+
+    const execution = await JobExecution.findOne({
+      _id: new Types.ObjectId(executionId),
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    }).lean();
+
+    if (!execution) {
+      return c.json({ success: false, error: "Execution not found" }, 404);
+    }
+
+    return c.json({ success: true, data: execution });
+  } catch (error) {
+    console.error("Error getting execution details:", error);
+    return c.json({ success: false, error: "Server error" }, 500);
+  }
+});
+
+// GET logs for a specific execution
+syncJobRoutes.get("/:jobId/executions/:executionId/logs", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+    const executionId = c.req.param("executionId");
+
+    const execution = await JobExecution.findOne({
+      _id: new Types.ObjectId(executionId),
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    }).lean();
+
+    if (!execution) {
+      return c.json({ success: false, error: "Execution not found" }, 404);
+    }
+
+    return c.json({ success: true, data: execution.logs || [] });
+  } catch (error) {
+    console.error("Error getting execution logs:", error);
+    return c.json({ success: false, error: "Server error" }, 500);
   }
 });
