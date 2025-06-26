@@ -1,10 +1,11 @@
+/* eslint-disable no-process-exit */
 import { Command } from "commander";
 import inquirer from "inquirer";
 import { syncConnectorRegistry } from "./connector-registry";
 import { MongoClient, Db, ObjectId } from "mongodb";
 import * as crypto from "crypto";
 import * as dotenv from "dotenv";
-import { SyncOptions } from "../api/src/connectors/base/BaseConnector";
+import { SyncOptions } from "../connectors/base/BaseConnector";
 
 dotenv.config();
 
@@ -436,7 +437,7 @@ async function interactiveMode() {
     // Prompt for entity selection
     const entityChoices = [
       { name: "All entities", value: null },
-      ...availableEntities.map(e => ({ name: e, value: e })),
+      ...availableEntities.map((e: string) => ({ name: e, value: e })),
     ];
 
     const { entity } = await inquirer.prompt([

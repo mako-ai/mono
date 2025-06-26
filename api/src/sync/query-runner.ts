@@ -2,7 +2,7 @@ import { MongoClient, Db } from "mongodb";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
-import { Database } from "../api/src/database/workspace-schema";
+import { Database } from "../database/workspace-schema";
 
 dotenv.config();
 
@@ -164,8 +164,7 @@ class QueryRunner {
       id: string;
       name: string;
       description?: string;
-    }[]
-  > {
+    }[]> {
     try {
       const databases = await Database.find({}).sort({ createdAt: -1 });
       return databases.map(db => ({

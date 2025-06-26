@@ -824,6 +824,7 @@ class SyncWorker {
   }
 
   private startLockRefresh() {
+    console.log("🔄 Starting worker lock refresh (every 30s)");
     this.lockRefreshInterval = setInterval(() => {
       void this.refreshLock();
     }, 30000); // Every 30 seconds
@@ -832,7 +833,7 @@ class SyncWorker {
   private async refreshLock() {
     try {
       const db = SyncJob.db;
-      await db.collection("worker_locks").updateOne(
+      const result = await db.collection("worker_locks").updateOne(
         {
           _id: "sync_worker" as any,
           pid: process.pid,
@@ -840,9 +841,21 @@ class SyncWorker {
         {
           $set: {
             expiresAt: new Date(Date.now() + 60000),
+            lastRefresh: new Date(),
           },
         },
       );
+
+      if (result.modifiedCount === 0) {
+        console.error(
+          "❌ Failed to refresh worker lock - lock not found or PID mismatch",
+        );
+        // Lock is gone, worker should stop
+        console.error("🛑 Worker lock lost, stopping worker...");
+        this.isRunning = false;
+      } else {
+        console.log("✅ Worker lock refreshed");
+      }
     } catch (error) {
       console.error("Failed to refresh worker lock:", error);
     }
@@ -1053,13 +1066,21 @@ class SyncWorker {
 
       // 4. Clean up stale worker lock
       const workerLockCollection = db.collection("worker_locks");
-      const workerLockTimeout = new Date(now.getTime() - 90000); // 90 seconds (lock expires after 60s + 30s buffer)
+      const workerLockTimeout = new Date(now.getTime() - 180000); // 3 minutes (much more conservative)
 
       const staleWorkerLock = await workerLockCollection.findOne({
         _id: "sync_worker" as any,
-        $or: [
-          { expiresAt: { $lt: now } },
-          { startedAt: { $lt: workerLockTimeout } }, // Lock older than 90 seconds
+        $and: [
+          { expiresAt: { $lt: now } }, // Must be expired
+          {
+            $or: [
+              { lastRefresh: { $lt: workerLockTimeout } }, // No recent refresh
+              {
+                lastRefresh: { $exists: false },
+                startedAt: { $lt: workerLockTimeout },
+              }, // Never refreshed and old
+            ],
+          },
         ],
       });
 
@@ -1068,6 +1089,9 @@ class SyncWorker {
         console.log(`  Lock PID: ${staleWorkerLock.pid}`);
         console.log(`  Lock started: ${staleWorkerLock.startedAt}`);
         console.log(`  Lock expires: ${staleWorkerLock.expiresAt}`);
+        console.log(
+          `  Last refresh: ${staleWorkerLock.lastRefresh || "never"}`,
+        );
 
         await workerLockCollection.deleteOne({
           _id: "sync_worker" as any,

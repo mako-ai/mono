@@ -1,5 +1,5 @@
 import { DataSourceConfig } from "./database-data-source-manager";
-import { BaseConnector } from "../api/src/connectors/base/BaseConnector";
+import { BaseConnector } from "../connectors/base/BaseConnector";
 
 interface ConnectorRegistryEntry {
   type: string;
@@ -33,7 +33,7 @@ class SyncConnectorRegistry {
     // Dynamically load and register connectors
     try {
       // Close connector
-      const closeModule = await import("../api/src/connectors/close");
+      const closeModule = await import("../connectors/close");
       const closeConnector = new closeModule.CloseConnector({
         config: {},
       } as any);
@@ -46,7 +46,7 @@ class SyncConnectorRegistry {
       });
 
       // Stripe connector
-      const stripeModule = await import("../api/src/connectors/stripe");
+      const stripeModule = await import("../connectors/stripe");
       const stripeConnector = new stripeModule.StripeConnector({
         config: {},
       } as any);
@@ -59,7 +59,7 @@ class SyncConnectorRegistry {
       });
 
       // GraphQL connector
-      const graphqlModule = await import("../api/src/connectors/graphql");
+      const graphqlModule = await import("../connectors/graphql");
       const graphqlConnector = new graphqlModule.GraphQLConnector({
         config: { queries: [] },
       } as any);
@@ -158,17 +158,17 @@ class SyncConnectorRegistry {
         let connectorClass;
         switch (dataSource.type) {
           case "close": {
-            const closeModule = await import("../api/src/connectors/close");
+            const closeModule = await import("../connectors/close");
             connectorClass = closeModule.CloseConnector;
             break;
           }
           case "stripe": {
-            const stripeModule = await import("../api/src/connectors/stripe");
+            const stripeModule = await import("../connectors/stripe");
             connectorClass = stripeModule.StripeConnector;
             break;
           }
           case "graphql": {
-            const graphqlModule = await import("../api/src/connectors/graphql");
+            const graphqlModule = await import("../connectors/graphql");
             connectorClass = graphqlModule.GraphQLConnector;
             break;
           }
