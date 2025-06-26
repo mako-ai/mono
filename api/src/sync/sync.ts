@@ -1,11 +1,8 @@
-/* eslint-disable no-process-exit */
-import { Command } from "commander";
-import inquirer from "inquirer";
 import { syncConnectorRegistry } from "./connector-registry";
 import { MongoClient, Db, ObjectId } from "mongodb";
 import * as crypto from "crypto";
 import * as dotenv from "dotenv";
-import { SyncOptions } from "../connectors/base/BaseConnector";
+import { SyncOptions, SyncLogger } from "../connectors/base/BaseConnector";
 
 dotenv.config();
 
@@ -144,12 +141,13 @@ class DatabaseDestinationManager {
 }
 
 // Lazy-initialized singleton
-let databaseDestinationManager: DatabaseDestinationManager | null = null;
-function getDestinationManager() {
-  if (!databaseDestinationManager) {
-    databaseDestinationManager = new DatabaseDestinationManager();
+let databaseDestinationManagerInstance: DatabaseDestinationManager | null =
+  null;
+export function getDestinationManager() {
+  if (!databaseDestinationManagerInstance) {
+    databaseDestinationManagerInstance = new DatabaseDestinationManager();
   }
-  return databaseDestinationManager;
+  return databaseDestinationManagerInstance;
 }
 
 // Import the database data source manager
@@ -161,11 +159,13 @@ export class ProgressReporter {
   private totalRecords: number;
   private currentRecords: number = 0;
   private entityName: string;
+  private logger?: SyncLogger;
 
-  constructor(entityName: string, totalRecords?: number) {
+  constructor(entityName: string, totalRecords?: number, logger?: SyncLogger) {
     this.entityName = entityName;
     this.totalRecords = totalRecords || 0;
     this.startTime = new Date();
+    this.logger = logger;
   }
 
   updateTotal(total: number) {
@@ -234,38 +234,43 @@ export class ProgressReporter {
 }
 
 // Main sync function
-async function performSync(
+export async function performSync(
   dataSourceId: string,
   destination: string,
-  entity?: string,
+  entity: string | undefined,
   isIncremental: boolean = false,
+  logger?: SyncLogger,
 ) {
   const syncMode = isIncremental ? "incremental" : "full";
 
   // Validate configuration
   const validation = databaseDataSourceManager.validateConfig();
   if (!validation.valid) {
-    console.error("Configuration validation failed:");
-    validation.errors.forEach(error => console.error(`  - ${error}`));
-    process.exit(1);
+    const errorMsg =
+      "Configuration validation failed: " + validation.errors.join(", ");
+    logger?.log("error", errorMsg);
+    throw new Error(errorMsg);
   }
 
   // Get the data source
   const dataSource =
     await databaseDataSourceManager.getDataSource(dataSourceId);
   if (!dataSource) {
-    console.error(`❌ Data source '${dataSourceId}' not found`);
-    console.log("\nAvailable data sources:");
+    const errorMsg = `Data source '${dataSourceId}' not found`;
+    logger?.log("error", errorMsg);
     const allSources = await databaseDataSourceManager.getActiveDataSources();
-    allSources.forEach(s =>
-      console.log(`  - ${s.name}: ${s.type} (ID: ${s.id})`),
+    logger?.log(
+      "info",
+      "Available data sources:",
+      allSources.map(s => ({ name: s.name, id: s.id })),
     );
-    process.exit(1);
+    throw new Error(errorMsg);
   }
 
   if (!dataSource.active) {
-    console.error(`❌ Data source '${dataSourceId}' is not active`);
-    process.exit(1);
+    const errorMsg = `Data source '${dataSource.name}' is not active`;
+    logger?.log("error", errorMsg);
+    throw new Error(errorMsg);
   }
 
   // Try to get destination from database-based destinations first
@@ -273,65 +278,58 @@ async function performSync(
     await getDestinationManager().getDestination(destination);
 
   if (!destinationDb) {
-    console.error(`❌ Destination database '${destination}' not found`);
-    console.log("\nAvailable destinations:");
-
-    // List database-based destinations
+    const errorMsg = `Destination database '${destination}' not found`;
+    logger?.log("error", errorMsg);
     const dbDestinations = await getDestinationManager().listDestinations();
-    if (dbDestinations.length > 0) {
-      console.log("  Database destinations:");
-      dbDestinations.forEach(db => console.log(`    - ${db.name}`));
-    }
-
-    process.exit(1);
+    logger?.log(
+      "info",
+      "Available destinations:",
+      dbDestinations.map(d => d.name),
+    );
+    throw new Error(errorMsg);
   }
 
   // Check if connector exists in registry
   if (!syncConnectorRegistry.hasConnector(dataSource.type)) {
-    console.error(`❌ No connector found for source type: ${dataSource.type}`);
-    console.log("\nAvailable connector types:");
-    syncConnectorRegistry
-      .getAvailableTypes()
-      .forEach((type: string) => console.log(`  - ${type}`));
-    process.exit(1);
+    const errorMsg = `No connector found for source type: ${dataSource.type}`;
+    logger?.log("error", errorMsg);
+    const availableTypes = syncConnectorRegistry.getAvailableTypes();
+    logger?.log("info", "Available connector types:", availableTypes);
+    throw new Error(errorMsg);
   }
 
   // Get connector from registry
   const connector = await syncConnectorRegistry.getConnector(dataSource);
   if (!connector) {
-    console.error(`❌ Failed to create connector for type: ${dataSource.type}`);
-    process.exit(1);
+    const errorMsg = `Failed to create connector for type: ${dataSource.type}`;
+    logger?.log("error", errorMsg);
+    throw new Error(errorMsg);
   }
 
   // Test connection first
   const connectionTest = await connector.testConnection();
   if (!connectionTest.success) {
-    console.error(
-      `❌ Failed to connect to ${dataSource.type}: ${connectionTest.message}`,
-    );
-    if (connectionTest.details) {
-      console.error(`Details: ${connectionTest.details}`);
-    }
-    process.exit(1);
+    const errorMsg = `Failed to connect to ${dataSource.type}: ${connectionTest.message}`;
+    logger?.log("error", errorMsg, { details: connectionTest.details });
+    throw new Error(errorMsg);
   }
 
-  console.log(`✅ Successfully connected to ${dataSource.type}`);
+  logger?.log("info", `Successfully connected to ${dataSource.type}`);
 
   // Create sync options
   const syncOptions: SyncOptions = {
     targetDatabase: destinationDb,
-    progress: new ProgressReporter(entity || "all entities"),
+    progress: new ProgressReporter(entity || "all entities", undefined, logger),
     syncMode: syncMode,
   };
 
   // Perform sync
-  console.log(`\n🔄 Starting ${syncMode} sync...`);
-  console.log(`📊 Source: ${dataSource.name} (${dataSource.type})`);
-  console.log(`🎯 Destination: ${destinationDb.name}`);
+  logger?.log("info", `Starting ${syncMode} sync...`);
+  logger?.log("info", `Source: ${dataSource.name} (${dataSource.type})`);
+  logger?.log("info", `Destination: ${destinationDb.name}`);
   if (entity) {
-    console.log(`📦 Entity: ${entity}`);
+    logger?.log("info", `Entity: ${entity}`);
   }
-  console.log("");
 
   const startTime = Date.now();
 
@@ -340,11 +338,9 @@ async function performSync(
       // Sync specific entity
       const availableEntities = connector.getAvailableEntities();
       if (!availableEntities.includes(entity)) {
-        console.error(
-          `❌ Entity '${entity}' is not supported by ${dataSource.type} connector`,
-        );
-        console.log(`Available entities: ${availableEntities.join(", ")}`);
-        process.exit(1);
+        const errorMsg = `Entity '${entity}' is not supported by ${dataSource.type} connector. Available: ${availableEntities.join(", ")}`;
+        logger?.log("error", errorMsg);
+        throw new Error(errorMsg);
       }
 
       syncOptions.entity = entity;
@@ -355,219 +351,13 @@ async function performSync(
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.log(`\n✅ Sync completed successfully in ${duration}s`);
+    logger?.log("info", `Sync completed successfully in ${duration}s`);
   } catch (error) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    console.error(`\n❌ Sync failed after ${duration}s:`, error);
-    process.exit(1);
+    const errorMsg = `Sync failed after ${duration}s: ${error instanceof Error ? error.message : String(error)}`;
+    logger?.log("error", errorMsg, {
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw new Error(errorMsg, { cause: error });
   }
-}
-
-// Interactive mode functions
-async function interactiveMode() {
-  console.log("🚀 Welcome to the Interactive Data Sync Tool\n");
-
-  try {
-    // Get available data sources
-    const dataSources = await databaseDataSourceManager.getActiveDataSources();
-    if (dataSources.length === 0) {
-      console.error("❌ No active data sources found!");
-      console.log("Please create data sources in your application first.");
-      process.exit(1);
-    }
-
-    // Get available destinations
-    const destinations = await getDestinationManager().listDestinations();
-    if (destinations.length === 0) {
-      console.error("❌ No destination databases found!");
-      console.log(
-        "Please create destination databases in your application first.",
-      );
-      process.exit(1);
-    }
-
-    // Prompt for data source
-    const sourceChoices = dataSources.map(s => ({
-      name: `${s.name} (${s.type})`,
-      value: s.id,
-      short: s.name,
-    }));
-
-    const { dataSourceId } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "dataSourceId",
-        message: "Select a data source:",
-        choices: sourceChoices,
-      },
-    ]);
-
-    // Get selected data source details
-    const selectedSource = dataSources.find(s => s.id === dataSourceId);
-    if (!selectedSource) {
-      throw new Error("Selected data source not found");
-    }
-
-    // Prompt for destination
-    const destChoices = destinations.map(d => ({
-      name: d.name,
-      value: d.id,
-      short: d.name,
-    }));
-
-    const { destinationId } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "destinationId",
-        message: "Select a destination database:",
-        choices: destChoices,
-      },
-    ]);
-
-    // Get available entities for the selected source
-    const connector = await syncConnectorRegistry.getConnector(selectedSource);
-    if (!connector) {
-      throw new Error(
-        `Failed to create connector for type: ${selectedSource.type}`,
-      );
-    }
-
-    const availableEntities = connector.getAvailableEntities();
-
-    // Prompt for entity selection
-    const entityChoices = [
-      { name: "All entities", value: null },
-      ...availableEntities.map((e: string) => ({ name: e, value: e })),
-    ];
-
-    const { entity } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "entity",
-        message: "Select entity to sync:",
-        choices: entityChoices,
-      },
-    ]);
-
-    // Prompt for sync mode
-    const { syncMode } = await inquirer.prompt([
-      {
-        type: "list",
-        name: "syncMode",
-        message: "Select sync mode:",
-        choices: [
-          {
-            name: "Full sync (replace all data)",
-            value: "full",
-            short: "Full",
-          },
-          {
-            name: "Incremental sync (update changed data only)",
-            value: "incremental",
-            short: "Incremental",
-          },
-        ],
-      },
-    ]);
-
-    // Confirm before proceeding
-    console.log("\n📋 Sync Configuration:");
-    console.log(`   Source: ${selectedSource.name} (${selectedSource.type})`);
-    console.log(
-      `   Destination: ${destinations.find(d => d.id === destinationId)?.name}`,
-    );
-    console.log(`   Entity: ${entity || "All entities"}`);
-    console.log(
-      `   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`,
-    );
-
-    const { confirm } = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "confirm",
-        message: "Do you want to proceed with this sync?",
-        default: true,
-      },
-    ]);
-
-    if (!confirm) {
-      console.log("❌ Sync cancelled by user");
-      process.exit(0);
-    }
-
-    // Perform the sync
-    await performSync(
-      dataSourceId,
-      destinationId,
-      entity || undefined,
-      syncMode === "incremental",
-    );
-  } catch (error) {
-    console.error("❌ Interactive mode error:", error);
-    process.exit(1);
-  }
-}
-
-// Create commander program
-const program = new Command();
-
-program
-  .name("sync")
-  .description("Sync data from various sources to destination databases")
-  .version("1.0.0")
-  .helpOption("-h, --help", "display help for command")
-  .argument("[source]", "Name or ID of the data source to sync from")
-  .argument("[destination]", "Name or ID of the destination database")
-  .argument("[entity]", "Specific entity to sync (optional)")
-  .option(
-    "--incremental, --inc",
-    "Perform incremental sync (only sync new/updated records)",
-  )
-  .option("-i, --interactive", "Run in interactive mode")
-  .action(async (source, destination, entity, options) => {
-    // If no arguments provided or interactive flag is set, run interactive mode
-    if ((!source && !destination) || options.interactive) {
-      await interactiveMode();
-    } else if (!source || !destination) {
-      // Don't show error for help command
-      if (!process.argv.includes("--help") && !process.argv.includes("-h")) {
-        // If some but not all required arguments are provided, show error
-        console.error(
-          "❌ Both source and destination are required in non-interactive mode",
-        );
-        console.log(
-          "Use --interactive or -i flag to run in interactive mode.\n",
-        );
-        process.exit(1);
-      }
-    } else {
-      // Run with provided arguments
-      await performSync(source, destination, entity, options.incremental);
-    }
-  })
-  .addHelpText(
-    "after",
-    `
-Examples:
-  $ pnpm run sync                                    # Interactive mode
-  $ pnpm run sync --interactive                      # Force interactive mode
-  $ pnpm run sync "My Stripe Source" "analytics_db"  # Sync all entities
-  $ pnpm run sync stripe-prod analytics_db customers # Sync specific entity
-  $ pnpm run sync close-crm reporting_db leads --incremental
-  
-Available Commands:
-  When run without arguments, the tool will guide you through an interactive
-  selection process for all options.
-  `,
-  );
-
-// Parse command line arguments
-try {
-  program.parse(process.argv);
-} catch (error) {
-  // Commander throws on help, which is expected
-  if (error && (error as any).code === "commander.help") {
-    process.exit(0);
-  }
-  throw error;
 }
