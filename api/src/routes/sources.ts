@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { DataSource } from "../database/workspace-schema";
 import { connectorRegistry } from "../connectors/registry";
+import { syncConnectorRegistry } from "../sync/connector-registry";
 import * as crypto from "crypto";
+import { databaseDataSourceManager } from "../sync/database-data-source-manager";
 
 export const dataSourceRoutes = new Hono();
 
@@ -309,6 +311,60 @@ dataSourceRoutes.patch("/:id/enable", async c => {
       message: `Data source ${
         body.enabled ? "enabled" : "disabled"
       } successfully`,
+    });
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
+
+// GET /api/workspaces/:workspaceId/sources/:id/entities - Get available entities for a data source
+dataSourceRoutes.get("/:id/entities", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const id = c.req.param("id");
+
+    // First, verify the data source belongs to the workspace
+    const ownershipCheck = await DataSource.findOne(
+      { _id: id, workspaceId: workspaceId },
+      { _id: 1 },
+    ).lean();
+    if (!ownershipCheck) {
+      return c.json(
+        { success: false, error: "Data source not found in this workspace" },
+        404,
+      );
+    }
+
+    // Now get the full config using the manager
+    const dataSource = await databaseDataSourceManager.getDataSource(id);
+
+    if (!dataSource) {
+      return c.json({ success: false, error: "Data source not found" }, 404);
+    }
+
+    // Get connector and its entities
+    const connector = await syncConnectorRegistry.getConnector(dataSource);
+    if (!connector) {
+      return c.json(
+        {
+          success: false,
+          error: `No connector available for type: ${dataSource.type}`,
+        },
+        500,
+      );
+    }
+
+    const entities = connector.getAvailableEntities();
+
+    return c.json({
+      success: true,
+      data: entities,
     });
   } catch (error) {
     return c.json(

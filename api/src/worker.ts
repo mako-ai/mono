@@ -637,7 +637,7 @@ class SyncWorker {
           job.dataSourceId.toString(),
           job.destinationDatabaseId.toString(),
           job.entityFilter,
-          job.syncMode === "incremental",
+          job.syncMode === "full",
           logger,
         );
 

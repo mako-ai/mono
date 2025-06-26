@@ -292,7 +292,7 @@ syncJobRoutes.post("/:jobId/run", async c => {
       job.dataSourceId._id.toString(),
       job.destinationDatabaseId._id.toString(),
       job.entityFilter,
-      job.syncMode === "incremental",
+      job.syncMode === "full",
     )
       .then(async () => {
         await SyncJob.findByIdAndUpdate(jobId, {

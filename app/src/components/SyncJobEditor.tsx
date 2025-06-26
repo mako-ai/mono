@@ -20,6 +20,9 @@ import {
   Switch,
   Stack,
   Snackbar,
+  Checkbox,
+  FormGroup,
+  Divider,
 } from "@mui/material";
 import {
   Save as SaveIcon,
@@ -27,6 +30,7 @@ import {
   DataObject as DataIcon,
   Storage as DatabaseIcon,
   Add as AddIcon,
+  CheckBox as CheckBoxIcon,
 } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
@@ -48,6 +52,7 @@ interface FormData {
   timezone: string;
   syncMode: "full" | "incremental";
   enabled: boolean;
+  entityFilter: string[];
 }
 
 // Common schedule presets
@@ -92,12 +97,19 @@ export function SyncJobEditor({
   const [currentJobId, setCurrentJobId] = useState<string | undefined>(jobId);
   const [isNewMode, setIsNewMode] = useState(isNew);
 
+  // Entity selection state
+  const [availableEntities, setAvailableEntities] = useState<string[]>([]);
+  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
+  const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
+  const [selectAllEntities, setSelectAllEntities] = useState(true);
+
   const {
     control,
     handleSubmit,
     formState: { errors, isDirty },
     reset,
     watch,
+    setValue,
   } = useForm<FormData>({
     defaultValues: {
       name: "",
@@ -107,11 +119,13 @@ export function SyncJobEditor({
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
       syncMode: "full",
       enabled: true,
+      entityFilter: [],
     },
   });
 
   const watchSchedule = watch("schedule");
   const watchTimezone = watch("timezone");
+  const watchDataSourceId = watch("dataSourceId");
 
   // Fetch data sources
   const fetchDataSources = async (workspaceId: string) => {
@@ -133,6 +147,71 @@ export function SyncJobEditor({
     }
   };
 
+  // Fetch entities for a data source
+  const fetchEntities = async (dataSourceId: string) => {
+    if (!currentWorkspace?.id || !dataSourceId) return;
+
+    setIsLoadingEntities(true);
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        data: string[];
+      }>(`/workspaces/${currentWorkspace.id}/sources/${dataSourceId}/entities`);
+
+      if (response.success) {
+        setAvailableEntities(response.data || []);
+        // Reset selection when entities change
+        setSelectedEntities([]);
+        setSelectAllEntities(true);
+        setValue("entityFilter", []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch entities:", error);
+      setError("Failed to load entities for this data source");
+      setAvailableEntities([]);
+    } finally {
+      setIsLoadingEntities(false);
+    }
+  };
+
+  // Handle entity selection changes
+  const handleEntityChange = (entity: string, checked: boolean) => {
+    let newSelectedEntities: string[];
+    if (checked) {
+      newSelectedEntities = [...selectedEntities, entity];
+    } else {
+      newSelectedEntities = selectedEntities.filter(e => e !== entity);
+    }
+
+    setSelectedEntities(newSelectedEntities);
+    setSelectAllEntities(
+      newSelectedEntities.length === availableEntities.length,
+    );
+
+    // Update form value - empty array means sync all entities
+    setValue(
+      "entityFilter",
+      newSelectedEntities.length === availableEntities.length
+        ? []
+        : newSelectedEntities,
+      {
+        shouldDirty: true,
+      },
+    );
+  };
+
+  // Handle "All Entities" checkbox
+  const handleSelectAllChange = (checked: boolean) => {
+    setSelectAllEntities(checked);
+    if (checked) {
+      setSelectedEntities([...availableEntities]);
+      setValue("entityFilter", [], { shouldDirty: true }); // Empty means all
+    } else {
+      setSelectedEntities([]);
+      setValue("entityFilter", [], { shouldDirty: true });
+    }
+  };
+
   // Load initial data
   useEffect(() => {
     if (currentWorkspace?.id) {
@@ -140,6 +219,17 @@ export function SyncJobEditor({
       fetchDatabases();
     }
   }, [currentWorkspace?.id, fetchDatabases]);
+
+  // Fetch entities when data source changes
+  useEffect(() => {
+    if (watchDataSourceId) {
+      fetchEntities(watchDataSourceId);
+    } else {
+      setAvailableEntities([]);
+      setSelectedEntities([]);
+      setSelectAllEntities(true);
+    }
+  }, [watchDataSourceId, currentWorkspace?.id]);
 
   // Load job data if editing
   useEffect(() => {
@@ -154,8 +244,18 @@ export function SyncJobEditor({
           timezone: job.schedule.timezone || "UTC",
           syncMode: job.syncMode,
           enabled: job.enabled,
+          entityFilter: job.entityFilter || [],
         };
         reset(formData);
+
+        // Set entity selection state
+        if (job.entityFilter && job.entityFilter.length > 0) {
+          setSelectedEntities(job.entityFilter);
+          setSelectAllEntities(false);
+        } else {
+          setSelectAllEntities(true);
+          setSelectedEntities([]);
+        }
 
         // Check if using a preset
         const isPreset = SCHEDULE_PRESETS.some(
@@ -195,6 +295,7 @@ export function SyncJobEditor({
         },
         syncMode: data.syncMode,
         enabled: data.enabled,
+        entityFilter: data.entityFilter,
       };
 
       let newJob;
@@ -382,6 +483,114 @@ export function SyncJobEditor({
                 )}
               />
             </Stack>
+
+            {/* Entity Selection */}
+            {watchDataSourceId && (
+              <>
+                <Divider />
+                <Box>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      mb: 2,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <CheckBoxIcon />
+                    Entities to Sync
+                  </Typography>
+
+                  {isLoadingEntities ? (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <LinearProgress sx={{ flex: 1 }} />
+                      <Typography variant="body2" color="text.secondary">
+                        Loading entities...
+                      </Typography>
+                    </Box>
+                  ) : availableEntities.length > 0 ? (
+                    <Box>
+                      {/* Select All Option */}
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={selectAllEntities}
+                            indeterminate={
+                              selectedEntities.length > 0 &&
+                              selectedEntities.length < availableEntities.length
+                            }
+                            onChange={e =>
+                              handleSelectAllChange(e.target.checked)
+                            }
+                          />
+                        }
+                        label={
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
+                            <Typography variant="body2" fontWeight="bold">
+                              All Entities
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              ({availableEntities.length} total)
+                            </Typography>
+                          </Box>
+                        }
+                        sx={{ mb: 1 }}
+                      />
+
+                      <Divider sx={{ my: 1 }} />
+
+                      {/* Individual Entity Options */}
+                      <FormGroup sx={{ ml: 2 }}>
+                        {availableEntities.map(entity => (
+                          <FormControlLabel
+                            key={entity}
+                            control={
+                              <Checkbox
+                                checked={
+                                  selectAllEntities ||
+                                  selectedEntities.includes(entity)
+                                }
+                                onChange={e =>
+                                  handleEntityChange(entity, e.target.checked)
+                                }
+                                disabled={selectAllEntities}
+                              />
+                            }
+                            label={
+                              <Typography variant="body2">{entity}</Typography>
+                            }
+                          />
+                        ))}
+                      </FormGroup>
+
+                      <Alert severity="info" sx={{ mt: 2 }}>
+                        <Typography variant="body2">
+                          {selectAllEntities
+                            ? "All entities will be synced from this data source."
+                            : selectedEntities.length > 0
+                              ? `${selectedEntities.length} of ${availableEntities.length} entities selected for sync.`
+                              : "No entities selected. Please select at least one entity or choose 'All Entities'."}
+                        </Typography>
+                      </Alert>
+                    </Box>
+                  ) : (
+                    <Alert severity="warning">
+                      No entities available for this data source.
+                    </Alert>
+                  )}
+                </Box>
+              </>
+            )}
 
             {/* Schedule Mode */}
             <Box>

@@ -113,18 +113,22 @@ export class StripeConnector extends BaseConnector {
 
   async syncAll(options: SyncOptions): Promise<void> {
     const syncService = this.getSyncService();
-    await syncService.syncAll(options.targetDatabase);
+    await syncService.syncAll({
+      targetDatabase: options.targetDatabase,
+      syncMode: options.syncMode,
+      progress: options.progress,
+    });
   }
 
   async syncEntity(entity: string, options: SyncOptions): Promise<void> {
-    const { targetDatabase, progress } = options;
+    const { targetDatabase, progress, syncMode } = options;
 
     if (!targetDatabase) {
       throw new Error("Target database is required for sync");
     }
 
     const syncService = this.getSyncService();
-    const useStaging = true; // Always use staging for Stripe sync
+    const useStaging = syncMode !== "incremental";
 
     // Use the generic syncEntity method
     await syncService.syncEntity(entity, targetDatabase, progress, useStaging);

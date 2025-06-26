@@ -121,9 +121,14 @@ export class StripeSyncService extends BaseSyncService {
   /**
    * Sync all Stripe entities
    */
-  async syncAll(targetDb?: any): Promise<void> {
+  async syncAll(options: {
+    targetDatabase?: any;
+    syncMode?: "full" | "incremental";
+    progress?: ProgressReporter;
+  }): Promise<void> {
+    const { targetDatabase, syncMode, progress } = options;
     console.log(
-      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
+      `\n🔄 Starting ${syncMode} sync for data source: ${this.dataSource.name}`,
     );
     const startTime = Date.now();
     const failedEntities: string[] = [];
@@ -131,7 +136,12 @@ export class StripeSyncService extends BaseSyncService {
     try {
       for (const [entityName] of this.entityConfigs) {
         try {
-          await this.syncEntity(entityName, targetDb, undefined, true);
+          await this.syncEntity(
+            entityName,
+            targetDatabase,
+            progress,
+            syncMode !== "incremental",
+          );
         } catch (err) {
           failedEntities.push(entityName);
           console.error(`❌ Failed to sync ${entityName}:`, err);
@@ -168,7 +178,9 @@ export class StripeSyncService extends BaseSyncService {
     }
 
     console.log(
-      `Starting ${entityName} sync for: ${this.dataSource.name} (${useStaging ? "staging" : "direct"} mode)`,
+      `Starting ${entityName} sync for: ${this.dataSource.name} (${
+        useStaging ? "staging" : "direct"
+      } mode)`,
     );
 
     const { db } = await this.getMongoConnection(targetDb);
@@ -176,7 +188,7 @@ export class StripeSyncService extends BaseSyncService {
     try {
       // Note: Stripe doesn't support true incremental sync because most endpoints
       // don't provide filtering by updated date. We always do a full sync with staging
-      // to ensure data consistency and zero downtime.
+      // to ensure data consistency and zero downtime. For incremental, we skip staging.
       if (useStaging) {
         await this.performStagingSync(config, db, progress);
       } else {
