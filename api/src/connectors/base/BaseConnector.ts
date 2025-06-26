@@ -1,5 +1,13 @@
 import { IDataSource } from "../../database/workspace-schema";
 
+export interface SyncLogger {
+  log(
+    level: "debug" | "info" | "warn" | "error",
+    message: string,
+    metadata?: any,
+  ): void;
+}
+
 export interface ConnectionTestResult {
   success: boolean;
   message: string;
