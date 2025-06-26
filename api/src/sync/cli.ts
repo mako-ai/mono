@@ -31,18 +31,50 @@ async function interactiveMode() {
   console.log("🚀 Welcome to the Interactive Data Sync Tool\n");
 
   try {
-    // Get available data sources
-    const dataSources = await databaseDataSourceManager.getActiveDataSources();
+    // Get available workspaces
+    process.stdout.write("⏳ Fetching workspaces...");
+    const workspaces = await getDestinationManager().listWorkspaces();
+    process.stdout.write("\r" + " ".repeat(50) + "\r");
+    if (workspaces.length === 0) {
+      console.error("❌ No workspaces found!");
+      console.log("Please create a workspace in your application first.");
+      process.exit(1);
+    }
+
+    // Prompt for workspace
+    const workspaceChoices = workspaces.map(w => ({
+      name: w.name,
+      value: w.id,
+      short: w.name,
+    }));
+
+    const { workspaceId } = await inquirer.prompt([
+      {
+        type: "list",
+        name: "workspaceId",
+        message: "Select a workspace:",
+        choices: workspaceChoices,
+      },
+    ]);
+
+    // Get available data sources for the selected workspace
+    process.stdout.write("⏳ Fetching data sources...");
+    const dataSources =
+      await databaseDataSourceManager.getActiveDataSources(workspaceId);
+    process.stdout.write("\r" + " ".repeat(50) + "\r");
     if (dataSources.length === 0) {
-      console.error("❌ No active data sources found!");
+      console.error("❌ No active data sources found for this workspace!");
       console.log("Please create data sources in your application first.");
       process.exit(1);
     }
 
-    // Get available destinations
-    const destinations = await getDestinationManager().listDestinations();
+    // Get available destinations for the selected workspace
+    process.stdout.write("⏳ Fetching destinations...");
+    const destinations =
+      await getDestinationManager().listDestinations(workspaceId);
+    process.stdout.write("\r" + " ".repeat(50) + "\r");
     if (destinations.length === 0) {
-      console.error("❌ No destination databases found!");
+      console.error("❌ No destination databases found for this workspace!");
       console.log(
         "Please create destination databases in your application first.",
       );
@@ -135,6 +167,9 @@ async function interactiveMode() {
 
     // Confirm before proceeding
     console.log("\n📋 Sync Configuration:");
+    console.log(
+      `   Workspace: ${workspaces.find(w => w.id === workspaceId)?.name}`,
+    );
     console.log(`   Source: ${selectedSource.name} (${selectedSource.type})`);
     console.log(
       `   Destination: ${destinations.find((d: { id: string }) => d.id === destinationId)?.name}`,
@@ -143,6 +178,16 @@ async function interactiveMode() {
     console.log(
       `   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`,
     );
+
+    // Show equivalent command
+    let command = `pnpm run sync ${dataSourceId} ${destinationId}`;
+    if (entity) {
+      command += ` ${entity}`;
+    }
+    if (syncMode === "incremental") {
+      command += " --incremental";
+    }
+    console.log(`\nEquivalent command:\n  $ ${command}\n`);
 
     const { confirm } = await inquirer.prompt([
       {
@@ -179,24 +224,23 @@ program
   .description("Sync data from various sources to destination databases")
   .version("1.0.0")
   .helpOption("-h, --help", "display help for command")
-  .argument("[source]", "Name or ID of the data source to sync from")
-  .argument("[destination]", "Name or ID of the destination database")
+  .argument("[sourceId]", "ID of the data source to sync from")
+  .argument("[destinationId]", "ID of the destination database")
   .argument("[entity]", "Specific entity to sync (optional)")
   .option(
     "--incremental, --inc",
     "Perform incremental sync (only sync new/updated records)",
   )
   .option("-i, --interactive", "Run in interactive mode")
-  .action(async (source, destination, entity, options) => {
+  .action(async (sourceId, destinationId, entity, options) => {
     // If no arguments provided or interactive flag is set, run interactive mode
-    if ((!source && !destination) || options.interactive) {
+    if ((!sourceId && !destinationId) || options.interactive) {
       await interactiveMode();
-    } else if (!source || !destination) {
+    } else if (!sourceId || !destinationId) {
       // Don't show error for help command
       if (!process.argv.includes("--help") && !process.argv.includes("-h")) {
-        // If some but not all required arguments are provided, show error
         console.error(
-          "❌ Both source and destination are required in non-interactive mode",
+          "❌ Both source and destination IDs are required in non-interactive mode",
         );
         console.log(
           "Use --interactive or -i flag to run in interactive mode.\n",
@@ -205,7 +249,7 @@ program
       }
     } else {
       // Run with provided arguments
-      await runSync(source, destination, entity, options.incremental);
+      await runSync(sourceId, destinationId, entity, options.incremental);
     }
   })
   .addHelpText(
@@ -214,9 +258,9 @@ program
 Examples:
   $ pnpm run sync                                    # Interactive mode
   $ pnpm run sync --interactive                      # Force interactive mode
-  $ pnpm run sync "My Stripe Source" "analytics_db"  # Sync all entities
-  $ pnpm run sync stripe-prod analytics_db customers # Sync specific entity
-  $ pnpm run sync close-crm reporting_db leads --incremental
+  $ pnpm run sync 60f... 61a...                      # Sync all entities by ID
+  $ pnpm run sync <source_id> <dest_id> customers    # Sync specific entity
+  $ pnpm run sync <source_id> <dest_id> leads --incremental
   
 Available Commands:
   When run without arguments, the tool will guide you through an interactive

@@ -127,20 +127,25 @@ export class CloseConnector extends BaseConnector {
 
   async syncAll(options: SyncOptions): Promise<void> {
     const syncService = this.getSyncService();
-    await syncService.syncAll(options.targetDatabase);
+    await syncService.syncAll({
+      targetDatabase: options.targetDatabase,
+      syncMode: options.syncMode,
+    });
   }
 
   async syncEntity(entity: string, options: SyncOptions): Promise<void> {
-    const { targetDatabase, progress, syncMode = "full" } = options;
+    const { targetDatabase, progress } = options;
 
     if (!targetDatabase) {
       throw new Error("Target database is required for sync");
     }
 
     const syncService = this.getSyncService();
-    const incremental = syncMode === "incremental";
-
-    // Use the generic syncEntity method
-    await syncService.syncEntity(entity, targetDatabase, progress, incremental);
+    await syncService.syncEntity(
+      entity,
+      targetDatabase,
+      progress,
+      options.syncMode === "incremental",
+    );
   }
 }

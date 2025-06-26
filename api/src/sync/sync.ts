@@ -56,24 +56,20 @@ class DatabaseDestinationManager {
     }
   }
 
-  async getDestination(nameOrId: string): Promise<any> {
+  async getDestination(id: string): Promise<any> {
     let db: Db | undefined;
     try {
       db = await this.connect();
       const collection = db.collection("databases");
 
-      // Try to find by name first, then by ID
-      let destination = await collection.findOne({ name: nameOrId });
-      if (!destination) {
-        // Try to parse as ObjectId
-        try {
-          destination = await collection.findOne({
-            _id: new ObjectId(nameOrId),
-          });
-        } catch {
-          // Not a valid ObjectId, destination remains null
-        }
+      if (!ObjectId.isValid(id)) {
+        return null;
       }
+
+      // Try to find by name first, then by ID
+      const destination = await collection.findOne({
+        _id: new ObjectId(id),
+      });
 
       if (!destination) {
         return null;
@@ -96,15 +92,34 @@ class DatabaseDestinationManager {
     }
   }
 
-  async listDestinations(): Promise<{ name: string; id: string }[]> {
+  async listDestinations(
+    workspaceId: string,
+  ): Promise<{ name: string; id: string }[]> {
     let db: Db | undefined;
     try {
       db = await this.connect();
       const collection = db.collection("databases");
       const destinations = await collection
-        .find({}, { projection: { name: 1, _id: 1 } })
+        .find(
+          { workspaceId: new ObjectId(workspaceId) },
+          { projection: { name: 1, _id: 1 } },
+        )
         .toArray();
       return destinations.map(d => ({ name: d.name, id: d._id.toString() }));
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  async listWorkspaces(): Promise<{ name: string; id: string }[]> {
+    let db: Db | undefined;
+    try {
+      db = await this.connect();
+      const collection = db.collection("workspaces");
+      const workspaces = await collection
+        .find({}, { projection: { name: 1, _id: 1 } })
+        .toArray();
+      return workspaces.map(w => ({ name: w.name, id: w._id.toString() }));
     } finally {
       await this.disconnect();
     }
@@ -280,7 +295,9 @@ export async function performSync(
   if (!destinationDb) {
     const errorMsg = `Destination database '${destination}' not found`;
     logger?.log("error", errorMsg);
-    const dbDestinations = await getDestinationManager().listDestinations();
+    const dbDestinations = await getDestinationManager().listDestinations(
+      (dataSource as any).workspaceId,
+    );
     logger?.log(
       "info",
       "Available destinations:",

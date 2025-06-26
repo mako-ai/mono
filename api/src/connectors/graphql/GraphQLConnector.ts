@@ -3,24 +3,8 @@ import {
   ConnectionTestResult,
   SyncOptions,
 } from "../base/BaseConnector";
-import { MongoClient } from "mongodb";
+import { GraphQLSyncService } from "./GraphQLSyncService";
 import axios, { AxiosInstance } from "axios";
-
-// Simple object path getter function
-function get(obj: any, path: string, defaultValue?: any): any {
-  const keys = path.split(".");
-  let result = obj;
-
-  for (const key of keys) {
-    if (result && typeof result === "object" && key in result) {
-      result = result[key];
-    } else {
-      return defaultValue;
-    }
-  }
-
-  return result;
-}
 
 export class GraphQLConnector extends BaseConnector {
   private graphqlClient: AxiosInstance | null = null;
@@ -220,6 +204,10 @@ export class GraphQLConnector extends BaseConnector {
     return this.graphqlClient;
   }
 
+  private getSyncService(): GraphQLSyncService {
+    return new GraphQLSyncService(this.dataSource);
+  }
+
   async testConnection(): Promise<ConnectionTestResult> {
     try {
       const validation = this.validateConfig();
@@ -273,149 +261,22 @@ export class GraphQLConnector extends BaseConnector {
   }
 
   async syncAll(options: SyncOptions): Promise<void> {
-    if (
-      !this.dataSource.config.queries ||
-      this.dataSource.config.queries.length === 0
-    ) {
-      throw new Error("No queries configured");
-    }
-
-    for (const queryConfig of this.dataSource.config.queries) {
-      await this.syncEntity(queryConfig.name, options);
-    }
+    const syncService = this.getSyncService();
+    await syncService.syncAll({
+      targetDatabase: options.targetDatabase,
+      syncMode: options.syncMode,
+      progress: options.progress,
+    });
   }
 
   async syncEntity(entity: string, options: SyncOptions): Promise<void> {
-    const { targetDatabase, progress } = options;
+    const { targetDatabase, progress, syncMode } = options;
 
     if (!targetDatabase) {
       throw new Error("Target database is required for sync");
     }
 
-    const rawConfig = this.dataSource.config.queries?.find(
-      (q: any) => q.name.toLowerCase() === entity.toLowerCase(),
-    );
-
-    if (!rawConfig) {
-      throw new Error(`Query configuration not found for entity: ${entity}`);
-    }
-
-    // Normalize keys to camelCase expected by syncQuery helper
-    const rc: any = rawConfig as any;
-    const queryConfig = {
-      ...rawConfig,
-      dataPath: rc.data_path ?? rc.dataPath,
-      totalCountPath: rc.total_count_path ?? rc.totalCountPath,
-      hasNextPagePath: rc.has_next_page_path ?? rc.hasNextPagePath,
-      cursorPath: rc.cursor_path ?? rc.cursorPath,
-      variables: rc.variables ?? {
-        limit: rc.batch_size || 100,
-        offset: 0,
-      },
-    };
-
-    await this.syncQuery(queryConfig, targetDatabase, progress);
-  }
-
-  private async syncQuery(queryConfig: any, targetDb: any, progress?: any) {
-    const client = this.getGraphQLClient();
-    const delay = this.getRateLimitDelay();
-
-    const mongoClient = new MongoClient(targetDb.connection.connection_string);
-    await mongoClient.connect();
-    const db = mongoClient.db(targetDb.connection.database);
-    const collection = db.collection(
-      `graphql_${queryConfig.name.toLowerCase()}`,
-    );
-
-    try {
-      let hasMore = true;
-      let cursor: any = null;
-      let totalSynced = 0;
-
-      while (hasMore) {
-        // Build variables with cursor if applicable
-        const variables = {
-          ...(queryConfig.variables || {}),
-          ...(cursor && queryConfig.cursorPath ? { cursor } : {}),
-        };
-
-        // Execute GraphQL query
-        const response = await client.post("", {
-          query: queryConfig.query,
-          variables,
-        });
-
-        if (response.data.errors) {
-          throw new Error(
-            `GraphQL query errors: ${JSON.stringify(response.data.errors)}`,
-          );
-        }
-
-        // Extract data from response using configured path
-        const data = queryConfig.dataPath
-          ? get(response.data.data, queryConfig.dataPath)
-          : response.data.data;
-
-        if (!Array.isArray(data)) {
-          throw new Error(
-            "Query result is not an array. Check your dataPath configuration.",
-          );
-        }
-
-        if (data.length > 0) {
-          const documents = data.map((item: any) => ({
-            ...item,
-            _syncedAt: new Date(),
-            _dataSourceId: this.dataSource._id.toString(),
-          }));
-
-          // Use a unique field if specified, otherwise use the whole document for matching
-          const uniqueField = queryConfig.uniqueField || "id";
-
-          await collection.bulkWrite(
-            documents.map((doc: any) => ({
-              replaceOne: {
-                filter:
-                  uniqueField && doc[uniqueField]
-                    ? { [uniqueField]: doc[uniqueField] }
-                    : doc,
-                replacement: doc,
-                upsert: true,
-              },
-            })),
-          );
-
-          totalSynced += documents.length;
-          if (progress) {
-            progress.reportBatch(documents.length);
-          }
-        }
-
-        // Check if there are more pages
-        if (queryConfig.hasNextPagePath) {
-          hasMore = get(response.data.data, queryConfig.hasNextPagePath, false);
-        } else if (queryConfig.cursorPath && data.length > 0) {
-          // Extract cursor from last item
-          cursor = get(data[data.length - 1], queryConfig.cursorPath);
-          hasMore = cursor !== null && cursor !== undefined;
-        } else {
-          // No pagination configured, assume single page
-          hasMore = false;
-        }
-
-        if (hasMore) {
-          await this.sleep(delay);
-        }
-      }
-
-      if (progress) {
-        progress.reportComplete();
-      }
-
-      console.log(`✓ Synced ${totalSynced} items from ${queryConfig.name}`);
-    } finally {
-      await mongoClient.close();
-    }
+    const syncService = this.getSyncService();
+    await syncService.syncEntity(entity, targetDatabase, progress, syncMode);
   }
 }

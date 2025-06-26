@@ -1,10 +1,6 @@
 import axios, { AxiosError } from "axios";
 import { IDataSource } from "../../database/workspace-schema";
-import {
-  BaseSyncService,
-  ProgressReporter,
-  SimpleProgressReporter,
-} from "../base/BaseSyncService";
+import { BaseSyncService, ProgressReporter } from "../base/BaseSyncService";
 
 interface GraphQLQuery {
   name: string;
@@ -209,6 +205,7 @@ export class GraphQLSyncService extends BaseSyncService {
     queryConfig: GraphQLQuery,
     progress?: ProgressReporter,
     onBatch?: (records: any[]) => Promise<void>,
+    variables: { [key: string]: any } = {},
   ): Promise<any[]> {
     const results: any[] = [];
     let hasMore = true;
@@ -273,28 +270,29 @@ export class GraphQLSyncService extends BaseSyncService {
 
     while (hasMore) {
       // Build query variables based on pagination type
-      let variables: any = {
+      let queryVariables: any = {
         ...queryConfig.variables,
+        ...variables,
       };
 
       if (usesCursorPagination) {
         // Cursor-based pagination (Relay style)
-        variables = {
-          ...variables,
+        queryVariables = {
+          ...queryVariables,
           ...(cursor && { after: cursor }),
           first: Number(this.settings.batchSize),
         };
       } else if (usesOffsetPagination) {
         // Offset-based pagination (Hasura style)
-        variables = {
-          ...variables,
+        queryVariables = {
+          ...queryVariables,
           limit: Number(this.settings.batchSize),
           offset: Number(offset),
         };
       } else {
         // Auto-detect or simple pagination
-        variables = {
-          ...variables,
+        queryVariables = {
+          ...queryVariables,
           first: Number(this.settings.batchSize),
           limit: Number(this.settings.batchSize),
           offset: Number(offset),
@@ -303,7 +301,7 @@ export class GraphQLSyncService extends BaseSyncService {
 
       const response = await this.executeGraphQLQuery(
         queryConfig.query,
-        variables,
+        queryVariables,
       );
 
       // Extract data using the configured path
@@ -365,64 +363,91 @@ export class GraphQLSyncService extends BaseSyncService {
    * Sync data using a custom GraphQL query
    */
   async syncEntity(
-    queryConfig: GraphQLQuery,
+    entityName: string,
     targetDb?: any,
     progress?: ProgressReporter,
+    syncMode: "full" | "incremental" = "full",
   ): Promise<void> {
-    // Ensure queryConfig is normalised (handles snake_case keys coming from
-    // CLI path where no prior normalisation happened).
-    queryConfig = this.normalizeQueryConfig(queryConfig);
+    const queryConfig = this.getQueryConfig(entityName);
+    if (!queryConfig) {
+      throw new Error(`Query configuration '${entityName}' not found`);
+    }
 
     console.log(
-      `Starting ${queryConfig.name} sync for: ${this.dataSource.name}`,
+      `Starting ${entityName} ${syncMode} sync for: ${this.dataSource.name}`,
     );
     const { db } = await this.getMongoConnection(targetDb);
-
     const mainCollectionName = `${this.dataSource.name}_${queryConfig.name}`;
     const stagingCollectionName = `${mainCollectionName}_staging`;
+    const useStaging = syncMode !== "incremental";
 
     // Prepare staging collection (drop if exists to ensure fresh start)
-    if (await db.listCollections({ name: stagingCollectionName }).hasNext()) {
+    if (
+      useStaging &&
+      (await db.listCollections({ name: stagingCollectionName }).hasNext())
+    ) {
       await db.collection(stagingCollectionName).drop();
     }
-    const stagingCollection = db.collection(stagingCollectionName);
+    const collection = useStaging
+      ? db.collection(stagingCollectionName)
+      : db.collection(mainCollectionName);
+    if (useStaging) {
+      await db.createCollection(stagingCollectionName);
+    }
 
     try {
+      const variables = {
+        ...(queryConfig.variables || {}),
+      };
+
       // Fetch GraphQL data in batches and write each batch directly to staging
-      await this.fetchAllGraphQLData(queryConfig, progress, async batch => {
-        if (batch.length === 0) return;
+      await this.fetchAllGraphQLData(
+        queryConfig,
+        progress,
+        async batch => {
+          if (batch.length === 0) return;
 
-        const processedRecords = batch.map(record => ({
-          ...record,
-          _syncedAt: new Date(),
-          _dataSourceId: this.dataSource._id.toString(),
-          _dataSourceName: this.dataSource.name,
-          _type: queryConfig.name,
-        }));
+          const processedRecords = batch.map(record => ({
+            ...record,
+            _syncedAt: new Date(),
+            _dataSourceId: this.dataSource._id.toString(),
+            _dataSourceName: this.dataSource.name,
+            _type: queryConfig.name,
+          }));
 
-        const bulkOps = processedRecords.map(record => ({
-          replaceOne: {
-            filter: {
-              id: record.id,
-              _dataSourceId: this.dataSource._id.toString(),
+          const bulkOps = processedRecords.map(record => ({
+            replaceOne: {
+              filter: {
+                id: record.id,
+                _dataSourceId: this.dataSource._id.toString(),
+              },
+              replacement: record,
+              upsert: true,
             },
-            replacement: record,
-            upsert: true,
-          },
-        }));
+          }));
 
-        await stagingCollection.bulkWrite(bulkOps, { ordered: false });
-      });
+          await collection.bulkWrite(bulkOps, { ordered: false });
+        },
+        variables,
+      );
 
       // Completed successfully – atomically swap staging into main
-      if (await db.listCollections({ name: mainCollectionName }).hasNext()) {
-        await db.collection(mainCollectionName).drop();
-      }
-      await stagingCollection.rename(mainCollectionName, { dropTarget: true });
+      if (useStaging) {
+        if (await db.listCollections({ name: mainCollectionName }).hasNext()) {
+          await db.collection(mainCollectionName).drop();
+        }
+        await collection.rename(mainCollectionName, {
+          dropTarget: true,
+        });
 
-      console.log(
-        `✅ ${queryConfig.name} synced and collection swapped successfully (${mainCollectionName})`,
-      );
+        console.log(
+          `✅ ${queryConfig.name} synced and collection swapped successfully (${mainCollectionName})`,
+        );
+      } else {
+        console.log(
+          `✅ ${queryConfig.name} incremental sync completed successfully (${mainCollectionName})`,
+        );
+      }
     } catch (error) {
       console.error(`${queryConfig.name} sync failed:`, error);
       throw error;
@@ -430,59 +455,34 @@ export class GraphQLSyncService extends BaseSyncService {
   }
 
   /**
-   * Sync all configured entities
+   * Sync all queries for this data source
    */
-  async syncAll(targetDb?: any): Promise<void> {
+  async syncAll(options: {
+    targetDatabase?: any;
+    syncMode?: "full" | "incremental";
+    progress?: ProgressReporter;
+  }): Promise<void> {
+    const { targetDatabase, syncMode, progress } = options;
     console.log(
-      `\n🔄 Starting full sync for GraphQL source: ${this.dataSource.name}`,
+      `\n🔄 Starting ${syncMode} sync for data source: ${this.dataSource.name}`,
     );
-    console.log(`Target database: ${targetDb?.name || "default"}`);
     const startTime = Date.now();
+    const failedQueries: string[] = [];
 
-    try {
-      // Original query definitions coming from the data-source record can use
-      // snake_case keys (e.g. `data_path`) because they are stored directly in
-      // MongoDB.  The sync code downstream, however, expects camelCase keys
-      // (e.g. `dataPath`).  Here we normalise each query object so both
-      // variants are accepted transparently.
-
-      const rawQueries: any[] = this.dataSource.config.queries || [];
-
-      const queries = rawQueries.map(q => {
-        // If the camelCase variant is already present keep it; otherwise copy
-        // from the snake_case counterpart.
-        const normalised = {
-          ...q,
-          dataPath: q.dataPath ?? q.data_path,
-          hasNextPagePath: q.hasNextPagePath ?? q.has_next_page_path,
-          cursorPath: q.cursorPath ?? q.cursor_path,
-          totalCountPath: q.totalCountPath ?? q.total_count_path,
-        };
-
-        return normalised;
-      });
-
-      if (queries.length === 0) {
-        console.warn("No queries configured for this GraphQL data source");
-        return;
+    const queries = this.getAvailableEntities();
+    for (const queryName of queries) {
+      try {
+        await this.syncEntity(queryName, targetDatabase, progress, syncMode);
+      } catch (err) {
+        failedQueries.push(queryName);
+        console.error(`❌ Sync failed for ${queryName}:`, err);
       }
-
-      // Sync all configured queries
-      for (const queryConfig of queries) {
-        const progress = new SimpleProgressReporter(queryConfig.name);
-        await this.syncEntity(queryConfig, targetDb, progress);
-      }
-
-      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(
-        `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`,
-      );
-    } catch (error) {
-      console.error(`❌ Sync failed for ${this.dataSource.name}:`, error);
-      throw error;
-    } finally {
-      await this.disconnect();
     }
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(
+      `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`,
+    );
   }
 
   /**
@@ -568,5 +568,20 @@ export class GraphQLSyncService extends BaseSyncService {
       cursorPath: q.cursorPath ?? q.cursor_path,
       totalCountPath: q.totalCountPath ?? q.total_count_path,
     } as GraphQLQuery;
+  }
+
+  private getQueryConfig(name: string): GraphQLQuery | undefined {
+    const rawConfig = this.dataSource.config.queries?.find(
+      (q: any) => q.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (rawConfig) {
+      return this.normalizeQueryConfig(rawConfig);
+    }
+    return undefined;
+  }
+
+  private getAvailableEntities(): string[] {
+    if (!this.dataSource.config.queries) return [];
+    return this.dataSource.config.queries.map((q: any) => q.name);
   }
 }

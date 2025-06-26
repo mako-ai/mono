@@ -171,9 +171,13 @@ export class CloseSyncService extends BaseSyncService {
   /**
    * Sync all Close entities
    */
-  async syncAll(targetDb?: any): Promise<void> {
+  async syncAll(options: {
+    targetDatabase?: any;
+    syncMode?: "full" | "incremental";
+  }): Promise<void> {
+    const { targetDatabase, syncMode } = options;
     console.log(
-      `\n🔄 Starting full sync for data source: ${this.dataSource.name}`,
+      `\n🔄 Starting ${syncMode} sync for data source: ${this.dataSource.name}`,
     );
     const startTime = Date.now();
     const failedEntities: string[] = [];
@@ -182,7 +186,12 @@ export class CloseSyncService extends BaseSyncService {
       for (const [entityName] of this.entityConfigs) {
         try {
           const progress = new SimpleProgressReporter(entityName);
-          await this.syncEntity(entityName, targetDb, progress, false);
+          await this.syncEntity(
+            entityName,
+            targetDatabase,
+            progress,
+            syncMode === "incremental",
+          );
         } catch (err) {
           failedEntities.push(entityName);
           console.error(`❌ Failed to sync ${entityName}:`, err);
@@ -192,11 +201,13 @@ export class CloseSyncService extends BaseSyncService {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
       if (failedEntities.length === 0) {
         console.log(
-          `✅ Full sync completed for ${this.dataSource.name} in ${duration}s`,
+          `✅ ${syncMode} sync completed for ${this.dataSource.name} in ${duration}s`,
         );
       } else {
         console.warn(
-          `⚠️  Completed sync for ${this.dataSource.name} with failures in: ${failedEntities.join(", ")}. Duration: ${duration}s`,
+          `⚠️  Completed sync for ${this.dataSource.name} with failures in: ${failedEntities.join(
+            ", ",
+          )}. Duration: ${duration}s`,
         );
       }
     } finally {
@@ -219,7 +230,9 @@ export class CloseSyncService extends BaseSyncService {
     }
 
     console.log(
-      `Starting ${incremental ? "incremental " : ""}${entityName} sync for: ${this.dataSource.name}`,
+      `Starting ${incremental ? "incremental " : ""}${entityName} sync for: ${
+        this.dataSource.name
+      }`,
     );
 
     const { db } = await this.getMongoConnection(targetDb);

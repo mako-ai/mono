@@ -194,12 +194,19 @@ class DatabaseDataSourceManager {
   /**
    * Get all active data sources
    */
-  async getActiveDataSources(): Promise<DataSourceConfig[]> {
+  async getActiveDataSources(
+    workspaceId?: string,
+  ): Promise<DataSourceConfig[]> {
     try {
       await this.connect();
       const collection = this.db.collection("datasources");
 
-      const sources = await collection.find({ isActive: true }).toArray();
+      const query: any = { isActive: true };
+      if (workspaceId) {
+        query.workspaceId = new ObjectId(workspaceId);
+      }
+
+      const sources = await collection.find(query).toArray();
 
       const results = [];
       for (const source of sources) {
@@ -229,19 +236,17 @@ class DatabaseDataSourceManager {
   /**
    * Get a specific data source by ID or name
    */
-  async getDataSource(idOrName: string): Promise<DataSourceConfig | null> {
+  async getDataSource(id: string): Promise<DataSourceConfig | null> {
     try {
       await this.connect();
       const collection = this.db.collection("datasources");
 
-      // Try to find by ID first
-      let source = null;
-      try {
-        source = await collection.findOne({ _id: new ObjectId(idOrName) });
-      } catch {
-        // Not a valid ObjectId, try by name
-        source = await collection.findOne({ name: idOrName });
+      if (!ObjectId.isValid(id)) {
+        return null;
       }
+
+      // Try to find by ID first
+      const source = await collection.findOne({ _id: new ObjectId(id) });
 
       if (!source) {
         return null;
@@ -456,11 +461,11 @@ export const databaseDataSourceManager = {
     return getDatabaseDataSourceManager();
   },
   // Proxy all methods to the singleton
-  async getActiveDataSources() {
-    return getDatabaseDataSourceManager().getActiveDataSources();
+  async getActiveDataSources(workspaceId?: string) {
+    return getDatabaseDataSourceManager().getActiveDataSources(workspaceId);
   },
-  async getDataSource(idOrName: string) {
-    return getDatabaseDataSourceManager().getDataSource(idOrName);
+  async getDataSource(id: string) {
+    return getDatabaseDataSourceManager().getDataSource(id);
   },
   async getDataSourcesByType(type: string) {
     return getDatabaseDataSourceManager().getDataSourcesByType(type);
