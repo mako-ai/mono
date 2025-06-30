@@ -117,8 +117,8 @@ function MainApp() {
       case "consoles":
         return (
           <ConsoleExplorer
-            onConsoleSelect={(path, content) => {
-              openOrFocusConsoleTab(path, content, undefined, [], path);
+            onConsoleSelect={(path, content, databaseId) => {
+              openOrFocusConsoleTab(path, content, databaseId, [], path);
             }}
           />
         );
