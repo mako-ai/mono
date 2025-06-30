@@ -119,6 +119,12 @@ export class CloseConnector extends BaseConnector {
   async fetchEntity(options: FetchOptions): Promise<void> {
     const { entity, onBatch, onProgress, since } = options;
 
+    // Special handling for custom_fields
+    if (entity === "custom_fields") {
+      await this.fetchAllCustomFields(options);
+      return;
+    }
+
     const api = this.getCloseClient();
     const batchSize = options.batchSize || this.getBatchSize();
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
@@ -161,9 +167,6 @@ export class CloseConnector extends BaseConnector {
             break;
           case "users":
             endpoint = "/user/";
-            break;
-          case "custom_fields":
-            endpoint = "/custom_field/";
             break;
           default:
             throw new Error(`Unsupported entity: ${entity}`);
@@ -228,12 +231,90 @@ export class CloseConnector extends BaseConnector {
     }
   }
 
+  private async fetchAllCustomFields(options: FetchOptions): Promise<void> {
+    const { onBatch, onProgress } = options;
+    const api = this.getCloseClient();
+
+    // Custom field endpoints to fetch from
+    const customFieldEndpoints = [
+      { endpoint: "/custom_field/lead/", type: "lead" },
+      { endpoint: "/custom_field/contact/", type: "contact" },
+      { endpoint: "/custom_field/opportunity/", type: "opportunity" },
+      { endpoint: "/custom_field/shared/", type: "shared" },
+    ];
+
+    let totalFields = 0;
+    let processedFields = 0;
+
+    // First, get total count
+    if (onProgress) {
+      for (const { endpoint } of customFieldEndpoints) {
+        try {
+          const response = await api.get(endpoint, { params: { _limit: 0 } });
+          totalFields += response.data.total_results || 0;
+        } catch (error) {
+          // Skip if endpoint doesn't exist or errors
+          console.warn(`Could not fetch count from ${endpoint}:`, error);
+        }
+      }
+      onProgress(0, totalFields);
+    }
+
+    // Fetch from each custom field endpoint
+    for (const { endpoint, type } of customFieldEndpoints) {
+      try {
+        const response = await api.get(endpoint);
+        const fields = response.data.data || [];
+
+        // Add type information to each field
+        const fieldsWithType = fields.map((field: any) => ({
+          ...field,
+          custom_field_type: type,
+        }));
+
+        if (fieldsWithType.length > 0) {
+          await onBatch(fieldsWithType);
+          processedFields += fieldsWithType.length;
+
+          if (onProgress) {
+            onProgress(processedFields, totalFields);
+          }
+        }
+      } catch (error) {
+        // Log but continue with other endpoints
+        console.warn(`Error fetching from ${endpoint}:`, error);
+      }
+    }
+  }
+
   private async fetchTotalCount(
     entity: string,
     since?: Date,
   ): Promise<number | undefined> {
     try {
       const api = this.getCloseClient();
+
+      // Special handling for custom_fields
+      if (entity === "custom_fields") {
+        const customFieldEndpoints = [
+          "/custom_field/lead/",
+          "/custom_field/contact/",
+          "/custom_field/opportunity/",
+          "/custom_field/shared/",
+        ];
+
+        let totalCount = 0;
+        for (const endpoint of customFieldEndpoints) {
+          try {
+            const response = await api.get(endpoint, { params: { _limit: 0 } });
+            totalCount += response.data.total_results || 0;
+          } catch (error) {
+            // Skip if endpoint doesn't exist
+            console.warn(`Could not fetch count from ${endpoint}:`, error);
+          }
+        }
+        return totalCount > 0 ? totalCount : undefined;
+      }
 
       let endpoint: string;
       switch (entity) {
@@ -251,9 +332,6 @@ export class CloseConnector extends BaseConnector {
           break;
         case "users":
           endpoint = "/user/";
-          break;
-        case "custom_fields":
-          endpoint = "/custom_field/";
           break;
         default:
           return undefined;
