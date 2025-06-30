@@ -1,0 +1,296 @@
+import {
+  BaseConnector,
+  ConnectionTestResult,
+  FetchOptions,
+} from "../base/BaseConnector";
+import axios, { AxiosInstance } from "axios";
+
+export class CloseConnector extends BaseConnector {
+  private closeApi: AxiosInstance | null = null;
+
+  static getConfigSchema() {
+    return {
+      fields: [
+        {
+          name: "api_key",
+          label: "API Key",
+          type: "password",
+          required: true,
+          helperText: "Close API Key (generate in Close settings)",
+        },
+        {
+          name: "api_base_url",
+          label: "API Base URL",
+          type: "string",
+          required: false,
+          default: "https://api.close.com/api/v1",
+        },
+      ],
+    };
+  }
+
+  getMetadata() {
+    return {
+      name: "Close",
+      version: "1.0.0",
+      description: "Connector for Close CRM",
+      supportedEntities: [
+        "leads",
+        "opportunities",
+        "activities",
+        "contacts",
+        "users",
+        "custom_fields",
+      ],
+    };
+  }
+
+  validateConfig() {
+    const base = super.validateConfig();
+    const errors = [...base.errors];
+
+    if (!this.dataSource.config.api_key) {
+      errors.push("Close API key is required");
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  private getCloseClient(): AxiosInstance {
+    if (!this.closeApi) {
+      if (!this.dataSource.config.api_key) {
+        throw new Error("Close API key not configured");
+      }
+
+      this.closeApi = axios.create({
+        baseURL: "https://api.close.com/api/v1",
+        auth: {
+          username: this.dataSource.config.api_key,
+          password: "",
+        },
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    }
+    return this.closeApi;
+  }
+
+  async testConnection(): Promise<ConnectionTestResult> {
+    try {
+      const validation = this.validateConfig();
+      if (!validation.valid) {
+        return {
+          success: false,
+          message: "Invalid configuration",
+          details: validation.errors,
+        };
+      }
+
+      const api = this.getCloseClient();
+
+      // Test connection by fetching user info
+      await api.get("/me/");
+
+      return {
+        success: true,
+        message: "Successfully connected to Close API",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Failed to connect to Close API",
+        details: axios.isAxiosError(error) ? error.message : String(error),
+      };
+    }
+  }
+
+  getAvailableEntities(): string[] {
+    return [
+      "leads",
+      "opportunities",
+      "activities",
+      "contacts",
+      "users",
+      "custom_fields",
+    ];
+  }
+
+  async fetchEntity(options: FetchOptions): Promise<void> {
+    const { entity, onBatch, onProgress, since } = options;
+
+    const api = this.getCloseClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+
+    let hasMore = true;
+    let offset = 0;
+    let recordCount = 0;
+    let totalCount: number | undefined;
+
+    // Try to get total count first for better progress reporting
+    if (onProgress) {
+      totalCount = await this.fetchTotalCount(entity, since);
+      if (totalCount !== undefined) {
+        onProgress(0, totalCount);
+      }
+    }
+
+    while (hasMore) {
+      let response: any;
+      const params: any = {
+        _limit: batchSize,
+        _skip: offset,
+      };
+
+      // Fetch data based on entity type
+      try {
+        let endpoint: string;
+        switch (entity) {
+          case "leads":
+            endpoint = "/lead/";
+            break;
+          case "opportunities":
+            endpoint = "/opportunity/";
+            break;
+          case "activities":
+            endpoint = "/activity/";
+            break;
+          case "contacts":
+            endpoint = "/contact/";
+            break;
+          case "users":
+            endpoint = "/user/";
+            break;
+          case "custom_fields":
+            endpoint = "/custom_field/";
+            break;
+          default:
+            throw new Error(`Unsupported entity: ${entity}`);
+        }
+
+        // For incremental sync, use POST with query in body (Close API requirement)
+        if (since) {
+          const dateFilter = since.toISOString().split("T")[0]; // Format as YYYY-MM-DD
+          const postData = {
+            _params: {
+              _limit: batchSize,
+              _skip: offset,
+              _order_by: "-date_updated",
+              query: `date_updated>="${dateFilter}"`,
+            },
+          };
+
+          response = await api.post(endpoint, postData, {
+            headers: {
+              "x-http-method-override": "GET",
+            },
+          });
+        } else {
+          // Regular GET request for full sync
+          response = await api.get(endpoint, { params });
+        }
+
+        const data = response.data.data || [];
+
+        // Pass batch to callback
+        if (data.length > 0) {
+          await onBatch(data);
+          recordCount += data.length;
+
+          if (onProgress) {
+            onProgress(recordCount, totalCount);
+          }
+        }
+
+        // Check for more pages
+        hasMore = response.data.has_more || false;
+
+        if (hasMore) {
+          offset += batchSize;
+
+          // Rate limiting
+          await this.sleep(rateLimitDelay);
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          // Handle rate limiting
+          const retryAfter = parseInt(
+            error.response.headers["retry-after"] || "60",
+          );
+          console.warn(`Rate limited. Waiting ${retryAfter} seconds...`);
+          await this.sleep(retryAfter * 1000);
+          // Don't increment offset, retry the same page
+        } else {
+          throw error;
+        }
+      }
+    }
+  }
+
+  private async fetchTotalCount(
+    entity: string,
+    since?: Date,
+  ): Promise<number | undefined> {
+    try {
+      const api = this.getCloseClient();
+
+      let endpoint: string;
+      switch (entity) {
+        case "leads":
+          endpoint = "/lead/";
+          break;
+        case "opportunities":
+          endpoint = "/opportunity/";
+          break;
+        case "activities":
+          endpoint = "/activity/";
+          break;
+        case "contacts":
+          endpoint = "/contact/";
+          break;
+        case "users":
+          endpoint = "/user/";
+          break;
+        case "custom_fields":
+          endpoint = "/custom_field/";
+          break;
+        default:
+          return undefined;
+      }
+
+      let response: any;
+
+      // For incremental sync with date filter, use POST request
+      if (since) {
+        const dateFilter = since.toISOString().split("T")[0]; // Format as YYYY-MM-DD
+        const postData = {
+          _params: {
+            _limit: 0,
+            _fields: "id",
+            query: `date_updated>="${dateFilter}"`,
+          },
+        };
+
+        response = await api.post(endpoint, postData, {
+          headers: {
+            "x-http-method-override": "GET",
+          },
+        });
+      } else {
+        // Regular GET request for full sync
+        const params = {
+          _limit: 0,
+          _fields: "id",
+        };
+        response = await api.get(endpoint, { params });
+      }
+
+      // Close API returns total_results in the response
+      return response.data.total_results || undefined;
+    } catch (error) {
+      console.warn(`Could not fetch total count for ${entity}:`, error);
+      return undefined;
+    }
+  }
+}

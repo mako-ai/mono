@@ -1,25 +1,61 @@
 /* eslint-disable no-process-exit */
 import { Command } from "commander";
 import inquirer from "inquirer";
-import { performSync, getDestinationManager } from "./sync";
+import { getDestinationManager } from "./destination-manager";
+import { performSync } from "./sync-orchestrator";
 import { databaseDataSourceManager } from "./database-data-source-manager";
 import { syncConnectorRegistry } from "./connector-registry";
+import { SyncLogger } from "../connectors/base/BaseConnector";
+
+// Create a console logger adapter that implements the SyncLogger interface
+const consoleLogger: SyncLogger = {
+  log: (level: string, message: string, ...args: any[]) => {
+    const prefix = `[${level.toUpperCase()}]`;
+    switch (level) {
+      case "debug":
+        console.debug(prefix, message, ...args);
+        break;
+      case "info":
+        console.info(message, ...args);
+        break;
+      case "warn":
+        console.warn(prefix, message, ...args);
+        break;
+      case "error":
+        console.error(prefix, message, ...args);
+        break;
+      default:
+        console.log(prefix, message, ...args);
+    }
+  },
+};
 
 async function runSync(
-  dataSourceId: string,
-  destination: string,
-  entity?: string,
+  sourceId: string,
+  destinationId: string,
+  entities: string[] | undefined,
   isIncremental: boolean = false,
 ) {
   try {
-    // Using console as the logger for CLI tool
-    await performSync(
-      dataSourceId,
-      destination,
-      entity,
-      isIncremental,
-      console,
+    console.log(`[DEBUG] runSync called with isIncremental: ${isIncremental}`);
+    console.log(
+      `[DEBUG] runSync called with entities: ${entities?.join(", ") || "all"}`,
     );
+
+    // Using proper logger adapter for CLI tool
+    await performSync(
+      sourceId,
+      destinationId,
+      entities,
+      isIncremental,
+      consoleLogger,
+    );
+
+    // Give a moment for cleanup and explicitly exit
+    console.log("🎉 Sync completed successfully!");
+    setTimeout(() => {
+      process.exit(0);
+    }, 1000);
   } catch (error) {
     console.error("\n❌ Sync failed:", error);
     process.exit(1);
@@ -129,20 +165,37 @@ async function interactiveMode() {
 
     const availableEntities = connector.getAvailableEntities();
 
-    // Prompt for entity selection
-    const entityChoices = [
-      { name: "All entities", value: null },
-      ...availableEntities.map((e: string) => ({ name: e, value: e })),
-    ];
-
-    const { entity } = await inquirer.prompt([
+    // Prompt for entity selection (multi-select with checkbox)
+    const { entities } = await inquirer.prompt([
       {
-        type: "list",
-        name: "entity",
-        message: "Select entity to sync:",
-        choices: entityChoices,
+        type: "checkbox",
+        name: "entities",
+        message: "Select entities to sync (space to select, enter to confirm):",
+        choices: [
+          { name: "All entities", value: "ALL", checked: false },
+          new inquirer.Separator(),
+          ...availableEntities.map((e: string) => ({
+            name: e,
+            value: e,
+            checked: false,
+          })),
+        ],
+        validate: answer => {
+          if (answer.length === 0) {
+            return "You must select at least one entity";
+          }
+          return true;
+        },
       },
     ]);
+
+    // Handle "All entities" selection
+    let selectedEntities: string[] | undefined;
+    if (entities.includes("ALL")) {
+      selectedEntities = undefined; // undefined means all entities
+    } else {
+      selectedEntities = entities;
+    }
 
     // Prompt for sync mode
     const { syncMode } = await inquirer.prompt([
@@ -174,15 +227,19 @@ async function interactiveMode() {
     console.log(
       `   Destination: ${destinations.find((d: { id: string }) => d.id === destinationId)?.name}`,
     );
-    console.log(`   Entity: ${entity || "All entities"}`);
+    console.log(
+      `   Entities: ${selectedEntities ? selectedEntities.join(", ") : "All entities"}`,
+    );
     console.log(
       `   Mode: ${syncMode === "incremental" ? "Incremental" : "Full"}`,
     );
 
     // Show equivalent command
-    let command = `pnpm run sync ${dataSourceId} ${destinationId}`;
-    if (entity) {
-      command += ` ${entity}`;
+    let command = `pnpm run sync -s ${dataSourceId} -d ${destinationId}`;
+    if (selectedEntities) {
+      selectedEntities.forEach(entity => {
+        command += ` -e ${entity}`;
+      });
     }
     if (syncMode === "incremental") {
       command += " --incremental";
@@ -207,7 +264,7 @@ async function interactiveMode() {
     await runSync(
       dataSourceId,
       destinationId,
-      entity || undefined,
+      selectedEntities,
       syncMode === "incremental",
     );
   } catch (error) {
@@ -224,47 +281,84 @@ program
   .description("Sync data from various sources to destination databases")
   .version("1.0.0")
   .helpOption("-h, --help", "display help for command")
-  .argument("[sourceId]", "ID of the data source to sync from")
-  .argument("[destinationId]", "ID of the destination database")
-  .argument("[entity]", "Specific entity to sync (optional)")
+  .option("-s, --source <sourceId>", "ID of the data source to sync from")
+  .option("-d, --destination <destinationId>", "ID of the destination database")
   .option(
-    "--incremental, --inc",
+    "-e, --entity <entity>",
+    "Specific entity to sync (can be used multiple times)",
+    (value, previous: string[] = []) => {
+      return previous.concat([value]);
+    },
+  )
+  .option(
+    "--entities <entities...>",
+    "Alternative way to specify multiple entities",
+  )
+  .option(
+    "--incremental",
     "Perform incremental sync (only sync new/updated records)",
   )
   .option("-i, --interactive", "Run in interactive mode")
-  .action(async (sourceId, destinationId, entity, options) => {
-    // If no arguments provided or interactive flag is set, run interactive mode
-    if ((!sourceId && !destinationId) || options.interactive) {
+  .action(async options => {
+    // If interactive mode or no required options provided
+    if (options.interactive || (!options.source && !options.destination)) {
       await interactiveMode();
-    } else if (!sourceId || !destinationId) {
-      // Don't show error for help command
-      if (!process.argv.includes("--help") && !process.argv.includes("-h")) {
-        console.error(
-          "❌ Both source and destination IDs are required in non-interactive mode",
-        );
-        console.log(
-          "Use --interactive or -i flag to run in interactive mode.\n",
-        );
-        process.exit(1);
-      }
+    } else if (!options.source || !options.destination) {
+      console.error(
+        "❌ Both source (-s) and destination (-d) IDs are required in non-interactive mode",
+      );
+      console.log("Use --interactive or -i flag to run in interactive mode.\n");
+      program.help();
+      process.exit(1);
     } else {
-      // Run with provided arguments
-      await runSync(sourceId, destinationId, entity, options.incremental);
+      // Combine entities from both options
+      let allEntities: string[] = [];
+
+      // Add entities from -e flag(s)
+      if (options.entity && Array.isArray(options.entity)) {
+        allEntities = [...allEntities, ...options.entity];
+      }
+
+      // Add entities from --entities flag
+      if (options.entities && options.entities.length > 0) {
+        allEntities = [...allEntities, ...options.entities];
+      }
+
+      // Remove duplicates and convert to undefined if empty (meaning sync all)
+      const uniqueEntities =
+        allEntities.length > 0 ? [...new Set(allEntities)] : undefined;
+
+      console.log("[DEBUG] CLI options:", options);
+      console.log(
+        `[DEBUG] Selected entities: ${uniqueEntities?.join(", ") || "all"}`,
+      );
+      console.log(`[DEBUG] Using incremental: ${options.incremental}`);
+
+      await runSync(
+        options.source,
+        options.destination,
+        uniqueEntities,
+        options.incremental,
+      );
     }
   })
   .addHelpText(
     "after",
     `
 Examples:
-  $ pnpm run sync                                    # Interactive mode
-  $ pnpm run sync --interactive                      # Force interactive mode
-  $ pnpm run sync 60f... 61a...                      # Sync all entities by ID
-  $ pnpm run sync <source_id> <dest_id> customers    # Sync specific entity
-  $ pnpm run sync <source_id> <dest_id> leads --incremental
+  $ pnpm run sync                                      # Interactive mode
+  $ pnpm run sync --interactive                        # Force interactive mode
+  $ pnpm run sync -s <source_id> -d <dest_id>         # Sync all entities
+  $ pnpm run sync -s <source_id> -d <dest_id> -e customers    # Sync single entity
+  $ pnpm run sync -s <source_id> -d <dest_id> -e customers -e orders  # Multiple entities
+  $ pnpm run sync -s <source_id> -d <dest_id> --entities customers orders leads
+  $ pnpm run sync -s <source_id> -d <dest_id> -e leads --incremental
   
-Available Commands:
-  When run without arguments, the tool will guide you through an interactive
-  selection process for all options.
+Notes:
+  - Use -e multiple times to sync specific entities: -e entity1 -e entity2
+  - Or use --entities to list them all at once: --entities entity1 entity2 entity3
+  - When run without arguments, the tool will guide you through an interactive
+    selection process for all options.
   `,
   );
 
