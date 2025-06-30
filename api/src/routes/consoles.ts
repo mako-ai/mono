@@ -61,8 +61,22 @@ consoleRoutes.get("/content", async (c: Context) => {
       );
     }
 
-    const content = await consoleManager.getConsole(consolePath, workspaceId);
-    return c.json({ success: true, content });
+    const consoleData = await consoleManager.getConsoleWithMetadata(
+      consolePath,
+      workspaceId,
+    );
+
+    if (!consoleData) {
+      return c.json({ success: false, error: "Console not found" }, 404);
+    }
+
+    return c.json({
+      success: true,
+      content: consoleData.content,
+      databaseId: consoleData.databaseId,
+      language: consoleData.language,
+      id: consoleData.id,
+    });
   } catch (error) {
     console.error(
       `Error fetching console content for ${c.req.query("path")}:`,

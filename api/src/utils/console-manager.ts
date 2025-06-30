@@ -223,6 +223,62 @@ export class ConsoleManager {
   }
 
   /**
+   * Get full console data from database including database ID
+   */
+  async getConsoleWithMetadata(
+    consolePath: string,
+    workspaceId: string,
+  ): Promise<{
+    content: string;
+    databaseId?: string;
+    language?: string;
+    id?: string;
+  } | null> {
+    try {
+      let console;
+
+      // Check if consolePath is an ObjectId
+      if (Types.ObjectId.isValid(consolePath)) {
+        console = await SavedConsole.findOne({
+          _id: new Types.ObjectId(consolePath),
+          workspaceId: new Types.ObjectId(workspaceId),
+        });
+      } else {
+        // Try to find by name (for backward compatibility)
+        const parts = consolePath.split("/");
+        const consoleName = parts[parts.length - 1];
+        console = await SavedConsole.findOne({
+          name: consoleName,
+          workspaceId: new Types.ObjectId(workspaceId),
+        });
+      }
+
+      if (console) {
+        return {
+          content: console.code,
+          databaseId: console.databaseId?.toString(),
+          language: console.language,
+          id: console._id.toString(),
+        };
+      }
+
+      // Fallback to filesystem - no metadata available
+      try {
+        const content = this.getConsoleFromFilesystem(consolePath);
+        return {
+          content,
+          language: this.detectLanguage(content),
+        };
+      } catch {
+        return null;
+      }
+    } catch (error) {
+      console.error("Error getting console with metadata:", error);
+      return null;
+    }
+  }
+
+  /**
    * Save console content to database
    */
   async saveConsole(
@@ -268,6 +324,11 @@ export class ConsoleManager {
         // Update existing console
         console.code = content;
         console.updatedAt = new Date();
+        if (databaseId !== undefined) {
+          console.databaseId = databaseId
+            ? new Types.ObjectId(databaseId)
+            : undefined;
+        }
         if (options?.description !== undefined) {
           console.description = options.description;
         }

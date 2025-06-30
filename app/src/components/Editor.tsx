@@ -245,6 +245,11 @@ function Editor() {
         savePath = fileName.endsWith(".js") ? fileName.slice(0, -3) : fileName;
         method = "POST";
       }
+
+      // Get the current database ID for the tab
+      const currentTab = consoleTabs.find(tab => tab.id === tabId);
+      const databaseId = currentTab?.databaseId;
+
       const response = await fetch(
         method === "PUT"
           ? `/api/workspaces/${currentWorkspace.id}/consoles/${savePath}`
@@ -254,8 +259,8 @@ function Editor() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             method === "POST"
-              ? { path: savePath, content: contentToSave }
-              : { content: contentToSave },
+              ? { path: savePath, content: contentToSave, databaseId }
+              : { content: contentToSave, databaseId },
           ),
         },
       );
