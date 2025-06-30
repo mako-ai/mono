@@ -84,11 +84,11 @@ const DataSourceTab: React.FC<DataSourceTabProps> = ({
   );
 
   /* ------------------ effects ------------------ */
-  // Fetch global connector catalog once
+  // Always fetch fresh connector catalog when component mounts or workspace changes
   useEffect(() => {
-    if (!currentWorkspace || connectorTypes) return;
+    if (!currentWorkspace) return;
     fetchCatalog(currentWorkspace.id);
-  }, [currentWorkspace, connectorTypes, fetchCatalog]);
+  }, [currentWorkspace, fetchCatalog]);
 
   // Fetch data source entity if needed
   useEffect(() => {

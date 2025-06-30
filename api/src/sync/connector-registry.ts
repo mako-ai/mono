@@ -21,71 +21,15 @@ class SyncConnectorRegistry {
   private initialized = false;
 
   constructor() {
-    void this.initializeBuiltInConnectors();
+    // Register connector metadata without loading the actual modules
+    this.registerConnectorMetadata();
   }
 
   /**
-   * Initialize built-in connectors
+   * Register connector metadata without importing the modules
    */
-  private async initializeBuiltInConnectors() {
-    if (this.initialized) return;
-
-    // Dynamically load and register connectors
-    try {
-      // Close connector
-      const closeModule = await import("../connectors/close");
-      const closeConnector = new closeModule.CloseConnector({
-        config: {},
-      } as any);
-      const closeMetadata = closeConnector.getMetadata();
-
-      this.register({
-        type: "close",
-        connectorClass: closeModule.CloseConnector,
-        metadata: closeMetadata,
-      });
-
-      // Stripe connector
-      const stripeModule = await import("../connectors/stripe");
-      const stripeConnector = new stripeModule.StripeConnector({
-        config: {},
-      } as any);
-      const stripeMetadata = stripeConnector.getMetadata();
-
-      this.register({
-        type: "stripe",
-        connectorClass: stripeModule.StripeConnector,
-        metadata: stripeMetadata,
-      });
-
-      // GraphQL connector
-      const graphqlModule = await import("../connectors/graphql");
-      const graphqlConnector = new graphqlModule.GraphQLConnector({
-        config: { queries: [] },
-      } as any);
-      const graphqlMetadata = graphqlConnector.getMetadata();
-
-      this.register({
-        type: "graphql",
-        connectorClass: graphqlModule.GraphQLConnector,
-        metadata: graphqlMetadata,
-      });
-    } catch (error) {
-      console.error("Failed to initialize connectors:", error);
-      // Continue with static registration as fallback
-      this.registerStaticConnectors();
-    }
-
-    this.initialized = true;
-    console.log(
-      `✅ Sync connector registry initialized with ${this.connectors.size} connector types`,
-    );
-  }
-
-  /**
-   * Fallback static registration
-   */
-  private registerStaticConnectors() {
+  private registerConnectorMetadata() {
+    // Register metadata only - no imports or instantiation
     this.register({
       type: "close",
       connectorClass: null,
@@ -132,6 +76,11 @@ class SyncConnectorRegistry {
         supportedEntities: ["custom"],
       },
     });
+
+    this.initialized = true;
+    console.log(
+      "✅ Sync connector registry initialized (lazy loading enabled)",
+    );
   }
 
   /**
@@ -149,11 +98,13 @@ class SyncConnectorRegistry {
   ): Promise<BaseConnector | null> {
     const entry = this.connectors.get(dataSource.type);
     if (!entry) {
+      console.error(`Unknown connector type: ${dataSource.type}`);
       return null;
     }
 
-    // Dynamically import the connector if not already loaded
+    // Lazily load the connector module only when needed
     if (!entry.connectorClass) {
+      console.log(`Loading ${dataSource.type} connector...`);
       try {
         let connectorClass;
         switch (dataSource.type) {
@@ -177,6 +128,12 @@ class SyncConnectorRegistry {
         }
 
         entry.connectorClass = connectorClass;
+
+        // Update metadata from the actual connector if needed
+        const tempInstance = new entry.connectorClass({ config: {} } as any);
+        if (tempInstance.getMetadata) {
+          entry.metadata = tempInstance.getMetadata();
+        }
       } catch (error) {
         console.error(
           `Failed to load connector for ${dataSource.type}:`,

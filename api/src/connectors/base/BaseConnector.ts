@@ -14,17 +14,19 @@ export interface ConnectionTestResult {
   details?: any;
 }
 
-export interface SyncProgress {
-  updateTotal(total: number): void;
-  reportBatch(batchSize: number): void;
-  reportComplete(): void;
-}
+// Callback types for streaming data
+export type DataBatchCallback<T = any> = (batch: T[]) => Promise<void>;
+export type ProgressCallback = (current: number, total?: number) => void;
 
-export interface SyncOptions {
-  targetDatabase?: any;
-  progress?: SyncProgress;
-  entity?: string;
-  syncMode?: "full" | "incremental";
+// Options for fetching data
+export interface FetchOptions {
+  entity: string;
+  batchSize?: number;
+  onBatch: DataBatchCallback;
+  onProgress?: ProgressCallback;
+  since?: Date; // For incremental syncs
+  rateLimitDelay?: number;
+  maxRetries?: number;
 }
 
 export abstract class BaseConnector {
@@ -40,19 +42,16 @@ export abstract class BaseConnector {
   abstract testConnection(): Promise<ConnectionTestResult>;
 
   /**
-   * Get available entities that can be synced from this source
+   * Get available entities that can be fetched from this source
    */
   abstract getAvailableEntities(): string[];
 
   /**
-   * Sync all entities from the data source
+   * Fetch data for a specific entity using callbacks
+   * The connector should call onBatch for each batch of data fetched
+   * and onProgress to report progress
    */
-  abstract syncAll(options: SyncOptions): Promise<void>;
-
-  /**
-   * Sync a specific entity from the data source
-   */
-  abstract syncEntity(entity: string, options: SyncOptions): Promise<void>;
+  abstract fetchEntity(options: FetchOptions): Promise<void>;
 
   /**
    * Get connector metadata

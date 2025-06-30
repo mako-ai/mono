@@ -20,13 +20,15 @@ interface CatalogState {
   error: string | null;
   schemas: Record<string, ConnectorSchemaResponse>;
   schemaLoading: Record<string, boolean>;
-  /** Fetch types once unless force=true */
+  /** Fetch types from the API (always fetches fresh data, not persisted) */
   fetchCatalog: (workspaceId: string, force?: boolean) => Promise<void>;
-  /** Fetch schema for connector type */
+  /** Fetch schema for connector type (schemas are cached and persisted) */
   fetchSchema: (
     type: string,
     force?: boolean,
   ) => Promise<ConnectorSchemaResponse | null>;
+  /** Clear types from memory (useful when logging out or switching workspaces) */
+  clearTypes: () => void;
 }
 
 export const useConnectorCatalogStore = create<CatalogState>()(
@@ -37,9 +39,9 @@ export const useConnectorCatalogStore = create<CatalogState>()(
       error: null,
       schemas: {},
       schemaLoading: {},
-      fetchCatalog: async (_workspaceId: string, force = false) => {
+      fetchCatalog: async (_workspaceId: string, _force = false) => {
+        // Always fetch fresh data from the API
         set(state => {
-          if (state.types && !force) return; // already fetched
           state.loading = true;
           state.error = null;
         });
@@ -94,11 +96,15 @@ export const useConnectorCatalogStore = create<CatalogState>()(
         }
         return null;
       },
+      clearTypes: () =>
+        set(state => {
+          state.types = null;
+        }),
     })),
     {
       name: "connector-catalog-store",
-      version: 1,
-      partialize: state => ({ types: state.types, schemas: state.schemas }),
+      version: 2,
+      partialize: state => ({ schemas: state.schemas }), // Only persist schemas, not types
     },
   ),
 );

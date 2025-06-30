@@ -10,7 +10,6 @@ type ConnectorConstructor = new (dataSource: IDataSource) => BaseConnector;
 interface ConnectorRegistryMetadata {
   type: string;
   connector: ConnectorConstructor;
-  syncService: any; // Dynamic sync service class
   metadata: {
     name: string;
     version: string;
@@ -39,7 +38,7 @@ class ConnectorRegistry {
     if (this.initialized) return;
 
     const connectorsDir = __dirname;
-    
+
     try {
       // Get all subdirectories (potential connector folders)
       const entries = fs.readdirSync(connectorsDir, { withFileTypes: true });
@@ -48,7 +47,9 @@ class ConnectorRegistry {
         .map(entry => entry.name);
 
       console.log(`🔍 Discovering connectors in: ${connectorsDir}`);
-      console.log(`📁 Found potential connector directories: ${connectorDirs.join(", ")}`);
+      console.log(
+        `📁 Found potential connector directories: ${connectorDirs.join(", ")}`,
+      );
 
       for (const dirName of connectorDirs) {
         try {
@@ -59,7 +60,9 @@ class ConnectorRegistry {
       }
 
       this.initialized = true;
-      console.log(`✅ Connector registry initialized with ${this.connectors.size} connectors`);
+      console.log(
+        `✅ Connector registry initialized with ${this.connectors.size} connectors`,
+      );
     } catch (error) {
       console.error("❌ Failed to initialize connector registry:", error);
     }
@@ -70,44 +73,47 @@ class ConnectorRegistry {
    */
   private async loadConnector(dirName: string) {
     const connectorPath = path.join(__dirname, dirName);
-    
-    // Check if index.ts/js exists
-    const indexFiles = ["index.ts", "index.js"];
-    let indexFile = null;
-    
-    for (const file of indexFiles) {
+
+    // Check if connector.ts/js exists
+    const connectorFiles = ["connector.ts", "connector.js"];
+    let connectorFile = null;
+
+    for (const file of connectorFiles) {
       const filePath = path.join(connectorPath, file);
       if (fs.existsSync(filePath)) {
-        indexFile = filePath;
+        connectorFile = filePath;
         break;
       }
     }
 
-    if (!indexFile) {
-      console.warn(`⚠️  No index file found for connector: ${dirName}`);
-      return;
+    if (!connectorFile) {
+      // Fall back to index.ts/js for backwards compatibility
+      const indexFiles = ["index.ts", "index.js"];
+      for (const file of indexFiles) {
+        const filePath = path.join(connectorPath, file);
+        if (fs.existsSync(filePath)) {
+          break;
+        }
+      }
     }
 
     try {
       // Dynamically import the connector
       const connectorModule = await import(`./${dirName}`);
-      
-      // Look for the connector class (should follow naming convention)
-      const expectedConnectorName = dirName.charAt(0).toUpperCase() + dirName.slice(1) + "Connector";
-      const expectedSyncServiceName = dirName.charAt(0).toUpperCase() + dirName.slice(1) + "SyncService";
-      
-      const ConnectorClass = connectorModule[expectedConnectorName];
-      const SyncServiceClass = connectorModule[expectedSyncServiceName];
 
-      if (!ConnectorClass) {
-        console.warn(`⚠️  No connector class found for ${dirName} (expected: ${expectedConnectorName})`);
+      // Look for any exported class ending with "Connector"
+      const exports = Object.keys(connectorModule);
+      const connectorExport = exports.find(key => key.endsWith("Connector"));
+
+      if (!connectorExport) {
+        console.warn(`⚠️  No connector class found in ${dirName}`);
         return;
       }
 
-      if (!SyncServiceClass) {
-        console.warn(`⚠️  No sync service class found for ${dirName} (expected: ${expectedSyncServiceName})`);
-        return;
-      }
+      const ConnectorClass = connectorModule[connectorExport];
+      console.log(
+        `📦 Found connector class: ${connectorExport} for ${dirName}`,
+      );
 
       // Create a dummy data source to get metadata
       const dummyDataSource = {
@@ -136,7 +142,6 @@ class ConnectorRegistry {
       this.register({
         type: dirName,
         connector: ConnectorClass,
-        syncService: SyncServiceClass,
         metadata,
       });
 
@@ -164,19 +169,6 @@ class ConnectorRegistry {
 
     const ConnectorClass = metadata.connector;
     return new ConnectorClass(dataSource);
-  }
-
-  /**
-   * Get a sync service instance for a data source
-   */
-  getSyncService(dataSource: IDataSource): any | null {
-    const metadata = this.connectors.get(dataSource.type);
-    if (!metadata) {
-      return null;
-    }
-
-    const SyncServiceClass = metadata.syncService;
-    return new SyncServiceClass(dataSource);
   }
 
   /**

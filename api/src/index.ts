@@ -16,8 +16,7 @@ import { authRoutes } from "./auth/auth.controller";
 import { connectDatabase } from "./database/schema";
 import { workspaceRoutes } from "./routes/workspaces";
 import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
-import { connectorIconRoutes } from "./routes/connector-icons";
-import { connectorSchemaRoutes } from "./routes/connector-schema";
+import { connectorRoutes } from "./routes/connectors";
 import { syncJobRoutes } from "./routes/sync-jobs";
 import mongoose from "mongoose";
 
@@ -242,8 +241,7 @@ app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
 app.route("/api/ai", aiRoutes);
 app.route("/api/agent", agentRoutes);
-app.route("/api/connectors", connectorIconRoutes);
-app.route("/api/connectors", connectorSchemaRoutes);
+app.route("/api/connectors", connectorRoutes);
 
 // Serve static files (frontend) - middleware for non-API routes
 app.use("*", async (c, next) => {

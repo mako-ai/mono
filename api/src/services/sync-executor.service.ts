@@ -1,4 +1,4 @@
-import { performSync as performSyncJob } from "../sync/sync";
+import { performSync as performSyncOrchestrated } from "../sync/sync-orchestrator";
 
 // Logger interface for sync execution
 export interface SyncLogger {
@@ -10,8 +10,7 @@ export interface SyncLogger {
 }
 
 /**
- * Execute sync using the existing sync CLI tool
- * This approach reuses all the existing sync logic without duplicating code
+ * Execute sync using the refactored sync orchestrator
  */
 export async function performSync(
   dataSourceId: string,
@@ -29,7 +28,7 @@ export async function performSync(
   logger?.log("info", `Destination: ${destinationDatabaseId}`);
 
   try {
-    await performSyncJob(
+    await performSyncOrchestrated(
       dataSourceId,
       destinationDatabaseId,
       entityFilter?.[0],

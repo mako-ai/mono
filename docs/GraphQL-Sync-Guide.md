@@ -88,20 +88,31 @@ pnpm run sync my_graphql_api atlas.revops users
 
 ### Programmatic Usage
 
+The GraphQL connector is used by the sync system to fetch data from GraphQL APIs. The sync orchestrator handles all database operations while the connector focuses on data fetching:
+
 ```typescript
-import { GraphQLSyncService } from "./src/sync-graphql";
-import { dataSourceManager } from "./src/data-source-manager";
+// The sync system uses the connector internally like this:
+import { GraphQLConnector } from "./api/src/connectors/graphql/GraphQLConnector";
 
-const dataSource = dataSourceManager.getDataSource("my_graphql_api");
-const syncService = new GraphQLSyncService(dataSource);
+// Create connector with data source configuration
+const connector = new GraphQLConnector(dataSource);
 
-// Sync all configured queries
-await syncService.syncAll("atlas.revops");
+// Test connection
+const result = await connector.testConnection();
 
-// Sync specific entity
-const userQuery = dataSource.connection.queries.find(q => q.name === "users");
-await syncService.syncEntity(userQuery, "atlas.revops");
+// Fetch data for an entity
+await connector.fetchEntity({
+  entity: "users",
+  onBatch: async batch => {
+    // Process batch of records
+  },
+  onProgress: (current, total) => {
+    // Update progress
+  },
+});
 ```
+
+Note: Direct programmatic usage is typically not needed. Use the sync CLI or API endpoints to trigger syncs.
 
 ## Query Configuration
 
@@ -583,13 +594,16 @@ global:
 
 ### Manual Testing
 
-Test individual queries outside the sync process:
-
 ```typescript
-import { GraphQLSyncService } from "./src/sync-graphql";
+// Test connection manually
+import { GraphQLConnector } from "./api/src/connectors/graphql/GraphQLConnector";
+import { databaseDataSourceManager } from "./api/src/sync/database-data-source-manager";
 
-const syncService = new GraphQLSyncService(dataSource);
-const result = await syncService.testConnection();
+const dataSource = await databaseDataSourceManager.getDataSource(
+  "your_data_source_id",
+);
+const connector = new GraphQLConnector(dataSource);
+const result = await connector.testConnection();
 console.log(result);
 ```
 

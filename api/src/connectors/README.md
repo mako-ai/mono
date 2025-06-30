@@ -14,17 +14,14 @@ connectors/
 │   └── BaseConnector.ts     # Abstract base class for all connectors
 ├── stripe/
 │   ├── StripeConnector.ts   # Stripe payment platform connector
-│   ├── StripeSyncService.ts # Stripe sync service implementation
 │   ├── index.ts             # Module exports
 │   └── icon.svg             # Stripe connector icon
 ├── close/
 │   ├── CloseConnector.ts    # Close CRM connector
-│   ├── CloseSyncService.ts  # Close sync service implementation
 │   ├── index.ts             # Module exports
 │   └── icon.svg             # Close connector icon
 ├── graphql/
 │   ├── GraphQLConnector.ts  # Generic GraphQL API connector
-│   ├── GraphQLSyncService.ts # GraphQL sync service implementation
 │   ├── index.ts             # Module exports
 │   └── icon.svg             # GraphQL connector icon
 ├── registry.ts              # Connector registry and management
@@ -37,10 +34,9 @@ To add support for a new data source type:
 
 1. Create a new directory for your connector (e.g., `salesforce/`)
 2. Create a connector class that extends `BaseConnector`
-3. Create a sync service class (optional, for complex sync logic)
-4. Add an `index.ts` file to export your connector
-5. Include an `icon.svg` file for the web interface
-6. Register your connector in `registry.ts`
+3. Add an `index.ts` file to export your connector
+4. Include an `icon.svg` file for the web interface
+5. The connector will be automatically discovered by the registry
 
 ### Example Connector Implementation
 
@@ -48,7 +44,7 @@ To add support for a new data source type:
 import {
   BaseConnector,
   ConnectionTestResult,
-  SyncOptions,
+  FetchOptions,
 } from "../base/BaseConnector";
 
 export class MyConnector extends BaseConnector {
@@ -73,36 +69,23 @@ export class MyConnector extends BaseConnector {
     return ["entity1", "entity2"];
   }
 
-  async syncAll(options: SyncOptions): Promise<void> {
-    // Implement sync logic for all entities
-  }
+  async fetchEntity(options: FetchOptions): Promise<void> {
+    const { entity, onBatch, onProgress, since } = options;
 
-  async syncEntity(entity: string, options: SyncOptions): Promise<void> {
-    // Implement sync logic for specific entity
+    // Implement data fetching logic
+    // Call onBatch with each batch of records
+    // Call onProgress to update progress
   }
 }
 ```
 
-### Registering Your Connector
+### Connector Discovery
 
-Add your connector to the registry in `registry.ts`:
+The connector registry automatically discovers connectors by scanning subdirectories. Simply follow the naming convention:
 
-```typescript
-// Import your connector
-import { MyConnector } from "./my-connector/MyConnector";
-
-// In registerBuiltInConnectors method:
-this.register({
-  type: "myconnector",
-  connector: MyConnector,
-  metadata: {
-    name: "My Data Source",
-    version: "1.0.0",
-    description: "Connector for My Data Source",
-    supportedEntities: ["entity1", "entity2"],
-  },
-});
-```
+- Directory name: `myconnector/`
+- Connector class: `MyconnectorConnector`
+- Export from index.ts: `export { MyconnectorConnector } from "./MyconnectorConnector";`
 
 ## Configuration
 

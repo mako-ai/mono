@@ -24,6 +24,8 @@ import { useConsoleStore } from "../store/consoleStore";
 import { useAuth } from "../contexts/auth-context";
 import { useState } from "react";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
+import { useDataSourceStore } from "../store/dataSourceStore";
 
 const NavButton = styled(Button, {
   shouldForwardProp: prop => prop !== "isActive",
@@ -81,6 +83,11 @@ function Sidebar() {
   const handleLogout = async () => {
     handleUserMenuClose();
     try {
+      // Clear all store data before logout
+      useConnectorCatalogStore.getState().clearTypes();
+      useDataSourceStore.getState().clearDrafts();
+      useConsoleStore.getState().clearAllConsoles();
+
       await logout();
     } catch (error) {
       console.error("Logout failed:", error);
