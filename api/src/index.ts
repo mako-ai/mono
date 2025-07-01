@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
+import { serve as serveInngest } from "inngest/hono";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -18,6 +19,7 @@ import { workspaceRoutes } from "./routes/workspaces";
 import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
 import { connectorRoutes } from "./routes/connectors";
 import { syncJobRoutes } from "./routes/sync-jobs";
+import { functions, inngest } from "./inngest";
 import mongoose from "mongoose";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
@@ -39,89 +41,9 @@ connectDatabase().catch(error => {
   throw error;
 });
 
-// Store worker instance for cleanup
-let workerInstance: any = null;
-let workerStartAttempts = 0;
-let workerHealthCheckInterval: NodeJS.Timeout | null = null;
-
-// Worker supervisor function
-async function startWorkerWithSupervision() {
-  if (!workerInstance) {
-    try {
-      const { SyncJobWorker } = await import("./worker");
-      workerInstance = new SyncJobWorker();
-    } catch (error) {
-      console.error("Failed to import worker module:", error);
-      return;
-    }
-  }
-
-  try {
-    workerStartAttempts++;
-    console.log(`🔄 Starting worker (attempt ${workerStartAttempts})...`);
-    await workerInstance.start();
-    console.log("✅ Worker started successfully");
-    workerStartAttempts = 0; // Reset counter on success
-  } catch (error: any) {
-    console.error(`❌ Worker start failed: ${error.message}`);
-
-    // Retry with exponential backoff
-    const retryDelay = Math.min(
-      30000 * Math.pow(2, workerStartAttempts - 1),
-      300000,
-    ); // Max 5 minutes
-    console.log(`⏰ Will retry worker start in ${retryDelay / 1000}s`);
-
-    setTimeout(() => {
-      void startWorkerWithSupervision();
-    }, retryDelay);
-  }
-}
-
-// Health check function
-function startWorkerHealthCheck() {
-  // Check every 2 minutes if worker is alive
-  workerHealthCheckInterval = setInterval(() => {
-    if (workerInstance && !workerInstance.isRunning) {
-      console.log("💀 Worker detected as dead, restarting...");
-      workerStartAttempts = 0; // Reset attempts for fresh start
-      void startWorkerWithSupervision();
-    }
-  }, 120000); // 2 minutes
-}
-
-// Initialize sync job worker in production or when explicitly enabled
-if (
-  process.env.NODE_ENV === "production" ||
-  process.env.ENABLE_SYNC_WORKER === "true"
-) {
-  // Start worker with supervision
-  void startWorkerWithSupervision();
-
-  // Start health checks after a delay to let worker initialize
-  setTimeout(() => {
-    startWorkerHealthCheck();
-  }, 60000); // Start health checks after 1 minute
-}
-
 // Graceful shutdown function
 async function gracefulShutdown(signal: string): Promise<void> {
   console.log(`${signal} received, shutting down gracefully...`);
-
-  // Clear health check interval
-  if (workerHealthCheckInterval) {
-    clearInterval(workerHealthCheckInterval);
-  }
-
-  if (workerInstance) {
-    try {
-      console.log("Stopping sync job worker...");
-      await workerInstance.stop();
-      console.log("Sync job worker stopped successfully");
-    } catch (error) {
-      console.error("Error stopping sync job worker:", error);
-    }
-  }
 
   // Close database connections
   try {
@@ -211,22 +133,6 @@ app.get("/health", c => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Worker health check
-app.get("/health/worker", c => {
-  const workerStatus = {
-    enabled:
-      process.env.NODE_ENV === "production" ||
-      process.env.ENABLE_SYNC_WORKER === "true",
-    running: workerInstance?.isRunning || false,
-    startAttempts: workerStartAttempts,
-    lastError: workerInstance?.lastError || null,
-    timestamp: new Date().toISOString(),
-  };
-
-  const httpStatus = workerStatus.enabled && !workerStatus.running ? 503 : 200;
-  return c.json(workerStatus, httpStatus);
-});
-
 // API routes
 app.route("/api/auth", authRoutes);
 app.route("/api/workspaces", workspaceRoutes);
@@ -242,6 +148,16 @@ app.route("/api/database", databaseRoutes);
 app.route("/api/ai", aiRoutes);
 app.route("/api/agent", agentRoutes);
 app.route("/api/connectors", connectorRoutes);
+
+// Inngest endpoint
+app.on(
+  ["GET", "PUT", "POST"],
+  "/api/inngest",
+  serveInngest({
+    client: inngest,
+    functions,
+  })
+);
 
 // Serve static files (frontend) - middleware for non-API routes
 app.use("*", async (c, next) => {
@@ -305,6 +221,7 @@ const port = parseInt(process.env.WEB_API_PORT || process.env.PORT || "8080");
 console.log(`🚀 Query API Server starting on port ${port}`);
 console.log(`📁 Environment: ${process.env.NODE_ENV || "development"}`);
 console.log("🔗 API endpoints available at /api/*");
+console.log("🔄 Inngest endpoint available at /api/inngest");
 
 serve({
   fetch: app.fetch,

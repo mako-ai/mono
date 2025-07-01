@@ -6,7 +6,7 @@ import {
   JobExecution,
 } from "../database/workspace-schema";
 import { Types } from "mongoose";
-import { performSync } from "../services/sync-executor.service";
+import { inngest } from "../inngest";
 
 export const syncJobRoutes = new Hono();
 
@@ -287,36 +287,21 @@ syncJobRoutes.post("/:jobId/run", async c => {
       return c.json({ success: false, error: "Sync job not found" }, 404);
     }
 
-    // Update job status
-    job.lastRunAt = new Date();
-    job.runCount += 1;
-    await job.save();
-
-    // Execute sync in background
-    performSync(
-      job.dataSourceId._id.toString(),
-      job.destinationDatabaseId._id.toString(),
-      job.entityFilter,
-      job.syncMode === "full",
-    )
-      .then(async () => {
-        await SyncJob.findByIdAndUpdate(jobId, {
-          lastSuccessAt: new Date(),
-          lastError: null,
-        });
-      })
-      .catch(async error => {
-        await SyncJob.findByIdAndUpdate(jobId, {
-          lastError: error.message || "Unknown error",
-        });
-      });
+    // Trigger sync job via Inngest
+    const eventId = await inngest.send({
+      name: "sync/job.manual",
+      data: {
+        jobId: job._id.toString(),
+      },
+    });
 
     return c.json({
       success: true,
       message: "Sync job triggered successfully",
       data: {
         jobId: job._id,
-        startedAt: job.lastRunAt,
+        eventId,
+        startedAt: new Date(),
       },
     });
   } catch (error) {
