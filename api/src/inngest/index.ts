@@ -3,7 +3,7 @@ import {
   syncJobFunction, 
   scheduledSyncJobFunction, 
   manualSyncJobFunction,
-  cleanupAbandonedJobsFunction
+  cleanupAbandonedJobsFunction,
 } from "./functions/sync-job";
 
 // Export all functions as an array for the serve handler
@@ -20,5 +20,5 @@ export {
   syncJobFunction, 
   scheduledSyncJobFunction, 
   manualSyncJobFunction,
-  cleanupAbandonedJobsFunction
+  cleanupAbandonedJobsFunction,
 };

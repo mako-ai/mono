@@ -156,7 +156,7 @@ app.on(
   serveInngest({
     client: inngest,
     functions,
-  })
+  }),
 );
 
 // Serve static files (frontend) - middleware for non-API routes
