@@ -194,6 +194,18 @@ export const syncJobFunction = inngest.createFunction(
     let logger: JobExecutionLogger | null = null;
 
     try {
+      // Add jitter to prevent thundering herd - random delay 0-60 seconds
+      const jitterMs = await step.run("apply-jitter", async () => {
+        const jitter = Math.floor(Math.random() * 60000);
+        console.log(`🔄 Executing job ${jobId} (jitter: ${jitter}ms)`);
+        
+        if (jitter > 0) {
+          await new Promise(resolve => setTimeout(resolve, jitter));
+        }
+        
+        return jitter;
+      });
+
       // Get job details
       const job = await step.run("fetch-job", async () => {
         const syncJob = await SyncJob.findById(jobId);
@@ -222,7 +234,7 @@ export const syncJobFunction = inngest.createFunction(
       );
 
       await logger.start();
-      logger.log("info", `Starting job execution for: ${job.name}`);
+      logger.log("info", `Starting job execution for: ${job.name} (jitter applied: ${jitterMs}ms)`);
 
       // Update job status
       await step.run("update-job-status", async () => {
@@ -300,6 +312,7 @@ export const scheduledSyncJobFunction = inngest.createFunction(
 
     const now = new Date();
     const executedJobs: string[] = [];
+    let schedulingJitter = 0;
 
     // Check each job to see if it should run
     for (const job of jobs) {
@@ -329,6 +342,11 @@ export const scheduledSyncJobFunction = inngest.createFunction(
       });
 
       if (shouldRun) {
+        // Add small scheduling jitter (0-5 seconds) between jobs to spread out the load
+        if (schedulingJitter > 0) {
+          await step.sleep(`scheduling-jitter-${job._id}`, schedulingJitter);
+        }
+        
         // Trigger the sync job
         await step.sendEvent(`trigger-job-${job._id}`, {
           name: "sync/job.execute",
@@ -336,6 +354,9 @@ export const scheduledSyncJobFunction = inngest.createFunction(
         });
         
         executedJobs.push(job.name);
+        
+        // Increment jitter for next job (0-5 seconds)
+        schedulingJitter = Math.floor(Math.random() * 5000);
       }
     }
 

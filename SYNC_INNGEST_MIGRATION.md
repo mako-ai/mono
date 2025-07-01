@@ -44,17 +44,24 @@ We've migrated the sync job scheduling system from a custom node-cron based work
 - Jobs can run across multiple instances without conflicts
 - Built-in rate limiting and throttling
 
+### 5. Jitter and Load Distribution
+- **Execution jitter** (0-60 seconds) - Applied when each job starts to prevent thundering herd
+- **Scheduling jitter** (0-5 seconds) - Applied between triggering multiple jobs at the same time
+- Helps distribute load across time to avoid overwhelming data sources
+
 ## Functions
 
 ### 1. `syncJobFunction`
 - Executes individual sync jobs
 - Handles logging, error tracking, and status updates
+- Applies execution jitter to prevent thundering herd
 - Triggered by events: `sync/job.execute`
 
 ### 2. `scheduledSyncJobFunction`
 - Runs every minute to check for scheduled jobs
 - Parses cron expressions and triggers jobs as needed
 - Uses `cron-parser` for accurate scheduling
+- Applies scheduling jitter when multiple jobs need to run
 
 ### 3. `manualSyncJobFunction`
 - Handles manual job triggers from the UI
@@ -130,6 +137,7 @@ If you need to rollback to the worker-based system:
 - [x] Add Inngest endpoint to API
 - [x] Remove node-cron dependencies
 - [x] Add Inngest and cron-parser dependencies
+- [x] Maintain jitter functionality
 - [x] Update documentation
 - [ ] Test all sync job functionality
 - [ ] Deploy to staging
