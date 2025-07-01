@@ -22,7 +22,7 @@ export async function performSync(
   // Log sync context
   logger?.log("info", `Sync mode: ${isIncremental ? "incremental" : "full"}`);
   if (entityFilter && entityFilter.length > 0) {
-    logger?.log("info", `Entity filter: ${entityFilter[0]}`);
+    logger?.log("info", `Entity filter: ${entityFilter.join(", ")}`);
   }
   logger?.log("info", `Data source: ${dataSourceId}`);
   logger?.log("info", `Destination: ${destinationDatabaseId}`);
@@ -31,7 +31,7 @@ export async function performSync(
     await performSyncOrchestrated(
       dataSourceId,
       destinationDatabaseId,
-      entityFilter?.[0],
+      entityFilter,
       isIncremental,
       logger,
     );
