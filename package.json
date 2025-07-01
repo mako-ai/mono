@@ -4,7 +4,7 @@
   "description": "Analytics platform syncing data from multiple sources like Close.com, Stripe, and databases",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter app run dev\" \"pnpm --filter api run dev\" \"pnpm --filter api run worker:dev\"",
+    "dev": "concurrently \"pnpm --filter app run dev\" \"pnpm --filter api run dev\"",
     "build": "pnpm run lint:fix:all && pnpm run app:build && pnpm run api:build && tsc",
     "start": "node dist/index.js",
     "test": "jest",
