@@ -162,10 +162,14 @@ export function SyncJobForm({
 
       if (response.success) {
         setAvailableEntities(response.data || []);
-        // Reset selection when entities change
-        setSelectedEntities([]);
-        setSelectAllEntities(true);
-        setValue("entityFilter", []);
+
+        // Only reset selection when entities change if we're in new mode
+        // or if there's no existing entity selection from a loaded job
+        if (isNewMode || (!currentJobId && jobs.length === 0)) {
+          setSelectedEntities([]);
+          setSelectAllEntities(true);
+          setValue("entityFilter", []);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch entities:", error);
@@ -210,6 +214,8 @@ export function SyncJobForm({
       setValue("entityFilter", [], { shouldDirty: true }); // Empty means all
     } else {
       setSelectedEntities([]);
+      // When unchecking "All Entities", start with no specific entities selected
+      // The user must then select specific entities, or re-check "All Entities"
       setValue("entityFilter", [], { shouldDirty: true });
     }
   };
@@ -268,6 +274,37 @@ export function SyncJobForm({
     }
   }, [isNewMode, currentJobId, jobs, reset]);
 
+  // Re-apply job entity selection after entities are loaded
+  useEffect(() => {
+    if (
+      !isNewMode &&
+      currentJobId &&
+      jobs.length > 0 &&
+      availableEntities.length > 0
+    ) {
+      const job = jobs.find(j => j._id === currentJobId);
+      if (job && job.entityFilter && job.entityFilter.length > 0) {
+        // Validate that the job's entities exist in available entities
+        const validEntities = job.entityFilter.filter(entity =>
+          availableEntities.includes(entity),
+        );
+        if (validEntities.length > 0) {
+          setSelectedEntities(validEntities);
+          setSelectAllEntities(false);
+        }
+      }
+    }
+  }, [isNewMode, currentJobId, jobs, availableEntities]);
+
+  // Sync form entityFilter with selection state
+  useEffect(() => {
+    if (selectAllEntities) {
+      setValue("entityFilter", [], { shouldDirty: true });
+    } else {
+      setValue("entityFilter", selectedEntities, { shouldDirty: true });
+    }
+  }, [selectAllEntities, selectedEntities, setValue]);
+
   // Clear store error when component unmounts
   useEffect(() => {
     return () => {
@@ -279,6 +316,14 @@ export function SyncJobForm({
     if (!currentWorkspace?.id) {
       setError("No workspace selected");
       console.error("No workspace selected");
+      return;
+    }
+
+    // Validate entity selection
+    if (!selectAllEntities && selectedEntities.length === 0) {
+      setError(
+        "Please select at least one entity to sync, or choose 'All Entities'",
+      );
       return;
     }
 
@@ -299,6 +344,14 @@ export function SyncJobForm({
         enabled: data.enabled,
         entityFilter: data.entityFilter,
       };
+
+      // Debug logging
+      console.log("Form submission data:", {
+        selectAllEntities,
+        selectedEntities,
+        entityFilter: data.entityFilter,
+        payload: payload.entityFilter,
+      });
 
       let newJob;
       if (isNewMode) {
@@ -585,13 +638,20 @@ export function SyncJobForm({
                       ))}
                     </FormGroup>
 
-                    <Alert severity="info" sx={{ mt: 2 }}>
+                    <Alert
+                      severity={
+                        selectAllEntities || selectedEntities.length > 0
+                          ? "info"
+                          : "warning"
+                      }
+                      sx={{ mt: 2 }}
+                    >
                       <Typography variant="body2">
                         {selectAllEntities
                           ? "All entities will be synced from this data source."
                           : selectedEntities.length > 0
                             ? `${selectedEntities.length} of ${availableEntities.length} entities selected for sync.`
-                            : "No entities selected. Please select at least one entity or choose 'All Entities'."}
+                            : "⚠️ No entities selected. Please select at least one entity or choose 'All Entities' to proceed."}
                       </Typography>
                     </Alert>
                   </Box>
