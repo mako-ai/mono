@@ -125,6 +125,12 @@ export class CloseConnector extends BaseConnector {
       return;
     }
 
+    // Special handling for users - always do full sync
+    if (entity === "users") {
+      await this.fetchAllUsers(options);
+      return;
+    }
+
     const api = this.getCloseClient();
     const batchSize = options.batchSize || this.getBatchSize();
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
@@ -283,6 +289,75 @@ export class CloseConnector extends BaseConnector {
       } catch (error) {
         // Log but continue with other endpoints
         console.warn(`Error fetching from ${endpoint}:`, error);
+      }
+    }
+  }
+
+  private async fetchAllUsers(options: FetchOptions): Promise<void> {
+    const { onBatch, onProgress } = options;
+    const api = this.getCloseClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+
+    let hasMore = true;
+    let offset = 0;
+    let recordCount = 0;
+    let totalCount: number | undefined;
+
+    // Try to get total count first for better progress reporting
+    if (onProgress) {
+      try {
+        const countResponse = await api.get("/user/", {
+          params: { _limit: 0 },
+        });
+        totalCount = countResponse.data.total_results;
+        onProgress(0, totalCount);
+      } catch (error) {
+        console.warn("Could not fetch total count for users:", error);
+      }
+    }
+
+    while (hasMore) {
+      try {
+        const params = {
+          _limit: batchSize,
+          _skip: offset,
+        };
+
+        const response = await api.get("/user/", { params });
+        const data = response.data.data || [];
+
+        // Pass batch to callback
+        if (data.length > 0) {
+          await onBatch(data);
+          recordCount += data.length;
+
+          if (onProgress) {
+            onProgress(recordCount, totalCount);
+          }
+        }
+
+        // Check for more pages
+        hasMore = response.data.has_more || false;
+
+        if (hasMore) {
+          offset += batchSize;
+
+          // Rate limiting
+          await this.sleep(rateLimitDelay);
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          // Handle rate limiting
+          const retryAfter = parseInt(
+            error.response.headers["retry-after"] || "60",
+          );
+          console.warn(`Rate limited. Waiting ${retryAfter} seconds...`);
+          await this.sleep(retryAfter * 1000);
+          // Don't increment offset, retry the same page
+        } else {
+          throw error;
+        }
       }
     }
   }
