@@ -26,6 +26,7 @@
     "dotenv": "^16.5.0",
     "express-rate-limit": "^7.5.0",
     "hono": "^4.7.11",
+    "inngest": "^3.39.2",
     "inquirer": "^8.2.6",
     "js-yaml": "^4.1.0",
     "lucia": "^3.2.2",
