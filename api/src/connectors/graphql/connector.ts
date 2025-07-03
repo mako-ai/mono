@@ -2,6 +2,8 @@ import {
   BaseConnector,
   ConnectionTestResult,
   FetchOptions,
+  ResumableFetchOptions,
+  FetchState,
 } from "../base/BaseConnector";
 import axios, { AxiosInstance } from "axios";
 
@@ -253,6 +255,161 @@ export class GraphQLConnector extends BaseConnector {
   getAvailableEntities(): string[] {
     if (!this.dataSource.config.queries) return [];
     return this.dataSource.config.queries.map((q: any) => q.name);
+  }
+
+  /**
+   * Check if connector supports resumable fetching
+   */
+  supportsResumableFetching(): boolean {
+    return true;
+  }
+
+  /**
+   * Fetch a chunk of data with resumable state
+   */
+  async fetchEntityChunk(options: ResumableFetchOptions): Promise<FetchState> {
+    const {
+      entity,
+      onBatch,
+      onProgress,
+      since,
+      batchSize,
+      rateLimitDelay,
+      maxRetries,
+      state,
+    } = options;
+    const maxIterations = options.maxIterations || 10;
+
+    const queryConfig = this.getQueryConfig(entity);
+    if (!queryConfig) {
+      throw new Error(`Query configuration '${entity}' not found`);
+    }
+
+    const settings = {
+      batchSize: Number(
+        batchSize || queryConfig.batch_size || this.getBatchSize(),
+      ),
+      rateLimitDelay: rateLimitDelay || this.getRateLimitDelay(),
+      maxRetries: maxRetries || this.dataSource.settings?.max_retries || 3,
+      timeout: this.dataSource.settings?.timeout_ms || 30000,
+    };
+
+    // Initialize or restore state
+    let hasMore = state?.hasMore !== false;
+    let cursor: string | null = state?.cursor || null;
+    let offset = state?.offset || 0;
+    let currentCount = state?.totalProcessed || 0;
+    let iterations = 0;
+
+    // Fetch total count if this is the first chunk
+    let totalCount: number | undefined = state?.metadata?.totalCount;
+    if (!state && queryConfig.total_count_path && onProgress) {
+      totalCount = await this.fetchTotalCount(queryConfig, settings);
+      if (totalCount) {
+        onProgress(0, totalCount);
+      }
+    }
+
+    // Determine pagination type
+    const usesCursorPagination =
+      queryConfig.query.includes("$after") ||
+      queryConfig.query.includes("$cursor");
+    const usesOffsetPagination =
+      queryConfig.query.includes("$offset") ||
+      queryConfig.query.includes("offset:");
+
+    while (hasMore && iterations < maxIterations) {
+      // Build query variables
+      let queryVariables: any = {
+        ...(queryConfig.variables || {}),
+      };
+
+      if (usesCursorPagination) {
+        queryVariables = {
+          ...queryVariables,
+          first: Number(settings.batchSize),
+          ...(cursor && { after: cursor }),
+        };
+      } else if (usesOffsetPagination) {
+        queryVariables = {
+          ...queryVariables,
+          limit: Number(settings.batchSize),
+          offset: Number(offset),
+        };
+      } else {
+        // Default to offset pagination
+        queryVariables = {
+          ...queryVariables,
+          limit: Number(settings.batchSize),
+          offset: Number(offset),
+        };
+      }
+
+      // Execute query with retry logic
+      const response = await this.executeWithRetry(
+        () =>
+          this.executeGraphQLQuery(queryConfig.query, queryVariables, settings),
+        settings,
+      );
+
+      // Extract data
+      const data = this.getValueByPath(response, queryConfig.data_path);
+      if (!Array.isArray(data)) {
+        console.warn(`Data at path '${queryConfig.data_path}' is not an array`);
+        hasMore = false;
+        break;
+      }
+
+      // Filter by date if incremental
+      let filteredData = data;
+      if (since) {
+        filteredData = data.filter((record: any) => {
+          const updatedAt =
+            record.updated_at || record.updatedAt || record.modified_at;
+          return updatedAt && new Date(updatedAt) > since;
+        });
+      }
+
+      // Pass batch to callback
+      if (filteredData.length > 0) {
+        await onBatch(filteredData);
+      }
+
+      currentCount += filteredData.length;
+      if (onProgress) {
+        onProgress(currentCount, totalCount);
+      }
+
+      // Check for more pages
+      if (queryConfig.has_next_page_path) {
+        hasMore = this.getValueByPath(response, queryConfig.has_next_page_path);
+      } else {
+        hasMore = data.length === settings.batchSize;
+      }
+
+      // Update pagination
+      if (hasMore) {
+        if (usesCursorPagination && queryConfig.cursor_path) {
+          cursor = this.getValueByPath(response, queryConfig.cursor_path);
+        } else {
+          offset += settings.batchSize;
+        }
+
+        iterations++;
+
+        // Rate limiting
+        await this.sleep(settings.rateLimitDelay);
+      }
+    }
+
+    return {
+      offset,
+      cursor: cursor || undefined,
+      totalProcessed: currentCount,
+      hasMore,
+      iterationsInChunk: iterations,
+      metadata: { totalCount },
+    };
   }
 
   async fetchEntity(options: FetchOptions): Promise<void> {

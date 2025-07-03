@@ -1,4 +1,9 @@
-import { performSync as performSyncOrchestrated } from "../sync/sync-orchestrator";
+import {
+  performSync as performSyncOrchestrated,
+  performSyncChunk as performSyncChunkOrchestrated,
+  SyncChunkOptions,
+  SyncChunkResult,
+} from "../sync/sync-orchestrator";
 
 // Logger interface for sync execution
 export interface SyncLogger {
@@ -7,6 +12,18 @@ export interface SyncLogger {
     message: string,
     metadata?: any,
   ): void;
+}
+
+// Re-export types for convenience
+export type { SyncChunkOptions, SyncChunkResult };
+
+/**
+ * Execute a single chunk of sync work
+ */
+export async function performSyncChunk(
+  options: SyncChunkOptions,
+): Promise<SyncChunkResult> {
+  return performSyncChunkOrchestrated(options);
 }
 
 /**

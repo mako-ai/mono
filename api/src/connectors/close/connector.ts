@@ -2,6 +2,8 @@ import {
   BaseConnector,
   ConnectionTestResult,
   FetchOptions,
+  ResumableFetchOptions,
+  FetchState,
 } from "../base/BaseConnector";
 import axios, { AxiosInstance } from "axios";
 
@@ -114,6 +116,228 @@ export class CloseConnector extends BaseConnector {
       "users",
       "custom_fields",
     ];
+  }
+
+  /**
+   * Check if connector supports resumable fetching
+   */
+  supportsResumableFetching(): boolean {
+    return true;
+  }
+
+  /**
+   * Fetch a chunk of data with resumable state
+   */
+  async fetchEntityChunk(options: ResumableFetchOptions): Promise<FetchState> {
+    const { entity, onBatch, onProgress, since, state } = options;
+    const maxIterations = options.maxIterations || 10;
+
+    // Special handling for custom_fields and users (non-paginated)
+    if (entity === "custom_fields") {
+      if (!state || state.totalProcessed === 0) {
+        await this.fetchAllCustomFields(options);
+        return {
+          totalProcessed: -1,
+          hasMore: false,
+          iterationsInChunk: 1,
+        };
+      }
+      return {
+        totalProcessed: state.totalProcessed,
+        hasMore: false,
+        iterationsInChunk: 0,
+      };
+    }
+
+    if (entity === "users") {
+      return await this.fetchUsersChunk(options);
+    }
+
+    const api = this.getCloseClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+
+    // Initialize or restore state
+    let offset = state?.offset || 0;
+    let recordCount = state?.totalProcessed || 0;
+    let hasMore = true;
+    let iterations = 0;
+
+    // Get total count if this is the first chunk
+    let totalCount: number | undefined = state?.metadata?.totalCount;
+    if (!state && onProgress) {
+      totalCount = await this.fetchTotalCount(entity, since);
+      if (totalCount !== undefined) {
+        onProgress(0, totalCount);
+      }
+    }
+
+    while (hasMore && iterations < maxIterations) {
+      let response: any;
+      const params: any = {
+        _limit: batchSize,
+        _skip: offset,
+      };
+
+      try {
+        let endpoint: string;
+        switch (entity) {
+          case "leads":
+            endpoint = "/lead/";
+            break;
+          case "opportunities":
+            endpoint = "/opportunity/";
+            break;
+          case "activities":
+            endpoint = "/activity/";
+            break;
+          case "contacts":
+            endpoint = "/contact/";
+            break;
+          default:
+            throw new Error(`Unsupported entity: ${entity}`);
+        }
+
+        // For incremental sync, use POST with query in body
+        if (since) {
+          const dateFilter = since.toISOString().split("T")[0];
+          const postData = {
+            _params: {
+              _limit: batchSize,
+              _skip: offset,
+              _order_by: "-date_updated",
+              query: `date_updated>="${dateFilter}"`,
+            },
+          };
+
+          response = await api.post(endpoint, postData, {
+            headers: {
+              "x-http-method-override": "GET",
+            },
+          });
+        } else {
+          response = await api.get(endpoint, { params });
+        }
+
+        const data = response.data.data || [];
+
+        if (data.length > 0) {
+          await onBatch(data);
+          recordCount += data.length;
+
+          if (onProgress) {
+            onProgress(recordCount, totalCount);
+          }
+        }
+
+        hasMore = response.data.has_more || false;
+
+        if (hasMore) {
+          offset += batchSize;
+          iterations++;
+
+          // Rate limiting
+          await this.sleep(rateLimitDelay);
+        } else {
+          // No more data
+          break;
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          const retryAfter = parseInt(
+            error.response.headers["retry-after"] || "60",
+          );
+          console.warn(`Rate limited. Waiting ${retryAfter} seconds...`);
+          await this.sleep(retryAfter * 1000);
+          // Don't increment iterations for rate limit retries
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    return {
+      offset,
+      totalProcessed: recordCount,
+      hasMore,
+      iterationsInChunk: iterations,
+      metadata: { totalCount },
+    };
+  }
+
+  private async fetchUsersChunk(
+    options: ResumableFetchOptions,
+  ): Promise<FetchState> {
+    const { onBatch, onProgress, state } = options;
+    const api = this.getCloseClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+    const maxIterations = options.maxIterations || 10;
+
+    let offset = state?.offset || 0;
+    let recordCount = state?.totalProcessed || 0;
+    let hasMore = true;
+    let iterations = 0;
+
+    let totalCount: number | undefined = state?.metadata?.totalCount;
+    if (!state && onProgress) {
+      try {
+        const countResponse = await api.get("/user/", {
+          params: { _limit: 0 },
+        });
+        totalCount = countResponse.data.total_results;
+        onProgress(0, totalCount);
+      } catch (error) {
+        console.warn("Could not fetch total count for users:", error);
+      }
+    }
+
+    while (hasMore && iterations < maxIterations) {
+      try {
+        const params = {
+          _limit: batchSize,
+          _skip: offset,
+        };
+
+        const response = await api.get("/user/", { params });
+        const data = response.data.data || [];
+
+        if (data.length > 0) {
+          await onBatch(data);
+          recordCount += data.length;
+
+          if (onProgress) {
+            onProgress(recordCount, totalCount);
+          }
+        }
+
+        hasMore = response.data.has_more || false;
+
+        if (hasMore) {
+          offset += batchSize;
+          iterations++;
+          await this.sleep(rateLimitDelay);
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          const retryAfter = parseInt(
+            error.response.headers["retry-after"] || "60",
+          );
+          console.warn(`Rate limited. Waiting ${retryAfter} seconds...`);
+          await this.sleep(retryAfter * 1000);
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    return {
+      offset,
+      totalProcessed: recordCount,
+      hasMore,
+      iterationsInChunk: iterations,
+      metadata: { totalCount },
+    };
   }
 
   async fetchEntity(options: FetchOptions): Promise<void> {
