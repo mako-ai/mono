@@ -21,6 +21,7 @@ import { connectorRoutes } from "./routes/connectors";
 import { syncJobRoutes } from "./routes/sync-jobs";
 import { functions, inngest } from "./inngest";
 import mongoose from "mongoose";
+import { mongoPool } from "./core/mongodb-pool";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -39,80 +40,6 @@ connectDatabase().catch(error => {
   console.error("Failed to connect to database:", error);
   // Re-throw to allow the unhandled rejection handler (or the runtime) to exit appropriately
   throw error;
-});
-
-// Graceful shutdown function
-async function gracefulShutdown(signal: string): Promise<void> {
-  console.log(`${signal} received, shutting down gracefully...`);
-
-  // Close database connections
-  try {
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.close();
-      console.log("Database connection closed");
-    }
-  } catch (error) {
-    console.error("Error closing database connection:", error);
-  }
-
-  console.log("Graceful shutdown complete");
-}
-
-// Handle various shutdown signals and events
-process.on("SIGTERM", () => {
-  void gracefulShutdown("SIGTERM")
-    .then(() => {
-      // eslint-disable-next-line no-process-exit
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error("Error during shutdown:", error);
-      // eslint-disable-next-line no-process-exit
-      process.exit(1);
-    });
-});
-
-process.on("SIGINT", () => {
-  void gracefulShutdown("SIGINT")
-    .then(() => {
-      // eslint-disable-next-line no-process-exit
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error("Error during shutdown:", error);
-      // eslint-disable-next-line no-process-exit
-      process.exit(1);
-    });
-});
-
-process.on("SIGHUP", () => {
-  void gracefulShutdown("SIGHUP")
-    .then(() => {
-      // eslint-disable-next-line no-process-exit
-      process.exit(0);
-    })
-    .catch(error => {
-      console.error("Error during shutdown:", error);
-      // eslint-disable-next-line no-process-exit
-      process.exit(1);
-    });
-});
-
-// Handle uncaught exceptions and rejections
-process.on("uncaughtException", error => {
-  console.error("Uncaught Exception:", error);
-  void gracefulShutdown("uncaughtException").finally(() => {
-    // eslint-disable-next-line no-process-exit
-    process.exit(1);
-  });
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  void gracefulShutdown("unhandledRejection").finally(() => {
-    // eslint-disable-next-line no-process-exit
-    process.exit(1);
-  });
 });
 
 const app = new Hono();
@@ -227,3 +154,30 @@ serve({
   fetch: app.fetch,
   port,
 });
+
+// Graceful shutdown handling
+process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => void gracefulShutdown("SIGINT"));
+
+async function gracefulShutdown(signal: string): Promise<never> {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
+
+  try {
+    // Close unified MongoDB connection pool
+    console.log("Closing MongoDB connection pool...");
+    await mongoPool.closeAll();
+    console.log("MongoDB connection pool closed");
+
+    // Close mongoose connection if open
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.close();
+      console.log("Mongoose connection closed");
+    }
+
+    console.log("Graceful shutdown complete");
+    throw new Error(`Process terminated by ${signal}`);
+  } catch (error) {
+    console.error("Error during graceful shutdown:", error);
+    throw error;
+  }
+}

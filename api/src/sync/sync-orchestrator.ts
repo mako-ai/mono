@@ -1,8 +1,9 @@
 import { syncConnectorRegistry } from "./connector-registry";
 import { databaseDataSourceManager } from "./database-data-source-manager";
 import { getDestinationManager } from "./destination-manager";
+import { mongoPool, ConnectionConfig } from "../core/mongodb-pool";
 import { SyncLogger, FetchState } from "../connectors/base/BaseConnector";
-import { MongoClient, Db } from "mongodb";
+import { Db } from "mongodb";
 import { ProgressReporter } from "./progress-reporter";
 
 export interface SyncChunkResult {
@@ -39,7 +40,7 @@ export async function performSyncChunk(
   } = options;
 
   const syncMode = isIncremental ? "incremental" : "full";
-  let mongoConnection: { client: MongoClient; db: Db } | null = null;
+  let db: Db | null = null;
 
   try {
     // Get the data source
@@ -51,13 +52,6 @@ export async function performSyncChunk(
 
     if (!dataSource.active) {
       throw new Error(`Data source '${dataSource.name}' is not active`);
-    }
-
-    // Get destination database
-    const destinationDb =
-      await getDestinationManager().getDestination(destinationId);
-    if (!destinationDb) {
-      throw new Error(`Destination database '${destinationId}' not found`);
     }
 
     // Get connector from registry
@@ -75,11 +69,22 @@ export async function performSyncChunk(
       );
     }
 
-    // Connect to MongoDB
-    const client = new MongoClient(destinationDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(destinationDb.connection.database);
-    mongoConnection = { client, db };
+    // Get connection from unified pool
+    const connection = await mongoPool.getConnectionById(
+      "destination",
+      destinationId,
+      async (id: string) => {
+        const destinationDb = await getDestinationManager().getDestination(id);
+        if (!destinationDb) return null;
+
+        return {
+          connectionString: destinationDb.connection.connection_string,
+          database: destinationDb.connection.database,
+          encrypted: false,
+        } as ConnectionConfig;
+      },
+    );
+    db = connection.db;
 
     // Collection setup
     const collectionName = `${dataSource.name}_${entity}`;
@@ -198,12 +203,8 @@ export async function performSyncChunk(
       stack: error instanceof Error ? error.stack : undefined,
     });
     throw new Error(errorMsg, { cause: error });
-  } finally {
-    // Clean up database connection
-    if (mongoConnection) {
-      await mongoConnection.client.close();
-    }
   }
+  // Note: We don't close the connection here anymore - it stays in the unified pool
 }
 
 /**
@@ -224,7 +225,7 @@ export async function performSync(
   );
   const syncMode = isIncremental ? "incremental" : "full";
   logger?.log("debug", `Sync mode determined as: ${syncMode}`);
-  let mongoConnection: { client: MongoClient; db: Db } | null = null;
+  let db: Db | null = null;
 
   try {
     // Validate configuration
@@ -251,7 +252,7 @@ export async function performSync(
       throw new Error(errorMsg);
     }
 
-    // Get destination database
+    // Get destination database (just for validation)
     const destinationDb =
       await getDestinationManager().getDestination(destinationId);
     if (!destinationDb) {
@@ -283,11 +284,22 @@ export async function performSync(
 
     const startTime = Date.now();
 
-    // Connect to MongoDB for direct operations
-    const client = new MongoClient(destinationDb.connection.connection_string);
-    await client.connect();
-    const db = client.db(destinationDb.connection.database);
-    mongoConnection = { client, db };
+    // Get connection from unified pool
+    const connection = await mongoPool.getConnectionById(
+      "destination",
+      destinationId,
+      async (id: string) => {
+        const destinationDb = await getDestinationManager().getDestination(id);
+        if (!destinationDb) return null;
+
+        return {
+          connectionString: destinationDb.connection.connection_string,
+          database: destinationDb.connection.database,
+          encrypted: false,
+        } as ConnectionConfig;
+      },
+    );
+    db = connection.db;
 
     // Determine which entities to sync
     const availableEntities = connector.getAvailableEntities();
@@ -452,15 +464,6 @@ export async function performSync(
       stack: error instanceof Error ? error.stack : undefined,
     });
     throw new Error(errorMsg, { cause: error });
-  } finally {
-    // Clean up all database connections
-    try {
-      if (mongoConnection) {
-        await mongoConnection.client.close();
-        logger?.log("info", "MongoDB connection closed");
-      }
-    } catch (cleanupError) {
-      logger?.log("warn", "Error during database cleanup:", cleanupError);
-    }
   }
+  // Note: We don't close the connection here anymore - it stays in the unified pool
 }
