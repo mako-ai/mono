@@ -7,6 +7,7 @@ module.exports = {
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
+    'prettier',
   ],
   ignorePatterns: ['dist', '.eslintrc.cjs', 'node_modules'],
   parser: '@typescript-eslint/parser',
@@ -43,20 +44,5 @@ module.exports = {
     // Node.js specific
     'no-process-exit': 'error',
     'no-path-concat': 'error',
-    
-    // Code style
-    'semi': ['error', 'always'],
-    'quotes': ['error', 'double', { 'avoidEscape': true }],
-    'comma-dangle': ['error', 'always-multiline'],
-    'indent': ['error', 2, { 'SwitchCase': 1 }],
-    'object-curly-spacing': ['error', 'always'],
-    'array-bracket-spacing': ['error', 'never'],
-    'arrow-spacing': ['error', { 'before': true, 'after': true }],
-    'key-spacing': ['error', { 'beforeColon': false, 'afterColon': true }],
-    'space-before-function-paren': ['error', {
-      'anonymous': 'always',
-      'named': 'never',
-      'asyncArrow': 'always'
-    }],
   },
 };

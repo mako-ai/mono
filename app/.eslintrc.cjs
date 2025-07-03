@@ -54,16 +54,6 @@ module.exports = {
     'eqeqeq': ['error', 'smart'],
     'curly': ['error', 'multi-line'],
     
-    // Code style
-    'semi': ['error', 'always'],
-    'quotes': ['error', 'double', { 'avoidEscape': true }],
-    'comma-dangle': ['error', 'always-multiline'],
-    'indent': 'off',
-    'object-curly-spacing': ['error', 'always'],
-    'array-bracket-spacing': ['error', 'never'],
-    'arrow-spacing': ['error', { 'before': true, 'after': true }],
-    'key-spacing': ['error', { 'beforeColon': false, 'afterColon': true }],
-    
     // Downgrade some strict rules to warnings to ease development
     '@typescript-eslint/ban-ts-comment': 'warn',
     'react/no-unescaped-entities': 'warn',
