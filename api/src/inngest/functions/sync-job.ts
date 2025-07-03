@@ -524,7 +524,7 @@ export const scheduledSyncJobFunction = inngest.createFunction(
     id: "scheduled-sync-job",
     name: "Run Scheduled Sync Jobs",
   },
-  { cron: "* * * * *" }, // Run every minute to check for jobs to execute
+  { cron: "*/5 * * * *" }, // Run every 5 minutes to check for jobs to execute
   async ({ step }) => {
     console.log(
       "\n🕐 Scheduled sync job runner triggered at:",
@@ -708,7 +708,7 @@ export const cleanupAbandonedJobsFunction = inngest.createFunction(
     id: "cleanup-abandoned-jobs",
     name: "Cleanup Abandoned Jobs",
   },
-  { cron: "*/5 * * * *" }, // Run every 5 minutes
+  { cron: "*/15 * * * *" }, // Run every 15 minutes
   async ({ step }) => {
     const result = await step.run("cleanup-abandoned-jobs", async () => {
       const db = SyncJob.db;
