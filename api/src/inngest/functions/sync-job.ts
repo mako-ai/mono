@@ -1,6 +1,13 @@
 import { inngest } from "../client";
 import { SyncJob, ISyncJob } from "../../database/workspace-schema";
-import { performSync, SyncLogger } from "../../services/sync-executor.service";
+import {
+  performSync,
+  performSyncChunk,
+  SyncLogger,
+} from "../../services/sync-executor.service";
+import { syncConnectorRegistry } from "../../sync/connector-registry";
+import { databaseDataSourceManager } from "../../sync/database-data-source-manager";
+import { FetchState } from "../../connectors/base/BaseConnector";
 import { Types } from "mongoose";
 import * as os from "os";
 import { CronExpressionParser } from "cron-parser";
@@ -279,54 +286,198 @@ export const syncJobFunction = inngest.createFunction(
       // Log execution ID
       logger.info(`Execution ID: ${executionId}`);
 
-      // Execute sync with proper incremental flag
-      await step.run("execute-sync", async () => {
-        logger.info(`Starting ${job.syncMode} sync operation`);
-
-        try {
-          // Create a sync logger that wraps Inngest's logger
-          const syncLogger: SyncLogger = {
-            log: (level: string, message: string, metadata?: any) => {
-              // Call specific logger methods directly to avoid dynamic property access issues
-              switch (level) {
-                case "debug":
-                  logger.debug(message, metadata);
-                  break;
-                case "info":
-                  logger.info(message, metadata);
-                  break;
-                case "warn":
-                  logger.warn(message, metadata);
-                  break;
-                case "error":
-                  logger.error(message, metadata);
-                  break;
-                default:
-                  logger.info(message, metadata);
-                  break;
-              }
-              // Also log to database if executionLogger is available
-              if (executionLogger) {
-                executionLogger.log(level as any, message, metadata);
-              }
-            },
-          };
-
-          await performSync(
+      // Check if connector supports chunked execution
+      const supportsChunking = await step.run(
+        "check-chunking-support",
+        async () => {
+          const dataSource = await databaseDataSourceManager.getDataSource(
             job.dataSourceId.toString(),
-            job.destinationDatabaseId.toString(),
-            job.entityFilter,
-            job.syncMode === "incremental", // Fix: pass true for incremental, false for full
-            syncLogger,
           );
+          if (!dataSource) {
+            throw new Error(`Data source not found: ${job.dataSourceId}`);
+          }
 
-          logger.info("Sync operation completed successfully");
-          return { success: true };
-        } catch (error: any) {
-          logger.error(`Sync operation failed: ${error.message}`, error);
-          throw error;
+          const connector =
+            await syncConnectorRegistry.getConnector(dataSource);
+          if (!connector) {
+            throw new Error(
+              `Failed to create connector for type: ${dataSource.type}`,
+            );
+          }
+
+          const supports = connector.supportsResumableFetching();
+          logger.info(
+            `Connector ${dataSource.type} supports chunked execution: ${supports}`,
+          );
+          return supports;
+        },
+      );
+
+      if (supportsChunking) {
+        // Get entities to sync
+        const entitiesToSync = await step.run(
+          "get-entities-to-sync",
+          async () => {
+            const dataSource = await databaseDataSourceManager.getDataSource(
+              job.dataSourceId.toString(),
+            );
+            if (!dataSource) {
+              throw new Error(`Data source not found: ${job.dataSourceId}`);
+            }
+
+            const connector =
+              await syncConnectorRegistry.getConnector(dataSource);
+            if (!connector) {
+              throw new Error(
+                `Failed to create connector for type: ${dataSource.type}`,
+              );
+            }
+
+            const availableEntities = connector.getAvailableEntities();
+
+            if (job.entityFilter && job.entityFilter.length > 0) {
+              // Validate requested entities
+              const invalidEntities = job.entityFilter.filter(
+                e => !availableEntities.includes(e),
+              );
+              if (invalidEntities.length > 0) {
+                throw new Error(
+                  `Invalid entities: ${invalidEntities.join(", ")}. Available: ${availableEntities.join(", ")}`,
+                );
+              }
+              return job.entityFilter;
+            } else {
+              return availableEntities;
+            }
+          },
+        );
+
+        // Process each entity with chunked execution
+        for (const entity of entitiesToSync) {
+          logger.info(`Starting chunked sync for entity: ${entity}`);
+
+          let state: FetchState | undefined;
+          let chunkIndex = 0;
+          let completed = false;
+
+          while (!completed) {
+            const chunkResult = await step.run(
+              `sync-${entity}-chunk-${chunkIndex}`,
+              async () => {
+                logger.info(
+                  `Executing chunk ${chunkIndex} for entity ${entity}`,
+                );
+
+                // Create sync logger wrapper
+                const syncLogger: SyncLogger = {
+                  log: (level: string, message: string, metadata?: any) => {
+                    switch (level) {
+                      case "debug":
+                        logger.debug(message, metadata);
+                        break;
+                      case "info":
+                        logger.info(message, metadata);
+                        break;
+                      case "warn":
+                        logger.warn(message, metadata);
+                        break;
+                      case "error":
+                        logger.error(message, metadata);
+                        break;
+                      default:
+                        logger.info(message, metadata);
+                        break;
+                    }
+                    if (executionLogger) {
+                      executionLogger.log(level as any, message, metadata);
+                    }
+                  },
+                };
+
+                const result = await performSyncChunk({
+                  dataSourceId: job.dataSourceId.toString(),
+                  destinationId: job.destinationDatabaseId.toString(),
+                  entity,
+                  isIncremental: job.syncMode === "incremental",
+                  state,
+                  maxIterations: 10, // Run 10 API calls per chunk
+                  logger: syncLogger,
+                });
+
+                logger.info(
+                  `Chunk ${chunkIndex} completed. Processed ${result.state.totalProcessed} records total. Has more: ${!result.completed}`,
+                );
+
+                return result;
+              },
+            );
+
+            state = chunkResult.state;
+            completed = chunkResult.completed;
+            chunkIndex++;
+
+            if (chunkIndex > 1000) {
+              // Safety limit to prevent infinite loops
+              throw new Error(
+                `Too many chunks (${chunkIndex}) for entity ${entity}. Possible infinite loop.`,
+              );
+            }
+          }
+
+          logger.info(
+            `✅ Completed chunked sync for entity ${entity} after ${chunkIndex} chunks`,
+          );
         }
-      });
+      } else {
+        // Fall back to non-chunked execution for connectors that don't support it
+        await step.run("execute-sync", async () => {
+          logger.info(`Starting ${job.syncMode} sync operation (non-chunked)`);
+
+          try {
+            // Create a sync logger that wraps Inngest's logger
+            const syncLogger: SyncLogger = {
+              log: (level: string, message: string, metadata?: any) => {
+                // Call specific logger methods directly to avoid dynamic property access issues
+                switch (level) {
+                  case "debug":
+                    logger.debug(message, metadata);
+                    break;
+                  case "info":
+                    logger.info(message, metadata);
+                    break;
+                  case "warn":
+                    logger.warn(message, metadata);
+                    break;
+                  case "error":
+                    logger.error(message, metadata);
+                    break;
+                  default:
+                    logger.info(message, metadata);
+                    break;
+                }
+                // Also log to database if executionLogger is available
+                if (executionLogger) {
+                  executionLogger.log(level as any, message, metadata);
+                }
+              },
+            };
+
+            await performSync(
+              job.dataSourceId.toString(),
+              job.destinationDatabaseId.toString(),
+              job.entityFilter,
+              job.syncMode === "incremental",
+              syncLogger,
+            );
+
+            logger.info("Sync operation completed successfully");
+            return { success: true };
+          } catch (error: any) {
+            logger.error(`Sync operation failed: ${error.message}`, error);
+            throw error;
+          }
+        });
+      }
 
       // Update job success status
       await step.run("update-success-status", async () => {

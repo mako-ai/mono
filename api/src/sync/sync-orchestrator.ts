@@ -1,9 +1,210 @@
 import { syncConnectorRegistry } from "./connector-registry";
 import { databaseDataSourceManager } from "./database-data-source-manager";
 import { getDestinationManager } from "./destination-manager";
-import { SyncLogger } from "../connectors/base/BaseConnector";
+import { SyncLogger, FetchState } from "../connectors/base/BaseConnector";
 import { MongoClient, Db } from "mongodb";
 import { ProgressReporter } from "./progress-reporter";
+
+export interface SyncChunkResult {
+  state: FetchState;
+  entity: string;
+  collectionName: string;
+  completed: boolean;
+}
+
+export interface SyncChunkOptions {
+  dataSourceId: string;
+  destinationId: string;
+  entity: string;
+  isIncremental: boolean;
+  state?: FetchState;
+  maxIterations?: number;
+  logger?: SyncLogger;
+}
+
+/**
+ * Performs a single chunk of sync work and returns state for resumption
+ */
+export async function performSyncChunk(
+  options: SyncChunkOptions,
+): Promise<SyncChunkResult> {
+  const {
+    dataSourceId,
+    destinationId,
+    entity,
+    isIncremental,
+    state,
+    maxIterations = 10,
+    logger,
+  } = options;
+
+  const syncMode = isIncremental ? "incremental" : "full";
+  let mongoConnection: { client: MongoClient; db: Db } | null = null;
+
+  try {
+    // Get the data source
+    const dataSource =
+      await databaseDataSourceManager.getDataSource(dataSourceId);
+    if (!dataSource) {
+      throw new Error(`Data source '${dataSourceId}' not found`);
+    }
+
+    if (!dataSource.active) {
+      throw new Error(`Data source '${dataSource.name}' is not active`);
+    }
+
+    // Get destination database
+    const destinationDb =
+      await getDestinationManager().getDestination(destinationId);
+    if (!destinationDb) {
+      throw new Error(`Destination database '${destinationId}' not found`);
+    }
+
+    // Get connector from registry
+    const connector = await syncConnectorRegistry.getConnector(dataSource);
+    if (!connector) {
+      throw new Error(
+        `Failed to create connector for type: ${dataSource.type}`,
+      );
+    }
+
+    // Check if connector supports resumable fetching
+    if (!connector.supportsResumableFetching()) {
+      throw new Error(
+        `Connector ${dataSource.type} does not support resumable fetching`,
+      );
+    }
+
+    // Connect to MongoDB
+    const client = new MongoClient(destinationDb.connection.connection_string);
+    await client.connect();
+    const db = client.db(destinationDb.connection.database);
+    mongoConnection = { client, db };
+
+    // Collection setup
+    const collectionName = `${dataSource.name}_${entity}`;
+    const stagingCollectionName = `${collectionName}_staging`;
+    const useStaging = syncMode === "full" && !state; // Only use staging for first chunk of full sync
+
+    const collection = useStaging
+      ? db.collection(stagingCollectionName)
+      : db.collection(collectionName);
+
+    if (useStaging) {
+      // Drop staging collection if exists
+      try {
+        await db.collection(stagingCollectionName).drop();
+      } catch {
+        // Ignore if doesn't exist
+      }
+      await db.createCollection(stagingCollectionName);
+    }
+
+    let lastSyncDate: Date | undefined;
+
+    // Get last sync date for incremental (only on first chunk)
+    if (syncMode === "incremental" && !state) {
+      const lastRecord = await db
+        .collection(collectionName)
+        .find({ _dataSourceId: dataSource.id })
+        .sort({ _syncedAt: -1 })
+        .limit(1)
+        .toArray();
+
+      if (lastRecord.length > 0) {
+        lastSyncDate = lastRecord[0]._syncedAt;
+        logger?.log(
+          "info",
+          `Syncing ${entity} updated after: ${lastSyncDate!.toISOString()}`,
+        );
+      }
+    }
+
+    // Create progress reporter
+    const progressReporter = new ProgressReporter(entity, undefined, logger);
+
+    // Fetch chunk from connector
+    const fetchState = await connector.fetchEntityChunk({
+      entity,
+      state,
+      maxIterations,
+      ...(lastSyncDate && { since: lastSyncDate }),
+      onBatch: async batch => {
+        if (batch.length === 0) return;
+
+        // Add metadata to records
+        const processedRecords = batch.map(record => ({
+          ...record,
+          _dataSourceId: dataSource.id,
+          _dataSourceName: dataSource.name,
+          _syncedAt: new Date(),
+        }));
+
+        // Prepare bulk operations
+        const bulkOps = processedRecords.map(record => ({
+          replaceOne: {
+            filter: {
+              id: record.id,
+              _dataSourceId: dataSource.id,
+            },
+            replacement: record,
+            upsert: true,
+          },
+        }));
+
+        // Write to database
+        await collection.bulkWrite(bulkOps, { ordered: false });
+      },
+      onProgress: (current, total) => {
+        progressReporter.reportProgress(current, total);
+      },
+    });
+
+    const completed = !fetchState.hasMore;
+
+    if (completed) {
+      progressReporter.reportComplete();
+
+      // Hot swap for full sync (only if this was the first chunk with staging)
+      if (useStaging) {
+        try {
+          await db.collection(collectionName).drop();
+        } catch {
+          // Ignore if doesn't exist
+        }
+        await db.collection(stagingCollectionName).rename(collectionName);
+      }
+
+      logger?.log(
+        "info",
+        `✅ ${entity} sync completed (${fetchState.totalProcessed} records)`,
+      );
+    } else {
+      logger?.log(
+        "info",
+        `📊 ${entity} chunk completed (${fetchState.totalProcessed} records so far, ${fetchState.iterationsInChunk} iterations)`,
+      );
+    }
+
+    return {
+      state: fetchState,
+      entity,
+      collectionName,
+      completed,
+    };
+  } catch (error) {
+    const errorMsg = `Sync chunk failed: ${error instanceof Error ? error.message : String(error)}`;
+    logger?.log("error", errorMsg, {
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw new Error(errorMsg, { cause: error });
+  } finally {
+    // Clean up database connection
+    if (mongoConnection) {
+      await mongoConnection.client.close();
+    }
+  }
+}
 
 /**
  * Orchestrates the sync process using the new architecture

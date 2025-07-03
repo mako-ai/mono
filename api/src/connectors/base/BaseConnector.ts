@@ -18,6 +18,24 @@ export interface ConnectionTestResult {
 export type DataBatchCallback<T = any> = (batch: T[]) => Promise<void>;
 export type ProgressCallback = (current: number, total?: number) => void;
 
+// New interface for tracking fetch state between chunks
+export interface FetchState {
+  // Common pagination state
+  offset?: number;
+  cursor?: string;
+  page?: number;
+
+  // Progress tracking
+  totalProcessed: number;
+  hasMore: boolean;
+
+  // For tracking iterations in current chunk
+  iterationsInChunk: number;
+
+  // Connector-specific state
+  metadata?: any;
+}
+
 // Options for fetching data
 export interface FetchOptions {
   entity: string;
@@ -27,6 +45,12 @@ export interface FetchOptions {
   since?: Date; // For incremental syncs
   rateLimitDelay?: number;
   maxRetries?: number;
+}
+
+// New options for resumable fetching
+export interface ResumableFetchOptions extends FetchOptions {
+  maxIterations?: number; // Max API calls in this chunk (default: 10)
+  state?: FetchState; // Resume from previous state
 }
 
 export abstract class BaseConnector {
@@ -52,6 +76,37 @@ export abstract class BaseConnector {
    * and onProgress to report progress
    */
   abstract fetchEntity(options: FetchOptions): Promise<void>;
+
+  /**
+   * Fetch a chunk of data for a specific entity, returning state to resume
+   * This method should perform up to maxIterations API calls and return
+   * the state needed to resume from where it left off
+   */
+  async fetchEntityChunk(options: ResumableFetchOptions): Promise<FetchState> {
+    // Default implementation that calls fetchEntity for backwards compatibility
+    // Connectors should override this for proper resumable support
+    if (!options.state || options.state.totalProcessed === 0) {
+      // First chunk - just run the full fetch
+      await this.fetchEntity(options);
+      return {
+        totalProcessed: -1, // Unknown
+        hasMore: false,
+        iterationsInChunk: -1,
+      };
+    }
+
+    throw new Error(
+      "Resumable fetching not implemented for this connector. Please use fetchEntity() instead.",
+    );
+  }
+
+  /**
+   * Check if connector supports resumable fetching
+   */
+  supportsResumableFetching(): boolean {
+    // Connectors that implement fetchEntityChunk should override this
+    return false;
+  }
 
   /**
    * Get connector metadata

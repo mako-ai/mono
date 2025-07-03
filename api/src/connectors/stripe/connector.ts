@@ -2,6 +2,8 @@ import {
   BaseConnector,
   ConnectionTestResult,
   FetchOptions,
+  ResumableFetchOptions,
+  FetchState,
 } from "../base/BaseConnector";
 import Stripe from "stripe";
 
@@ -107,6 +109,137 @@ export class StripeConnector extends BaseConnector {
       "products",
       "plans",
     ];
+  }
+
+  /**
+   * Check if connector supports resumable fetching
+   */
+  supportsResumableFetching(): boolean {
+    return true;
+  }
+
+  /**
+   * Fetch a chunk of data with resumable state
+   */
+  async fetchEntityChunk(options: ResumableFetchOptions): Promise<FetchState> {
+    const { entity, onBatch, onProgress, since, state } = options;
+    const maxIterations = options.maxIterations || 10;
+
+    const stripe = this.getStripeClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+
+    // Initialize or restore state
+    let startingAfter: string | undefined = state?.cursor;
+    let recordCount = state?.totalProcessed || 0;
+    let hasMore = true;
+    let iterations = 0;
+
+    // Report initial progress (Stripe doesn't provide total counts)
+    if (!state && onProgress) {
+      onProgress(0, undefined);
+    }
+
+    while (hasMore && iterations < maxIterations) {
+      let response: any;
+
+      // Fetch data based on entity type
+      switch (entity) {
+        case "customers":
+          response = await stripe.customers.list({
+            limit: batchSize,
+            ...(startingAfter && { starting_after: startingAfter }),
+            ...(since && {
+              created: { gte: Math.floor(since.getTime() / 1000) },
+            }),
+          });
+          break;
+
+        case "subscriptions":
+          response = await stripe.subscriptions.list({
+            limit: batchSize,
+            ...(startingAfter && { starting_after: startingAfter }),
+            ...(since && {
+              created: { gte: Math.floor(since.getTime() / 1000) },
+            }),
+          });
+          break;
+
+        case "charges":
+          response = await stripe.charges.list({
+            limit: batchSize,
+            ...(startingAfter && { starting_after: startingAfter }),
+            ...(since && {
+              created: { gte: Math.floor(since.getTime() / 1000) },
+            }),
+          });
+          break;
+
+        case "invoices":
+          response = await stripe.invoices.list({
+            limit: batchSize,
+            ...(startingAfter && { starting_after: startingAfter }),
+            ...(since && {
+              created: { gte: Math.floor(since.getTime() / 1000) },
+            }),
+          });
+          break;
+
+        case "products":
+          response = await stripe.products.list({
+            limit: batchSize,
+            ...(startingAfter && { starting_after: startingAfter }),
+            ...(since && {
+              created: { gte: Math.floor(since.getTime() / 1000) },
+            }),
+          });
+          break;
+
+        case "plans":
+          response = await stripe.plans.list({
+            limit: batchSize,
+            ...(startingAfter && { starting_after: startingAfter }),
+            ...(since && {
+              created: { gte: Math.floor(since.getTime() / 1000) },
+            }),
+          });
+          break;
+
+        default:
+          throw new Error(`Unsupported entity: ${entity}`);
+      }
+
+      // Pass batch to callback
+      if (response.data.length > 0) {
+        await onBatch(response.data);
+        recordCount += response.data.length;
+
+        if (onProgress) {
+          onProgress(recordCount, undefined);
+        }
+      }
+
+      // Check for more pages
+      hasMore = response.has_more;
+
+      if (hasMore && response.data.length > 0) {
+        startingAfter = response.data[response.data.length - 1].id;
+        iterations++;
+
+        // Rate limiting
+        await this.sleep(rateLimitDelay);
+      } else {
+        // No more data
+        break;
+      }
+    }
+
+    return {
+      cursor: startingAfter,
+      totalProcessed: recordCount,
+      hasMore,
+      iterationsInChunk: iterations,
+    };
   }
 
   async fetchEntity(options: FetchOptions): Promise<void> {
