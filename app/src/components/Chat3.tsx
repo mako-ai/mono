@@ -302,16 +302,28 @@ const MessageItem = React.memo(
                 p: 1,
                 borderRadius: 1,
                 backgroundColor: "background.paper",
+                overflow: "hidden",
               }}
             >
-              <ListItemText
-                primary={message.content}
-                primaryTypographyProps={{
-                  variant: "body2",
-                  color: "text.primary",
-                  sx: { whiteSpace: "pre-wrap" },
+              <Box
+                sx={{
+                  overflow: "auto",
+                  maxWidth: "100%",
                 }}
-              />
+              >
+                <ListItemText
+                  primary={message.content}
+                  primaryTypographyProps={{
+                    variant: "body2",
+                    color: "text.primary",
+                    sx: {
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      overflowWrap: "break-word",
+                    },
+                  }}
+                />
+              </Box>
               {/* Generating notice inside last user message */}
               {isLastUser && loading && (
                 <Typography
