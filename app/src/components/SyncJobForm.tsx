@@ -9,20 +9,18 @@ import {
   InputLabel,
   Button,
   Typography,
-  Paper,
   FormHelperText,
   ToggleButtonGroup,
   ToggleButton,
   Alert,
-  LinearProgress,
   Chip,
   FormControlLabel,
   Switch,
   Stack,
-  Snackbar,
   Checkbox,
   FormGroup,
   Divider,
+  CircularProgress,
 } from "@mui/material";
 import {
   Save as SaveIcon,
@@ -30,11 +28,11 @@ import {
   DataObject as DataIcon,
   Storage as DatabaseIcon,
   Add as AddIcon,
-  CheckBox as CheckBoxIcon,
 } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 import { useDatabaseStore } from "../store/databaseStore";
+import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
 import { apiClient } from "../lib/api-client";
 
 interface SyncJobFormProps {
@@ -97,6 +95,13 @@ export function SyncJobForm({
   const databases = useDatabaseStore(state => state.databases);
   const fetchDatabases = useDatabaseStore(state => state.fetchDatabases);
 
+  // Get connector catalog data
+  const {
+    types: connectorTypes,
+    fetchCatalog,
+    loading: catalogLoading,
+  } = useConnectorCatalogStore();
+
   const [dataSources, setDataSources] = useState<any[]>([]);
   const [isLoadingDataSources, setIsLoadingDataSources] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"preset" | "custom">(
@@ -110,9 +115,11 @@ export function SyncJobForm({
 
   // Entity selection state
   const [availableEntities, setAvailableEntities] = useState<string[]>([]);
-  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [selectAllEntities, setSelectAllEntities] = useState(true);
+  const [entitiesLoadState, setEntitiesLoadState] = useState<
+    "idle" | "loading" | "loaded" | "error"
+  >("idle");
 
   const {
     control,
@@ -158,34 +165,56 @@ export function SyncJobForm({
     }
   };
 
-  // Fetch entities for a data source
-  const fetchEntities = async (dataSourceId: string) => {
-    if (!currentWorkspace?.id || !dataSourceId) return;
-
-    setIsLoadingEntities(true);
-    try {
-      const response = await apiClient.get<{
-        success: boolean;
-        data: string[];
-      }>(`/workspaces/${currentWorkspace.id}/sources/${dataSourceId}/entities`);
-
-      if (response.success) {
-        setAvailableEntities(response.data || []);
-
-        // Only reset selection when entities change if we're in new mode
-        // or if there's no existing entity selection from a loaded job
-        if (isNewMode || (!currentJobId && jobs.length === 0)) {
-          setSelectedEntities([]);
-          setSelectAllEntities(true);
-          setValue("entityFilter", []);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch entities:", error);
-      setError("Failed to load entities for this data source");
+  // Get entities from connector catalog instead of making REST call
+  const updateAvailableEntities = (dataSourceId: string) => {
+    if (!dataSourceId) {
       setAvailableEntities([]);
-    } finally {
-      setIsLoadingEntities(false);
+      setEntitiesLoadState("idle");
+      return;
+    }
+
+    // If we're still loading data sources or catalog, show loading state
+    if (
+      isLoadingDataSources ||
+      catalogLoading ||
+      !dataSources.length ||
+      !connectorTypes
+    ) {
+      setEntitiesLoadState("loading");
+      return;
+    }
+
+    // Find the selected data source
+    const selectedDataSource = dataSources.find(ds => ds._id === dataSourceId);
+    if (!selectedDataSource) {
+      setAvailableEntities([]);
+      setEntitiesLoadState("error");
+      return;
+    }
+
+    // Find the connector type in the catalog
+    const connectorType = connectorTypes.find(
+      ct => ct.type === selectedDataSource.type,
+    );
+    if (!connectorType) {
+      console.warn(
+        `Connector type ${selectedDataSource.type} not found in catalog`,
+      );
+      setAvailableEntities([]);
+      setEntitiesLoadState("error");
+      return;
+    }
+
+    // Use the supportedEntities from the connector type
+    setAvailableEntities(connectorType.supportedEntities || []);
+    setEntitiesLoadState("loaded");
+
+    // Only reset selection when entities change if we're in new mode
+    // or if there's no existing entity selection from a loaded job
+    if (isNewMode || (!currentJobId && jobs.length === 0)) {
+      setSelectedEntities([]);
+      setSelectAllEntities(true);
+      setValue("entityFilter", []);
     }
   };
 
@@ -234,19 +263,20 @@ export function SyncJobForm({
     if (currentWorkspace?.id) {
       fetchDataSources(currentWorkspace.id);
       fetchDatabases();
+      fetchCatalog(currentWorkspace.id);
     }
-  }, [currentWorkspace?.id, fetchDatabases]);
+  }, [currentWorkspace?.id, fetchDatabases, fetchCatalog]);
 
-  // Fetch entities when data source changes
+  // Update entities when data source changes
   useEffect(() => {
-    if (watchDataSourceId) {
-      fetchEntities(watchDataSourceId);
-    } else {
-      setAvailableEntities([]);
-      setSelectedEntities([]);
-      setSelectAllEntities(true);
-    }
-  }, [watchDataSourceId, currentWorkspace?.id]);
+    updateAvailableEntities(watchDataSourceId);
+  }, [
+    watchDataSourceId,
+    dataSources,
+    connectorTypes,
+    isLoadingDataSources,
+    catalogLoading,
+  ]);
 
   // Load job data if editing
   useEffect(() => {
@@ -440,32 +470,25 @@ export function SyncJobForm({
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 800, mx: "auto" }}>
-      <Typography
-        variant="h5"
-        sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}
-      >
-        <ScheduleIcon />
-        {isNewMode ? "Create Sync Job" : "Edit Sync Job"}
-      </Typography>
-
+    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 800, mx: "auto" }}>
       {(error || storeError) && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error || storeError}
         </Alert>
       )}
+      <Typography
+        variant="body1"
+        sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}
+      >
+        {currentJobId && (
+          <>
+            <strong>Job ID:</strong> {currentJobId}
+          </>
+        )}
+      </Typography>
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <Stack spacing={3}>
-          {currentJobId && (
-            <TextField
-              label="Job ID"
-              value={currentJobId}
-              fullWidth
-              InputProps={{ readOnly: true }}
-              variant="filled"
-            />
-          )}
           {/* Basic Info */}
           <Controller
             name="name"
@@ -568,27 +591,17 @@ export function SyncJobForm({
             <>
               <Divider />
               <Box>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    mb: 2,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1,
-                  }}
-                >
-                  <CheckBoxIcon />
-                  Entities to Sync
-                </Typography>
-
-                {isLoadingEntities ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <LinearProgress sx={{ flex: 1 }} />
+                {entitiesLoadState === "loading" ? (
+                  <Box
+                    sx={{ display: "flex", alignItems: "center", gap: 2, p: 2 }}
+                  >
+                    <CircularProgress size={20} />
                     <Typography variant="body2" color="text.secondary">
-                      Loading entities...
+                      Loading available entities...
                     </Typography>
                   </Box>
-                ) : availableEntities.length > 0 ? (
+                ) : entitiesLoadState === "loaded" &&
+                  availableEntities.length > 0 ? (
                   <Box>
                     {/* Select All Option */}
                     <FormControlLabel
@@ -613,17 +626,14 @@ export function SyncJobForm({
                           }}
                         >
                           <Typography variant="body2" fontWeight="bold">
-                            All Entities
+                            Entities
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
                             ({availableEntities.length} total)
                           </Typography>
                         </Box>
                       }
-                      sx={{ mb: 1 }}
                     />
-
-                    <Divider sx={{ my: 1 }} />
 
                     {/* Individual Entity Options */}
                     <FormGroup sx={{ ml: 2 }}>
@@ -666,11 +676,11 @@ export function SyncJobForm({
                       </Typography>
                     </Alert>
                   </Box>
-                ) : (
+                ) : entitiesLoadState === "loaded" ? (
                   <Alert severity="warning">
                     No entities available for this data source.
                   </Alert>
-                )}
+                ) : null}
               </Box>
             </>
           )}

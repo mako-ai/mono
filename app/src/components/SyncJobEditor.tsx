@@ -26,7 +26,14 @@ export function SyncJobEditor({
   };
 
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+      }}
+    >
       {/* Center the toggle button group */}
       <Box
         sx={{ display: "flex", justifyContent: "center", p: 1, flexShrink: 0 }}
@@ -47,7 +54,7 @@ export function SyncJobEditor({
           </ToggleButton>
         </ToggleButtonGroup>
       </Box>
-      <Box sx={{ flex: 1, overflow: "hidden" }}>
+      <Box sx={{ flex: 1, overflow: "auto", position: "relative" }}>
         {view === "settings" && (
           <SyncJobForm
             jobId={currentJobId}
