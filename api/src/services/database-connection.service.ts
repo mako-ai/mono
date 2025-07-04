@@ -5,6 +5,7 @@ import { Database as SqliteDatabase } from "sqlite3";
 import { open } from "sqlite";
 import { ConnectionPool } from "mssql";
 import { IDatabase } from "../database/workspace-schema";
+import { mongoPool } from "../core/mongodb-pool";
 
 export interface QueryResult {
   success: boolean;
@@ -155,12 +156,22 @@ export class DatabaseConnectionService {
   private async testMongoDBConnection(
     database: IDatabase,
   ): Promise<{ success: boolean; error?: string }> {
-    let client: MongoClient | null = null;
     try {
       const connectionString = this.buildMongoDBConnectionString(database);
-      client = new MongoClient(connectionString);
-      await client.connect();
-      await client.db().admin().ping();
+
+      // Use unified pool for testing
+      const connection = await mongoPool.getConnection(
+        "datasource",
+        database._id.toString(),
+        {
+          connectionString,
+          database: database.connection.database || "",
+          encrypted: false,
+        },
+      );
+
+      // Test the connection
+      await connection.db.admin().ping();
       return { success: true };
     } catch (error) {
       return {
@@ -168,10 +179,6 @@ export class DatabaseConnectionService {
         error:
           error instanceof Error ? error.message : "MongoDB connection failed",
       };
-    } finally {
-      if (client) {
-        await client.close();
-      }
     }
   }
 
@@ -179,9 +186,19 @@ export class DatabaseConnectionService {
     database: IDatabase,
   ): Promise<MongoClient> {
     const connectionString = this.buildMongoDBConnectionString(database);
-    const client = new MongoClient(connectionString);
-    await client.connect();
-    return client;
+
+    // Use unified pool instead of creating new client
+    const connection = await mongoPool.getConnection(
+      "datasource",
+      database._id.toString(),
+      {
+        connectionString,
+        database: database.connection.database || "",
+        encrypted: false,
+      },
+    );
+
+    return connection.client;
   }
 
   private buildMongoDBConnectionString(database: IDatabase): string {

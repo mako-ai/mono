@@ -1,13 +1,13 @@
-import { MongoClient, Db } from "mongodb";
+import { Db } from "mongodb";
 import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
 import { Database } from "../database/workspace-schema";
+import { mongoPool } from "../core/mongodb-pool";
 
 dotenv.config();
 
 class QueryRunner {
-  private connections: Map<string, { client: MongoClient; db: Db }> = new Map();
   private currentDataSource: string | null = null;
 
   constructor() {
@@ -28,9 +28,7 @@ class QueryRunner {
     }
   }
 
-  private async getConnection(
-    dataSourceId?: string,
-  ): Promise<{ client: MongoClient; db: Db }> {
+  private async getConnection(dataSourceId?: string): Promise<{ db: Db }> {
     const sourceId = dataSourceId || this.currentDataSource;
 
     if (!sourceId) {
@@ -39,27 +37,21 @@ class QueryRunner {
       );
     }
 
-    // Check if connection already exists
-    if (this.connections.has(sourceId)) {
-      return this.connections.get(sourceId)!;
-    }
-
     // Get data source configuration
     const dataSource = await Database.findById(sourceId);
     if (!dataSource) {
       throw new Error(`MongoDB data source '${sourceId}' not found`);
     }
 
-    // Create new connection
-    const client = new MongoClient(dataSource.connection.connectionString!);
-    await client.connect();
-    const db = client.db(dataSource.connection.database);
-
-    const connection = { client, db };
-    this.connections.set(sourceId, connection);
+    // Use unified pool to get connection
+    const connection = await mongoPool.getConnection("datasource", sourceId, {
+      connectionString: dataSource.connection.connectionString!,
+      database: dataSource.connection.database || "",
+      encrypted: false,
+    });
 
     console.log(`Connected to MongoDB: ${dataSource.name}`);
-    return connection;
+    return { db: connection.db };
   }
 
   async executeQuery(
@@ -149,11 +141,8 @@ class QueryRunner {
   }
 
   async disconnect(): Promise<void> {
-    for (const [sourceId, connection] of this.connections.entries()) {
-      await connection.client.close();
-      console.log(`Disconnected from MongoDB: ${sourceId}`);
-    }
-    this.connections.clear();
+    // No need to explicitly disconnect - connections are managed by the pool
+    console.log("Query runner cleanup complete (connections managed by pool)");
   }
 
   /**
@@ -164,7 +153,8 @@ class QueryRunner {
       id: string;
       name: string;
       description?: string;
-    }[]> {
+    }[]
+  > {
     try {
       const databases = await Database.find({}).sort({ createdAt: -1 });
       return databases.map(db => ({

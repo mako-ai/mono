@@ -1,6 +1,7 @@
-import { MongoClient, Db, ObjectId } from "mongodb";
+import { Db, ObjectId } from "mongodb";
 import * as crypto from "crypto";
 import * as dotenv from "dotenv";
+import { mongoPool } from "../core/mongodb-pool";
 
 dotenv.config();
 
@@ -119,8 +120,6 @@ export interface DataSourceConfig {
 }
 
 class DatabaseDataSourceManager {
-  private client: MongoClient | null = null;
-  private db!: Db;
   private schemaCache: Map<string, ConnectorSchema> = new Map();
   private databaseName: string = "";
   private initialized = false;
@@ -132,7 +131,6 @@ class DatabaseDataSourceManager {
       throw new Error("DATABASE_URL environment variable is not set");
     }
     const connectionString = process.env.DATABASE_URL;
-    this.client = new MongoClient(connectionString);
 
     // Extract database name from the connection string or use environment variable
     this.databaseName =
@@ -156,17 +154,17 @@ class DatabaseDataSourceManager {
     return null;
   }
 
-  private async connect(): Promise<void> {
+  private async getDb(): Promise<Db> {
     this.initialize();
-    if (!this.client) throw new Error("Client not initialized");
-    await this.client.connect();
-    this.db = this.client.db(this.databaseName);
-  }
 
-  private async disconnect(): Promise<void> {
-    if (this.client) {
-      await this.client.close();
-    }
+    // Use the unified pool to get the main database connection
+    const connection = await mongoPool.getConnection("main", "datasources", {
+      connectionString: process.env.DATABASE_URL!,
+      database: this.databaseName,
+      encrypted: false,
+    });
+
+    return connection.db;
   }
 
   /**
@@ -197,62 +195,19 @@ class DatabaseDataSourceManager {
   async getActiveDataSources(
     workspaceId?: string,
   ): Promise<DataSourceConfig[]> {
-    try {
-      await this.connect();
-      const collection = this.db.collection("datasources");
+    const db = await this.getDb();
+    const collection = db.collection("datasources");
 
-      const query: any = { isActive: true };
-      if (workspaceId) {
-        query.workspaceId = new ObjectId(workspaceId);
-      }
-
-      const sources = await collection.find(query).toArray();
-
-      const results = [];
-      for (const source of sources) {
-        results.push({
-          id: source._id.toString(),
-          name: source.name,
-          description: source.description,
-          type: source.type,
-          active: source.isActive,
-          connection: await this.decryptConfig(source.config, source.type),
-          settings: {
-            sync_batch_size: source.settings?.sync_batch_size || 100,
-            rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
-            timezone: source.settings?.timezone || "UTC",
-            max_retries: source.settings?.max_retries || 3,
-            timeout_ms: source.settings?.timeout_ms || 30000,
-          },
-        });
-      }
-
-      return results;
-    } finally {
-      await this.disconnect();
+    const query: any = { isActive: true };
+    if (workspaceId) {
+      query.workspaceId = new ObjectId(workspaceId);
     }
-  }
 
-  /**
-   * Get a specific data source by ID or name
-   */
-  async getDataSource(id: string): Promise<DataSourceConfig | null> {
-    try {
-      await this.connect();
-      const collection = this.db.collection("datasources");
+    const sources = await collection.find(query).toArray();
 
-      if (!ObjectId.isValid(id)) {
-        return null;
-      }
-
-      // Try to find by ID first
-      const source = await collection.findOne({ _id: new ObjectId(id) });
-
-      if (!source) {
-        return null;
-      }
-
-      return {
+    const results = [];
+    for (const source of sources) {
+      results.push({
         id: source._id.toString(),
         name: source.name,
         description: source.description,
@@ -266,81 +221,104 @@ class DatabaseDataSourceManager {
           max_retries: source.settings?.max_retries || 3,
           timeout_ms: source.settings?.timeout_ms || 30000,
         },
-      };
-    } finally {
-      await this.disconnect();
+      });
     }
+
+    return results;
+  }
+
+  /**
+   * Get a specific data source by ID or name
+   */
+  async getDataSource(id: string): Promise<DataSourceConfig | null> {
+    const db = await this.getDb();
+    const collection = db.collection("datasources");
+
+    if (!ObjectId.isValid(id)) {
+      return null;
+    }
+
+    // Try to find by ID first
+    const source = await collection.findOne({ _id: new ObjectId(id) });
+
+    if (!source) {
+      return null;
+    }
+
+    return {
+      id: source._id.toString(),
+      name: source.name,
+      description: source.description,
+      type: source.type,
+      active: source.isActive,
+      connection: await this.decryptConfig(source.config, source.type),
+      settings: {
+        sync_batch_size: source.settings?.sync_batch_size || 100,
+        rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
+        timezone: source.settings?.timezone || "UTC",
+        max_retries: source.settings?.max_retries || 3,
+        timeout_ms: source.settings?.timeout_ms || 30000,
+      },
+    };
   }
 
   /**
    * Get data sources by type
    */
   async getDataSourcesByType(type: string): Promise<DataSourceConfig[]> {
-    try {
-      await this.connect();
-      const collection = this.db.collection("datasources");
+    const db = await this.getDb();
+    const collection = db.collection("datasources");
 
-      const sources = await collection.find({ type, isActive: true }).toArray();
+    const sources = await collection.find({ type, isActive: true }).toArray();
 
-      const results = [];
-      for (const source of sources) {
-        results.push({
-          id: source._id.toString(),
-          name: source.name,
-          description: source.description,
-          type: source.type,
-          active: source.isActive,
-          connection: await this.decryptConfig(source.config, source.type),
-          settings: {
-            sync_batch_size: source.settings?.sync_batch_size || 100,
-            rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
-            timezone: source.settings?.timezone || "UTC",
-            max_retries: source.settings?.max_retries || 3,
-            timeout_ms: source.settings?.timeout_ms || 30000,
-          },
-        });
-      }
-
-      return results;
-    } finally {
-      await this.disconnect();
+    const results = [];
+    for (const source of sources) {
+      results.push({
+        id: source._id.toString(),
+        name: source.name,
+        description: source.description,
+        type: source.type,
+        active: source.isActive,
+        connection: await this.decryptConfig(source.config, source.type),
+        settings: {
+          sync_batch_size: source.settings?.sync_batch_size || 100,
+          rate_limit_delay_ms: source.settings?.rate_limit_delay_ms || 200,
+          timezone: source.settings?.timezone || "UTC",
+          max_retries: source.settings?.max_retries || 3,
+          timeout_ms: source.settings?.timeout_ms || 30000,
+        },
+      });
     }
+
+    return results;
   }
 
   /**
    * List all data source IDs
    */
   async listDataSourceIds(): Promise<string[]> {
-    try {
-      await this.connect();
-      const collection = this.db.collection("datasources");
+    const db = await this.getDb();
+    const collection = db.collection("datasources");
 
-      const sources = await collection
-        .find({}, { projection: { _id: 1, name: 1 } })
-        .toArray();
+    const sources = await collection
+      .find({}, { projection: { _id: 1, name: 1 } })
+      .toArray();
 
-      return sources.map(s => `${s.name} (${s._id})`);
-    } finally {
-      await this.disconnect();
-    }
+    return sources.map(s => `${s.name} (${s._id})`);
   }
 
   /**
    * List active data source IDs
    */
   async listActiveDataSourceIds(): Promise<string[]> {
-    try {
-      await this.connect();
-      const collection = this.db.collection("datasources");
+    const db = await this.getDb();
+    const collection = db.collection("datasources");
 
-      const sources = await collection
-        .find({ isActive: true }, { projection: { _id: 1, name: 1 } })
-        .toArray();
+    const sources = await collection
+      .find({ isActive: true }, { projection: { _id: 1, name: 1 } })
+      .toArray();
 
-      return sources.map(s => `${s.name} (${s._id})`);
-    } finally {
-      await this.disconnect();
-    }
+    return sources.map(s => `${s.name} (${s._id})`);
   }
 
   /**
