@@ -422,7 +422,7 @@ function ConsoleExplorer(
               Saved Consoles
             </Typography>
           </Box>
-          <Box sx={{ display: "flex", gap: 0.5 }}>
+          <Box sx={{ display: "flex", gap: 0 }}>
             <Tooltip title="Add new folder">
               <IconButton onClick={handleMenuOpen} size="small">
                 <AddIcon />
@@ -467,7 +467,10 @@ function ConsoleExplorer(
           : consoleEntries.length > 0
             ? renderTree(consoleEntries)
             : !error && (
-                <Typography sx={{ p: 2, textAlign: "center" }} variant="body2">
+                <Typography
+                  sx={{ p: 2, textAlign: "center", color: "text.secondary" }}
+                  variant="body2"
+                >
                   No consoles found.
                 </Typography>
               )}

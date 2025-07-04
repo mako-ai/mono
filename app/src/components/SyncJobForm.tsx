@@ -78,13 +78,22 @@ export function SyncJobForm({
 }: SyncJobFormProps) {
   const { currentWorkspace } = useWorkspace();
   const {
-    jobs,
+    jobs: jobsMap,
+    loading: loadingMap,
+    error: errorMap,
     createJob,
     updateJob,
-    isLoading: jobsLoading,
-    error: storeError,
     clearError,
   } = useSyncJobStore();
+
+  // Get workspace-specific data
+  const jobs = currentWorkspace ? jobsMap[currentWorkspace.id] || [] : [];
+  const jobsLoading = currentWorkspace
+    ? !!loadingMap[currentWorkspace.id]
+    : false;
+  const storeError = currentWorkspace
+    ? errorMap[currentWorkspace.id] || null
+    : null;
   const databases = useDatabaseStore(state => state.databases);
   const fetchDatabases = useDatabaseStore(state => state.fetchDatabases);
 
@@ -308,9 +317,11 @@ export function SyncJobForm({
   // Clear store error when component unmounts
   useEffect(() => {
     return () => {
-      clearError();
+      if (currentWorkspace?.id) {
+        clearError(currentWorkspace.id);
+      }
     };
-  }, [clearError]);
+  }, [clearError, currentWorkspace?.id]);
 
   const onSubmit = async (data: FormData) => {
     if (!currentWorkspace?.id) {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Box,
-  Button,
   IconButton,
   List,
   ListItem,
@@ -11,10 +10,8 @@ import {
   Typography,
   Chip,
   Tooltip,
-  CircularProgress,
   Alert,
-  TextField,
-  InputAdornment,
+  Skeleton,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -22,7 +19,6 @@ import {
   Pause as PauseIcon,
   Delete as DeleteIcon,
   Schedule as ScheduleIcon,
-  Search as SearchIcon,
   CheckCircle as SuccessIcon,
   Error as ErrorIcon,
   HourglassEmpty as PendingIcon,
@@ -35,41 +31,38 @@ import { useConsoleStore } from "../store/consoleStore";
 export function SyncJobsExplorer() {
   const { currentWorkspace } = useWorkspace();
   const {
-    jobs,
+    jobs: jobsMap,
+    loading: loadingMap,
+    error: errorMap,
     selectedJobId,
-    isLoading,
-    error,
-    fetchJobs,
+    init,
+    refresh,
     selectJob,
     toggleJob,
     runJob,
     deleteJob,
     clearError,
   } = useSyncJobStore();
-  const hasLoadedOnce = useSyncJobStore(state => state.hasLoadedOnce);
-  const resetLoadedState = useSyncJobStore(state => state.resetLoadedState);
+
+  const jobs = currentWorkspace ? jobsMap[currentWorkspace.id] || [] : [];
+  const isLoading = currentWorkspace
+    ? !!loadingMap[currentWorkspace.id]
+    : false;
+  const error = currentWorkspace ? errorMap[currentWorkspace.id] || null : null;
+
   const { addConsoleTab, setActiveConsole } = useConsoleStore();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [lastWorkspaceId, setLastWorkspaceId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Reset loaded state when workspace changes
-    if (currentWorkspace?.id && currentWorkspace.id !== lastWorkspaceId) {
-      resetLoadedState();
-      setLastWorkspaceId(currentWorkspace.id);
+    if (currentWorkspace) {
+      init(currentWorkspace.id);
     }
+  }, [currentWorkspace?.id, init]);
 
-    // Only fetch if we have a workspace and haven't loaded once
-    if (currentWorkspace?.id && !hasLoadedOnce) {
-      fetchJobs(currentWorkspace.id);
+  const handleRefresh = async () => {
+    if (currentWorkspace?.id) {
+      await refresh(currentWorkspace.id);
     }
-  }, [
-    currentWorkspace?.id,
-    hasLoadedOnce,
-    fetchJobs,
-    resetLoadedState,
-    lastWorkspaceId,
-  ]);
+  };
 
   const handleCreateNew = () => {
     const id = addConsoleTab({
@@ -153,90 +146,109 @@ export function SyncJobsExplorer() {
     };
   };
 
-  const filteredJobs = jobs.filter(
-    job =>
-      job.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.dataSourceId.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.destinationDatabaseId.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()),
-  );
-
-  if (isLoading && jobs.length === 0) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const renderSkeletonItems = () => {
+    return Array.from({ length: 3 }).map((_, index) => (
+      <ListItem key={`skeleton-${index}`} disablePadding>
+        <ListItemButton disabled>
+          <ListItemIcon sx={{ minWidth: 36 }}>
+            <Skeleton variant="circular" width={24} height={24} />
+          </ListItemIcon>
+          <ListItemText
+            primary={
+              <Skeleton
+                variant="text"
+                width={`${60 + Math.random() * 40}%`}
+                height={20}
+              />
+            }
+            secondary={
+              <Box
+                component="span"
+                sx={{
+                  display: "inline-flex",
+                  gap: 0.5,
+                  alignItems: "center",
+                }}
+              >
+                <Skeleton variant="text" width={120} height={16} />
+                <Skeleton
+                  variant="rectangular"
+                  width={50}
+                  height={16}
+                  sx={{ borderRadius: 1 }}
+                />
+              </Box>
+            }
+          />
+        </ListItemButton>
+      </ListItem>
+    ));
+  };
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-          <ScheduleIcon sx={{ fontSize: 20 }} />
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography
+            variant="h6"
+            sx={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             Sync Jobs
           </Typography>
-          <Tooltip title="Refresh">
-            <IconButton
-              size="small"
-              onClick={() =>
-                currentWorkspace?.id && fetchJobs(currentWorkspace.id)
-              }
-              disabled={isLoading}
-            >
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Button
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={handleCreateNew}
-            variant="contained"
-          >
-            New
-          </Button>
+          <Box sx={{ display: "flex" }}>
+            <Tooltip title="Add Sync Job">
+              <IconButton size="small" onClick={handleCreateNew}>
+                <AddIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Refresh">
+              <IconButton
+                size="small"
+                onClick={handleRefresh}
+                disabled={isLoading}
+              >
+                <RefreshIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
-
-        {/* Search */}
-        <TextField
-          size="small"
-          fullWidth
-          placeholder="Search jobs..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 20 }} />
-              </InputAdornment>
-            ),
-          }}
-        />
       </Box>
 
       {/* Error Alert */}
       {error && (
-        <Alert severity="error" onClose={clearError} sx={{ mx: 2, mt: 2 }}>
+        <Alert
+          severity="error"
+          onClose={() =>
+            currentWorkspace?.id && clearError(currentWorkspace.id)
+          }
+          sx={{ mx: 2, mt: 2 }}
+        >
           {error}
         </Alert>
       )}
 
       {/* Jobs List */}
       <Box sx={{ flexGrow: 1, overflow: "auto" }}>
-        {filteredJobs.length === 0 ? (
-          <Box sx={{ p: 3, textAlign: "center" }}>
-            <Typography variant="body2" color="text.secondary">
-              {searchTerm
-                ? "No jobs found matching your search"
-                : "No sync jobs created yet"}
-            </Typography>
+        {isLoading && jobs.length === 0 ? (
+          <List dense>{renderSkeletonItems()}</List>
+        ) : jobs.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>
+            <Typography variant="body2">No sync jobs configured.</Typography>
           </Box>
         ) : (
           <List dense>
-            {filteredJobs.map(job => {
+            {jobs.map(job => {
               const status = getJobStatus(job);
               return (
                 <ListItem
@@ -290,7 +302,7 @@ export function SyncJobsExplorer() {
                         <Box
                           component="span"
                           sx={{
-                            display: "flex",
+                            display: "inline-flex",
                             gap: 0.5,
                             alignItems: "center",
                           }}
