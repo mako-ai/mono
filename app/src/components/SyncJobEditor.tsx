@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Paper, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { SyncJobForm } from "./SyncJobForm";
 import { SyncJobLogs } from "./SyncJobLogs";
 import { SettingsIcon, LogsIcon } from "lucide-react";
