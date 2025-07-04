@@ -1,12 +1,12 @@
-import { MongoClient, Db, ObjectId } from "mongodb";
+import { Db, ObjectId } from "mongodb";
 import * as crypto from "crypto";
 import * as dotenv from "dotenv";
+import { mongoPool } from "../core/mongodb-pool";
 
 dotenv.config();
 
 // Database-based destination manager for app destinations
 export class DatabaseDestinationManager {
-  private client: MongoClient | null = null;
   private databaseName: string = "";
   private initialized = false;
 
@@ -17,7 +17,6 @@ export class DatabaseDestinationManager {
       throw new Error("DATABASE_URL environment variable is not set");
     }
     const connectionString = process.env.DATABASE_URL;
-    this.client = new MongoClient(connectionString);
 
     // Extract database name from the connection string or use environment variable
     this.databaseName =
@@ -41,86 +40,71 @@ export class DatabaseDestinationManager {
     return null;
   }
 
-  private async connect(): Promise<Db> {
+  private async getDb(): Promise<Db> {
     this.initialize();
-    if (!this.client) throw new Error("Client not initialized");
-    await this.client.connect();
-    return this.client.db(this.databaseName);
-  }
 
-  private async disconnect(): Promise<void> {
-    if (this.client) {
-      await this.client.close();
-    }
+    // Use the unified pool to get the main database connection
+    const connection = await mongoPool.getConnection("main", "app", {
+      connectionString: process.env.DATABASE_URL!,
+      database: this.databaseName,
+      encrypted: false,
+    });
+
+    return connection.db;
   }
 
   async getDestination(id: string): Promise<any> {
-    let db: Db | undefined;
-    try {
-      db = await this.connect();
-      const collection = db.collection("databases");
+    const db = await this.getDb();
+    const collection = db.collection("databases");
 
-      if (!ObjectId.isValid(id)) {
-        return null;
-      }
-
-      // Try to find by name first, then by ID
-      const destination = await collection.findOne({
-        _id: new ObjectId(id),
-      });
-
-      if (!destination) {
-        return null;
-      }
-
-      // Return in the expected format for the sync service
-      return {
-        id: destination._id,
-        name: destination.name,
-        type: "mongodb",
-        connection: {
-          connection_string: this.decryptString(
-            destination.connection.connectionString,
-          ),
-          database: this.decryptString(destination.connection.database),
-        },
-      };
-    } finally {
-      await this.disconnect();
+    if (!ObjectId.isValid(id)) {
+      return null;
     }
+
+    // Try to find by name first, then by ID
+    const destination = await collection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!destination) {
+      return null;
+    }
+
+    // Return in the expected format for the sync service
+    return {
+      id: destination._id,
+      name: destination.name,
+      type: "mongodb",
+      connection: {
+        connection_string: this.decryptString(
+          destination.connection.connectionString,
+        ),
+        database: this.decryptString(destination.connection.database),
+      },
+    };
   }
 
   async listDestinations(
     workspaceId: string,
   ): Promise<{ name: string; id: string }[]> {
-    let db: Db | undefined;
-    try {
-      db = await this.connect();
-      const collection = db.collection("databases");
-      const destinations = await collection
-        .find(
-          { workspaceId: new ObjectId(workspaceId) },
-          { projection: { name: 1, _id: 1 } },
-        )
-        .toArray();
-      return destinations.map(d => ({ name: d.name, id: d._id.toString() }));
-    } finally {
-      await this.disconnect();
-    }
+    const db = await this.getDb();
+    const collection = db.collection("databases");
+    const destinations = await collection
+      .find(
+        { workspaceId: new ObjectId(workspaceId) },
+        { projection: { name: 1, _id: 1 } },
+      )
+      .toArray();
+    return destinations.map(d => ({ name: d.name, id: d._id.toString() }));
   }
 
   async listWorkspaces(): Promise<{ name: string; id: string }[]> {
-    let db: Db | undefined;
-    try {
-      db = await this.connect();
-      const collection = db.collection("workspaces");
-      const workspaces = await collection
-        .find({}, { projection: { name: 1, _id: 1 } })
-        .toArray();
-      return workspaces.map(w => ({ name: w.name, id: w._id.toString() }));
-    } finally {
-      await this.disconnect();
-    }
+    const db = await this.getDb();
+    const collection = db.collection("workspaces");
+    const workspaces = await collection
+      .find({}, { projection: { name: 1, _id: 1 } })
+      .toArray();
+    return workspaces.map(w => ({ name: w.name, id: w._id.toString() }));
   }
 
   private decryptString(encryptedString: string): string {
