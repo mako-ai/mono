@@ -28,6 +28,7 @@ import {
   DataObject as DataIcon,
   Storage as DatabaseIcon,
   Add as AddIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
@@ -44,7 +45,6 @@ interface SyncJobFormProps {
 }
 
 interface FormData {
-  name: string;
   dataSourceId: string;
   destinationDatabaseId: string;
   schedule: string;
@@ -82,6 +82,7 @@ export function SyncJobForm({
     createJob,
     updateJob,
     clearError,
+    deleteJob,
   } = useSyncJobStore();
 
   // Get workspace-specific data
@@ -130,7 +131,6 @@ export function SyncJobForm({
     setValue,
   } = useForm<FormData>({
     defaultValues: {
-      name: "",
       dataSourceId: "",
       destinationDatabaseId: "",
       schedule: "0 * * * *", // Default hourly
@@ -284,7 +284,6 @@ export function SyncJobForm({
       const job = jobs.find(j => j._id === currentJobId);
       if (job) {
         const formData = {
-          name: job.name,
           dataSourceId: (job.dataSourceId as any)._id,
           destinationDatabaseId: (job.destinationDatabaseId as any)._id,
           schedule: job.schedule.cron,
@@ -372,9 +371,20 @@ export function SyncJobForm({
     setError(null);
 
     try {
+      // Find the selected source and destination names
+      const selectedSource = dataSources.find(
+        ds => ds._id === data.dataSourceId,
+      );
+      const selectedDatabase = databases.find(
+        db => db.id === data.destinationDatabaseId,
+      );
+
+      // Auto-generate name as "source → destination"
+      const generatedName = `${selectedSource?.name || "Source"} → ${selectedDatabase?.name || "Destination"}`;
+
       // Create payload compatible with the API
       const payload: any = {
-        name: data.name,
+        name: generatedName,
         dataSourceId: data.dataSourceId,
         destinationDatabaseId: data.destinationDatabaseId,
         schedule: {
@@ -489,23 +499,6 @@ export function SyncJobForm({
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <Stack spacing={3}>
-          {/* Basic Info */}
-          <Controller
-            name="name"
-            control={control}
-            rules={{ required: "Name is required" }}
-            render={({ field }) => (
-              <TextField
-                {...field}
-                fullWidth
-                label="Job Name"
-                error={!!errors.name}
-                helperText={errors.name?.message}
-                placeholder="Daily Customer Sync"
-              />
-            )}
-          />
-
           {/* Source and Destination */}
           <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
             <Controller
@@ -802,21 +795,53 @@ export function SyncJobForm({
 
         {/* Actions */}
         <Box
-          sx={{ mt: 3, display: "flex", gap: 2, justifyContent: "flex-end" }}
+          sx={{
+            mt: 3,
+            display: "flex",
+            gap: 2,
+            justifyContent: "space-between",
+          }}
         >
-          {onCancel && (
-            <Button onClick={onCancel} disabled={isSubmitting}>
-              Cancel
+          {/* Delete button on the left */}
+          {!isNewMode && currentJobId && (
+            <Button
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={async () => {
+                if (confirm("Are you sure you want to delete this sync job?")) {
+                  if (currentWorkspace?.id) {
+                    try {
+                      await deleteJob(currentWorkspace.id, currentJobId);
+                      // Close the editor after successful deletion
+                      onCancel?.();
+                    } catch (error) {
+                      console.error("Failed to delete sync job:", error);
+                    }
+                  }
+                }
+              }}
+              disabled={isSubmitting}
+            >
+              Delete
             </Button>
           )}
-          <Button
-            type="submit"
-            variant="contained"
-            startIcon={isNewMode ? <AddIcon /> : <SaveIcon />}
-            disabled={isSubmitting}
-          >
-            {isNewMode ? "Create" : "Save"}
-          </Button>
+
+          {/* Right-aligned save/cancel buttons */}
+          <Box sx={{ display: "flex", gap: 2, marginLeft: "auto" }}>
+            {onCancel && (
+              <Button onClick={onCancel} disabled={isSubmitting}>
+                Cancel
+              </Button>
+            )}
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={isNewMode ? <AddIcon /> : <SaveIcon />}
+              disabled={isSubmitting}
+            >
+              {isNewMode ? "Create" : "Save"}
+            </Button>
+          </Box>
         </Box>
       </form>
     </Box>

@@ -5,25 +5,13 @@ import {
   List,
   ListItem,
   ListItemButton,
-  ListItemIcon,
   ListItemText,
   Typography,
-  Chip,
   Tooltip,
   Alert,
   Skeleton,
 } from "@mui/material";
-import {
-  Add as AddIcon,
-  PlayArrow as RunIcon,
-  Pause as PauseIcon,
-  Delete as DeleteIcon,
-  Schedule as ScheduleIcon,
-  CheckCircle as SuccessIcon,
-  Error as ErrorIcon,
-  HourglassEmpty as PendingIcon,
-  Refresh as RefreshIcon,
-} from "@mui/icons-material";
+import { Add as AddIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 import { useConsoleStore } from "../store/consoleStore";
@@ -38,9 +26,6 @@ export function SyncJobsExplorer() {
     init,
     refresh,
     selectJob,
-    toggleJob,
-    runJob,
-    deleteJob,
     clearError,
   } = useSyncJobStore();
 
@@ -87,7 +72,7 @@ export function SyncJobsExplorer() {
         setActiveConsole(existingTab.id);
       } else {
         const id = addConsoleTab({
-          title: job.name,
+          title: `${job.dataSourceId.name} → ${job.destinationDatabaseId.name}`,
           content: "",
           initialContent: "",
           kind: "sync-job-editor" as any,
@@ -98,51 +83,32 @@ export function SyncJobsExplorer() {
     }
   };
 
-  const handleRunJob = async (e: React.MouseEvent, jobId: string) => {
-    e.stopPropagation();
-    if (currentWorkspace?.id) {
-      await runJob(currentWorkspace.id, jobId);
-    }
-  };
-
-  const handleToggleJob = async (e: React.MouseEvent, jobId: string) => {
-    e.stopPropagation();
-    if (currentWorkspace?.id) {
-      await toggleJob(currentWorkspace.id, jobId);
-    }
-  };
-
-  const handleDeleteJob = async (e: React.MouseEvent, jobId: string) => {
-    e.stopPropagation();
-    if (confirm("Are you sure you want to delete this sync job?")) {
-      if (currentWorkspace?.id) {
-        await deleteJob(currentWorkspace.id, jobId);
-      }
-    }
-  };
-
   const getJobStatus = (job: any) => {
     if (!job.enabled) {
       return {
-        icon: <PauseIcon />,
         label: "Disabled",
         color: "default" as const,
+        letter: "D",
       };
     }
     if (job.lastError) {
-      return { icon: <ErrorIcon />, label: "Failed", color: "error" as const };
+      return {
+        label: "Failed",
+        color: "error" as const,
+        letter: "F",
+      };
     }
     if (job.lastSuccessAt) {
       return {
-        icon: <SuccessIcon />,
         label: "Success",
         color: "success" as const,
+        letter: "S",
       };
     }
     return {
-      icon: <PendingIcon />,
       label: "Pending",
       color: "warning" as const,
+      letter: "A", // Abandoned/Awaiting
     };
   };
 
@@ -150,9 +116,6 @@ export function SyncJobsExplorer() {
     return Array.from({ length: 3 }).map((_, index) => (
       <ListItem key={`skeleton-${index}`} disablePadding>
         <ListItemButton disabled>
-          <ListItemIcon sx={{ minWidth: 36 }}>
-            <Skeleton variant="circular" width={24} height={24} />
-          </ListItemIcon>
           <ListItemText
             primary={
               <Skeleton
@@ -251,74 +214,60 @@ export function SyncJobsExplorer() {
             {jobs.map(job => {
               const status = getJobStatus(job);
               return (
-                <ListItem
-                  key={job._id}
-                  disablePadding
-                  secondaryAction={
-                    <Box sx={{ display: "flex", gap: 0.5 }}>
-                      <Tooltip title="Run now">
-                        <IconButton
-                          size="small"
-                          onClick={e => handleRunJob(e, job._id)}
-                          disabled={!job.enabled}
-                        >
-                          <RunIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title={job.enabled ? "Disable" : "Enable"}>
-                        <IconButton
-                          size="small"
-                          onClick={e => handleToggleJob(e, job._id)}
-                        >
-                          {job.enabled ? (
-                            <PauseIcon fontSize="small" />
-                          ) : (
-                            <RunIcon fontSize="small" />
-                          )}
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton
-                          size="small"
-                          onClick={e => handleDeleteJob(e, job._id)}
-                          color="error"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </Box>
-                  }
-                >
+                <ListItem key={job._id} disablePadding>
                   <ListItemButton
                     selected={selectedJobId === job._id}
                     onClick={() => handleEditJob(job._id)}
                   >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      {status.icon}
-                    </ListItemIcon>
                     <ListItemText
-                      primary={job.name}
-                      secondary={
-                        <Box
-                          component="span"
-                          sx={{
-                            display: "inline-flex",
-                            gap: 0.5,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Typography variant="caption" component="span">
-                            {job.dataSourceId.name} →{" "}
-                            {job.destinationDatabaseId.name}
-                          </Typography>
-                          <Chip
-                            label={job.syncMode}
-                            size="small"
-                            sx={{ height: 16, fontSize: "0.7rem" }}
-                          />
-                        </Box>
-                      }
+                      primary={`${job.dataSourceId.name} → ${job.destinationDatabaseId.name}`}
+                      secondary={null}
+                      sx={{
+                        pr: 6,
+                        "& .MuiListItemText-primary": {
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        },
+                      }}
                     />
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        right: 16,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        display: "flex",
+                        gap: 1,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: "bold",
+                          color: "text.secondary",
+                        }}
+                      >
+                        {job.syncMode === "incremental" ? "I" : "F"}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: "bold",
+                          color:
+                            status.letter === "S"
+                              ? "success.main"
+                              : status.letter === "F"
+                                ? "error.main"
+                                : status.letter === "A"
+                                  ? "warning.main"
+                                  : "text.disabled",
+                        }}
+                      >
+                        {status.letter}
+                      </Typography>
+                    </Box>
                   </ListItemButton>
                 </ListItem>
               );
