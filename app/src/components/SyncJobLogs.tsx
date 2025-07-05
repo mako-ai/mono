@@ -188,6 +188,13 @@ export function SyncJobLogs({ jobId }: SyncJobLogsProps) {
                     secondary={
                       h.status.charAt(0).toUpperCase() + h.status.slice(1)
                     }
+                    sx={{
+                      "& .MuiListItemText-primary": {
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      },
+                    }}
                   />
                 </ListItemButton>
               ))}
