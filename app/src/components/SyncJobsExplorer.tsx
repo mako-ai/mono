@@ -5,6 +5,7 @@ import {
   List,
   ListItem,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Typography,
   Tooltip,
@@ -12,6 +13,7 @@ import {
   Skeleton,
 } from "@mui/material";
 import { Add as AddIcon, Refresh as RefreshIcon } from "@mui/icons-material";
+import { CalendarCheck, CalendarOff } from "lucide-react";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 import { useConsoleStore } from "../store/consoleStore";
@@ -219,6 +221,29 @@ export function SyncJobsExplorer() {
                     selected={selectedJobId === job._id}
                     onClick={() => handleEditJob(job._id)}
                   >
+                    <Tooltip
+                      title={job.enabled ? "Job Enabled" : "Job Disabled"}
+                    >
+                      <ListItemIcon sx={{ minWidth: 28, cursor: "help" }}>
+                        {job.enabled ? (
+                          <CalendarCheck
+                            size={20}
+                            color="currentColor"
+                            style={{
+                              color: "var(--mui-palette-success-main)",
+                            }}
+                          />
+                        ) : (
+                          <CalendarOff
+                            size={20}
+                            color="currentColor"
+                            style={{
+                              color: "var(--mui-palette-text-disabled)",
+                            }}
+                          />
+                        )}
+                      </ListItemIcon>
+                    </Tooltip>
                     <ListItemText
                       primary={`${job.dataSourceId.name} → ${job.destinationDatabaseId.name}`}
                       secondary={null}
@@ -242,31 +267,43 @@ export function SyncJobsExplorer() {
                         alignItems: "center",
                       }}
                     >
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontWeight: "bold",
-                          color: "text.secondary",
-                        }}
+                      <Tooltip
+                        title={
+                          job.syncMode === "incremental"
+                            ? "Incremental Sync"
+                            : "Full Sync"
+                        }
                       >
-                        {job.syncMode === "incremental" ? "I" : "F"}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          fontWeight: "bold",
-                          color:
-                            status.letter === "S"
-                              ? "success.main"
-                              : status.letter === "F"
-                                ? "error.main"
-                                : status.letter === "A"
-                                  ? "warning.main"
-                                  : "text.disabled",
-                        }}
-                      >
-                        {status.letter}
-                      </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: "bold",
+                            color: "text.secondary",
+                            cursor: "help",
+                          }}
+                        >
+                          {job.syncMode === "incremental" ? "I" : "F"}
+                        </Typography>
+                      </Tooltip>
+                      <Tooltip title={status.label}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: "bold",
+                            color:
+                              status.letter === "S"
+                                ? "success.main"
+                                : status.letter === "F"
+                                  ? "error.main"
+                                  : status.letter === "A"
+                                    ? "warning.main"
+                                    : "text.disabled",
+                            cursor: "help",
+                          }}
+                        >
+                          {status.letter}
+                        </Typography>
+                      </Tooltip>
                     </Box>
                   </ListItemButton>
                 </ListItem>
