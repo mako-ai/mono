@@ -21,7 +21,7 @@ import { connectorRoutes } from "./routes/connectors";
 import { syncJobRoutes } from "./routes/sync-jobs";
 import { functions, inngest } from "./inngest";
 import mongoose from "mongoose";
-import { mongoPool } from "./core/mongodb-pool";
+import { databaseConnectionService } from "./services/database-connection.service";
 
 // Resolve the root‐level .env file regardless of the runtime working directory
 const envPath = path.resolve(__dirname, "../../.env");
@@ -165,7 +165,7 @@ async function gracefulShutdown(signal: string): Promise<never> {
   try {
     // Close unified MongoDB connection pool
     console.log("Closing MongoDB connection pool...");
-    await mongoPool.closeAll();
+    await databaseConnectionService.closeAllConnections();
     console.log("MongoDB connection pool closed");
 
     // Close mongoose connection if open

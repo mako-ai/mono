@@ -1,7 +1,7 @@
 import { Db } from "mongodb";
 import dotenv from "dotenv";
 import { Database } from "../database/workspace-schema";
-import { mongoPool } from "../core/mongodb-pool";
+import { databaseConnectionService } from "../services/database-connection.service";
 
 dotenv.config({ path: "../../.env" });
 
@@ -46,13 +46,16 @@ class MongoDBConnection {
     );
 
     // Use unified pool to get connection
-    const connection = await mongoPool.getConnection(
+    const connection = await databaseConnectionService.getConnectionById(
       "datasource",
       dataSourceId,
-      {
-        connectionString: dataSource.connection.connectionString,
-        database: dataSource.connection.database || "",
-        encrypted: false,
+      async id => {
+        const ds = await Database.findById(id);
+        if (!ds || !ds.connection.connectionString) return null;
+        return {
+          connectionString: ds.connection.connectionString,
+          database: ds.connection.database || "",
+        };
       },
     );
 

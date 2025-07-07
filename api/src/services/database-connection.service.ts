@@ -1,11 +1,10 @@
-import { MongoClient, Db } from "mongodb";
+import { MongoClient, Db, MongoClientOptions } from "mongodb";
 import { Client as PgClient } from "pg";
 import * as mysql from "mysql2/promise";
 import { Database as SqliteDatabase } from "sqlite3";
 import { open } from "sqlite";
 import { ConnectionPool } from "mssql";
 import { IDatabase } from "../database/workspace-schema";
-import { mongoPool } from "../core/mongodb-pool";
 
 export interface QueryResult {
   success: boolean;
@@ -15,8 +14,61 @@ export interface QueryResult {
   fields?: any[];
 }
 
+// Types for different connection contexts
+export type ConnectionContext =
+  | "main" // Main application database
+  | "destination" // Destination databases for sync
+  | "datasource" // Data source databases
+  | "workspace"; // Workspace-specific databases
+
+export interface ConnectionConfig {
+  connectionString: string;
+  database: string;
+}
+
+interface PooledConnection {
+  client: MongoClient;
+  db: Db;
+  lastUsed: Date;
+  context: ConnectionContext;
+  identifier: string;
+}
+
+/**
+ * Enhanced Database Connection Service
+ *
+ * Provides unified connection management for all database types with:
+ * - Advanced MongoDB connection pooling with health checks
+ * - Multi-database support (PostgreSQL, MySQL, SQLite, MSSQL)
+ * - Automatic reconnection and idle cleanup
+ * - Unified query execution interface
+ */
 export class DatabaseConnectionService {
   private connections: Map<string, any> = new Map();
+
+  // MongoDB-specific pooling
+  private mongoConnections: Map<string, PooledConnection> = new Map();
+  private cleanupInterval: NodeJS.Timeout | null = null;
+  private readonly maxIdleTime = 5 * 60 * 1000; // 5 minutes
+
+  // Default MongoDB connection options
+  private readonly defaultMongoOptions: MongoClientOptions = {
+    maxPoolSize: 10,
+    minPoolSize: 2,
+    maxIdleTimeMS: 30000,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 0,
+    connectTimeoutMS: 10000,
+    retryWrites: true,
+    retryReads: true,
+  };
+
+  constructor() {
+    // Start cleanup interval for MongoDB connections
+    this.cleanupInterval = setInterval(() => {
+      void this.cleanupIdleMongoConnections();
+    }, 60000); // Every minute
+  }
 
   /**
    * Test database connection
@@ -90,6 +142,20 @@ export class DatabaseConnectionService {
   async getConnection(database: IDatabase): Promise<any> {
     const key = database._id.toString();
 
+    // For MongoDB, use advanced pooling
+    if (database.type === "mongodb") {
+      const connection = await this.getMongoConnection(
+        "datasource",
+        database._id.toString(),
+        {
+          connectionString: this.buildMongoDBConnectionString(database),
+          database: database.connection.database || "",
+        },
+      );
+      return connection.client;
+    }
+
+    // For other database types, use basic caching
     if (this.connections.has(key)) {
       return this.connections.get(key);
     }
@@ -97,9 +163,6 @@ export class DatabaseConnectionService {
     let connection: any;
 
     switch (database.type) {
-      case "mongodb":
-        connection = await this.createMongoDBConnection(database);
-        break;
       case "postgresql":
         connection = await this.createPostgreSQLConnection(database);
         break;
@@ -124,21 +187,23 @@ export class DatabaseConnectionService {
    * Close database connection
    */
   async closeConnection(databaseId: string): Promise<void> {
-    const connection = this.connections.get(databaseId);
-    if (!connection) return;
+    // Try to close MongoDB connection through pool
+    await this.closeMongoConnection("datasource", databaseId);
 
-    try {
-      if (connection instanceof MongoClient) {
-        await connection.close();
-      } else if (connection.end) {
-        await connection.end();
-      } else if (connection.close) {
-        await connection.close();
+    // Also handle any non-MongoDB connections in the local cache
+    const connection = this.connections.get(databaseId);
+    if (connection) {
+      try {
+        if (connection.end) {
+          await connection.end();
+        } else if (connection.close) {
+          await connection.close();
+        }
+      } catch (error) {
+        console.error("Error closing cached connection:", error);
+      } finally {
+        this.connections.delete(databaseId);
       }
-    } catch (error) {
-      console.error("Error closing connection:", error);
-    } finally {
-      this.connections.delete(databaseId);
     }
   }
 
@@ -146,10 +211,268 @@ export class DatabaseConnectionService {
    * Close all connections
    */
   async closeAllConnections(): Promise<void> {
-    const promises = Array.from(this.connections.keys()).map(id =>
+    // Close MongoDB connections
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+
+    const mongoPromises: Promise<void>[] = [];
+    for (const [key, connection] of this.mongoConnections.entries()) {
+      mongoPromises.push(
+        connection.client
+          .close()
+          .then(() => console.log(`Closed MongoDB connection: ${key}`))
+          .catch(error =>
+            console.error(`Error closing MongoDB ${key}:`, error),
+          ),
+      );
+    }
+    await Promise.all(mongoPromises);
+    this.mongoConnections.clear();
+
+    // Close other connections
+    const otherPromises = Array.from(this.connections.keys()).map(id =>
       this.closeConnection(id),
     );
-    await Promise.all(promises);
+    await Promise.all(otherPromises);
+  }
+
+  /**
+   * Get connection statistics
+   */
+  getStats(): {
+    totalConnections: number;
+    mongodb: number;
+    other: number;
+    mongoConnections: Array<{
+      key: string;
+      context: ConnectionContext;
+      identifier: string;
+      lastUsed: Date;
+    }>;
+  } {
+    const mongoConnections = Array.from(this.mongoConnections.entries()).map(
+      ([key, conn]) => ({
+        key,
+        context: conn.context,
+        identifier: conn.identifier,
+        lastUsed: conn.lastUsed,
+      }),
+    );
+
+    return {
+      totalConnections: this.mongoConnections.size + this.connections.size,
+      mongodb: this.mongoConnections.size,
+      other: this.connections.size,
+      mongoConnections,
+    };
+  }
+
+  // MongoDB Advanced Pooling Methods
+  private async getMongoConnection(
+    context: ConnectionContext,
+    identifier: string,
+    config: ConnectionConfig,
+    options?: MongoClientOptions,
+  ): Promise<{ client: MongoClient; db: Db }> {
+    const key = this.getMongoConnectionKey(context, identifier);
+
+    // Check existing connection
+    const existing = this.mongoConnections.get(key);
+    if (existing) {
+      try {
+        // Health check with timeout
+        const pingPromise = existing.client.db("admin").command({ ping: 1 });
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Health check timeout")), 2000),
+        );
+        await Promise.race([pingPromise, timeoutPromise]);
+
+        existing.lastUsed = new Date();
+        return { client: existing.client, db: existing.db };
+      } catch (error) {
+        console.warn(
+          `MongoDB connection unhealthy for ${key}, reconnecting...`,
+          error,
+        );
+        this.mongoConnections.delete(key);
+        try {
+          await existing.client.close();
+        } catch {
+          // Ignore close errors
+        }
+      }
+    }
+
+    // Create new connection
+    return this.createMongoConnection(context, identifier, config, options);
+  }
+
+  private async createMongoConnection(
+    context: ConnectionContext,
+    identifier: string,
+    config: ConnectionConfig,
+    customOptions?: MongoClientOptions,
+  ): Promise<{ client: MongoClient; db: Db }> {
+    const key = this.getMongoConnectionKey(context, identifier);
+    console.log(`🔌 Creating pooled MongoDB connection: ${key}`);
+
+    // Merge options
+    const options = { ...this.defaultMongoOptions, ...customOptions };
+
+    // Create client
+    const client = new MongoClient(config.connectionString, options);
+    await client.connect();
+
+    // Handle database name extraction
+    const databaseName = config.database;
+
+    const db = client.db(databaseName);
+
+    // Store in pool
+    const pooledConnection: PooledConnection = {
+      client,
+      db,
+      lastUsed: new Date(),
+      context,
+      identifier,
+    };
+    this.mongoConnections.set(key, pooledConnection);
+
+    // Set up monitoring
+    client.on("close", () => {
+      console.log(`MongoDB connection closed: ${key}`);
+      this.mongoConnections.delete(key);
+    });
+
+    client.on("error", error => {
+      console.error(`MongoDB connection error for ${key}:`, error);
+      this.mongoConnections.delete(key);
+    });
+
+    client.on("topologyClosed", () => {
+      console.log(`MongoDB topology closed: ${key}`);
+      this.mongoConnections.delete(key);
+    });
+
+    console.log(`✅ MongoDB connected: ${key}`);
+    return { client, db };
+  }
+
+  private getMongoConnectionKey(
+    context: ConnectionContext,
+    identifier: string,
+  ): string {
+    return `${context}:${identifier}`;
+  }
+
+  private async cleanupIdleMongoConnections(): Promise<void> {
+    const now = new Date();
+    const toRemove: string[] = [];
+
+    for (const [key, connection] of this.mongoConnections.entries()) {
+      const idleTime = now.getTime() - connection.lastUsed.getTime();
+      if (idleTime > this.maxIdleTime) {
+        toRemove.push(key);
+      }
+    }
+
+    for (const key of toRemove) {
+      const connection = this.mongoConnections.get(key);
+      if (connection) {
+        try {
+          await connection.client.close();
+          console.log(`Closed idle MongoDB connection: ${key}`);
+        } catch (error) {
+          console.error(`Error closing idle MongoDB connection ${key}:`, error);
+        }
+        this.mongoConnections.delete(key);
+      }
+    }
+  }
+
+  private async closeMongoConnection(
+    context: ConnectionContext,
+    identifier: string,
+  ): Promise<void> {
+    const key = this.getMongoConnectionKey(context, identifier);
+    const connection = this.mongoConnections.get(key);
+
+    if (connection) {
+      try {
+        await connection.client.close();
+        console.log(`Closed MongoDB connection: ${key}`);
+      } catch (error) {
+        console.error(`Error closing MongoDB connection ${key}:`, error);
+      }
+      this.mongoConnections.delete(key);
+    }
+  }
+
+  // Utility methods
+  private extractDatabaseName(connectionString: string): string | null {
+    try {
+      const url = new URL(connectionString);
+      const pathname = url.pathname;
+      if (pathname && pathname.length > 1) {
+        return pathname.substring(1).split("?")[0];
+      }
+    } catch {
+      // Invalid URL
+    }
+    return null;
+  }
+
+  // Convenience methods for MongoDB connections
+  /**
+   * Get connection for main application database
+   */
+  async getMainConnection(): Promise<{ client: MongoClient; db: Db }> {
+    const connectionString = process.env.DATABASE_URL;
+    const databaseName =
+      process.env.DATABASE_NAME ||
+      this.extractDatabaseName(connectionString!) ||
+      "mako";
+
+    if (!connectionString) {
+      throw new Error("DATABASE_URL environment variable is not set");
+    }
+
+    return this.getMongoConnection("main", "app", {
+      connectionString,
+      database: databaseName,
+    });
+  }
+
+  /**
+   * Get connection by database ID (for destinations/datasources)
+   */
+  async getConnectionById(
+    context: ConnectionContext,
+    databaseId: string,
+    lookupFn: (id: string) => Promise<ConnectionConfig | null>,
+  ): Promise<{ client: MongoClient; db: Db }> {
+    // Try to get from pool first
+    const key = this.getMongoConnectionKey(context, databaseId);
+    const existing = this.mongoConnections.get(key);
+    if (existing) {
+      try {
+        await existing.client.db("admin").command({ ping: 1 });
+        existing.lastUsed = new Date();
+        return { client: existing.client, db: existing.db };
+      } catch {
+        // Continue to recreate
+      }
+    }
+
+    // Lookup configuration
+    const config = await lookupFn(databaseId);
+    if (!config) {
+      throw new Error(`Database '${databaseId}' not found`);
+    }
+
+    return this.getMongoConnection(context, databaseId, config);
   }
 
   // MongoDB specific methods
@@ -160,13 +483,12 @@ export class DatabaseConnectionService {
       const connectionString = this.buildMongoDBConnectionString(database);
 
       // Use unified pool for testing
-      const connection = await mongoPool.getConnection(
+      const connection = await this.getMongoConnection(
         "datasource",
         database._id.toString(),
         {
           connectionString,
           database: database.connection.database || "",
-          encrypted: false,
         },
       );
 
@@ -180,25 +502,6 @@ export class DatabaseConnectionService {
           error instanceof Error ? error.message : "MongoDB connection failed",
       };
     }
-  }
-
-  private async createMongoDBConnection(
-    database: IDatabase,
-  ): Promise<MongoClient> {
-    const connectionString = this.buildMongoDBConnectionString(database);
-
-    // Use unified pool instead of creating new client
-    const connection = await mongoPool.getConnection(
-      "datasource",
-      database._id.toString(),
-      {
-        connectionString,
-        database: database.connection.database || "",
-        encrypted: false,
-      },
-    );
-
-    return connection.client;
   }
 
   private buildMongoDBConnectionString(database: IDatabase): string {

@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as dotenv from "dotenv";
 import { Database } from "../database/workspace-schema";
-import { mongoPool } from "../core/mongodb-pool";
+import { databaseConnectionService } from "../services/database-connection.service";
 
 dotenv.config();
 
@@ -44,11 +44,18 @@ class QueryRunner {
     }
 
     // Use unified pool to get connection
-    const connection = await mongoPool.getConnection("datasource", sourceId, {
-      connectionString: dataSource.connection.connectionString!,
-      database: dataSource.connection.database || "",
-      encrypted: false,
-    });
+    const connection = await databaseConnectionService.getConnectionById(
+      "datasource",
+      sourceId,
+      async id => {
+        const ds = await Database.findById(id);
+        if (!ds || !ds.connection.connectionString) return null;
+        return {
+          connectionString: ds.connection.connectionString,
+          database: ds.connection.database || "",
+        };
+      },
+    );
 
     console.log(`Connected to MongoDB: ${dataSource.name}`);
     return { db: connection.db };
