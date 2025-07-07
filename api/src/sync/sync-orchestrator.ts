@@ -25,6 +25,7 @@ export interface SyncChunkOptions {
   state?: FetchState;
   maxIterations?: number;
   logger?: SyncLogger;
+  step?: any; // Inngest step object for serverless-friendly retries
 }
 
 /**
@@ -34,6 +35,9 @@ async function executeWithRetry<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
   logger?: SyncLogger,
+  step?: any, // Inngest step object
+  operationName?: string, // For unique step names in Inngest
+  rateLimitDelayMs: number = 200, // Base delay from data source rate limit settings
 ): Promise<T> {
   let attempts = 0;
 
@@ -47,28 +51,37 @@ async function executeWithRetry<T>(
         throw error;
       }
 
-      // Handle rate limiting
+      // Calculate exponential backoff delay (2^attempts * rate_limit_delay_ms base)
+      let delayMs: number;
+
+      // Handle rate limiting with specific delay
       if (axios.isAxiosError(error) && error.response?.status === 429) {
         const retryAfter = error.response.headers["retry-after"];
-        const delayMs = retryAfter
+        delayMs = retryAfter
           ? parseInt(retryAfter, 10) * 1000
-          : 1000 * Math.pow(2, attempts);
+          : Math.min(rateLimitDelayMs * Math.pow(2, attempts), 30000); // Cap at 30 seconds
         logger?.log(
           "warn",
           `Rate limited. Waiting ${delayMs}ms before retry ${attempts}/${maxRetries}`,
         );
-        await sleep(delayMs);
       } else if (isRetryableError(error)) {
-        // Exponential backoff for other retryable errors
-        const backoff = 500 * Math.pow(2, attempts);
+        // Exponential backoff for other retryable errors (2x each time, starting from rate limit delay)
+        delayMs = Math.min(rateLimitDelayMs * Math.pow(2, attempts), 30000); // Cap at 30 seconds
         logger?.log(
           "warn",
-          `Retryable error (${getErrorDescription(error)}). Waiting ${backoff}ms before retry ${attempts}/${maxRetries}`,
+          `Retryable error (${getErrorDescription(error)}). Waiting ${delayMs}ms before retry ${attempts}/${maxRetries}`,
         );
-        await sleep(backoff);
       } else {
         // Non-retryable error
         throw error;
+      }
+
+      // Use Inngest step.sleep if available (serverless-friendly), otherwise fall back to setTimeout
+      if (step && step.sleep) {
+        const sleepStepName = `retry-delay-${operationName || "operation"}-${attempts}`;
+        await step.sleep(sleepStepName, delayMs);
+      } else {
+        await sleep(delayMs);
       }
     }
   }
@@ -232,6 +245,7 @@ export async function performSyncChunk(
 
     // Fetch chunk from connector with retry logic
     const maxRetries = dataSource.settings?.max_retries || 3;
+    const rateLimitDelay = dataSource.settings?.rate_limit_delay_ms || 200;
     const fetchState = await executeWithRetry(
       () =>
         connector.fetchEntityChunk({
@@ -271,6 +285,9 @@ export async function performSyncChunk(
         }),
       maxRetries,
       logger,
+      options.step, // Pass through the step from options for Inngest sleep
+      `fetch-chunk-${entity}`,
+      rateLimitDelay,
     );
 
     const completed = !fetchState.hasMore;
@@ -326,6 +343,7 @@ export async function performSync(
   entities: string[] | undefined,
   isIncremental: boolean = false,
   logger?: SyncLogger,
+  step?: any, // Inngest step object for serverless-friendly retries
 ) {
   logger?.log(
     "debug",
@@ -379,10 +397,14 @@ export async function performSync(
 
     // Test connection first with retry logic
     const maxRetries = dataSource.settings?.max_retries || 3;
+    const rateLimitDelay = dataSource.settings?.rate_limit_delay_ms || 200;
     const connectionTest = await executeWithRetry(
       () => connector.testConnection(),
       maxRetries,
       logger,
+      step, // Pass step parameter for Inngest sleep when available
+      `test-connection-${dataSource.type}`,
+      rateLimitDelay,
     );
     if (!connectionTest.success) {
       const errorMsg = `Failed to connect to ${dataSource.type}: ${connectionTest.message}`;
@@ -512,6 +534,7 @@ export async function performSync(
 
       // Fetch data from connector with retry logic
       const maxRetries = dataSource.settings?.max_retries || 3;
+      const rateLimitDelay = dataSource.settings?.rate_limit_delay_ms || 200;
       await executeWithRetry(
         () =>
           connector.fetchEntity({
@@ -550,6 +573,9 @@ export async function performSync(
           }),
         maxRetries,
         logger,
+        step, // Pass step parameter for Inngest sleep when available
+        `fetch-entity-${entityName}`,
+        rateLimitDelay,
       );
 
       // Complete the progress reporting

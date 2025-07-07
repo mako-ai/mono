@@ -35,6 +35,7 @@ export async function performSync(
   entityFilter?: string[],
   isIncremental: boolean = false,
   logger?: SyncLogger,
+  step?: any, // Inngest step object for serverless-friendly retries
 ): Promise<void> {
   // Log sync context
   logger?.log("info", `Sync mode: ${isIncremental ? "incremental" : "full"}`);
@@ -51,6 +52,7 @@ export async function performSync(
       entityFilter,
       isIncremental,
       logger,
+      step, // Pass through the step parameter
     );
     logger?.log("info", "Sync process completed successfully");
   } catch (error) {
