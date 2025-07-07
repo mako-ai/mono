@@ -480,370 +480,406 @@ export function SyncJobForm({
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 800, mx: "auto" }}>
-      {(error || storeError) && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error || storeError}
-        </Alert>
-      )}
-      <Typography
-        variant="body1"
-        sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {/* Top bar with action buttons */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          px: 2,
+          py: 1,
+          borderBottom: 1,
+          borderColor: "divider",
+        }}
       >
-        {currentJobId && (
-          <>
-            <strong>Job ID:</strong> {currentJobId}
-          </>
+        {/* Delete button on the left */}
+        {!isNewMode && currentJobId && (
+          <Button
+            color="error"
+            size="small"
+            startIcon={<DeleteIcon />}
+            onClick={async () => {
+              if (confirm("Are you sure you want to delete this sync job?")) {
+                if (currentWorkspace?.id) {
+                  try {
+                    await deleteJob(currentWorkspace.id, currentJobId);
+                    // Close the editor after successful deletion
+                    onCancel?.();
+                  } catch (error) {
+                    console.error("Failed to delete sync job:", error);
+                  }
+                }
+              }
+            }}
+            disabled={isSubmitting}
+          >
+            Delete
+          </Button>
         )}
-      </Typography>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <Stack spacing={3}>
-          {/* Source and Destination */}
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <Controller
-              name="dataSourceId"
-              control={control}
-              rules={{ required: "Data source is required" }}
-              render={({ field }) => (
-                <FormControl fullWidth error={!!errors.dataSourceId}>
-                  <InputLabel>Data Source</InputLabel>
-                  <Select
-                    {...field}
-                    label="Data Source"
-                    startAdornment={
-                      <DataIcon sx={{ mr: 1, color: "action.active" }} />
-                    }
-                    disabled={isLoadingDataSources}
-                  >
-                    {dataSources.map(source => (
-                      <MenuItem key={source._id} value={source._id}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                          }}
-                        >
-                          {source.name}
-                          <Chip label={source.type} size="small" />
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors.dataSourceId && (
-                    <FormHelperText>
-                      {errors.dataSourceId.message}
-                    </FormHelperText>
-                  )}
-                </FormControl>
-              )}
-            />
+        {/* Spacer for left alignment */}
+        <Box sx={{ flex: 1 }} />
 
-            <Controller
-              name="destinationDatabaseId"
-              control={control}
-              rules={{ required: "Destination database is required" }}
-              render={({ field }) => (
-                <FormControl fullWidth error={!!errors.destinationDatabaseId}>
-                  <InputLabel>Destination Database</InputLabel>
-                  <Select
-                    {...field}
-                    label="Destination Database"
-                    startAdornment={
-                      <DatabaseIcon sx={{ mr: 1, color: "action.active" }} />
-                    }
-                  >
-                    {databases.map(db => (
-                      <MenuItem key={db.id} value={db.id}>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                          }}
-                        >
-                          {db.name}
-                          <Chip label={db.type} size="small" />
-                        </Box>
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors.destinationDatabaseId && (
-                    <FormHelperText>
-                      {errors.destinationDatabaseId.message}
-                    </FormHelperText>
-                  )}
-                </FormControl>
-              )}
-            />
-          </Stack>
+        {/* Right-aligned save/cancel buttons */}
+        <Box sx={{ display: "flex", gap: 1 }}>
+          {onCancel && (
+            <Button size="small" onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+          )}
+          <Button
+            type="submit"
+            variant="contained"
+            size="small"
+            startIcon={isNewMode ? <AddIcon /> : <SaveIcon />}
+            disabled={isSubmitting}
+            onClick={handleSubmit(onSubmit)}
+          >
+            {isNewMode ? "Create" : "Save"}
+          </Button>
+        </Box>
+      </Box>
 
-          {/* Entity Selection */}
-          {watchDataSourceId && (
-            <>
-              <Divider />
-              <Box>
-                {entitiesLoadState === "loading" ? (
-                  <Box
-                    sx={{ display: "flex", alignItems: "center", gap: 2, p: 2 }}
-                  >
-                    <CircularProgress size={20} />
-                    <Typography variant="body2" color="text.secondary">
-                      Loading available entities...
-                    </Typography>
-                  </Box>
-                ) : entitiesLoadState === "loaded" &&
-                  availableEntities.length > 0 ? (
-                  <Box>
-                    {/* Select All Option */}
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={selectAllEntities}
-                          indeterminate={
-                            selectedEntities.length > 0 &&
-                            selectedEntities.length < availableEntities.length
-                          }
-                          onChange={e =>
-                            handleSelectAllChange(e.target.checked)
-                          }
-                        />
-                      }
-                      label={
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                          }}
-                        >
-                          <Typography variant="body2" fontWeight="bold">
-                            Entities
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            ({availableEntities.length} total)
-                          </Typography>
-                        </Box>
-                      }
-                    />
-
-                    {/* Individual Entity Options */}
-                    <FormGroup sx={{ ml: 2 }}>
-                      {availableEntities.map(entity => (
-                        <FormControlLabel
-                          key={entity}
-                          control={
-                            <Checkbox
-                              checked={
-                                selectAllEntities ||
-                                selectedEntities.includes(entity)
-                              }
-                              onChange={e =>
-                                handleEntityChange(entity, e.target.checked)
-                              }
-                              disabled={selectAllEntities}
-                            />
-                          }
-                          label={
-                            <Typography variant="body2">{entity}</Typography>
-                          }
-                        />
-                      ))}
-                    </FormGroup>
-
-                    <Alert
-                      severity={
-                        selectAllEntities || selectedEntities.length > 0
-                          ? "info"
-                          : "warning"
-                      }
-                      sx={{ mt: 2 }}
-                    >
-                      <Typography variant="body2">
-                        {selectAllEntities
-                          ? "All entities will be synced from this data source."
-                          : selectedEntities.length > 0
-                            ? `${selectedEntities.length} of ${availableEntities.length} entities selected for sync.`
-                            : "⚠️ No entities selected. Please select at least one entity or choose 'All Entities' to proceed."}
-                      </Typography>
-                    </Alert>
-                  </Box>
-                ) : entitiesLoadState === "loaded" ? (
-                  <Alert severity="warning">
-                    No entities available for this data source.
-                  </Alert>
-                ) : null}
-              </Box>
-            </>
+      {/* Main form content */}
+      <Box sx={{ flex: 1, overflow: "auto", p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ maxWidth: "800px", mx: "auto" }}>
+          {(error || storeError) && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error || storeError}
+            </Alert>
           )}
 
-          {/* Schedule Mode */}
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Schedule
-            </Typography>
-            <ToggleButtonGroup
-              value={scheduleMode}
-              exclusive
-              onChange={(e, value) => value && setScheduleMode(value)}
-              size="small"
-              sx={{ mb: 2 }}
-            >
-              <ToggleButton value="preset">Preset</ToggleButton>
-              <ToggleButton value="custom">Custom</ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
+          <Typography
+            variant="body1"
+            sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1 }}
+          >
+            {currentJobId && (
+              <>
+                <strong>Job ID:</strong> {currentJobId}
+              </>
+            )}
+          </Typography>
 
-          {/* Schedule Input and Timezone */}
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <Box sx={{ flex: scheduleMode === "preset" ? 2 : 1.5 }}>
-              <Controller
-                name="schedule"
-                control={control}
-                rules={{ required: "Schedule is required" }}
-                render={({ field }) =>
-                  scheduleMode === "preset" ? (
-                    <FormControl fullWidth>
-                      <InputLabel>Schedule Preset</InputLabel>
-                      <Select {...field} label="Schedule Preset">
-                        {SCHEDULE_PRESETS.map(preset => (
-                          <MenuItem key={preset.cron} value={preset.cron}>
-                            {preset.label}
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <Stack spacing={3}>
+              {/* Source and Destination */}
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <Controller
+                  name="dataSourceId"
+                  control={control}
+                  rules={{ required: "Data source is required" }}
+                  render={({ field }) => (
+                    <FormControl fullWidth error={!!errors.dataSourceId}>
+                      <InputLabel>Data Source</InputLabel>
+                      <Select
+                        {...field}
+                        label="Data Source"
+                        startAdornment={
+                          <DataIcon sx={{ mr: 1, color: "action.active" }} />
+                        }
+                        disabled={isLoadingDataSources}
+                      >
+                        {dataSources.map(source => (
+                          <MenuItem key={source._id} value={source._id}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              {source.name}
+                              <Chip label={source.type} size="small" />
+                            </Box>
                           </MenuItem>
                         ))}
                       </Select>
+                      {errors.dataSourceId && (
+                        <FormHelperText>
+                          {errors.dataSourceId.message}
+                        </FormHelperText>
+                      )}
                     </FormControl>
-                  ) : (
-                    <TextField
-                      {...field}
+                  )}
+                />
+
+                <Controller
+                  name="destinationDatabaseId"
+                  control={control}
+                  rules={{ required: "Destination database is required" }}
+                  render={({ field }) => (
+                    <FormControl
                       fullWidth
-                      label="Cron Expression"
-                      error={!!errors.schedule}
-                      helperText={
-                        errors.schedule?.message ||
-                        "Format: minute hour day month weekday"
-                      }
-                      placeholder="0 * * * *"
-                    />
-                  )
-                }
-              />
-            </Box>
+                      error={!!errors.destinationDatabaseId}
+                    >
+                      <InputLabel>Destination Database</InputLabel>
+                      <Select
+                        {...field}
+                        label="Destination Database"
+                        startAdornment={
+                          <DatabaseIcon
+                            sx={{ mr: 1, color: "action.active" }}
+                          />
+                        }
+                      >
+                        {databases.map(db => (
+                          <MenuItem key={db.id} value={db.id}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              {db.name}
+                              <Chip label={db.type} size="small" />
+                            </Box>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.destinationDatabaseId && (
+                        <FormHelperText>
+                          {errors.destinationDatabaseId.message}
+                        </FormHelperText>
+                      )}
+                    </FormControl>
+                  )}
+                />
+              </Stack>
 
-            <Box sx={{ flex: 1 }}>
-              <Controller
-                name="timezone"
-                control={control}
-                render={({ field }) => (
-                  <TextField
-                    {...field}
-                    fullWidth
-                    label="Timezone"
-                    helperText="e.g., America/New_York"
-                  />
-                )}
-              />
-            </Box>
-          </Stack>
+              {/* Entity Selection */}
+              {watchDataSourceId && (
+                <>
+                  <Divider />
+                  <Box>
+                    {entitiesLoadState === "loading" ? (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          p: 2,
+                        }}
+                      >
+                        <CircularProgress size={20} />
+                        <Typography variant="body2" color="text.secondary">
+                          Loading available entities...
+                        </Typography>
+                      </Box>
+                    ) : entitiesLoadState === "loaded" &&
+                      availableEntities.length > 0 ? (
+                      <Box>
+                        {/* Select All Option */}
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={selectAllEntities}
+                              indeterminate={
+                                selectedEntities.length > 0 &&
+                                selectedEntities.length <
+                                  availableEntities.length
+                              }
+                              onChange={e =>
+                                handleSelectAllChange(e.target.checked)
+                              }
+                            />
+                          }
+                          label={
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              <Typography variant="body2" fontWeight="bold">
+                                Entities
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                ({availableEntities.length} total)
+                              </Typography>
+                            </Box>
+                          }
+                        />
 
-          {/* Sync Mode and Enabled */}
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <Controller
-              name="syncMode"
-              control={control}
-              render={({ field }) => (
-                <FormControl fullWidth>
-                  <InputLabel>Sync Mode</InputLabel>
-                  <Select {...field} label="Sync Mode">
-                    <MenuItem value="full">Full Sync</MenuItem>
-                    <MenuItem value="incremental">Incremental Sync</MenuItem>
-                  </Select>
-                  <FormHelperText>
-                    {field.value === "full"
-                      ? "Replace all data on each sync"
-                      : "Only sync new or updated records"}
-                  </FormHelperText>
-                </FormControl>
+                        {/* Individual Entity Options */}
+                        <FormGroup sx={{ ml: 2 }}>
+                          {availableEntities.map(entity => (
+                            <FormControlLabel
+                              key={entity}
+                              control={
+                                <Checkbox
+                                  checked={
+                                    selectAllEntities ||
+                                    selectedEntities.includes(entity)
+                                  }
+                                  onChange={e =>
+                                    handleEntityChange(entity, e.target.checked)
+                                  }
+                                  disabled={selectAllEntities}
+                                />
+                              }
+                              label={
+                                <Typography variant="body2">
+                                  {entity}
+                                </Typography>
+                              }
+                            />
+                          ))}
+                        </FormGroup>
+
+                        <Alert
+                          severity={
+                            selectAllEntities || selectedEntities.length > 0
+                              ? "info"
+                              : "warning"
+                          }
+                          sx={{ mt: 2 }}
+                        >
+                          <Typography variant="body2">
+                            {selectAllEntities
+                              ? "All entities will be synced from this data source."
+                              : selectedEntities.length > 0
+                                ? `${selectedEntities.length} of ${availableEntities.length} entities selected for sync.`
+                                : "⚠️ No entities selected. Please select at least one entity or choose 'All Entities' to proceed."}
+                          </Typography>
+                        </Alert>
+                      </Box>
+                    ) : entitiesLoadState === "loaded" ? (
+                      <Alert severity="warning">
+                        No entities available for this data source.
+                      </Alert>
+                    ) : null}
+                  </Box>
+                </>
               )}
-            />
 
-            <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
-              <Controller
-                name="enabled"
-                control={control}
-                render={({ field }) => (
-                  <FormControlLabel
-                    control={
-                      <Switch checked={field.value} onChange={field.onChange} />
+              {/* Schedule Mode */}
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Schedule
+                </Typography>
+                <ToggleButtonGroup
+                  value={scheduleMode}
+                  exclusive
+                  onChange={(e, value) => value && setScheduleMode(value)}
+                  size="small"
+                  sx={{ mb: 2 }}
+                >
+                  <ToggleButton value="preset">Preset</ToggleButton>
+                  <ToggleButton value="custom">Custom</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              {/* Schedule Input and Timezone */}
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <Box sx={{ flex: scheduleMode === "preset" ? 2 : 1.5 }}>
+                  <Controller
+                    name="schedule"
+                    control={control}
+                    rules={{ required: "Schedule is required" }}
+                    render={({ field }) =>
+                      scheduleMode === "preset" ? (
+                        <FormControl fullWidth>
+                          <InputLabel>Schedule Preset</InputLabel>
+                          <Select {...field} label="Schedule Preset">
+                            {SCHEDULE_PRESETS.map(preset => (
+                              <MenuItem key={preset.cron} value={preset.cron}>
+                                {preset.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      ) : (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="Cron Expression"
+                          error={!!errors.schedule}
+                          helperText={
+                            errors.schedule?.message ||
+                            "Format: minute hour day month weekday"
+                          }
+                          placeholder="0 * * * *"
+                        />
+                      )
                     }
-                    label="Enable Job"
                   />
-                )}
-              />
-            </Box>
-          </Stack>
+                </Box>
 
-          {/* Schedule Preview */}
-          <Alert severity="info" icon={<ScheduleIcon />}>
-            <Typography variant="body2">
-              <strong>Schedule:</strong> {getCronDescription(watchSchedule)}
-              {watchTimezone && ` in ${watchTimezone}`}
-            </Typography>
-          </Alert>
-        </Stack>
+                <Box sx={{ flex: 1 }}>
+                  <Controller
+                    name="timezone"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        fullWidth
+                        label="Timezone"
+                        helperText="e.g., America/New_York"
+                      />
+                    )}
+                  />
+                </Box>
+              </Stack>
 
-        {/* Actions */}
-        <Box
-          sx={{
-            mt: 3,
-            display: "flex",
-            gap: 2,
-            justifyContent: "space-between",
-          }}
-        >
-          {/* Delete button on the left */}
-          {!isNewMode && currentJobId && (
-            <Button
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={async () => {
-                if (confirm("Are you sure you want to delete this sync job?")) {
-                  if (currentWorkspace?.id) {
-                    try {
-                      await deleteJob(currentWorkspace.id, currentJobId);
-                      // Close the editor after successful deletion
-                      onCancel?.();
-                    } catch (error) {
-                      console.error("Failed to delete sync job:", error);
-                    }
-                  }
-                }
-              }}
-              disabled={isSubmitting}
-            >
-              Delete
-            </Button>
-          )}
+              {/* Sync Mode and Enabled */}
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <Controller
+                  name="syncMode"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>Sync Mode</InputLabel>
+                      <Select {...field} label="Sync Mode">
+                        <MenuItem value="full">Full Sync</MenuItem>
+                        <MenuItem value="incremental">
+                          Incremental Sync
+                        </MenuItem>
+                      </Select>
+                      <FormHelperText>
+                        {field.value === "full"
+                          ? "Replace all data on each sync"
+                          : "Only sync new or updated records"}
+                      </FormHelperText>
+                    </FormControl>
+                  )}
+                />
 
-          {/* Right-aligned save/cancel buttons */}
-          <Box sx={{ display: "flex", gap: 2, marginLeft: "auto" }}>
-            {onCancel && (
-              <Button onClick={onCancel} disabled={isSubmitting}>
-                Cancel
-              </Button>
-            )}
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={isNewMode ? <AddIcon /> : <SaveIcon />}
-              disabled={isSubmitting}
-            >
-              {isNewMode ? "Create" : "Save"}
-            </Button>
-          </Box>
+                <Box sx={{ display: "flex", alignItems: "center", flex: 1 }}>
+                  <Controller
+                    name="enabled"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={field.value}
+                            onChange={field.onChange}
+                          />
+                        }
+                        label="Enable Job"
+                      />
+                    )}
+                  />
+                </Box>
+              </Stack>
+
+              {/* Schedule Preview */}
+              <Alert severity="info" icon={<ScheduleIcon />}>
+                <Typography variant="body2">
+                  <strong>Schedule:</strong> {getCronDescription(watchSchedule)}
+                  {watchTimezone && ` in ${watchTimezone}`}
+                </Typography>
+              </Alert>
+            </Stack>
+          </form>
         </Box>
-      </form>
+      </Box>
     </Box>
   );
 }

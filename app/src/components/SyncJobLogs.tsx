@@ -9,8 +9,13 @@ import {
   Alert,
   Stack,
   styled,
+  Button,
 } from "@mui/material";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+import {
+  PlayArrow as PlayArrowIcon,
+  EditOutlined as EditIcon,
+} from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { apiClient } from "../lib/api-client";
 
@@ -53,6 +58,8 @@ interface ExecutionHistoryItem {
 
 interface SyncJobLogsProps {
   jobId: string;
+  onRunNow?: () => void;
+  onEdit?: () => void;
 }
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
@@ -66,7 +73,7 @@ const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
   },
 }));
 
-export function SyncJobLogs({ jobId }: SyncJobLogsProps) {
+export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
   const { currentWorkspace } = useWorkspace();
   const [history, setHistory] = useState<ExecutionHistoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
@@ -150,72 +157,117 @@ export function SyncJobLogs({ jobId }: SyncJobLogsProps) {
     <Box
       sx={{
         height: "100%",
-        minHeight: 400,
-        borderTop: "1px solid",
-        borderColor: "divider",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-      <PanelGroup direction="horizontal" style={{ height: "100%" }}>
-        <Panel
-          defaultSize={25}
-          minSize={10}
-          maxSize={50}
-          style={{ overflow: "auto" }}
-        >
-          {isLoading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : history.length === 0 ? (
-            <Typography variant="body2" sx={{ p: 2 }}>
-              No execution history available.
-            </Typography>
-          ) : (
-            <List dense>
-              {history.map((h, idx) => (
-                <ListItemButton
-                  key={idx}
-                  selected={idx === selectedIndex}
-                  onClick={() => setSelectedIndex(idx)}
-                >
-                  <ListItemText
-                    primary={formatDate(h.executedAt)}
-                    secondary={
-                      h.status.charAt(0).toUpperCase() + h.status.slice(1)
-                    }
-                    sx={{
-                      "& .MuiListItemText-primary": {
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      },
-                    }}
-                  />
-                </ListItemButton>
-              ))}
-            </List>
+      {/* Top bar with Run and Edit buttons */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          p: 1,
+          borderBottom: 1,
+          borderColor: "divider",
+          backgroundColor: "background.paper",
+        }}
+      >
+        <Box>
+          {onRunNow && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<PlayArrowIcon fontSize="small" />}
+              onClick={onRunNow}
+            >
+              Run now
+            </Button>
           )}
-        </Panel>
-        <StyledHorizontalResizeHandle />
-        <Panel style={{ padding: 16, overflow: "auto" }}>
-          {selectedHistory ? (
-            <Stack spacing={2}>
-              <Typography variant="subtitle2" color="text.secondary">
-                Run ID: {selectedHistory.executionId}
+          {onEdit && (
+            <Button
+              variant="text"
+              size="small"
+              onClick={onEdit}
+              disableElevation
+              sx={{
+                ml: 1,
+              }}
+              startIcon={<EditIcon fontSize="small" />}
+            >
+              Edit
+            </Button>
+          )}
+        </Box>
+      </Box>
+
+      {/* Main content area */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 400,
+        }}
+      >
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+        <PanelGroup direction="horizontal" style={{ height: "100%" }}>
+          <Panel
+            defaultSize={25}
+            minSize={10}
+            maxSize={50}
+            style={{ overflow: "auto" }}
+          >
+            {isLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : history.length === 0 ? (
+              <Typography variant="body2" sx={{ p: 2 }}>
+                No execution history available.
               </Typography>
-
-              <Typography variant="h6">Execution Details</Typography>
-
-              {(() => {
+            ) : (
+              <List dense>
+                {history.map((h, idx) => (
+                  <ListItemButton
+                    key={idx}
+                    selected={idx === selectedIndex}
+                    onClick={() => setSelectedIndex(idx)}
+                  >
+                    <ListItemText
+                      primary={formatDate(h.executedAt)}
+                      secondary={
+                        h.status.charAt(0).toUpperCase() + h.status.slice(1)
+                      }
+                      sx={{
+                        "& .MuiListItemText-primary": {
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        },
+                      }}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            )}
+          </Panel>
+          <StyledHorizontalResizeHandle />
+          <Panel style={{ padding: 16, overflow: "auto" }}>
+            {selectedHistory ? (
+              (() => {
                 // Use fullExecutionDetails if available, otherwise fall back to selectedHistory
                 const details = fullExecutionDetails || selectedHistory;
                 return (
-                  <>
+                  <Stack spacing={2}>
+                    <Typography variant="subtitle2" color="text.secondary">
+                      Run ID: {selectedHistory.executionId}
+                    </Typography>
+
+                    <Typography variant="h6">Execution Details</Typography>
+
                     {/* Timing Information */}
                     <Box
                       sx={{
@@ -340,41 +392,44 @@ export function SyncJobLogs({ jobId }: SyncJobLogsProps) {
                           <Typography
                             variant="caption"
                             component="pre"
-                            sx={{ whiteSpace: "pre-wrap", fontSize: "0.7rem" }}
+                            sx={{
+                              whiteSpace: "pre-wrap",
+                              fontSize: "0.7rem",
+                            }}
                           >
                             {details.error.stack}
                           </Typography>
                         )}
                       </Alert>
                     )}
-                  </>
-                );
-              })()}
 
-              {logs.length > 0 && (
-                <Box>
-                  <Typography variant="subtitle2">Logs</Typography>
-                  {logs.map((l, idx) => (
-                    <Typography
-                      key={idx}
-                      variant="caption"
-                      component="pre"
-                      sx={{ whiteSpace: "pre-wrap" }}
-                    >
-                      [{new Date(l.timestamp).toLocaleTimeString()}]{" "}
-                      {l.level.toUpperCase()}: {l.message}
-                    </Typography>
-                  ))}
-                </Box>
-              )}
-            </Stack>
-          ) : (
-            <Typography variant="body2">
-              Select a run to view details.
-            </Typography>
-          )}
-        </Panel>
-      </PanelGroup>
+                    {logs.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle2">Logs</Typography>
+                        {logs.map((l, idx) => (
+                          <Typography
+                            key={idx}
+                            variant="caption"
+                            component="pre"
+                            sx={{ whiteSpace: "pre-wrap" }}
+                          >
+                            [{new Date(l.timestamp).toLocaleTimeString()}]{" "}
+                            {l.level.toUpperCase()}: {l.message}
+                          </Typography>
+                        ))}
+                      </Box>
+                    )}
+                  </Stack>
+                );
+              })()
+            ) : (
+              <Typography variant="body2">
+                Select a run to view details.
+              </Typography>
+            )}
+          </Panel>
+        </PanelGroup>
+      </Box>
     </Box>
   );
 }
