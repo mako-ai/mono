@@ -1,7 +1,10 @@
 import { syncConnectorRegistry } from "./connector-registry";
 import { databaseDataSourceManager } from "./database-data-source-manager";
 import { getDestinationManager } from "./destination-manager";
-import { mongoPool, ConnectionConfig } from "../core/mongodb-pool";
+import {
+  databaseConnectionService,
+  ConnectionConfig,
+} from "../services/database-connection.service";
 import { SyncLogger, FetchState } from "../connectors/base/BaseConnector";
 import { Db } from "mongodb";
 import { ProgressReporter } from "./progress-reporter";
@@ -70,7 +73,7 @@ export async function performSyncChunk(
     }
 
     // Get connection from unified pool
-    const connection = await mongoPool.getConnectionById(
+    const connection = await databaseConnectionService.getConnectionById(
       "destination",
       destinationId,
       async (id: string) => {
@@ -80,7 +83,6 @@ export async function performSyncChunk(
         return {
           connectionString: destinationDb.connection.connection_string,
           database: destinationDb.connection.database,
-          encrypted: false,
         } as ConnectionConfig;
       },
     );
@@ -285,7 +287,7 @@ export async function performSync(
     const startTime = Date.now();
 
     // Get connection from unified pool
-    const connection = await mongoPool.getConnectionById(
+    const connection = await databaseConnectionService.getConnectionById(
       "destination",
       destinationId,
       async (id: string) => {
@@ -295,7 +297,6 @@ export async function performSync(
         return {
           connectionString: destinationDb.connection.connection_string,
           database: destinationDb.connection.database,
-          encrypted: false,
         } as ConnectionConfig;
       },
     );

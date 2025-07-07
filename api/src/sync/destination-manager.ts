@@ -1,7 +1,7 @@
 import { Db, ObjectId } from "mongodb";
 import * as crypto from "crypto";
 import * as dotenv from "dotenv";
-import { mongoPool } from "../core/mongodb-pool";
+import { databaseConnectionService } from "../services/database-connection.service";
 
 dotenv.config();
 
@@ -44,11 +44,7 @@ export class DatabaseDestinationManager {
     this.initialize();
 
     // Use the unified pool to get the main database connection
-    const connection = await mongoPool.getConnection("main", "app", {
-      connectionString: process.env.DATABASE_URL!,
-      database: this.databaseName,
-      encrypted: false,
-    });
+    const connection = await databaseConnectionService.getMainConnection();
 
     return connection.db;
   }
