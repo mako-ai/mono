@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { Box, ToggleButton, ToggleButtonGroup, Button } from "@mui/material";
+import { Box } from "@mui/material";
 import { SyncJobForm } from "./SyncJobForm";
 import { SyncJobLogs } from "./SyncJobLogs";
-import { SettingsIcon, LogsIcon } from "lucide-react";
-import { PlayArrow as PlayArrowIcon } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 
@@ -29,6 +27,8 @@ export function SyncJobEditor({
 
   const handleSaved = (newJobId: string) => {
     setCurrentJobId(newJobId);
+    // Switch to logs view after saving
+    setView("logs");
     onSave?.();
   };
 
@@ -38,82 +38,56 @@ export function SyncJobEditor({
     }
   };
 
+  const handleEditClick = () => {
+    setView("settings");
+  };
+
+  const handleCancelEdit = () => {
+    // Only switch back to logs view, don't close the tab
+    setView("logs");
+  };
+
   return (
     <Box
       sx={{
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        position: "relative",
       }}
     >
-      {/* Top row with Run Now button and toggle button group */}
+      {/* Form Component - hidden when not in settings view */}
       <Box
         sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          px: 2,
-          py: 1,
-          borderBottom: 1,
-          borderColor: "divider",
+          height: "100%",
+          display: view === "settings" ? "flex" : "none",
+          flexDirection: "column",
         }}
       >
-        {/* Run Now button on the left */}
-        {!isNew && currentJobId && (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<PlayArrowIcon fontSize="small" />}
-            onClick={handleRunNow}
-            sx={{ minWidth: 100 }}
-          >
-            Run Now
-          </Button>
-        )}
-
-        {/* Toggle button group in the center */}
-        <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
-          <ToggleButtonGroup
-            value={view}
-            exclusive
-            onChange={(e, val) => val && setView(val)}
-            size="small"
-          >
-            <ToggleButton value="settings" sx={{ gap: 0.5 }}>
-              <SettingsIcon size={16} />
-              Settings
-            </ToggleButton>
-            <ToggleButton
-              value="logs"
-              disabled={!currentJobId}
-              sx={{ gap: 0.5 }}
-            >
-              <LogsIcon size={16} />
-              Logs
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        {/* Spacer for right side */}
-        <Box sx={{ minWidth: 100 }} />
+        <SyncJobForm
+          jobId={currentJobId}
+          isNew={isNew && !currentJobId}
+          onSave={onSave}
+          onSaved={handleSaved}
+          onCancel={handleCancelEdit}
+        />
       </Box>
 
-      <Box sx={{ flex: 1, overflow: "auto", position: "relative" }}>
-        {view === "settings" && (
-          <SyncJobForm
+      {/* Logs Component - hidden when not in logs view */}
+      {currentJobId && (
+        <Box
+          sx={{
+            height: "100%",
+            display: view === "logs" ? "flex" : "none",
+            flexDirection: "column",
+          }}
+        >
+          <SyncJobLogs
             jobId={currentJobId}
-            isNew={isNew && !currentJobId}
-            onSave={onSave}
-            onSaved={handleSaved}
-            onCancel={onCancel}
+            onRunNow={handleRunNow}
+            onEdit={handleEditClick}
           />
-        )}
-
-        {view === "logs" && currentJobId && (
-          <SyncJobLogs jobId={currentJobId} />
-        )}
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 }
