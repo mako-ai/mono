@@ -402,6 +402,7 @@ export const syncJobFunction = inngest.createFunction(
                   state,
                   maxIterations: 10, // Run 10 API calls per chunk
                   logger: syncLogger,
+                  step, // Pass Inngest step for serverless-friendly retries
                 });
 
                 logger.info(
@@ -468,6 +469,7 @@ export const syncJobFunction = inngest.createFunction(
               job.entityFilter,
               job.syncMode === "incremental",
               syncLogger,
+              step, // Pass Inngest step for serverless-friendly retries
             );
 
             logger.info("Sync operation completed successfully");
