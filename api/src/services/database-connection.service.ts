@@ -49,13 +49,13 @@ export class DatabaseConnectionService {
   // MongoDB-specific pooling
   private mongoConnections: Map<string, PooledConnection> = new Map();
   private cleanupInterval: NodeJS.Timeout | null = null;
-  private readonly maxIdleTime = 5 * 60 * 1000; // 5 minutes
+  private readonly maxIdleTime = 15 * 60 * 1000; // 15 minutes to be safe
 
   // Default MongoDB connection options
   private readonly defaultMongoOptions: MongoClientOptions = {
     maxPoolSize: 10,
     minPoolSize: 2,
-    maxIdleTimeMS: 30000,
+    maxIdleTimeMS: 900000, // 15 minutes
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 0,
     connectTimeoutMS: 10000,
@@ -289,6 +289,7 @@ export class DatabaseConnectionService {
         );
         await Promise.race([pingPromise, timeoutPromise]);
 
+        // Update last used time since we're actively using this connection
         existing.lastUsed = new Date();
         return { client: existing.client, db: existing.db };
       } catch (error) {
@@ -439,10 +440,15 @@ export class DatabaseConnectionService {
       throw new Error("DATABASE_URL environment variable is not set");
     }
 
-    return this.getMongoConnection("main", "app", {
+    const connection = await this.getMongoConnection("main", "app", {
       connectionString,
       database: databaseName,
     });
+
+    // Wrap the database for automatic usage tracking
+    const key = this.getMongoConnectionKey("main", "app");
+    const wrappedDb = this.wrapDatabaseWithUsageTracking(connection.db, key);
+    return { client: connection.client, db: wrappedDb };
   }
 
   /**
@@ -460,7 +466,10 @@ export class DatabaseConnectionService {
       try {
         await existing.client.db("admin").command({ ping: 1 });
         existing.lastUsed = new Date();
-        return { client: existing.client, db: existing.db };
+
+        // Return wrapped database for automatic usage tracking
+        const wrappedDb = this.wrapDatabaseWithUsageTracking(existing.db, key);
+        return { client: existing.client, db: wrappedDb };
       } catch {
         // Continue to recreate
       }
@@ -472,7 +481,48 @@ export class DatabaseConnectionService {
       throw new Error(`Database '${databaseId}' not found`);
     }
 
-    return this.getMongoConnection(context, databaseId, config);
+    const connection = await this.getMongoConnection(
+      context,
+      databaseId,
+      config,
+    );
+
+    // Wrap the database for automatic usage tracking
+    const wrappedDb = this.wrapDatabaseWithUsageTracking(connection.db, key);
+    return { client: connection.client, db: wrappedDb };
+  }
+
+  /**
+   * Update the last used time for a connection to keep it alive
+   */
+  updateConnectionLastUsed(
+    context: ConnectionContext,
+    identifier: string,
+  ): void {
+    const key = this.getMongoConnectionKey(context, identifier);
+    const connection = this.mongoConnections.get(key);
+    if (connection) {
+      connection.lastUsed = new Date();
+    }
+  }
+
+  /**
+   * Wrap a MongoDB database object with automatic usage tracking
+   * Every time the database is used, it updates the connection's lastUsed timestamp
+   */
+  private wrapDatabaseWithUsageTracking(db: Db, connectionKey: string): Db {
+    return new Proxy(db, {
+      get: (target, prop, receiver) => {
+        // Update lastUsed timestamp whenever any database operation is accessed
+        const connection = this.mongoConnections.get(connectionKey);
+        if (connection) {
+          connection.lastUsed = new Date();
+        }
+
+        // Return the original property/method
+        return Reflect.get(target, prop, receiver);
+      },
+    });
   }
 
   // MongoDB specific methods
