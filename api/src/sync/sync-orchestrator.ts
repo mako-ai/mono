@@ -8,6 +8,7 @@ import {
 import { SyncLogger, FetchState } from "../connectors/base/BaseConnector";
 import { Db } from "mongodb";
 import { ProgressReporter } from "./progress-reporter";
+import axios from "axios";
 
 export interface SyncChunkResult {
   state: FetchState;
@@ -24,6 +25,105 @@ export interface SyncChunkOptions {
   state?: FetchState;
   maxIterations?: number;
   logger?: SyncLogger;
+}
+
+/**
+ * Execute an operation with retry logic
+ */
+async function executeWithRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  logger?: SyncLogger,
+): Promise<T> {
+  let attempts = 0;
+
+  while (attempts <= maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      attempts++;
+
+      if (attempts > maxRetries) {
+        throw error;
+      }
+
+      // Handle rate limiting
+      if (axios.isAxiosError(error) && error.response?.status === 429) {
+        const retryAfter = error.response.headers["retry-after"];
+        const delayMs = retryAfter
+          ? parseInt(retryAfter, 10) * 1000
+          : 1000 * Math.pow(2, attempts);
+        logger?.log(
+          "warn",
+          `Rate limited. Waiting ${delayMs}ms before retry ${attempts}/${maxRetries}`,
+        );
+        await sleep(delayMs);
+      } else if (isRetryableError(error)) {
+        // Exponential backoff for other retryable errors
+        const backoff = 500 * Math.pow(2, attempts);
+        logger?.log(
+          "warn",
+          `Retryable error (${getErrorDescription(error)}). Waiting ${backoff}ms before retry ${attempts}/${maxRetries}`,
+        );
+        await sleep(backoff);
+      } else {
+        // Non-retryable error
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Max retries exceeded");
+}
+
+/**
+ * Check if error is retryable
+ */
+function isRetryableError(error: any): boolean {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) {
+      // Network errors are retryable
+      return true;
+    }
+    // Retry on server errors, rate limiting, and gateway timeouts
+    const status = error.response.status;
+    return status >= 500 || status === 429 || status === 408; // 408 = Request Timeout
+  }
+  return false;
+}
+
+/**
+ * Get human-readable error description
+ */
+function getErrorDescription(error: any): string {
+  if (axios.isAxiosError(error)) {
+    if (!error.response) {
+      return "Network error";
+    }
+    const status = error.response.status;
+    switch (status) {
+      case 500:
+        return "Internal Server Error";
+      case 502:
+        return "Bad Gateway";
+      case 503:
+        return "Service Unavailable";
+      case 504:
+        return "Gateway Timeout";
+      case 408:
+        return "Request Timeout";
+      default:
+        return `HTTP ${status}`;
+    }
+  }
+  return "Unknown error";
+}
+
+/**
+ * Sleep utility function
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /**
@@ -130,42 +230,48 @@ export async function performSyncChunk(
     // Create progress reporter
     const progressReporter = new ProgressReporter(entity, undefined, logger);
 
-    // Fetch chunk from connector
-    const fetchState = await connector.fetchEntityChunk({
-      entity,
-      state,
-      maxIterations,
-      ...(lastSyncDate && { since: lastSyncDate }),
-      onBatch: async batch => {
-        if (batch.length === 0) return;
+    // Fetch chunk from connector with retry logic
+    const maxRetries = dataSource.settings?.max_retries || 3;
+    const fetchState = await executeWithRetry(
+      () =>
+        connector.fetchEntityChunk({
+          entity,
+          state,
+          maxIterations,
+          ...(lastSyncDate && { since: lastSyncDate }),
+          onBatch: async batch => {
+            if (batch.length === 0) return;
 
-        // Add metadata to records
-        const processedRecords = batch.map(record => ({
-          ...record,
-          _dataSourceId: dataSource.id,
-          _dataSourceName: dataSource.name,
-          _syncedAt: new Date(),
-        }));
-
-        // Prepare bulk operations
-        const bulkOps = processedRecords.map(record => ({
-          replaceOne: {
-            filter: {
-              id: record.id,
+            // Add metadata to records
+            const processedRecords = batch.map(record => ({
+              ...record,
               _dataSourceId: dataSource.id,
-            },
-            replacement: record,
-            upsert: true,
-          },
-        }));
+              _dataSourceName: dataSource.name,
+              _syncedAt: new Date(),
+            }));
 
-        // Write to database
-        await collection.bulkWrite(bulkOps, { ordered: false });
-      },
-      onProgress: (current, total) => {
-        progressReporter.reportProgress(current, total);
-      },
-    });
+            // Prepare bulk operations
+            const bulkOps = processedRecords.map(record => ({
+              replaceOne: {
+                filter: {
+                  id: record.id,
+                  _dataSourceId: dataSource.id,
+                },
+                replacement: record,
+                upsert: true,
+              },
+            }));
+
+            // Write to database
+            await collection.bulkWrite(bulkOps, { ordered: false });
+          },
+          onProgress: (current, total) => {
+            progressReporter.reportProgress(current, total);
+          },
+        }),
+      maxRetries,
+      logger,
+    );
 
     const completed = !fetchState.hasMore;
 
@@ -271,8 +377,13 @@ export async function performSync(
       throw new Error(errorMsg);
     }
 
-    // Test connection first
-    const connectionTest = await connector.testConnection();
+    // Test connection first with retry logic
+    const maxRetries = dataSource.settings?.max_retries || 3;
+    const connectionTest = await executeWithRetry(
+      () => connector.testConnection(),
+      maxRetries,
+      logger,
+    );
     if (!connectionTest.success) {
       const errorMsg = `Failed to connect to ${dataSource.type}: ${connectionTest.message}`;
       logger?.log("error", errorMsg, { details: connectionTest.details });
@@ -399,41 +510,47 @@ export async function performSync(
         logger,
       );
 
-      // Fetch data from connector
-      await connector.fetchEntity({
-        entity: entityName,
-        ...(lastSyncDate && { since: lastSyncDate }),
-        onBatch: async batch => {
-          if (batch.length === 0) return;
+      // Fetch data from connector with retry logic
+      const maxRetries = dataSource.settings?.max_retries || 3;
+      await executeWithRetry(
+        () =>
+          connector.fetchEntity({
+            entity: entityName,
+            ...(lastSyncDate && { since: lastSyncDate }),
+            onBatch: async batch => {
+              if (batch.length === 0) return;
 
-          // Add metadata to records
-          const processedRecords = batch.map(record => ({
-            ...record,
-            _dataSourceId: dataSource.id,
-            _dataSourceName: dataSource.name,
-            _syncedAt: new Date(),
-          }));
-
-          // Prepare bulk operations
-          const bulkOps = processedRecords.map(record => ({
-            replaceOne: {
-              filter: {
-                id: record.id,
+              // Add metadata to records
+              const processedRecords = batch.map(record => ({
+                ...record,
                 _dataSourceId: dataSource.id,
-              },
-              replacement: record,
-              upsert: true,
-            },
-          }));
+                _dataSourceName: dataSource.name,
+                _syncedAt: new Date(),
+              }));
 
-          // Write to database
-          await collection.bulkWrite(bulkOps, { ordered: false });
-          recordCount += batch.length;
-        },
-        onProgress: (current, total) => {
-          progressReporter.reportProgress(current, total);
-        },
-      });
+              // Prepare bulk operations
+              const bulkOps = processedRecords.map(record => ({
+                replaceOne: {
+                  filter: {
+                    id: record.id,
+                    _dataSourceId: dataSource.id,
+                  },
+                  replacement: record,
+                  upsert: true,
+                },
+              }));
+
+              // Write to database
+              await collection.bulkWrite(bulkOps, { ordered: false });
+              recordCount += batch.length;
+            },
+            onProgress: (current, total) => {
+              progressReporter.reportProgress(current, total);
+            },
+          }),
+        maxRetries,
+        logger,
+      );
 
       // Complete the progress reporting
       progressReporter.reportComplete();
