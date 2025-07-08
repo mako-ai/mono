@@ -169,7 +169,6 @@ syncJobRoutes.put("/:jobId", async c => {
     }
 
     // Update allowed fields
-    if (body.name) job.name = body.name;
     if (body.schedule) {
       job.schedule = {
         cron: body.schedule.cron || body.schedule,

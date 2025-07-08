@@ -153,35 +153,110 @@ dataSourceRoutes.put("/:id", async c => {
       return c.json({ success: false, error: "Data source not found" }, 404);
     }
 
-    // Update fields
-    if (body.name !== undefined) {
+    // Get the current values (decrypted) for comparison
+    const currentValues = dataSource.toObject();
+
+    // Track if any changes were made
+    let hasChanges = false;
+
+    // Update only fields that have changed
+    if (body.name !== undefined && body.name !== currentValues.name) {
       dataSource.name = body.name;
+      hasChanges = true;
     }
-    if (body.description !== undefined) {
+    if (
+      body.description !== undefined &&
+      body.description !== currentValues.description
+    ) {
       dataSource.description = body.description;
+      hasChanges = true;
     }
-    if (body.config !== undefined) {
-      dataSource.config = body.config;
+    if (body.type !== undefined && body.type !== currentValues.type) {
+      dataSource.type = body.type;
+      hasChanges = true;
     }
-    if (body.settings !== undefined) {
-      dataSource.settings = {
-        ...dataSource.settings,
-        ...body.settings,
-      };
-    }
-    if (body.targetDatabases !== undefined) {
-      dataSource.targetDatabases = body.targetDatabases;
-    }
-    if (body.isActive !== undefined) {
+    if (
+      body.isActive !== undefined &&
+      body.isActive !== currentValues.isActive
+    ) {
       dataSource.isActive = body.isActive;
+      hasChanges = true;
     }
 
-    await dataSource.save();
+    // Handle config updates - only update changed fields
+    if (body.config !== undefined) {
+      const currentConfig = currentValues.config || {};
+      let configChanged = false;
+
+      // Create a new config object starting with current values
+      const newConfig = { ...currentConfig };
+
+      // Only update fields that are different
+      for (const key in body.config) {
+        if (body.config[key] !== currentConfig[key]) {
+          newConfig[key] = body.config[key];
+          configChanged = true;
+        }
+      }
+
+      // Only update config if something changed
+      if (configChanged) {
+        dataSource.config = newConfig;
+        hasChanges = true;
+      }
+    }
+
+    // Handle settings updates - deep comparison
+    if (body.settings !== undefined) {
+      const currentSettings = currentValues.settings || {};
+      let settingsChanged = false;
+
+      const newSettings = { ...currentSettings };
+
+      for (const key in body.settings) {
+        if ((body.settings as any)[key] !== (currentSettings as any)[key]) {
+          (newSettings as any)[key] = (body.settings as any)[key];
+          settingsChanged = true;
+        }
+      }
+
+      if (settingsChanged) {
+        dataSource.settings = newSettings;
+        hasChanges = true;
+      }
+    }
+
+    // Handle targetDatabases array comparison
+    if (body.targetDatabases !== undefined) {
+      const currentTargets = (currentValues.targetDatabases || []).map(id =>
+        id.toString(),
+      );
+      const newTargets = (body.targetDatabases || []).map((id: any) =>
+        id.toString(),
+      );
+
+      // Check if arrays are different
+      const arraysEqual =
+        currentTargets.length === newTargets.length &&
+        currentTargets.every((id, index) => id === newTargets[index]);
+
+      if (!arraysEqual) {
+        dataSource.targetDatabases = body.targetDatabases;
+        hasChanges = true;
+      }
+    }
+
+    // Only save if there were actual changes
+    if (hasChanges) {
+      await dataSource.save();
+    }
 
     return c.json({
       success: true,
       data: dataSource.toObject(),
-      message: "Data source updated successfully",
+      message: hasChanges
+        ? "Data source updated successfully"
+        : "No changes detected",
     });
   } catch (error) {
     return c.json(
