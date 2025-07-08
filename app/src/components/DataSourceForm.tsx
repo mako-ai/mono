@@ -332,27 +332,96 @@ function DataSourceForm({
 
   /** Submit handler */
   const onSubmitInternal = (values: Record<string, any>) => {
-    // Build config from schema fields
+    const { dirtyFields } = form.formState;
+
+    // For new data sources, send all fields
+    const isNewDataSource = !dataSource;
+
+    // Helper function to check if a field or any of its nested fields are dirty
+    const isFieldDirty = (fieldName: string): boolean => {
+      // Direct field check
+      if ((dirtyFields as any)[fieldName]) return true;
+
+      // Check for nested/array fields (e.g., queries.0.name)
+      const fieldPrefix = fieldName + ".";
+      return Object.keys(dirtyFields).some(key => key.startsWith(fieldPrefix));
+    };
+
+    // Build payload with only changed fields
+    const payload: any = {};
+
+    // Always include type for new data sources
+    if (isNewDataSource || dirtyFields.type) {
+      payload.type = values.type;
+    }
+
+    // Include top-level fields only if they're dirty or it's a new data source
+    if (isNewDataSource || dirtyFields.name) {
+      payload.name = values.name;
+    }
+    if (isNewDataSource || dirtyFields.description) {
+      payload.description = values.description;
+    }
+    if (isNewDataSource || dirtyFields.isActive) {
+      payload.isActive = values.isActive;
+    }
+
+    // Build config from schema fields - only include dirty fields
     const config: Record<string, any> = {};
+    let hasConfigChanges = false;
+
     if (schema) {
       schema.fields.forEach(f => {
-        config[f.name] = values[f.name];
+        // Check if this config field is dirty (including nested fields)
+        if (isNewDataSource || isFieldDirty(f.name)) {
+          config[f.name] = values[f.name];
+          hasConfigChanges = true;
+        }
       });
     }
 
-    const payload = {
-      name: values.name,
-      description: values.description,
-      type: values.type,
-      isActive: values.isActive,
-      config,
-      settings: {
-        sync_batch_size: Number(values.settings_sync_batch_size) || 100,
-        rate_limit_delay_ms: Number(values.settings_rate_limit_delay_ms) || 200,
-        max_retries: Number(values.settings_max_retries) || 3,
-        timeout_ms: Number(values.settings_timeout_ms) || 30000,
-      },
-    };
+    // Only include config if there are changes
+    if (hasConfigChanges) {
+      payload.config = config;
+    }
+
+    // Handle settings - check each setting field individually
+    const settings: any = {};
+    let hasSettingsChanges = false;
+
+    const settingsFields = [
+      "settings_sync_batch_size",
+      "settings_rate_limit_delay_ms",
+      "settings_max_retries",
+      "settings_timeout_ms",
+    ];
+
+    settingsFields.forEach(field => {
+      if (isNewDataSource || (dirtyFields as any)[field]) {
+        const key = field.replace("settings_", "");
+        settings[key] =
+          Number(values[field]) ||
+          (field === "settings_sync_batch_size"
+            ? 100
+            : field === "settings_rate_limit_delay_ms"
+              ? 200
+              : field === "settings_max_retries"
+                ? 3
+                : 30000);
+        hasSettingsChanges = true;
+      }
+    });
+
+    // Only include settings if there are changes
+    if (hasSettingsChanges) {
+      payload.settings = settings;
+    }
+
+    // For updates, ensure we're sending at least something
+    if (!isNewDataSource && Object.keys(payload).length === 0) {
+      console.log("No changes detected in form");
+      return;
+    }
 
     onSubmit(payload);
   };

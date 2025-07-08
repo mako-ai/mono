@@ -1,5 +1,10 @@
 import { inngest } from "../client";
-import { SyncJob, ISyncJob } from "../../database/workspace-schema";
+import {
+  SyncJob,
+  ISyncJob,
+  DataSource,
+  Database,
+} from "../../database/workspace-schema";
 import {
   performSync,
   performSyncChunk,
@@ -11,6 +16,24 @@ import { FetchState } from "../../connectors/base/BaseConnector";
 import { Types } from "mongoose";
 import * as os from "os";
 import { CronExpressionParser } from "cron-parser";
+
+// Helper function to get job display name
+async function getJobDisplayName(job: ISyncJob): Promise<string> {
+  try {
+    const [dataSource, database] = await Promise.all([
+      DataSource.findById(job.dataSourceId),
+      Database.findById(job.destinationDatabaseId),
+    ]);
+
+    const sourceName = dataSource?.name || job.dataSourceId.toString();
+    const destName = database?.name || job.destinationDatabaseId.toString();
+
+    return `${sourceName} → ${destName}`;
+  } catch {
+    // Fallback to IDs if lookup fails
+    return `${job.dataSourceId} → ${job.destinationDatabaseId}`;
+  }
+}
 
 // Job execution logging interface
 interface JobExecutionLog {
@@ -250,8 +273,10 @@ export const syncJobFunction = inngest.createFunction(
         );
 
         await executionLogger.start();
+
+        const jobDisplayName = await getJobDisplayName(job);
         logger.info(
-          `Starting job execution for: ${job.name} (jitter applied: ${jitterMs}ms)`,
+          `Starting job execution for: ${jobDisplayName} (jitter applied: ${jitterMs}ms)`,
         );
 
         return executionLogger.getExecutionId();
@@ -548,7 +573,8 @@ export const scheduledSyncJobFunction = inngest.createFunction(
     for (const job of jobs) {
       const shouldRun = await step.run(`check-job-${job._id}`, async () => {
         try {
-          console.log(`\n🔍 Checking job: ${job.name} (${job._id})`);
+          const jobDisplayName = await getJobDisplayName(job);
+          console.log(`\n🔍 Checking job: ${jobDisplayName} (${job._id})`);
           console.log(`   Cron expression: ${job.schedule.cron}`);
           console.log(`   Timezone: ${job.schedule.timezone || "UTC"}`);
           console.log(`   Current time: ${now.toISOString()}`);
@@ -662,7 +688,8 @@ export const scheduledSyncJobFunction = inngest.createFunction(
           data: { jobId: job._id.toString() },
         });
 
-        executedJobs.push(job.name);
+        const jobDisplayName = await getJobDisplayName(job);
+        executedJobs.push(jobDisplayName);
 
         // Increment jitter for next job (0-5 seconds)
         schedulingJitter = Math.floor(Math.random() * 5000);
