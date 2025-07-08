@@ -44,8 +44,6 @@ interface ExecutionHistoryItem {
     destinationDatabaseId?: string;
     syncMode: string;
     entityFilter?: string[];
-    cronExpression?: string;
-    timezone?: string;
   };
   stats?: any;
   logs?: Array<{
@@ -54,6 +52,24 @@ interface ExecutionHistoryItem {
     message: string;
     metadata?: any;
   }>;
+}
+
+interface SyncJobDetails {
+  id: string;
+  description?: any;
+  dataSourceId: string;
+  dataSourceName?: any;
+  destinationDatabaseId?: string;
+  destinationDatabaseName?: any;
+  syncMode: any;
+  entityFilter?: any[];
+  schedule?: {
+    cron: string;
+    timezone?: string;
+  };
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface SyncJobLogsProps {
@@ -82,6 +98,28 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
   const [logs, setLogs] = useState<any[]>([]);
   const [fullExecutionDetails, setFullExecutionDetails] =
     useState<ExecutionHistoryItem | null>(null);
+  const [jobDetails, setJobDetails] = useState<SyncJobDetails | null>(null);
+
+  // Fetch job details
+  useEffect(() => {
+    const fetchJobDetails = async () => {
+      if (!currentWorkspace?.id || !jobId) return;
+      try {
+        const response = await apiClient.get<{
+          success: boolean;
+          data: SyncJobDetails;
+        }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}`);
+
+        if (response.success) {
+          setJobDetails(response.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch job details", err);
+      }
+    };
+
+    fetchJobDetails();
+  }, [currentWorkspace?.id, jobId]);
 
   // Fetch execution history
   useEffect(() => {
@@ -153,6 +191,17 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
     return date.toLocaleString();
   };
 
+  // Helper function to safely extract string values from potentially complex objects
+  const extractStringValue = (value: any, fallback: string = ""): string => {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (value && typeof value === "object" && value.name) {
+      return String(value.name);
+    }
+    return fallback;
+  };
+
   return (
     <Box
       sx={{
@@ -168,8 +217,6 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
           alignItems: "center",
           gap: 1,
           p: 1,
-          borderBottom: 1,
-          borderColor: "divider",
           backgroundColor: "background.paper",
         }}
       >
@@ -200,6 +247,79 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
           )}
         </Box>
       </Box>
+
+      {/* Job Overview */}
+      {jobDetails && (
+        <Box
+          sx={{
+            p: 1,
+            pt: 0,
+            borderBottom: 1,
+            borderColor: "divider",
+            backgroundColor: "background.paper",
+          }}
+        >
+          <Stack spacing={1}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 1,
+              }}
+            >
+              <Typography variant="body2">
+                <strong>Source:</strong>{" "}
+                {extractStringValue(
+                  jobDetails.dataSourceName,
+                  extractStringValue(jobDetails.dataSourceId, "Unknown"),
+                )}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Destination:</strong>{" "}
+                {extractStringValue(
+                  jobDetails.destinationDatabaseName,
+                  extractStringValue(
+                    jobDetails.destinationDatabaseId,
+                    "Default",
+                  ),
+                )}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Sync Mode:</strong>{" "}
+                {extractStringValue(jobDetails.syncMode, "Unknown")}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Status:</strong>{" "}
+                {jobDetails.enabled ? "Active" : "Inactive"}
+              </Typography>
+            </Box>
+            {jobDetails.schedule?.cron && (
+              <Typography variant="body2">
+                <strong>Schedule:</strong>{" "}
+                {extractStringValue(jobDetails.schedule.cron, "")}
+                {jobDetails.schedule.timezone &&
+                  ` (${extractStringValue(jobDetails.schedule.timezone, "")})`}
+              </Typography>
+            )}
+            {jobDetails.entityFilter &&
+              Array.isArray(jobDetails.entityFilter) &&
+              jobDetails.entityFilter.length > 0 && (
+                <Typography variant="body2">
+                  <strong>Entities:</strong>{" "}
+                  {jobDetails.entityFilter
+                    .map(entity => extractStringValue(entity, ""))
+                    .join(", ")}
+                </Typography>
+              )}
+            {jobDetails.description && (
+              <Typography variant="body2">
+                <strong>Description:</strong>{" "}
+                {extractStringValue(jobDetails.description, "")}
+              </Typography>
+            )}
+          </Stack>
+        </Box>
+      )}
 
       {/* Main content area */}
       <Box
@@ -263,10 +383,8 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
                 return (
                   <Stack spacing={2}>
                     <Typography variant="subtitle2" color="text.secondary">
-                      Run ID: {selectedHistory.executionId}
+                      <strong>Run ID:</strong> {selectedHistory.executionId}
                     </Typography>
-
-                    <Typography variant="h6">Execution Details</Typography>
 
                     {/* Timing Information */}
                     <Box
@@ -360,18 +478,6 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
                             <strong>Data Source ID:</strong>{" "}
                             {details.context.dataSourceId}
                           </Typography>
-                          {details.context.cronExpression && (
-                            <Typography variant="body2">
-                              <strong>Cron:</strong>{" "}
-                              {details.context.cronExpression}
-                            </Typography>
-                          )}
-                          {details.context.timezone && (
-                            <Typography variant="body2">
-                              <strong>Timezone:</strong>{" "}
-                              {details.context.timezone}
-                            </Typography>
-                          )}
                         </Box>
                         {details.context.entityFilter &&
                           details.context.entityFilter.length > 0 && (

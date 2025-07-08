@@ -344,7 +344,6 @@ export interface IChat extends Document {
 export interface ISyncJob extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
-  name: string;
   dataSourceId: Types.ObjectId;
   destinationDatabaseId: Types.ObjectId;
   schedule: {
@@ -842,11 +841,6 @@ const SyncJobSchema = new Schema<ISyncJob>(
       type: Schema.Types.ObjectId,
       ref: "Workspace",
       required: true,
-    },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
     },
     dataSourceId: {
       type: Schema.Types.ObjectId,

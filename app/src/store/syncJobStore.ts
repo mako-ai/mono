@@ -20,25 +20,24 @@ const syncJobDestinationSchema = z.object({
 
 const syncJobScheduleSchema = z.object({
   cron: z.string(),
-  timezone: z.string(),
+  timezone: z.string().optional(),
 });
 
 const syncJobSchema = z.object({
   _id: z.string(),
   workspaceId: z.string(),
-  name: z.string(),
   dataSourceId: syncJobDataSourceSchema,
   destinationDatabaseId: syncJobDestinationSchema,
   schedule: syncJobScheduleSchema,
-  entityFilter: z.array(z.string()).optional(),
+  entityFilter: z.array(z.string()).nullable().optional(),
   syncMode: z.enum(["full", "incremental"]),
   enabled: z.boolean(),
-  lastRunAt: z.string().optional(),
-  lastSuccessAt: z.string().optional(),
-  lastError: z.string().optional(),
-  nextRunAt: z.string().optional(),
+  lastRunAt: z.string().nullable().optional(),
+  lastSuccessAt: z.string().nullable().optional(),
+  lastError: z.string().nullable().optional(),
+  nextRunAt: z.string().nullable().optional(),
   runCount: z.number(),
-  avgDurationMs: z.number().optional(),
+  avgDurationMs: z.number().nullable().optional(),
   createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -49,8 +48,8 @@ export type SyncJob = z.infer<typeof syncJobSchema>;
 const syncJobExecutionHistorySchema = z.object({
   executedAt: z.string(),
   success: z.boolean(),
-  error: z.string().optional(),
-  duration: z.number().optional(),
+  error: z.string().nullable().optional(),
+  duration: z.number().nullable().optional(),
 });
 
 export type SyncJobExecutionHistory = z.infer<
@@ -60,8 +59,8 @@ export type SyncJobExecutionHistory = z.infer<
 // Store state schema for validation
 const syncJobStoreStateSchema = z.object({
   jobs: z.record(z.array(syncJobSchema)),
-  loading: z.record(z.boolean()),
-  error: z.record(errorSchema.nullable()),
+  loading: z.record(z.boolean()).optional().default({}),
+  error: z.record(errorSchema.nullable()).optional().default({}),
   selectedJobId: z.string().nullable(),
   executionHistory: z.record(z.array(syncJobExecutionHistorySchema)),
 });
