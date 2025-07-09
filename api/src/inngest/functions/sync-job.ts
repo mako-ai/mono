@@ -89,6 +89,9 @@ class JobExecutionLogger implements SyncLogger {
   private executionId: Types.ObjectId;
   private startTime: Date;
   private logger;
+  private heartbeatInterval?: any; // Use any to avoid TypeScript timer type conflicts
+  private totalRecordsProcessed = 0;
+  private syncedEntities: Set<string> = new Set();
 
   constructor(
     private jobId: Types.ObjectId,
@@ -131,11 +134,30 @@ class JobExecutionLogger implements SyncLogger {
 
     await this.saveExecution(execution);
 
+    // Start heartbeat updates every 30 seconds
+    this.startHeartbeat();
+
     // Log with execution context - this will be picked up by the database sink
     this.log("info", `Job execution started: ${this.context.syncMode} sync`, {
       syncMode: this.context.syncMode,
       dataSourceId: this.context.dataSourceId.toString(),
       destinationDatabaseId: this.context.destinationDatabaseId.toString(),
+    });
+  }
+
+  private startHeartbeat(): void {
+    // Update heartbeat every 30 seconds to prevent the job from being marked as abandoned
+    this.heartbeatInterval = setInterval(() => {
+      // Don't await here to avoid returning a promise in setInterval
+      this.updateHeartbeat().catch(error => {
+        console.error("Failed to update heartbeat:", error);
+      });
+    }, 30000);
+  }
+
+  async updateHeartbeat(): Promise<void> {
+    await this.saveExecution({
+      lastHeartbeat: new Date(),
     });
   }
 
@@ -165,13 +187,34 @@ class JobExecutionLogger implements SyncLogger {
     }
   }
 
+  // Track sync progress
+  trackProgress(entity: string, recordsProcessed: number): void {
+    this.syncedEntities.add(entity);
+    this.totalRecordsProcessed += recordsProcessed;
+  }
+
   async complete(
     success: boolean,
     error?: Error,
     stats?: JobExecution["stats"],
   ): Promise<void> {
+    // Clear heartbeat interval
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
     const completedAt = new Date();
     const duration = completedAt.getTime() - this.startTime.getTime();
+
+    // Use tracked stats if not provided
+    const finalStats = stats || {
+      recordsProcessed: this.totalRecordsProcessed,
+      recordsCreated: this.totalRecordsProcessed, // Approximate for now
+      recordsUpdated: 0,
+      recordsDeleted: 0,
+      recordsFailed: 0,
+      syncedEntities: Array.from(this.syncedEntities),
+    };
 
     const updates: Partial<JobExecution> = {
       completedAt,
@@ -179,7 +222,7 @@ class JobExecutionLogger implements SyncLogger {
       duration,
       status: success ? "completed" : "failed",
       success,
-      stats,
+      stats: finalStats,
     };
 
     if (error) {
@@ -198,6 +241,7 @@ class JobExecutionLogger implements SyncLogger {
       {
         duration,
         success,
+        stats: finalStats,
         ...(error && { error: error.message }),
       },
     );
@@ -242,8 +286,25 @@ export const syncJobFunction = inngest.createFunction(
   async ({ event, step, logger }) => {
     const { jobId } = event.data;
 
-    let executionLogger: JobExecutionLogger | undefined;
+    // Initialize execution logger early and store its ID for recovery
     let executionId: string | undefined;
+    let executionLogger: JobExecutionLogger | undefined;
+
+    // Helper to get or recreate the execution logger
+    const getExecutionLogger = (job: ISyncJob): JobExecutionLogger => {
+      return new JobExecutionLogger(
+        new Types.ObjectId(jobId),
+        new Types.ObjectId(job.workspaceId),
+        {
+          dataSourceId: new Types.ObjectId(job.dataSourceId),
+          destinationDatabaseId: new Types.ObjectId(job.destinationDatabaseId),
+          syncMode: job.syncMode === "incremental" ? "incremental" : "full",
+          entityFilter: job.entityFilter,
+          cronExpression: job.schedule.cron,
+          timezone: job.schedule.timezone || "UTC",
+        },
+      );
+    };
 
     try {
       // Add jitter to prevent thundering herd - random delay 0-60 seconds
@@ -275,33 +336,20 @@ export const syncJobFunction = inngest.createFunction(
       }
 
       // Initialize logger and get execution ID
+      executionLogger = getExecutionLogger(job);
+      const execLogger = executionLogger; // Capture for closure
       executionId = await step.run("initialize-logger", async () => {
-        executionLogger = new JobExecutionLogger(
-          new Types.ObjectId(jobId),
-          new Types.ObjectId(job.workspaceId),
-          {
-            dataSourceId: new Types.ObjectId(job.dataSourceId),
-            destinationDatabaseId: new Types.ObjectId(
-              job.destinationDatabaseId,
-            ),
-            syncMode: job.syncMode === "incremental" ? "incremental" : "full",
-            entityFilter: job.entityFilter,
-            cronExpression: job.schedule.cron,
-            timezone: job.schedule.timezone || "UTC",
-          },
-        );
-
-        await executionLogger.start();
+        await execLogger.start();
 
         const jobDisplayName = await getJobDisplayName(job);
         logger.info("Starting job execution", {
           jobId,
           jobDisplayName,
           jitterApplied: jitterMs,
-          executionId: executionLogger.getExecutionId(),
+          executionId: execLogger.getExecutionId(),
         });
 
-        return executionLogger.getExecutionId();
+        return execLogger.getExecutionId();
       });
 
       // Update job status
@@ -467,6 +515,15 @@ export const syncJobFunction = inngest.createFunction(
                   step, // Pass Inngest step for serverless-friendly retries
                 });
 
+                // Update heartbeat and track progress
+                if (executionLogger) {
+                  await executionLogger.updateHeartbeat();
+                  executionLogger.trackProgress(
+                    entity,
+                    result.state.totalProcessed - (state?.totalProcessed || 0),
+                  );
+                }
+
                 logger.info("Chunk completed", {
                   jobId,
                   entity,
@@ -506,6 +563,17 @@ export const syncJobFunction = inngest.createFunction(
           });
 
           try {
+            // Set up periodic heartbeat updates
+            const heartbeatInterval = setInterval(() => {
+              if (executionLogger) {
+                executionLogger.updateHeartbeat().catch(error => {
+                  logger.warn("Failed to update heartbeat during sync", {
+                    error,
+                  });
+                });
+              }
+            }, 30000); // Update every 30 seconds
+
             // Create a sync logger that wraps Inngest's logger
             const syncLogger: SyncLogger = {
               log: (level: string, message: string, metadata?: any) => {
@@ -522,6 +590,21 @@ export const syncJobFunction = inngest.createFunction(
                     break;
                   case "info":
                     logger.info(message, logData);
+                    // Track progress if this is a completion message
+                    if (
+                      message.includes("sync completed") &&
+                      metadata?.entity &&
+                      executionLogger
+                    ) {
+                      const recordsMatch = message.match(/\((\d+) records\)/);
+                      if (recordsMatch) {
+                        const recordCount = parseInt(recordsMatch[1], 10);
+                        executionLogger.trackProgress(
+                          metadata.entity,
+                          recordCount,
+                        );
+                      }
+                    }
                     break;
                   case "warn":
                     logger.warn(message, logData);
@@ -540,17 +623,22 @@ export const syncJobFunction = inngest.createFunction(
               },
             };
 
-            await performSync(
-              job.dataSourceId.toString(),
-              job.destinationDatabaseId.toString(),
-              job.entityFilter,
-              job.syncMode === "incremental",
-              syncLogger,
-              step, // Pass Inngest step for serverless-friendly retries
-            );
+            try {
+              await performSync(
+                job.dataSourceId.toString(),
+                job.destinationDatabaseId.toString(),
+                job.entityFilter,
+                job.syncMode === "incremental",
+                syncLogger,
+                step, // Pass Inngest step for serverless-friendly retries
+              );
 
-            logger.info("Sync operation completed successfully", { jobId });
-            return { success: true };
+              logger.info("Sync operation completed successfully", { jobId });
+              return { success: true };
+            } finally {
+              // Clear the heartbeat interval
+              clearInterval(heartbeatInterval);
+            }
           } catch (error: any) {
             logger.error("Sync operation failed", {
               jobId,
@@ -578,11 +666,8 @@ export const syncJobFunction = inngest.createFunction(
           executionId,
         });
         if (executionLogger) {
-          await executionLogger.complete(true, undefined, {
-            recordsProcessed: 0,
-            recordsCreated: 0,
-            recordsUpdated: 0,
-          });
+          // Let the execution logger use its tracked stats
+          await executionLogger.complete(true);
         }
       });
 
@@ -594,9 +679,12 @@ export const syncJobFunction = inngest.createFunction(
         stack: error.stack,
       });
 
-      if (executionLogger) {
-        await executionLogger.complete(false, error);
-      }
+      // Complete execution logging in a step to ensure it runs
+      await step.run("complete-execution-error", async () => {
+        if (executionLogger) {
+          await executionLogger.complete(false, error);
+        }
+      });
 
       // Update error status
       await SyncJob.findByIdAndUpdate(jobId, {
