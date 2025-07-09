@@ -1,6 +1,11 @@
 import { Inngest } from "inngest";
+import { configureLogging, LogTapeInngestLogger } from "./logging";
+
+// Configure LogTape on module initialization
+void configureLogging();
 
 export const inngest = new Inngest({
   id: "revops-sync",
   name: "RevOps Sync",
+  logger: new LogTapeInngestLogger(["inngest"]),
 });
