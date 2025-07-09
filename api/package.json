@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.4",
+    "@logtape/logtape": "^1.0.4",
     "@openai/agents": "^0.0.5",
     "arctic": "^3.7.0",
     "axios": "^1.6.2",

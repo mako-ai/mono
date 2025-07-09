@@ -16,6 +16,7 @@ import { FetchState } from "../../connectors/base/BaseConnector";
 import { Types } from "mongoose";
 import * as os from "os";
 import { CronExpressionParser } from "cron-parser";
+import { getExecutionLogger, getSyncLogger } from "../logging";
 
 // Helper function to get job display name
 async function getJobDisplayName(job: ISyncJob): Promise<string> {
@@ -86,8 +87,8 @@ interface JobExecution {
 // Helper class for managing job execution logging
 class JobExecutionLogger implements SyncLogger {
   private executionId: Types.ObjectId;
-  private logs: JobExecutionLog[] = [];
   private startTime: Date;
+  private logger;
 
   constructor(
     private jobId: Types.ObjectId,
@@ -96,6 +97,12 @@ class JobExecutionLogger implements SyncLogger {
   ) {
     this.executionId = new Types.ObjectId();
     this.startTime = new Date();
+    // Use LogTape logger with execution-specific category
+    // All logs from this logger will automatically be stored in database via the sink
+    this.logger = getExecutionLogger(
+      jobId.toString(),
+      this.executionId.toString(),
+    );
   }
 
   // Getter for execution ID
@@ -123,40 +130,38 @@ class JobExecutionLogger implements SyncLogger {
     };
 
     await this.saveExecution(execution);
-    this.log("info", `Job execution started: ${this.context.syncMode} sync`);
+
+    // Log with execution context - this will be picked up by the database sink
+    this.log("info", `Job execution started: ${this.context.syncMode} sync`, {
+      syncMode: this.context.syncMode,
+      dataSourceId: this.context.dataSourceId.toString(),
+      destinationDatabaseId: this.context.destinationDatabaseId.toString(),
+    });
   }
 
   log(level: JobExecutionLog["level"], message: string, metadata?: any): void {
-    const logEntry: JobExecutionLog = {
-      timestamp: new Date(),
-      level,
-      message,
-      metadata,
+    // Log to LogTape with execution context
+    // The database sink will automatically store these logs
+    const logData = {
+      jobId: this.jobId.toString(),
+      executionId: this.executionId.toString(),
+      workspaceId: this.workspaceId.toString(),
+      ...metadata,
     };
 
-    this.logs.push(logEntry);
-
-    // Also log to console
-    const emoji = { debug: "🔍", info: "ℹ️", warn: "⚠️", error: "❌" }[level];
-    console.log(
-      `${emoji} [${this.executionId.toString().slice(-6)}] ${message}`,
-    );
-
-    // Append log to database
-    void this.appendLogToDatabase(logEntry);
-  }
-
-  private async appendLogToDatabase(logEntry: JobExecutionLog): Promise<void> {
-    try {
-      const db = SyncJob.db;
-      const collection = db.collection("job_executions");
-
-      await collection.updateOne({ _id: this.executionId }, {
-        $push: { logs: logEntry },
-        $set: { lastHeartbeat: new Date() },
-      } as any);
-    } catch (error) {
-      console.error("Failed to append log to database:", error);
+    switch (level) {
+      case "debug":
+        this.logger.debug(message, logData);
+        break;
+      case "info":
+        this.logger.info(message, logData);
+        break;
+      case "warn":
+        this.logger.warn(message, logData);
+        break;
+      case "error":
+        this.logger.error(message, logData);
+        break;
     }
   }
 
@@ -190,6 +195,11 @@ class JobExecutionLogger implements SyncLogger {
     this.log(
       "info",
       `Job execution ${success ? "completed" : "failed"} in ${duration}ms`,
+      {
+        duration,
+        success,
+        ...(error && { error: error.message }),
+      },
     );
   }
 
@@ -198,9 +208,15 @@ class JobExecutionLogger implements SyncLogger {
       const db = SyncJob.db;
       const collection = db.collection("job_executions");
 
+      // If we're creating a new execution (has _id in data), use upsert
+      // Otherwise, update the existing execution
       if (data._id) {
-        await collection.insertOne(data as any);
+        // Initial creation - use upsert to ensure document exists
+        await collection.replaceOne({ _id: data._id }, data as any, {
+          upsert: true,
+        });
       } else {
+        // Subsequent updates - update the existing document
         await collection.updateOne({ _id: this.executionId }, {
           $set: data,
         } as any);
@@ -233,7 +249,10 @@ export const syncJobFunction = inngest.createFunction(
       // Add jitter to prevent thundering herd - random delay 0-60 seconds
       const jitterMs = await step.run("apply-jitter", async () => {
         const jitter = Math.floor(Math.random() * 60000);
-        logger.info(`🔄 Executing job ${jobId} (jitter: ${jitter}ms)`);
+        logger.info("Executing job with jitter", {
+          jobId,
+          jitterMs: jitter,
+        });
 
         if (jitter > 0) {
           await new Promise(resolve => setTimeout(resolve, jitter));
@@ -275,9 +294,12 @@ export const syncJobFunction = inngest.createFunction(
         await executionLogger.start();
 
         const jobDisplayName = await getJobDisplayName(job);
-        logger.info(
-          `Starting job execution for: ${jobDisplayName} (jitter applied: ${jitterMs}ms)`,
-        );
+        logger.info("Starting job execution", {
+          jobId,
+          jobDisplayName,
+          jitterApplied: jitterMs,
+          executionId: executionLogger.getExecutionId(),
+        });
 
         return executionLogger.getExecutionId();
       });
@@ -294,22 +316,22 @@ export const syncJobFunction = inngest.createFunction(
         return job.runCount + 1;
       });
 
-      logger.info(`Job run count: ${currentRunCount}`);
+      logger.info("Job run status updated", {
+        jobId,
+        runCount: currentRunCount,
+      });
 
       // Validate sync configuration
       await step.run("validate-sync-config", async () => {
-        logger.info("Validating sync configuration");
-        logger.info(`Sync mode: ${job.syncMode}`);
-        logger.info(`Data source ID: ${job.dataSourceId}`);
-        logger.info(`Destination database ID: ${job.destinationDatabaseId}`);
-        if (job.entityFilter && job.entityFilter.length > 0) {
-          logger.info(`Entity filter: ${job.entityFilter.join(", ")}`);
-        }
+        logger.info("Validating sync configuration", {
+          jobId,
+          syncMode: job.syncMode,
+          dataSourceId: job.dataSourceId.toString(),
+          destinationDatabaseId: job.destinationDatabaseId.toString(),
+          entityFilter: job.entityFilter,
+        });
         return true;
       });
-
-      // Log execution ID
-      logger.info(`Execution ID: ${executionId}`);
 
       // Check if connector supports chunked execution
       const supportsChunking = await step.run(
@@ -331,9 +353,11 @@ export const syncJobFunction = inngest.createFunction(
           }
 
           const supports = connector.supportsResumableFetching();
-          logger.info(
-            `Connector ${dataSource.type} supports chunked execution: ${supports}`,
-          );
+          logger.info("Connector chunking support check", {
+            jobId,
+            connectorType: dataSource.type,
+            supportsChunking: supports,
+          });
           return supports;
         },
       );
@@ -379,7 +403,10 @@ export const syncJobFunction = inngest.createFunction(
 
         // Process each entity with chunked execution
         for (const entity of entitiesToSync) {
-          logger.info(`Starting chunked sync for entity: ${entity}`);
+          logger.info("Starting chunked sync for entity", {
+            jobId,
+            entity,
+          });
 
           let state: FetchState | undefined;
           let chunkIndex = 0;
@@ -389,28 +416,38 @@ export const syncJobFunction = inngest.createFunction(
             const chunkResult = await step.run(
               `sync-${entity}-chunk-${chunkIndex}`,
               async () => {
-                logger.info(
-                  `Executing chunk ${chunkIndex} for entity ${entity}`,
-                );
+                logger.info("Executing chunk", {
+                  jobId,
+                  entity,
+                  chunkIndex,
+                });
 
                 // Create sync logger wrapper
                 const syncLogger: SyncLogger = {
                   log: (level: string, message: string, metadata?: any) => {
+                    const logData = {
+                      jobId,
+                      entity,
+                      chunkIndex,
+                      executionId, // Include executionId for database sink
+                      ...metadata,
+                    };
+
                     switch (level) {
                       case "debug":
-                        logger.debug(message, metadata);
+                        logger.debug(message, logData);
                         break;
                       case "info":
-                        logger.info(message, metadata);
+                        logger.info(message, logData);
                         break;
                       case "warn":
-                        logger.warn(message, metadata);
+                        logger.warn(message, logData);
                         break;
                       case "error":
-                        logger.error(message, metadata);
+                        logger.error(message, logData);
                         break;
                       default:
-                        logger.info(message, metadata);
+                        logger.info(message, logData);
                         break;
                     }
                     if (executionLogger) {
@@ -430,9 +467,13 @@ export const syncJobFunction = inngest.createFunction(
                   step, // Pass Inngest step for serverless-friendly retries
                 });
 
-                logger.info(
-                  `Chunk ${chunkIndex} completed. Processed ${result.state.totalProcessed} records total. Has more: ${!result.completed}`,
-                );
+                logger.info("Chunk completed", {
+                  jobId,
+                  entity,
+                  chunkIndex,
+                  totalProcessed: result.state.totalProcessed,
+                  hasMore: !result.completed,
+                });
 
                 return result;
               },
@@ -450,35 +491,46 @@ export const syncJobFunction = inngest.createFunction(
             }
           }
 
-          logger.info(
-            `✅ Completed chunked sync for entity ${entity} after ${chunkIndex} chunks`,
-          );
+          logger.info("Completed chunked sync for entity", {
+            jobId,
+            entity,
+            totalChunks: chunkIndex,
+          });
         }
       } else {
         // Fall back to non-chunked execution for connectors that don't support it
         await step.run("execute-sync", async () => {
-          logger.info(`Starting ${job.syncMode} sync operation (non-chunked)`);
+          logger.info("Starting non-chunked sync operation", {
+            jobId,
+            syncMode: job.syncMode,
+          });
 
           try {
             // Create a sync logger that wraps Inngest's logger
             const syncLogger: SyncLogger = {
               log: (level: string, message: string, metadata?: any) => {
+                const logData = {
+                  jobId,
+                  executionId, // Include executionId for database sink
+                  ...metadata,
+                };
+
                 // Call specific logger methods directly to avoid dynamic property access issues
                 switch (level) {
                   case "debug":
-                    logger.debug(message, metadata);
+                    logger.debug(message, logData);
                     break;
                   case "info":
-                    logger.info(message, metadata);
+                    logger.info(message, logData);
                     break;
                   case "warn":
-                    logger.warn(message, metadata);
+                    logger.warn(message, logData);
                     break;
                   case "error":
-                    logger.error(message, metadata);
+                    logger.error(message, logData);
                     break;
                   default:
-                    logger.info(message, metadata);
+                    logger.info(message, logData);
                     break;
                 }
                 // Also log to database if executionLogger is available
@@ -497,10 +549,14 @@ export const syncJobFunction = inngest.createFunction(
               step, // Pass Inngest step for serverless-friendly retries
             );
 
-            logger.info("Sync operation completed successfully");
+            logger.info("Sync operation completed successfully", { jobId });
             return { success: true };
           } catch (error: any) {
-            logger.error(`Sync operation failed: ${error.message}`, error);
+            logger.error("Sync operation failed", {
+              jobId,
+              error: error.message,
+              stack: error.stack,
+            });
             throw error;
           }
         });
@@ -508,7 +564,7 @@ export const syncJobFunction = inngest.createFunction(
 
       // Update job success status
       await step.run("update-success-status", async () => {
-        logger.info("Updating job success status");
+        logger.info("Updating job success status", { jobId });
         await SyncJob.findByIdAndUpdate(jobId, {
           lastSuccessAt: new Date(),
           lastError: null,
@@ -517,7 +573,10 @@ export const syncJobFunction = inngest.createFunction(
 
       // Complete execution logging
       await step.run("complete-execution", async () => {
-        logger.info("Completing execution logging");
+        logger.info("Completing execution logging", {
+          jobId,
+          executionId,
+        });
         if (executionLogger) {
           await executionLogger.complete(true, undefined, {
             recordsProcessed: 0,
@@ -529,7 +588,11 @@ export const syncJobFunction = inngest.createFunction(
 
       return { success: true, message: "Sync completed successfully" };
     } catch (error: any) {
-      logger.error(`Job ${jobId} failed:`, error);
+      logger.error("Job failed", {
+        jobId,
+        error: error.message,
+        stack: error.stack,
+      });
 
       if (executionLogger) {
         await executionLogger.complete(false, error);
@@ -552,16 +615,19 @@ export const scheduledSyncJobFunction = inngest.createFunction(
     name: "Run Scheduled Sync Jobs",
   },
   { cron: "*/5 * * * *" }, // Run every 5 minutes to check for jobs to execute
-  async ({ step }) => {
-    console.log(
-      "\n🕐 Scheduled sync job runner triggered at:",
-      new Date().toISOString(),
-    );
+  async ({ step, logger }) => {
+    const scheduleLogger = getSyncLogger("scheduler");
+
+    scheduleLogger.info("Scheduled sync job runner triggered", {
+      timestamp: new Date().toISOString(),
+    });
 
     // Get all enabled sync jobs
     const jobs = (await step.run("fetch-enabled-jobs", async () => {
       const syncJobs = await SyncJob.find({ enabled: true });
-      console.log(`📋 Found ${syncJobs.length} enabled sync jobs`);
+      scheduleLogger.info("Found enabled sync jobs", {
+        count: syncJobs.length,
+      });
       return syncJobs.map(job => job.toObject() as ISyncJob);
     })) as ISyncJob[];
 
@@ -574,19 +640,25 @@ export const scheduledSyncJobFunction = inngest.createFunction(
       const shouldRun = await step.run(`check-job-${job._id}`, async () => {
         try {
           const jobDisplayName = await getJobDisplayName(job);
-          console.log(`\n🔍 Checking job: ${jobDisplayName} (${job._id})`);
-          console.log(`   Cron expression: ${job.schedule.cron}`);
-          console.log(`   Timezone: ${job.schedule.timezone || "UTC"}`);
-          console.log(`   Current time: ${now.toISOString()}`);
+          const jobLogger = getSyncLogger(`scheduler.${job._id}`);
+
+          jobLogger.debug("Checking job", {
+            jobId: job._id.toString(),
+            jobName: jobDisplayName,
+            cronExpression: job.schedule.cron,
+            timezone: job.schedule.timezone || "UTC",
+            currentTime: now.toISOString(),
+          });
 
           // Convert lastRunAt to Date if needed
-          console.log(
-            `   Last run at raw value: ${job.lastRunAt} (type: ${typeof job.lastRunAt})`,
-          );
           const lastRunDate = job.lastRunAt ? new Date(job.lastRunAt) : null;
-          console.log(
-            `   Last run at: ${lastRunDate ? lastRunDate.toISOString() : "Never"}`,
-          );
+
+          jobLogger.debug("Job last run information", {
+            jobId: job._id.toString(),
+            lastRunAt: lastRunDate ? lastRunDate.toISOString() : "Never",
+            lastRunAtRaw: job.lastRunAt,
+            lastRunAtType: typeof job.lastRunAt,
+          });
 
           // Parse cron expression with timezone
           const options = {
@@ -612,15 +684,14 @@ export const scheduledSyncJobFunction = inngest.createFunction(
             // Might fail if there's no previous occurrence
           }
 
-          console.log(`   Next run: ${nextRun.toISOString()}`);
-          if (prevRun) {
-            console.log(`   Previous scheduled run: ${prevRun.toISOString()}`);
-          }
-          console.log(`   Next run timestamp: ${nextRun.getTime()}`);
-          console.log(`   Current timestamp: ${now.getTime()}`);
-          console.log(
-            `   Time until next run: ${nextRun.getTime() - now.getTime()}ms`,
-          );
+          jobLogger.debug("Job schedule analysis", {
+            jobId: job._id.toString(),
+            nextRun: nextRun.toISOString(),
+            previousScheduledRun: prevRun ? prevRun.toISOString() : null,
+            nextRunTimestamp: nextRun.getTime(),
+            currentTimestamp: now.getTime(),
+            timeUntilNextRun: nextRun.getTime() - now.getTime(),
+          });
 
           // Check if the job should have run since the last execution
           const lastRun = lastRunDate || new Date(0);
@@ -629,9 +700,10 @@ export const scheduledSyncJobFunction = inngest.createFunction(
           let missedRun = false;
           if (prevRun && lastRun < prevRun && prevRun <= now) {
             missedRun = true;
-            console.log(
-              `   ⚠️  Missed scheduled run at: ${prevRun.toISOString()}`,
-            );
+            jobLogger.warn("Missed scheduled run", {
+              jobId: job._id.toString(),
+              missedRunTime: prevRun.toISOString(),
+            });
           }
 
           // Alternative logic: Check if enough time has passed since last run
@@ -648,30 +720,33 @@ export const scheduledSyncJobFunction = inngest.createFunction(
             );
             const nextRunFromLastRun = intervalFromLastRun.next().toDate();
             alternativeShouldRun = nextRunFromLastRun <= now;
-            console.log(
-              `   Next run from last run: ${nextRunFromLastRun.toISOString()}`,
-            );
-            console.log(`   Should have run by now: ${alternativeShouldRun}`);
+
+            jobLogger.debug("Alternative schedule check", {
+              jobId: job._id.toString(),
+              nextRunFromLastRun: nextRunFromLastRun.toISOString(),
+              shouldHaveRunByNow: alternativeShouldRun,
+            });
           }
 
           // Original logic (likely always false since nextRun is future)
           const shouldExecute = nextRun <= now && lastRun < nextRun;
 
-          console.log(`   Next run <= now: ${nextRun <= now}`);
-          console.log(`   Last run < next run: ${lastRun < nextRun}`);
-          console.log(`   Should execute (original logic): ${shouldExecute}`);
-          console.log(
-            `   Should execute (alternative logic): ${alternativeShouldRun}`,
-          );
-          console.log(`   Should execute (missed run): ${missedRun}`);
+          jobLogger.debug("Schedule execution decision", {
+            jobId: job._id.toString(),
+            nextRunIsInPast: nextRun <= now,
+            lastRunBeforeNextRun: lastRun < nextRun,
+            shouldExecuteOriginalLogic: shouldExecute,
+            shouldExecuteAlternativeLogic: alternativeShouldRun,
+            shouldExecuteMissedRun: missedRun,
+          });
 
           // Use the alternative logic instead
           return alternativeShouldRun || missedRun;
         } catch (error) {
-          console.error(
-            `Failed to parse cron expression for job ${job._id}:`,
+          logger.error(`Failed to parse cron expression for job ${job._id}`, {
             error,
-          );
+            jobId: job._id.toString(),
+          });
           return false;
         }
       });
@@ -696,12 +771,11 @@ export const scheduledSyncJobFunction = inngest.createFunction(
       }
     }
 
-    console.log("\n✅ Scheduled job runner summary:");
-    console.log(`   Jobs checked: ${jobs.length}`);
-    console.log(`   Jobs executed: ${executedJobs.length}`);
-    if (executedJobs.length > 0) {
-      console.log(`   Executed jobs: ${executedJobs.join(", ")}`);
-    }
+    scheduleLogger.info("Scheduled job runner completed", {
+      jobsChecked: jobs.length,
+      jobsExecuted: executedJobs.length,
+      executedJobs: executedJobs,
+    });
 
     return {
       checked: jobs.length,
@@ -738,7 +812,7 @@ export const cleanupAbandonedJobsFunction = inngest.createFunction(
     name: "Cleanup Abandoned Jobs",
   },
   { cron: "*/15 * * * *" }, // Run every 15 minutes
-  async ({ step }) => {
+  async ({ step, logger }) => {
     const result = await step.run("cleanup-abandoned-jobs", async () => {
       const db = SyncJob.db;
       const now = new Date();
@@ -782,6 +856,11 @@ export const cleanupAbandonedJobsFunction = inngest.createFunction(
           },
         );
         abandonedCount = abandonedExecutions.length;
+
+        logger.warn("Marked abandoned job executions", {
+          count: abandonedCount,
+          executionIds: abandonedExecutions.map(e => e._id.toString()),
+        });
       }
 
       // 2. Clean up stale job locks
@@ -804,7 +883,18 @@ export const cleanupAbandonedJobsFunction = inngest.createFunction(
           _id: { $in: staleLocks.map(lock => lock._id) },
         });
         staleLockCount = staleLocks.length;
+
+        logger.info("Cleaned up stale job locks", {
+          count: staleLockCount,
+          lockIds: staleLocks.map(l => l._id.toString()),
+        });
       }
+
+      logger.info("Cleanup abandoned jobs completed", {
+        abandonedExecutions: abandonedCount,
+        staleLocks: staleLockCount,
+        timestamp: now.toISOString(),
+      });
 
       return {
         abandonedExecutions: abandonedCount,
