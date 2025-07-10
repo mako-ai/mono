@@ -332,6 +332,11 @@ export const syncJobFunction = inngest.createFunction(
   async ({ event, step, logger }) => {
     const { jobId, noJitter } = event.data;
 
+    logger.info("Sync job function started", {
+      jobId,
+      eventData: event.data,
+    });
+
     // Initialize execution ID for tracking
     let executionId: string | undefined;
 
@@ -800,14 +805,27 @@ export const syncJobFunction = inngest.createFunction(
       logger.error("Job failed", {
         jobId,
         error: error.message,
+        errorName: error.name,
+        errorCode: error.code,
         stack: error.stack,
       });
 
-      // Check if this is a cancellation
+      // Check if this is a cancellation from Inngest
       const isCancelled =
         error.name === "InngestFunctionCancelledError" ||
+        error.name === "FunctionCancelledError" ||
+        error.code === "FUNCTION_CANCELLED" ||
         error.message?.includes("cancelled") ||
-        error.message?.includes("canceled");
+        error.message?.includes("canceled") ||
+        error.message?.includes("Function cancelled");
+
+      logger.info("Error analysis", {
+        jobId,
+        errorName: error.name,
+        errorCode: error.code,
+        errorMessage: error.message,
+        isCancelled,
+      });
 
       // Complete execution logging in a step to ensure it runs
       await step.run("complete-execution-error", async () => {
@@ -1081,84 +1099,64 @@ export const manualSyncJobFunction = inngest.createFunction(
   },
 );
 
-// Cancel running job function
+// Cancel running job function - updates the database when cancel is requested
 export const cancelSyncJobFunction = inngest.createFunction(
   {
     id: "cancel-sync-job",
     name: "Cancel Running Sync Job",
   },
   { event: "sync/job.cancel" },
-  async ({ event, step, logger }) => {
-    const { jobId } = event.data;
+  async ({ event, logger }) => {
+    const { jobId, executionId } = event.data;
 
-    logger.info("Job cancellation requested", {
+    logger.info("Processing cancel request", {
       jobId,
+      executionId,
     });
 
-    // Update the running execution to cancelled status
-    await step.run("update-execution-to-cancelled", async () => {
-      try {
-        const db = SyncJob.db;
-        const collection = db.collection("job_executions");
+    // Update the execution status to cancelled
+    // Inngest will stop the function between steps, but we need to update the DB
+    try {
+      const db = SyncJob.db;
+      const collection = db.collection("job_executions");
 
-        // Find the running execution
-        const runningExecution = await collection.findOne({
-          jobId: new Types.ObjectId(jobId),
-          status: "running",
-        });
-
-        if (runningExecution) {
-          const now = new Date();
-          const duration =
-            now.getTime() - new Date(runningExecution.startedAt).getTime();
-
-          // Update to cancelled
-          const result = await collection.updateOne(
-            { _id: runningExecution._id },
-            {
-              $set: {
-                completedAt: now,
-                lastHeartbeat: now,
-                duration,
-                status: "cancelled",
-                success: false,
-                error: {
-                  message: "Job execution cancelled by user",
-                  code: "USER_CANCELLED",
-                },
+      if (executionId) {
+        const result = await collection.updateOne(
+          {
+            _id: new Types.ObjectId(executionId),
+            status: "running", // Only update if still running
+          },
+          {
+            $set: {
+              completedAt: new Date(),
+              lastHeartbeat: new Date(),
+              status: "cancelled",
+              success: false,
+              error: {
+                message: "Job execution cancelled by user",
+                code: "USER_CANCELLED",
               },
             },
-          );
+          },
+        );
 
-          if (result.modifiedCount > 0) {
-            logger.info("Job execution marked as cancelled", {
-              jobId,
-              executionId: runningExecution._id.toString(),
-            });
-          } else {
-            logger.warn("Failed to update execution status", {
-              jobId,
-              executionId: runningExecution._id.toString(),
-            });
-          }
-        } else {
-          logger.warn("No running execution found to cancel", {
-            jobId,
-          });
-        }
-      } catch (error) {
-        logger.error("Error updating execution status", {
+        logger.info("Database update result", {
           jobId,
-          error: error instanceof Error ? error.message : String(error),
+          executionId,
+          modified: result.modifiedCount,
         });
       }
-    });
+    } catch (error) {
+      logger.error("Failed to update execution status", {
+        jobId,
+        executionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
-    // The cancelOn configuration in the main sync job function will handle
-    // actually stopping the function execution
     return {
       success: true,
-      message: "Cancellation request processed",
+      message: "Cancel request processed",
     };
   },
 );
