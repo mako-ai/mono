@@ -89,7 +89,6 @@ class JobExecutionLogger implements SyncLogger {
   private executionId: Types.ObjectId;
   private startTime: Date;
   private logger;
-  private heartbeatInterval?: any; // Use any to avoid TypeScript timer type conflicts
   private totalRecordsProcessed = 0;
   private syncedEntities: Set<string> = new Set();
 
@@ -122,7 +121,7 @@ class JobExecutionLogger implements SyncLogger {
       lastHeartbeat: new Date(),
       status: "running",
       success: false,
-      logs: [],
+      // Don't initialize logs field - let LogTape handle it via the database sink
       context: this.context,
       system: {
         workerId: `inngest-${os.hostname()}-${process.pid}`,
@@ -134,9 +133,6 @@ class JobExecutionLogger implements SyncLogger {
 
     await this.saveExecution(execution);
 
-    // Start heartbeat updates every 30 seconds
-    this.startHeartbeat();
-
     // Log with execution context - this will be picked up by the database sink
     this.log("info", `Job execution started: ${this.context.syncMode} sync`, {
       syncMode: this.context.syncMode,
@@ -145,14 +141,17 @@ class JobExecutionLogger implements SyncLogger {
     });
   }
 
-  private startHeartbeat(): void {
-    // Update heartbeat every 30 seconds to prevent the job from being marked as abandoned
-    this.heartbeatInterval = setInterval(() => {
-      // Don't await here to avoid returning a promise in setInterval
-      this.updateHeartbeat().catch(error => {
-        console.error("Failed to update heartbeat:", error);
-      });
-    }, 30000);
+  // Check if this execution already exists in the database
+  async exists(): Promise<boolean> {
+    try {
+      const db = SyncJob.db;
+      const collection = db.collection("job_executions");
+      const existing = await collection.findOne({ _id: this.executionId });
+      return !!existing;
+    } catch (error) {
+      console.error("Failed to check job execution existence:", error);
+      return false;
+    }
   }
 
   async updateHeartbeat(): Promise<void> {
@@ -190,7 +189,10 @@ class JobExecutionLogger implements SyncLogger {
   // Track sync progress
   trackProgress(entity: string, recordsProcessed: number): void {
     this.syncedEntities.add(entity);
-    this.totalRecordsProcessed += recordsProcessed;
+    // Only add positive record counts (handle -1 case from custom_fields)
+    if (recordsProcessed > 0) {
+      this.totalRecordsProcessed += recordsProcessed;
+    }
   }
 
   async complete(
@@ -198,11 +200,6 @@ class JobExecutionLogger implements SyncLogger {
     error?: Error,
     stats?: JobExecution["stats"],
   ): Promise<void> {
-    // Clear heartbeat interval
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-    }
-
     const completedAt = new Date();
     const duration = completedAt.getTime() - this.startTime.getTime();
 
@@ -261,12 +258,55 @@ class JobExecutionLogger implements SyncLogger {
         });
       } else {
         // Subsequent updates - update the existing document
-        await collection.updateOne({ _id: this.executionId }, {
-          $set: data,
-        } as any);
+        // Ensure we're using the ObjectId type consistently
+        const filter = { _id: this.executionId };
+        const update = { $set: data };
+
+        console.log(`Updating job execution:`, {
+          executionId: this.executionId.toString(),
+          filter,
+          updateFields: Object.keys(data),
+        });
+
+        const result = await collection.updateOne(filter, update);
+
+        // Log if update didn't find the document
+        if (result.matchedCount === 0) {
+          // Check if document exists with string ID
+          const existsWithStringId = await collection.findOne({
+            _id: this.executionId.toString(),
+          } as any);
+          if (existsWithStringId) {
+            console.error(
+              `Job execution found with string ID instead of ObjectId: ${this.executionId}`,
+            );
+          }
+
+          console.error(
+            `Failed to update job execution - document not found with _id: ${this.executionId}`,
+          );
+          throw new Error(
+            `Job execution document not found: ${this.executionId}`,
+          );
+        }
+
+        // Log successful updates for debugging
+        if (data.status || data.completedAt) {
+          console.log(`Job execution ${this.executionId} updated:`, {
+            status: data.status,
+            completedAt: data.completedAt,
+            success: data.success,
+            modifiedCount: result.modifiedCount,
+          });
+        }
       }
     } catch (error) {
-      console.error("Failed to save job execution:", error);
+      console.error("Failed to save job execution:", error, {
+        executionId: this.executionId.toString(),
+        updateData: data,
+      });
+      // Re-throw the error so it can be handled properly
+      throw error;
     }
   }
 }
@@ -281,18 +321,23 @@ export const syncJobFunction = inngest.createFunction(
       key: "event.data.jobId", // Prevent duplicate executions of the same job
     },
     retries: 2,
+    cancelOn: [
+      {
+        event: "sync/job.cancel",
+        if: "async.data.jobId == event.data.jobId",
+      },
+    ],
   },
   { event: "sync/job.execute" },
   async ({ event, step, logger }) => {
-    const { jobId } = event.data;
+    const { jobId, noJitter } = event.data;
 
-    // Initialize execution logger early and store its ID for recovery
+    // Initialize execution ID for tracking
     let executionId: string | undefined;
-    let executionLogger: JobExecutionLogger | undefined;
 
-    // Helper to get or recreate the execution logger
+    // Helper to create the execution logger
     const getExecutionLogger = (job: ISyncJob): JobExecutionLogger => {
-      return new JobExecutionLogger(
+      const logger = new JobExecutionLogger(
         new Types.ObjectId(jobId),
         new Types.ObjectId(job.workspaceId),
         {
@@ -304,11 +349,20 @@ export const syncJobFunction = inngest.createFunction(
           timezone: job.schedule.timezone || "UTC",
         },
       );
+      return logger;
     };
 
     try {
       // Add jitter to prevent thundering herd - random delay 0-60 seconds
+      // Skip jitter if noJitter flag is set
       const jitterMs = await step.run("apply-jitter", async () => {
+        if (noJitter) {
+          logger.info("Skipping jitter", {
+            jobId,
+          });
+          return 0;
+        }
+
         const jitter = Math.floor(Math.random() * 60000);
         logger.info("Executing job with jitter", {
           jobId,
@@ -336,9 +390,8 @@ export const syncJobFunction = inngest.createFunction(
       }
 
       // Initialize logger and get execution ID
-      executionLogger = getExecutionLogger(job);
-      const execLogger = executionLogger; // Capture for closure
       executionId = await step.run("initialize-logger", async () => {
+        const execLogger = getExecutionLogger(job);
         await execLogger.start();
 
         const jobDisplayName = await getJobDisplayName(job);
@@ -347,10 +400,13 @@ export const syncJobFunction = inngest.createFunction(
           jobDisplayName,
           jitterApplied: jitterMs,
           executionId: execLogger.getExecutionId(),
+          triggerType: noJitter ? "manual" : "scheduled",
         });
 
         return execLogger.getExecutionId();
       });
+
+      // We have the execution ID, no need to store the logger
 
       // Update job status
       const currentRunCount = await step.run("update-job-status", async () => {
@@ -380,6 +436,9 @@ export const syncJobFunction = inngest.createFunction(
         });
         return true;
       });
+
+      // Variable to track entities synced
+      let syncedEntities: string[] = [];
 
       // Check if connector supports chunked execution
       const supportsChunking = await step.run(
@@ -449,6 +508,9 @@ export const syncJobFunction = inngest.createFunction(
           },
         );
 
+        // Track the entities we're syncing
+        syncedEntities = entitiesToSync;
+
         // Process each entity with chunked execution
         for (const entity of entitiesToSync) {
           logger.info("Starting chunked sync for entity", {
@@ -498,9 +560,8 @@ export const syncJobFunction = inngest.createFunction(
                         logger.info(message, logData);
                         break;
                     }
-                    if (executionLogger) {
-                      executionLogger.log(level as any, message, metadata);
-                    }
+                    // Log to execution logger is handled by LogTape database sink
+                    // No need to manually log here
                   },
                 };
 
@@ -515,13 +576,22 @@ export const syncJobFunction = inngest.createFunction(
                   step, // Pass Inngest step for serverless-friendly retries
                 });
 
-                // Update heartbeat and track progress
-                if (executionLogger) {
-                  await executionLogger.updateHeartbeat();
-                  executionLogger.trackProgress(
-                    entity,
-                    result.state.totalProcessed - (state?.totalProcessed || 0),
-                  );
+                // Update heartbeat after chunk completes (not during)
+                if (executionId) {
+                  try {
+                    const db = SyncJob.db;
+                    const collection = db.collection("job_executions");
+                    await collection.updateOne(
+                      { _id: new Types.ObjectId(executionId) },
+                      { $set: { lastHeartbeat: new Date() } },
+                    );
+                  } catch (error) {
+                    logger.warn("Failed to update heartbeat", {
+                      executionId,
+                      error:
+                        error instanceof Error ? error.message : String(error),
+                    });
+                  }
                 }
 
                 logger.info("Chunk completed", {
@@ -531,6 +601,19 @@ export const syncJobFunction = inngest.createFunction(
                   totalProcessed: result.state.totalProcessed,
                   hasMore: !result.completed,
                 });
+
+                // Log completion message when entity sync is done
+                if (result.completed) {
+                  logger.info(
+                    `✅ ${entity} sync completed (${result.state.totalProcessed} records)`,
+                    {
+                      jobId,
+                      entity,
+                      chunkIndex,
+                      executionId,
+                    },
+                  );
+                }
 
                 return result;
               },
@@ -557,23 +640,26 @@ export const syncJobFunction = inngest.createFunction(
       } else {
         // Fall back to non-chunked execution for connectors that don't support it
         await step.run("execute-sync", async () => {
+          // For non-chunked sync, we need to get the entities
+          const dataSource = await databaseDataSourceManager.getDataSource(
+            job.dataSourceId.toString(),
+          );
+          if (dataSource) {
+            const connector =
+              await syncConnectorRegistry.getConnector(dataSource);
+            if (connector) {
+              syncedEntities =
+                job.entityFilter && job.entityFilter.length > 0
+                  ? job.entityFilter
+                  : connector.getAvailableEntities();
+            }
+          }
           logger.info("Starting non-chunked sync operation", {
             jobId,
             syncMode: job.syncMode,
           });
 
           try {
-            // Set up periodic heartbeat updates
-            const heartbeatInterval = setInterval(() => {
-              if (executionLogger) {
-                executionLogger.updateHeartbeat().catch(error => {
-                  logger.warn("Failed to update heartbeat during sync", {
-                    error,
-                  });
-                });
-              }
-            }, 30000); // Update every 30 seconds
-
             // Create a sync logger that wraps Inngest's logger
             const syncLogger: SyncLogger = {
               log: (level: string, message: string, metadata?: any) => {
@@ -590,21 +676,7 @@ export const syncJobFunction = inngest.createFunction(
                     break;
                   case "info":
                     logger.info(message, logData);
-                    // Track progress if this is a completion message
-                    if (
-                      message.includes("sync completed") &&
-                      metadata?.entity &&
-                      executionLogger
-                    ) {
-                      const recordsMatch = message.match(/\((\d+) records\)/);
-                      if (recordsMatch) {
-                        const recordCount = parseInt(recordsMatch[1], 10);
-                        executionLogger.trackProgress(
-                          metadata.entity,
-                          recordCount,
-                        );
-                      }
-                    }
+                    // Track progress is handled by LogTape database sink
                     break;
                   case "warn":
                     logger.warn(message, logData);
@@ -616,29 +688,21 @@ export const syncJobFunction = inngest.createFunction(
                     logger.info(message, logData);
                     break;
                 }
-                // Also log to database if executionLogger is available
-                if (executionLogger) {
-                  executionLogger.log(level as any, message, metadata);
-                }
+                // Log to database is handled by LogTape database sink
               },
             };
 
-            try {
-              await performSync(
-                job.dataSourceId.toString(),
-                job.destinationDatabaseId.toString(),
-                job.entityFilter,
-                job.syncMode === "incremental",
-                syncLogger,
-                step, // Pass Inngest step for serverless-friendly retries
-              );
+            await performSync(
+              job.dataSourceId.toString(),
+              job.destinationDatabaseId.toString(),
+              job.entityFilter,
+              job.syncMode === "incremental",
+              syncLogger,
+              step, // Pass Inngest step for serverless-friendly retries
+            );
 
-              logger.info("Sync operation completed successfully", { jobId });
-              return { success: true };
-            } finally {
-              // Clear the heartbeat interval
-              clearInterval(heartbeatInterval);
-            }
+            logger.info("Sync operation completed successfully", { jobId });
+            return { success: true };
           } catch (error: any) {
             logger.error("Sync operation failed", {
               jobId,
@@ -665,9 +729,69 @@ export const syncJobFunction = inngest.createFunction(
           jobId,
           executionId,
         });
-        if (executionLogger) {
-          // Let the execution logger use its tracked stats
-          await executionLogger.complete(true);
+        if (executionId) {
+          try {
+            const db = SyncJob.db;
+            const collection = db.collection("job_executions");
+            const completedAt = new Date();
+
+            // Update the execution to completed
+            const result = await collection.updateOne(
+              { _id: new Types.ObjectId(executionId) },
+              {
+                $set: {
+                  completedAt,
+                  lastHeartbeat: completedAt,
+                  status: "completed",
+                  success: true,
+                  stats: {
+                    recordsProcessed: 0, // This would need to be calculated from chunks
+                    recordsCreated: 0,
+                    recordsUpdated: 0,
+                    recordsDeleted: 0,
+                    recordsFailed: 0,
+                    syncedEntities: syncedEntities || [],
+                  },
+                },
+              },
+            );
+
+            if (result.matchedCount === 0) {
+              throw new Error(
+                `Failed to update execution to completed: ${executionId}`,
+              );
+            }
+
+            // Calculate duration after update
+            const execution = await collection.findOne({
+              _id: new Types.ObjectId(executionId),
+            });
+            if (execution && execution.startedAt) {
+              const duration =
+                completedAt.getTime() - new Date(execution.startedAt).getTime();
+              await collection.updateOne(
+                { _id: new Types.ObjectId(executionId) },
+                { $set: { duration } },
+              );
+
+              logger.info("Execution completed successfully", {
+                jobId,
+                executionId,
+                duration,
+              });
+            }
+          } catch (error) {
+            logger.error("Failed to complete execution logging", {
+              jobId,
+              executionId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            throw error; // Re-throw to ensure the step fails
+          }
+        } else {
+          logger.warn("No execution ID available to complete", {
+            jobId,
+          });
         }
       });
 
@@ -679,17 +803,78 @@ export const syncJobFunction = inngest.createFunction(
         stack: error.stack,
       });
 
+      // Check if this is a cancellation
+      const isCancelled =
+        error.name === "InngestFunctionCancelledError" ||
+        error.message?.includes("cancelled") ||
+        error.message?.includes("canceled");
+
       // Complete execution logging in a step to ensure it runs
       await step.run("complete-execution-error", async () => {
-        if (executionLogger) {
-          await executionLogger.complete(false, error);
+        if (executionId) {
+          try {
+            const db = SyncJob.db;
+            const collection = db.collection("job_executions");
+            const completedAt = new Date();
+
+            // Calculate duration from the document's startedAt
+            const execution = await collection.findOne({
+              _id: new Types.ObjectId(executionId),
+            });
+            if (execution) {
+              const duration =
+                completedAt.getTime() - new Date(execution.startedAt).getTime();
+
+              // Update the execution to failed or cancelled
+              await collection.updateOne(
+                { _id: new Types.ObjectId(executionId) },
+                {
+                  $set: {
+                    completedAt,
+                    lastHeartbeat: completedAt,
+                    duration,
+                    status: isCancelled ? "cancelled" : "failed",
+                    success: false,
+                    error: {
+                      message: isCancelled
+                        ? "Job execution cancelled by user"
+                        : error.message,
+                      stack: isCancelled ? undefined : error.stack,
+                      code: isCancelled
+                        ? "USER_CANCELLED"
+                        : (error as any).code,
+                    },
+                  },
+                },
+              );
+            }
+
+            logger.info("Error execution logging completed", {
+              jobId,
+              executionId,
+              status: isCancelled ? "cancelled" : "failed",
+            });
+          } catch (completeError) {
+            logger.error("Failed to complete error execution logging", {
+              jobId,
+              executionId,
+              originalError: error.message,
+              completeError:
+                completeError instanceof Error
+                  ? completeError.message
+                  : String(completeError),
+            });
+            // Don't re-throw here, we want the original error to propagate
+          }
         }
       });
 
-      // Update error status
-      await SyncJob.findByIdAndUpdate(jobId, {
-        lastError: error.message || "Unknown error",
-      });
+      // Update error status (unless cancelled)
+      if (!isCancelled) {
+        await SyncJob.findByIdAndUpdate(jobId, {
+          lastError: error.message || "Unknown error",
+        });
+      }
 
       throw error;
     }
@@ -845,7 +1030,7 @@ export const scheduledSyncJobFunction = inngest.createFunction(
           await step.sleep(`scheduling-jitter-${job._id}`, schedulingJitter);
         }
 
-        // Trigger the sync job
+        // Trigger the sync job (without noJitter flag, so jitter will be applied)
         await step.sendEvent(`trigger-job-${job._id}`, {
           name: "sync/job.execute",
           data: { jobId: job._id.toString() },
@@ -883,13 +1068,98 @@ export const manualSyncJobFunction = inngest.createFunction(
   async ({ event, step }) => {
     const { jobId } = event.data;
 
-    // Trigger the sync job
+    // Trigger the sync job with noJitter flag
     await step.sendEvent("trigger-sync-job", {
       name: "sync/job.execute",
-      data: { jobId },
+      data: {
+        jobId,
+        noJitter: true, // Skip jitter for manual execution
+      },
     });
 
     return { success: true, message: `Triggered sync job: ${jobId}` };
+  },
+);
+
+// Cancel running job function
+export const cancelSyncJobFunction = inngest.createFunction(
+  {
+    id: "cancel-sync-job",
+    name: "Cancel Running Sync Job",
+  },
+  { event: "sync/job.cancel" },
+  async ({ event, step, logger }) => {
+    const { jobId } = event.data;
+
+    logger.info("Job cancellation requested", {
+      jobId,
+    });
+
+    // Update the running execution to cancelled status
+    await step.run("update-execution-to-cancelled", async () => {
+      try {
+        const db = SyncJob.db;
+        const collection = db.collection("job_executions");
+
+        // Find the running execution
+        const runningExecution = await collection.findOne({
+          jobId: new Types.ObjectId(jobId),
+          status: "running",
+        });
+
+        if (runningExecution) {
+          const now = new Date();
+          const duration =
+            now.getTime() - new Date(runningExecution.startedAt).getTime();
+
+          // Update to cancelled
+          const result = await collection.updateOne(
+            { _id: runningExecution._id },
+            {
+              $set: {
+                completedAt: now,
+                lastHeartbeat: now,
+                duration,
+                status: "cancelled",
+                success: false,
+                error: {
+                  message: "Job execution cancelled by user",
+                  code: "USER_CANCELLED",
+                },
+              },
+            },
+          );
+
+          if (result.modifiedCount > 0) {
+            logger.info("Job execution marked as cancelled", {
+              jobId,
+              executionId: runningExecution._id.toString(),
+            });
+          } else {
+            logger.warn("Failed to update execution status", {
+              jobId,
+              executionId: runningExecution._id.toString(),
+            });
+          }
+        } else {
+          logger.warn("No running execution found to cancel", {
+            jobId,
+          });
+        }
+      } catch (error) {
+        logger.error("Error updating execution status", {
+          jobId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    // The cancelOn configuration in the main sync job function will handle
+    // actually stopping the function execution
+    return {
+      success: true,
+      message: "Cancellation request processed",
+    };
   },
 );
 

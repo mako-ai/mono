@@ -15,6 +15,7 @@ import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import {
   PlayArrow as PlayArrowIcon,
   EditOutlined as EditIcon,
+  Stop as StopIcon,
 } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { apiClient } from "../lib/api-client";
@@ -25,7 +26,7 @@ interface ExecutionHistoryItem {
   startedAt?: string;
   lastHeartbeat?: string;
   completedAt?: string;
-  status: "running" | "completed" | "failed" | "canceled";
+  status: "running" | "completed" | "failed" | "cancelled" | "abandoned";
   success: boolean;
   error?: {
     message: string;
@@ -99,6 +100,103 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
   const [fullExecutionDetails, setFullExecutionDetails] =
     useState<ExecutionHistoryItem | null>(null);
   const [jobDetails, setJobDetails] = useState<SyncJobDetails | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [runningExecutionId, setRunningExecutionId] = useState<string | null>(
+    null,
+  );
+
+  // Function to check job running status
+  const checkJobStatus = async () => {
+    if (!currentWorkspace?.id || !jobId) return;
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        data: {
+          isRunning: boolean;
+          runningExecution: {
+            executionId: string;
+            startedAt: string;
+            lastHeartbeat: string;
+          } | null;
+        };
+      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/status`);
+
+      if (response.success) {
+        setIsRunning(response.data.isRunning);
+        setRunningExecutionId(
+          response.data.runningExecution?.executionId || null,
+        );
+      }
+    } catch (err) {
+      console.error("Failed to check job status", err);
+    }
+  };
+
+  // Function to cancel running job
+  const handleCancel = async () => {
+    if (!currentWorkspace?.id || !jobId) return;
+    try {
+      const response = await apiClient.post<{
+        success: boolean;
+        message: string;
+      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/cancel`);
+
+      if (response.success) {
+        // Wait a moment then refresh status
+        setTimeout(() => {
+          checkJobStatus();
+          // Refresh history to show cancelled execution
+          fetchHistory();
+        }, 1000);
+      } else {
+        setError("Failed to cancel job");
+      }
+    } catch (err) {
+      console.error("Failed to cancel job", err);
+      setError("Failed to cancel job execution");
+    }
+  };
+
+  // Function to handle run/cancel button click
+  const handleButtonClick = () => {
+    if (isRunning) {
+      handleCancel();
+    } else if (onRunNow) {
+      onRunNow();
+      // Start checking status after triggering run
+      setTimeout(() => {
+        checkJobStatus();
+        fetchHistory();
+      }, 1000);
+    }
+  };
+
+  // Function to fetch history
+  const fetchHistory = async () => {
+    if (!currentWorkspace?.id || !jobId) return;
+    setIsLoading(true);
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        data: {
+          history: ExecutionHistoryItem[];
+        };
+      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/history`, {
+        limit: "100",
+      });
+
+      if (response.success) {
+        setHistory(response.data.history || []);
+      } else {
+        setError("Failed to load history");
+      }
+    } catch (err) {
+      console.error("Failed to fetch execution history", err);
+      setError("Failed to load execution history");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Fetch job details
   useEffect(() => {
@@ -121,35 +219,18 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
     fetchJobDetails();
   }, [currentWorkspace?.id, jobId]);
 
-  // Fetch execution history
+  // Fetch execution history and check status
   useEffect(() => {
-    const fetchHistory = async () => {
-      if (!currentWorkspace?.id || !jobId) return;
-      setIsLoading(true);
-      try {
-        const response = await apiClient.get<{
-          success: boolean;
-          data: {
-            history: ExecutionHistoryItem[];
-          };
-        }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/history`, {
-          limit: "100",
-        });
-
-        if (response.success) {
-          setHistory(response.data.history || []);
-        } else {
-          setError("Failed to load history");
-        }
-      } catch (err) {
-        console.error("Failed to fetch execution history", err);
-        setError("Failed to load execution history");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchHistory();
+    checkJobStatus();
+
+    // Set up polling for status
+    const interval = setInterval(() => {
+      checkJobStatus();
+      fetchHistory();
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
   }, [currentWorkspace?.id, jobId]);
 
   const selectedHistory =
@@ -223,12 +304,19 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
         <Box>
           {onRunNow && (
             <Button
-              variant="outlined"
+              variant={isRunning ? "contained" : "outlined"}
               size="small"
-              startIcon={<PlayArrowIcon fontSize="small" />}
-              onClick={onRunNow}
+              startIcon={
+                isRunning ? (
+                  <StopIcon fontSize="small" />
+                ) : (
+                  <PlayArrowIcon fontSize="small" />
+                )
+              }
+              onClick={handleButtonClick}
+              color={isRunning ? "error" : "primary"}
             >
-              Run now
+              {isRunning ? "Cancel" : "Run now"}
             </Button>
           )}
           {onEdit && (
@@ -359,7 +447,26 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
                     <ListItemText
                       primary={formatDate(h.executedAt)}
                       secondary={
-                        h.status.charAt(0).toUpperCase() + h.status.slice(1)
+                        <Typography
+                          variant="caption"
+                          color={
+                            h.status === "running"
+                              ? "primary"
+                              : h.status === "completed"
+                                ? "success.main"
+                                : h.status === "failed"
+                                  ? "error.main"
+                                  : h.status === "cancelled"
+                                    ? "warning.main"
+                                    : h.status === "abandoned"
+                                      ? "text.secondary"
+                                      : "text.secondary"
+                          }
+                        >
+                          {h.status.charAt(0).toUpperCase() + h.status.slice(1)}
+                          {h.status === "running" && " 🔄"}
+                          {h.status === "abandoned" && " ⚠️"}
+                        </Typography>
                       }
                       sx={{
                         "& .MuiListItemText-primary": {
