@@ -1,8 +1,9 @@
 import { inngest } from "./client";
-import { 
-  syncJobFunction, 
-  scheduledSyncJobFunction, 
+import {
+  syncJobFunction,
+  scheduledSyncJobFunction,
   manualSyncJobFunction,
+  cancelSyncJobFunction,
   cleanupAbandonedJobsFunction,
 } from "./functions/sync-job";
 
@@ -11,14 +12,16 @@ export const functions = [
   syncJobFunction,
   scheduledSyncJobFunction,
   manualSyncJobFunction,
+  cancelSyncJobFunction,
   cleanupAbandonedJobsFunction,
 ];
 
 // Re-export for named imports
 export { inngest };
-export { 
-  syncJobFunction, 
-  scheduledSyncJobFunction, 
+export {
+  syncJobFunction,
+  scheduledSyncJobFunction,
   manualSyncJobFunction,
+  cancelSyncJobFunction,
   cleanupAbandonedJobsFunction,
 };

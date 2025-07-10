@@ -370,6 +370,8 @@ syncJobRoutes.post("/:jobId/cancel", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
     const jobId = c.req.param("jobId");
+    const body = await c.req.json().catch(() => ({}));
+    const { executionId } = body;
 
     // Verify job exists and belongs to workspace
     const job = await SyncJob.findOne({
@@ -381,20 +383,26 @@ syncJobRoutes.post("/:jobId/cancel", async c => {
       return c.json({ success: false, error: "Sync job not found" }, 404);
     }
 
-    // Find running execution
-    const runningExecution = await JobExecution.findOne({
-      jobId: new Types.ObjectId(jobId),
-      workspaceId: new Types.ObjectId(workspaceId),
-      status: "running",
-    })
-      .sort({ startedAt: -1 })
-      .lean();
+    let executionIdToCancel = executionId;
 
-    if (!runningExecution) {
-      return c.json(
-        { success: false, error: "No running execution found" },
-        404,
-      );
+    // If no executionId provided, find the running execution
+    if (!executionIdToCancel) {
+      const runningExecution = await JobExecution.findOne({
+        jobId: new Types.ObjectId(jobId),
+        workspaceId: new Types.ObjectId(workspaceId),
+        status: "running",
+      })
+        .sort({ startedAt: -1 })
+        .lean();
+
+      if (!runningExecution) {
+        return c.json(
+          { success: false, error: "No running execution found" },
+          404,
+        );
+      }
+
+      executionIdToCancel = runningExecution._id.toString();
     }
 
     // Trigger cancellation via Inngest
@@ -402,6 +410,7 @@ syncJobRoutes.post("/:jobId/cancel", async c => {
       name: "sync/job.cancel",
       data: {
         jobId: job._id.toString(),
+        executionId: executionIdToCancel,
       },
     });
 
@@ -410,7 +419,7 @@ syncJobRoutes.post("/:jobId/cancel", async c => {
       message: "Cancellation request sent successfully",
       data: {
         jobId: job._id,
-        executionId: runningExecution._id,
+        executionId: executionIdToCancel,
         eventId,
       },
     });

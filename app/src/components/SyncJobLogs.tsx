@@ -139,7 +139,9 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
       const response = await apiClient.post<{
         success: boolean;
         message: string;
-      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/cancel`);
+      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/cancel`, {
+        executionId: runningExecutionId, // Pass the executionId if available
+      });
 
       if (response.success) {
         // Wait a moment then refresh status
