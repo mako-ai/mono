@@ -14,10 +14,23 @@ import {
   MenuItem,
   FormControl,
   Tooltip,
+  IconButton,
+  Divider,
+  Badge,
 } from "@mui/material";
-import { PlayArrow, SaveOutlined } from "@mui/icons-material";
+import {
+  PlayArrow,
+  SaveOutlined,
+  Undo,
+  Redo,
+  History,
+} from "@mui/icons-material";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
+import {
+  useMonacoConsole,
+  ConsoleModification,
+} from "../hooks/useMonacoConsole";
 
 interface Database {
   id: string;
@@ -44,6 +57,8 @@ interface ConsoleProps {
   initialDatabaseId?: string;
   onDatabaseChange?: (databaseId: string) => void;
   filePath?: string;
+  onHistoryClick?: () => void;
+  enableVersionControl?: boolean;
 }
 
 export interface ConsoleRef {
@@ -52,6 +67,11 @@ export interface ConsoleRef {
     fileName?: string;
     language?: string;
   };
+  applyModification: (modification: ConsoleModification) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
@@ -67,11 +87,28 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     initialDatabaseId,
     onDatabaseChange,
     filePath,
+    onHistoryClick,
+    enableVersionControl = false,
   } = props;
 
   const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { effectiveMode } = useTheme();
+
+  // Use the Monaco console hook for version management
+  const {
+    setEditor,
+    applyModification,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    getHistory,
+    saveUserEdit,
+    isApplyingModification,
+  } = useMonacoConsole({
+    onContentChange: enableVersionControl ? onContentChange : undefined,
+  });
 
   // Keep refs of the latest callbacks to avoid stale closures in Monaco commands
   const onExecuteRef = useRef(onExecute);
@@ -258,6 +295,11 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
       editorRef.current = editor;
+      
+      // Connect editor to version management if enabled
+      if (enableVersionControl) {
+        setEditor(editor);
+      }
 
       // CMD/CTRL + Enter execution support
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -298,6 +340,21 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         });
       }
 
+      // Version control keyboard shortcuts
+      if (enableVersionControl) {
+        // Override default undo/redo to use our version system
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
+          undo();
+        });
+
+        editor.addCommand(
+          monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
+          () => {
+            redo();
+          },
+        );
+      }
+
       // Auto-focus the editor when it mounts
       editor.focus();
 
@@ -312,18 +369,34 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         });
       }
     },
-    [filePath], // Remove onExecute and onSave from dependencies since we're using refs
+    [filePath, enableVersionControl, setEditor, undo, redo], // Remove onExecute and onSave from dependencies since we're using refs
   );
 
   // Debounced content change notification for persistence (zustand + localStorage)
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
       // Skip if this is a programmatic update (to prevent feedback loops)
-      if (isProgrammaticUpdateRef.current) {
+      if (isProgrammaticUpdateRef.current || isApplyingModification.current) {
         return;
       }
 
-      if (onContentChange) {
+      const content = value || "";
+
+      // Save user edit to version history if version control is enabled
+      if (enableVersionControl && content !== lastInitialContentRef.current) {
+        // Clear existing timeout
+        if (debounceTimeoutRef.current) {
+          clearTimeout(debounceTimeoutRef.current);
+        }
+
+        // Debounce saving user edits to avoid too many versions
+        debounceTimeoutRef.current = setTimeout(() => {
+          saveUserEdit(content, "User edit");
+        }, 1000); // 1 second debounce for version saves
+      }
+
+      // Normal content change callback
+      if (onContentChange && !enableVersionControl) {
         const content = value || "";
 
         // Clear existing timeout
@@ -337,7 +410,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         }, 500); // 500ms debounce for persistence
       }
     },
-    [onContentChange],
+    [onContentChange, enableVersionControl, saveUserEdit, isApplyingModification],
   );
 
   const handleExecute = useCallback(() => {
@@ -380,8 +453,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           language: "javascript",
         };
       },
+      applyModification,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
     }),
-    [getCurrentEditorContent, title],
+    [getCurrentEditorContent, title, applyModification, undo, redo, canUndo, canRedo],
   );
 
   return (
@@ -396,7 +474,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           gap: 1,
         }}
       >
-        <Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Button
             variant="contained"
             size="small"
@@ -429,6 +507,56 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                 <SaveOutlined />
               </Button>
             </Tooltip>
+          )}
+
+          {enableVersionControl && (
+            <>
+              <Divider orientation="vertical" flexItem />
+              
+              <Tooltip title="Undo (⌘/Ctrl+Z)">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={undo}
+                    disabled={!canUndo}
+                    sx={{ p: 0.5 }}
+                  >
+                    <Undo fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              <Tooltip title="Redo (⌘/Ctrl+Shift+Z)">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={redo}
+                    disabled={!canRedo}
+                    sx={{ p: 0.5 }}
+                  >
+                    <Redo fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+
+              {onHistoryClick && (
+                <Tooltip title="Version History">
+                  <IconButton
+                    size="small"
+                    onClick={onHistoryClick}
+                    sx={{ p: 0.5 }}
+                  >
+                    <Badge
+                      badgeContent={getHistory().length}
+                      color="primary"
+                      max={99}
+                    >
+                      <History fontSize="small" />
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
           )}
         </Box>
 

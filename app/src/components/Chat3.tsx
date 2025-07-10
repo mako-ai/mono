@@ -355,7 +355,11 @@ const MessageItem = React.memo(
 
 MessageItem.displayName = "MessageItem";
 
-const Chat3: React.FC = () => {
+interface Chat3Props {
+  onConsoleModification?: (modification: any) => void;
+}
+
+const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
   const { currentWorkspace } = useWorkspace();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -557,7 +561,7 @@ const Chat3: React.FC = () => {
           try {
             const parsed = JSON.parse(data);
 
-            // Handle different event types (only text and session for now)
+            // Handle different event types
             if (parsed.type === "text") {
               assistantContent += parsed.content;
               setStreamingContent(assistantContent);
@@ -569,6 +573,11 @@ const Chat3: React.FC = () => {
               !sessionId
             ) {
               setSessionId(parsed.sessionId);
+            } else if (parsed.type === "console_modification" && parsed.modification) {
+              // Handle console modification event
+              if (onConsoleModification) {
+                onConsoleModification(parsed.modification);
+              }
             }
           } catch (_) {
             /* ignore */
