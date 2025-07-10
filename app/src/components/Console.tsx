@@ -73,6 +73,19 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { effectiveMode } = useTheme();
 
+  // Keep refs of the latest callbacks to avoid stale closures in Monaco commands
+  const onExecuteRef = useRef(onExecute);
+  const onSaveRef = useRef(onSave);
+
+  // Update refs whenever the callbacks change
+  useEffect(() => {
+    onExecuteRef.current = onExecute;
+  }, [onExecute]);
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
   // Only track the initial content for resetting the editor when needed
   const [editorKey, setEditorKey] = useState(0);
 
@@ -264,19 +277,23 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           textToExecute = model.getValue();
         }
 
-        // Execute directly with current database, avoiding stale closures
+        // Execute directly with current database and current onExecute callback
         if (textToExecute.trim()) {
-          onExecute(textToExecute, selectedDatabaseIdRef.current || undefined);
+          onExecuteRef.current(
+            textToExecute,
+            selectedDatabaseIdRef.current || undefined,
+          );
         }
       });
 
       // CMD/CTRL + S save support (if onSave is provided)
       if (onSave) {
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-          if (onSave) {
+          const currentOnSave = onSaveRef.current;
+          if (currentOnSave) {
             const currentEditor = editorRef.current;
             const content = currentEditor?.getModel()?.getValue() || "";
-            onSave(content, filePath);
+            currentOnSave(content, filePath);
           }
         });
       }
@@ -295,7 +312,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         });
       }
     },
-    [onExecute, onSave, filePath],
+    [filePath], // Remove onExecute and onSave from dependencies since we're using refs
   );
 
   // Debounced content change notification for persistence (zustand + localStorage)

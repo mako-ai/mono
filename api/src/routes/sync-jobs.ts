@@ -315,6 +315,117 @@ syncJobRoutes.post("/:jobId/run", async c => {
   }
 });
 
+// GET /api/workspaces/:workspaceId/sync-jobs/:jobId/status - Check if job is running
+syncJobRoutes.get("/:jobId/status", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+
+    // Verify job exists and belongs to workspace
+    const job = await SyncJob.findOne({
+      _id: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    });
+
+    if (!job) {
+      return c.json({ success: false, error: "Sync job not found" }, 404);
+    }
+
+    // Check for running executions
+    const runningExecution = await JobExecution.findOne({
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+      status: "running",
+    })
+      .sort({ startedAt: -1 })
+      .lean();
+
+    return c.json({
+      success: true,
+      data: {
+        isRunning: !!runningExecution,
+        runningExecution: runningExecution
+          ? {
+              executionId: runningExecution._id,
+              startedAt: runningExecution.startedAt,
+              lastHeartbeat: runningExecution.lastHeartbeat,
+            }
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error("Error checking sync job status:", error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
+
+// POST /api/workspaces/:workspaceId/sync-jobs/:jobId/cancel - Cancel running job
+syncJobRoutes.post("/:jobId/cancel", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+
+    // Verify job exists and belongs to workspace
+    const job = await SyncJob.findOne({
+      _id: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    });
+
+    if (!job) {
+      return c.json({ success: false, error: "Sync job not found" }, 404);
+    }
+
+    // Find running execution
+    const runningExecution = await JobExecution.findOne({
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+      status: "running",
+    })
+      .sort({ startedAt: -1 })
+      .lean();
+
+    if (!runningExecution) {
+      return c.json(
+        { success: false, error: "No running execution found" },
+        404,
+      );
+    }
+
+    // Trigger cancellation via Inngest
+    const eventId = await inngest.send({
+      name: "sync/job.cancel",
+      data: {
+        jobId: job._id.toString(),
+      },
+    });
+
+    return c.json({
+      success: true,
+      message: "Cancellation request sent successfully",
+      data: {
+        jobId: job._id,
+        executionId: runningExecution._id,
+        eventId,
+      },
+    });
+  } catch (error) {
+    console.error("Error cancelling sync job:", error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      },
+      500,
+    );
+  }
+});
+
 // GET /api/workspaces/:workspaceId/sync-jobs/:jobId/history - Get execution history
 syncJobRoutes.get("/:jobId/history", async c => {
   try {
