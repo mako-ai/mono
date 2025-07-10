@@ -278,11 +278,56 @@ const createWorkspaceTools = (workspaceId: string) => {
       inspectCollection(input.databaseId, input.collectionName, workspaceId),
   });
 
+  const modifyConsoleTool = tool({
+    name: "modify_console",
+    description:
+      "Modify the MongoDB query in the console editor. Use this to update, replace, or insert queries in the user's console.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["replace", "insert", "append"],
+          description:
+            "How to modify the console content. Use 'replace' to set the entire content, 'append' to add to the end, or 'insert' to add at a specific position.",
+        },
+        content: {
+          type: "string",
+          description: "The MongoDB query code to add to the console",
+        },
+        position: {
+          type: "object",
+          description:
+            "Position for insert action (optional). If not provided for insert, will insert at cursor position.",
+          properties: {
+            line: { type: "number", description: "1-based line number" },
+            column: { type: "number", description: "1-based column number" },
+          },
+        },
+      },
+      required: ["action", "content"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) => {
+      // Just return the modification parameters - the actual console modification
+      // will be handled on the frontend via SSE events
+      return {
+        success: true,
+        modification: {
+          action: input.action,
+          content: input.content,
+          position: input.position,
+        },
+      };
+    },
+  });
+
   return [
     listDatabasesTool,
     listCollectionsTool,
     inspectCollectionTool,
     executeQueryTool,
+    modifyConsoleTool,
   ];
 };
 
@@ -293,7 +338,7 @@ const createWorkspaceTools = (workspaceId: string) => {
 const createDbAgent = (workspaceId: string) =>
   new Agent({
     name: "Database Assistant",
-    instructions: `You are an expert MongoDB assistant.
+    instructions: `You are an expert MongoDB assistant with direct access to the user's query console.
   Your goal is to help the user write MongoDB queries (mostly aggregation) to answer their questions.
   Use the available tools to inspect the available databases, list their collections, inspect collections schemas and execute queries.
   Your process should be:
@@ -302,20 +347,30 @@ const createDbAgent = (workspaceId: string) =>
   3. Inspect the collections to understand the schema
   4. Write a MongoDB query to answer the question, be careful not to return too many results.
   5. Test the query by executing it and reading results, unless instructed otherwise.
-  6. Send the query back to the user in the chat.
+  6. Use the modify_console tool to place the query in the user's console editor.
+  7. Explain what the query does in your response.
+
   If you aren't sure, ask clarifying questions before proceeding.
 
-  Always send the full query back to the user, but always test it yourself first, unless instructed otherwise.
+  Always test the query yourself first, unless instructed otherwise.
   Always wrap your code in a markdown code block with the language set to "javascript" or "json" depending on which it is.
   Always add a comment at the top of the query with the database to be used.
   Always add a limit to the query to avoid returning too many results (500 is a good default).
   When doing markdown tables, make sure that they are valid and that there is enough newlines before and after the table.
   When responding, prefer concise, clear explanations.
+
+  When users ask you to:
+  - "Write a query" → Use modify_console with 'replace' action to set the entire console content
+  - "Add to my query" → Use modify_console with 'append' action to add to existing content  
+  - "Fix my query" → Use modify_console with 'replace' action with the corrected version
+  - "Insert at line X" → Use modify_console with 'insert' action with position
+
   The available tools are:
     - list_databases: List all active MongoDB databases that the system knows about.
     - list_collections: List all collections for the provided database identifier.
     - execute_query: Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.
     - inspect_collection: Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.
+    - modify_console: Modify the MongoDB query in the console editor. Use this to update, replace, or insert queries in the user's console.
 
     | Requirement                      | Do ✓                                                                                                    | Don't ✗                                          |
     | -------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
@@ -512,6 +567,24 @@ agentRoutes.post("/stream", async c => {
                 name: `tool_output:${toolName}`,
                 status: "completed",
               });
+
+              // Check if this is a modify_console tool output
+              if (toolName === "modify_console" && item.output) {
+                try {
+                  const outputData = typeof item.output === "string" 
+                    ? JSON.parse(item.output) 
+                    : item.output;
+                  
+                  if (outputData?.success && outputData?.modification) {
+                    sendEvent({
+                      type: "console_modification",
+                      modification: outputData.modification,
+                    });
+                  }
+                } catch (e) {
+                  console.error("Failed to parse modify_console output:", e);
+                }
+              }
             }
 
             if (itemEvent.name === "message_output_created") {

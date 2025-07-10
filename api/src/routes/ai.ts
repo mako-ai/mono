@@ -76,6 +76,35 @@ const chatTools: any[] = [
       required: ["query", "databaseId"],
     },
   },
+  {
+    type: "function",
+    name: "modify_console",
+    description:
+      "Modify the MongoDB query in the console editor. Use this to update, replace, or insert queries in the user's console.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["replace", "insert", "append"],
+          description: "How to modify the console content. Use 'replace' to set the entire content, 'append' to add to the end, or 'insert' to add at a specific position.",
+        },
+        content: {
+          type: "string",
+          description: "The MongoDB query code to add to the console",
+        },
+        position: {
+          type: "object",
+          description: "Position for insert action (optional). If not provided for insert, will insert at cursor position.",
+          properties: {
+            line: { type: "number", description: "1-based line number" },
+            column: { type: "number", description: "1-based column number" },
+          },
+        },
+      },
+      required: ["action", "content"],
+    },
+  },
 ];
 
 // --- Helper functions that implement the tools ----
@@ -144,6 +173,24 @@ const executeToolCall = async (fc: any) => {
         );
         console.log("PARSED ARGS", parsedArgs);
         console.log("RESULT", result);
+        break;
+      case "modify_console":
+        if (!parsedArgs.action) {
+          throw new Error("'action' is required");
+        }
+        if (!parsedArgs.content) {
+          throw new Error("'content' is required");
+        }
+        // Just return the modification parameters - the actual console modification
+        // will be handled on the frontend via SSE events
+        result = {
+          success: true,
+          modification: {
+            action: parsedArgs.action,
+            content: parsedArgs.content,
+            position: parsedArgs.position,
+          },
+        };
         break;
       default:
         result = { error: `Unknown function: ${fc.name}` };
@@ -251,11 +298,25 @@ aiRoutes.post("/chat/stream", async c => {
       );
     }
 
-    const conversation = messages.map(m => ({
-      role: m.role,
-      type: "message",
-      content: m.content,
-    }));
+    // Add system prompt to guide the agent on using the modify_console tool
+    const systemPrompt = `You are a MongoDB query assistant with direct access to the user's query console. 
+
+When users ask you to:
+- "Write a query" → Use 'replace' action to set the entire console content
+- "Add to my query" → Use 'append' action to add to existing content  
+- "Fix my query" → Use 'replace' with the corrected version
+- "Insert at line X" → Use 'insert' action with position
+
+Always explain what the query does after modifying the console. Be concise but helpful.`;
+
+    const conversation = [
+      { role: "system", type: "message", content: systemPrompt },
+      ...messages.map(m => ({
+        role: m.role,
+        type: "message",
+        content: m.content,
+      })),
+    ];
 
     const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const encoder = new TextEncoder();
@@ -384,6 +445,14 @@ aiRoutes.post("/chat/stream", async c => {
                 });
 
                 const result = await executeToolCall(fc);
+
+                // Send special event for console modifications
+                if (fc.name === "modify_console" && result.success) {
+                  sendEvent({
+                    type: "console_modification",
+                    modification: result.modification,
+                  });
+                }
 
                 toolOutputs.push({
                   type: "function_call_output",
