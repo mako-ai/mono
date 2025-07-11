@@ -15,6 +15,7 @@ import { AuthWrapper } from "./components/AuthWrapper";
 import { AcceptInvite } from "./components/AcceptInvite";
 import { WorkspaceProvider } from "./contexts/workspace-context";
 import { ConsoleModification } from "./hooks/useMonacoConsole";
+import { generateObjectId } from "./utils/objectId";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -49,19 +50,48 @@ function MainApp() {
     useConsoleStore();
 
   // Handle console modification from AI
-  const handleConsoleModification = (modification: ConsoleModification) => {
+  const handleConsoleModification = async (
+    modification: ConsoleModification,
+  ) => {
     console.log("App handleConsoleModification called with:", modification);
-    console.log("Active console ID:", activeConsoleId);
 
-    if (activeConsoleId) {
-      // Dispatch a custom event that the Editor component can listen to
-      const event = new CustomEvent("console-modification", {
-        detail: { consoleId: activeConsoleId, modification },
-      });
-      window.dispatchEvent(event);
-    } else {
-      console.error("No active console to modify");
+    // Always use the active console - this is what users expect
+    // When they ask the AI to modify a console, they mean the one they're looking at
+    let targetConsoleId = activeConsoleId;
+    let isNewConsole = false;
+
+    if (!targetConsoleId) {
+      // If no active console, try to open one
+      if (consoleTabs.length > 0) {
+        // Focus the first available console
+        targetConsoleId = consoleTabs[0].id;
+        setActiveConsole(targetConsoleId);
+      } else {
+        // Create a new console if none exist
+        isNewConsole = true;
+        const id = addConsoleTab({
+          title: "AI Query",
+          content: "",
+          initialContent: "",
+        });
+        targetConsoleId = id;
+        setActiveConsole(id);
+      }
     }
+
+    // If we just created a new console, wait a bit for it to mount
+    if (isNewConsole) {
+      console.log("New console created, waiting for mount...");
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    console.log("Using console ID for modification:", targetConsoleId);
+
+    // Dispatch a custom event that the Editor component can listen to
+    const event = new CustomEvent("console-modification", {
+      detail: { consoleId: targetConsoleId, modification },
+    });
+    window.dispatchEvent(event);
   };
 
   const openOrFocusConsoleTab = (
@@ -70,10 +100,11 @@ function MainApp() {
     databaseId?: string,
     extraContextItems: any[] = [],
     filePath?: string,
+    consoleId?: string, // Add optional consoleId parameter
   ) => {
-    // Try to find existing tab with same title and initial content path maybe; for simplicity match title.
+    // Try to find existing tab by ID (for saved consoles) or by title (for new ones)
     const existing = consoleTabs.find(t =>
-      filePath ? t.filePath === filePath : t.title === title,
+      consoleId ? t.id === consoleId : t.title === title,
     );
     if (existing) {
       setActiveConsole(existing.id);
@@ -89,13 +120,17 @@ function MainApp() {
       ]);
       return;
     }
-    const id = addConsoleTab({
-      title,
-      content,
-      initialContent: content,
-      databaseId,
-      filePath,
-    });
+
+    // Use provided consoleId or generate a new one
+    const id =
+      consoleId ||
+      addConsoleTab({
+        title,
+        content,
+        initialContent: content,
+        databaseId,
+        filePath,
+      });
     setActiveConsole(id);
 
     useChatStore.getState().ensureContextItems([
@@ -136,8 +171,15 @@ function MainApp() {
       case "consoles":
         return (
           <ConsoleExplorer
-            onConsoleSelect={(path, content, databaseId) => {
-              openOrFocusConsoleTab(path, content, databaseId, [], path);
+            onConsoleSelect={(path, content, databaseId, consoleId) => {
+              openOrFocusConsoleTab(
+                path,
+                content,
+                databaseId,
+                [],
+                path,
+                consoleId,
+              );
             }}
           />
         );

@@ -288,6 +288,7 @@ export class ConsoleManager {
     userId: string,
     databaseId?: string,
     options?: {
+      id?: string; // Optional client-provided ID
       folderId?: string;
       description?: string;
       language?: "sql" | "javascript" | "mongodb";
@@ -340,7 +341,7 @@ export class ConsoleManager {
         await console.save();
       } else {
         // Create new console
-        console = new SavedConsole({
+        const consoleData: any = {
           workspaceId: new Types.ObjectId(workspaceId),
           folderId: folderId ? new Types.ObjectId(folderId) : undefined,
           databaseId: databaseId ? new Types.ObjectId(databaseId) : undefined,
@@ -351,8 +352,14 @@ export class ConsoleManager {
           createdBy: userId,
           isPrivate: options?.isPrivate || false,
           executionCount: 0,
-        });
+        };
 
+        // Use client-provided ID if available and valid
+        if (options?.id && Types.ObjectId.isValid(options.id)) {
+          consoleData._id = new Types.ObjectId(options.id);
+        }
+
+        console = new SavedConsole(consoleData);
         await console.save();
       }
 

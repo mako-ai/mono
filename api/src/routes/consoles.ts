@@ -98,6 +98,7 @@ consoleRoutes.post("/", async (c: Context) => {
     const workspaceId = c.req.param("workspaceId");
     const body = await c.req.json();
     const {
+      id, // Optional client-provided ID
       path: consolePath,
       content,
       databaseId,
@@ -152,6 +153,7 @@ consoleRoutes.post("/", async (c: Context) => {
       user.id,
       targetDatabaseId,
       {
+        id, // Pass client-provided ID
         folderId,
         description,
         language,
