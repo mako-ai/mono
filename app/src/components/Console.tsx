@@ -295,11 +295,9 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
       editorRef.current = editor;
-      
-      // Connect editor to version management if enabled
-      if (enableVersionControl) {
-        setEditor(editor);
-      }
+
+      // Always connect editor to the hook (needed for AI modifications)
+      setEditor(editor);
 
       // CMD/CTRL + Enter execution support
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -396,9 +394,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       }
 
       // Normal content change callback
-      if (onContentChange && !enableVersionControl) {
-        const content = value || "";
-
+      if (onContentChange) {
         // Clear existing timeout
         if (debounceTimeoutRef.current) {
           clearTimeout(debounceTimeoutRef.current);
@@ -410,7 +406,12 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         }, 500); // 500ms debounce for persistence
       }
     },
-    [onContentChange, enableVersionControl, saveUserEdit, isApplyingModification],
+    [
+      onContentChange,
+      enableVersionControl,
+      saveUserEdit,
+      isApplyingModification,
+    ],
   );
 
   const handleExecute = useCallback(() => {
@@ -459,7 +460,15 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       canUndo,
       canRedo,
     }),
-    [getCurrentEditorContent, title, applyModification, undo, redo, canUndo, canRedo],
+    [
+      getCurrentEditorContent,
+      title,
+      applyModification,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
+    ],
   );
 
   return (
@@ -512,7 +521,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           {enableVersionControl && (
             <>
               <Divider orientation="vertical" flexItem />
-              
+
               <Tooltip title="Undo (⌘/Ctrl+Z)">
                 <span>
                   <IconButton

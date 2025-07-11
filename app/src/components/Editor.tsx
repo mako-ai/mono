@@ -31,6 +31,7 @@ import { SyncJobEditor } from "./SyncJobEditor";
 import { useConsoleStore } from "../store/consoleStore";
 import { useAppStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
+import { ConsoleModification } from "../hooks/useMonacoConsole";
 
 interface QueryResult {
   results: any[];
@@ -146,6 +147,38 @@ function Editor() {
     };
     fetchDatabases();
   }, [currentWorkspace]);
+
+  // Listen for console modification events from AI
+  useEffect(() => {
+    const handleConsoleModification = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        consoleId: string;
+        modification: ConsoleModification;
+      }>;
+
+      const { consoleId, modification } = customEvent.detail;
+      console.log("Editor received console modification event:", {
+        consoleId,
+        modification,
+      });
+
+      // Apply modification to the appropriate console
+      if (consoleRefs.current[consoleId]?.current) {
+        console.log("Applying modification to console:", consoleId);
+        consoleRefs.current[consoleId].current!.applyModification(modification);
+      } else {
+        console.error("Console ref not found for ID:", consoleId);
+      }
+    };
+
+    window.addEventListener("console-modification", handleConsoleModification);
+    return () => {
+      window.removeEventListener(
+        "console-modification",
+        handleConsoleModification,
+      );
+    };
+  }, []);
 
   /* ------------------------ Console Actions ------------------------ */
   const handleTabChange = (_: React.SyntheticEvent, newValue: string) => {
