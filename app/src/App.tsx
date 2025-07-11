@@ -1,3 +1,4 @@
+import React from "react";
 import { Box, styled } from "@mui/material";
 import { Routes, Route, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
@@ -13,6 +14,7 @@ import { SyncJobsExplorer } from "./components/SyncJobsExplorer";
 import { AuthWrapper } from "./components/AuthWrapper";
 import { AcceptInvite } from "./components/AcceptInvite";
 import { WorkspaceProvider } from "./contexts/workspace-context";
+import { ConsoleModification } from "./hooks/useMonacoConsole";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -43,7 +45,24 @@ function InvitePage() {
 // Main application component (extracted from original App)
 function MainApp() {
   const { activeView } = useAppStore();
-  const { addConsoleTab, setActiveConsole, consoleTabs } = useConsoleStore();
+  const { addConsoleTab, setActiveConsole, consoleTabs, activeConsoleId } =
+    useConsoleStore();
+
+  // Handle console modification from AI
+  const handleConsoleModification = (modification: ConsoleModification) => {
+    console.log("App handleConsoleModification called with:", modification);
+    console.log("Active console ID:", activeConsoleId);
+
+    if (activeConsoleId) {
+      // Dispatch a custom event that the Editor component can listen to
+      const event = new CustomEvent("console-modification", {
+        detail: { consoleId: activeConsoleId, modification },
+      });
+      window.dispatchEvent(event);
+    } else {
+      console.error("No active console to modify");
+    }
+  };
 
   const openOrFocusConsoleTab = (
     title: string,
@@ -174,7 +193,7 @@ function MainApp() {
                 borderColor: "divider",
               }}
             >
-              <Chat3 />
+              <Chat3 onConsoleModification={handleConsoleModification} />
             </Box>
           </Panel>
         </PanelGroup>

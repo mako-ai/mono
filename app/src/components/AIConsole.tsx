@@ -1,5 +1,19 @@
 import React, { useRef, useState } from "react";
-import { Box, Paper, Dialog, DialogTitle, DialogContent, List, ListItem, ListItemText, ListItemIcon, IconButton, Typography, Chip, ListItemButton } from "@mui/material";
+import {
+  Box,
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  IconButton,
+  Typography,
+  Chip,
+  ListItemButton,
+} from "@mui/material";
 import { Close, Computer, SmartToy } from "@mui/icons-material";
 import Console, { ConsoleRef } from "./Console";
 import Chat3 from "./Chat3";
@@ -32,15 +46,26 @@ interface AIConsoleProps {
   filePath?: string;
 }
 
-const AIConsole: React.FC<AIConsoleProps> = (props) => {
+const AIConsole: React.FC<AIConsoleProps> = props => {
   const consoleRef = useRef<ConsoleRef>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [versionHistory, setVersionHistory] = useState<any[]>([]);
 
   // Handle console modification from AI
   const handleConsoleModification = (modification: ConsoleModification) => {
+    console.log(
+      "AIConsole handleConsoleModification called with:",
+      modification,
+    );
+    console.log("consoleRef.current exists:", !!consoleRef.current);
+
     if (consoleRef.current) {
+      console.log("Calling applyModification on console ref");
       consoleRef.current.applyModification(modification);
+    } else {
+      console.error(
+        "consoleRef.current is null - Console component not mounted yet?",
+      );
     }
   };
 
@@ -100,7 +125,13 @@ const AIConsole: React.FC<AIConsoleProps> = (props) => {
         fullWidth
       >
         <DialogTitle>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             <Typography variant="h6">Version History</Typography>
             <IconButton size="small" onClick={handleHistoryClose}>
               <Close />
@@ -111,13 +142,13 @@ const AIConsole: React.FC<AIConsoleProps> = (props) => {
           <List>
             {versionHistory.length === 0 ? (
               <ListItem>
-                <ListItemText 
+                <ListItemText
                   primary="No version history yet"
                   secondary="Versions will appear here as you make changes"
                 />
               </ListItem>
             ) : (
-              versionHistory.map((version) => (
+              versionHistory.map(version => (
                 <ListItemButton
                   key={version.id}
                   onClick={() => {
@@ -133,7 +164,10 @@ const AIConsole: React.FC<AIConsoleProps> = (props) => {
                     )}
                   </ListItemIcon>
                   <ListItemText
-                    primary={version.description || `${version.source === "ai" ? "AI" : "User"} edit`}
+                    primary={
+                      version.description ||
+                      `${version.source === "ai" ? "AI" : "User"} edit`
+                    }
                     secondary={new Date(version.timestamp).toLocaleString()}
                   />
                   {version.isCurrent && (

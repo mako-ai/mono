@@ -23,15 +23,18 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
+  // Queue modifications that arrive before editor is ready
+  const pendingModificationsRef = useRef<ConsoleModification[]>([]);
+
   // Update version control state
   const updateVersionState = useCallback(() => {
     const manager = versionManagerRef.current;
     const newCanUndo = manager.canUndo();
     const newCanRedo = manager.canRedo();
-    
+
     setCanUndo(newCanUndo);
     setCanRedo(newCanRedo);
-    
+
     if (onVersionChange) {
       onVersionChange(newCanUndo, newCanRedo);
     }
@@ -43,101 +46,138 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
   }, []);
 
   // Apply a console modification
-  const applyModification = useCallback((modification: ConsoleModification) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    const model = editor.getModel();
-    if (!model) return;
-
-    // Save current state before modification
-    const currentContent = model.getValue();
-    versionManagerRef.current.saveVersion(
-      currentContent,
-      "user",
-      "Before AI modification",
-    );
-
-    isApplyingModificationRef.current = true;
-
-    try {
-      switch (modification.action) {
-        case "replace":
-          model.setValue(modification.content);
-          break;
-
-        case "append": {
-          const lineCount = model.getLineCount();
-          const lastLineLength = model.getLineLength(lineCount);
-          const position = new (editor as any).monaco.Position(lineCount, lastLineLength + 1);
-          const range = new (editor as any).monaco.Range(
-            position.lineNumber,
-            position.column,
-            position.lineNumber,
-            position.column,
-          );
-
-          editor.executeEdits("ai-modification", [
-            {
-              range: range,
-              text: (currentContent.endsWith("\n") ? "" : "\n") + modification.content,
-              forceMoveMarkers: true,
-            },
-          ]);
-          break;
-        }
-
-        case "insert": {
-          const position = modification.position
-            ? new (editor as any).monaco.Position(
-                modification.position.line,
-                modification.position.column,
-              )
-            : editor.getPosition() || new (editor as any).monaco.Position(1, 1);
-
-          const range = new (editor as any).monaco.Range(
-            position.lineNumber,
-            position.column,
-            position.lineNumber,
-            position.column,
-          );
-
-          editor.executeEdits("ai-modification", [
-            {
-              range: range,
-              text: modification.content,
-              forceMoveMarkers: true,
-            },
-          ]);
-          break;
-        }
-      }
-
-      // Save the new state after modification
-      const newContent = model.getValue();
-      versionManagerRef.current.saveVersion(
-        newContent,
-        "ai",
-        `AI ${modification.action}`,
+  const applyModification = useCallback(
+    (modification: ConsoleModification) => {
+      console.log(
+        "useMonacoConsole applyModification called with:",
+        modification,
       );
 
-      // Flash the editor to indicate change
-      flashEditor(editor);
-
-      // Update version state
-      updateVersionState();
-
-      // Notify content change
-      if (onContentChange) {
-        onContentChange(newContent);
+      const editor = editorRef.current;
+      console.log("Editor ref exists:", !!editor);
+      if (!editor) {
+        console.error("No editor ref - editor not mounted yet?");
+        return;
       }
-    } finally {
-      isApplyingModificationRef.current = false;
-    }
 
-    // Focus the editor
-    editor.focus();
-  }, [onContentChange, updateVersionState]);
+      const model = editor.getModel();
+      console.log("Model exists:", !!model);
+      if (!model) {
+        console.error("No model on editor");
+        return;
+      }
+
+      // Save current state before modification
+      const currentContent = model.getValue();
+      console.log("Current content length:", currentContent.length);
+      versionManagerRef.current.saveVersion(
+        currentContent,
+        "user",
+        "Before AI modification",
+      );
+
+      isApplyingModificationRef.current = true;
+
+      try {
+        console.log("Applying modification action:", modification.action);
+        switch (modification.action) {
+          case "replace":
+            console.log(
+              "Setting model value to:",
+              modification.content.substring(0, 100) + "...",
+            );
+            model.setValue(modification.content);
+            console.log("Model value set successfully");
+            break;
+
+          case "append": {
+            const lineCount = model.getLineCount();
+            const lastLineLength = model.getLineLength(lineCount);
+            const position = new (editor as any).monaco.Position(
+              lineCount,
+              lastLineLength + 1,
+            );
+            const range = new (editor as any).monaco.Range(
+              position.lineNumber,
+              position.column,
+              position.lineNumber,
+              position.column,
+            );
+
+            editor.executeEdits("ai-modification", [
+              {
+                range: range,
+                text:
+                  (currentContent.endsWith("\n") ? "" : "\n") +
+                  modification.content,
+                forceMoveMarkers: true,
+              },
+            ]);
+            break;
+          }
+
+          case "insert": {
+            const position = modification.position
+              ? new (editor as any).monaco.Position(
+                  modification.position.line,
+                  modification.position.column,
+                )
+              : editor.getPosition() ||
+                new (editor as any).monaco.Position(1, 1);
+
+            const range = new (editor as any).monaco.Range(
+              position.lineNumber,
+              position.column,
+              position.lineNumber,
+              position.column,
+            );
+
+            editor.executeEdits("ai-modification", [
+              {
+                range: range,
+                text: modification.content,
+                forceMoveMarkers: true,
+              },
+            ]);
+            break;
+          }
+        }
+
+        // Save the new state after modification
+        const newContent = model.getValue();
+        console.log(
+          "New content length after modification:",
+          newContent.length,
+        );
+        versionManagerRef.current.saveVersion(
+          newContent,
+          "ai",
+          `AI ${modification.action}`,
+        );
+
+        // Flash the editor to indicate change
+        console.log("Flashing editor for visual feedback");
+        flashEditor(editor);
+
+        // Update version state
+        updateVersionState();
+
+        // Notify content change
+        if (onContentChange) {
+          console.log("Notifying content change");
+          onContentChange(newContent);
+        }
+
+        console.log("Modification applied successfully!");
+      } finally {
+        isApplyingModificationRef.current = false;
+      }
+
+      // Focus the editor
+      editor.focus();
+    },
+    [onContentChange, updateVersionState],
+  );
 
   // Undo functionality
   const undo = useCallback(() => {
@@ -151,9 +191,9 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
         isApplyingModificationRef.current = true;
         model.setValue(content);
         isApplyingModificationRef.current = false;
-        
+
         updateVersionState();
-        
+
         if (onContentChange) {
           onContentChange(content);
         }
@@ -173,9 +213,9 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
         isApplyingModificationRef.current = true;
         model.setValue(content);
         isApplyingModificationRef.current = false;
-        
+
         updateVersionState();
-        
+
         if (onContentChange) {
           onContentChange(content);
         }
@@ -189,34 +229,40 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
   }, []);
 
   // Restore a specific version
-  const restoreVersion = useCallback((versionId: string) => {
-    const editor = editorRef.current;
-    if (!editor) return;
+  const restoreVersion = useCallback(
+    (versionId: string) => {
+      const editor = editorRef.current;
+      if (!editor) return;
 
-    const content = versionManagerRef.current.restoreVersion(versionId);
-    if (content !== null) {
-      const model = editor.getModel();
-      if (model) {
-        isApplyingModificationRef.current = true;
-        model.setValue(content);
-        isApplyingModificationRef.current = false;
-        
-        updateVersionState();
-        
-        if (onContentChange) {
-          onContentChange(content);
+      const content = versionManagerRef.current.restoreVersion(versionId);
+      if (content !== null) {
+        const model = editor.getModel();
+        if (model) {
+          isApplyingModificationRef.current = true;
+          model.setValue(content);
+          isApplyingModificationRef.current = false;
+
+          updateVersionState();
+
+          if (onContentChange) {
+            onContentChange(content);
+          }
         }
       }
-    }
-  }, [onContentChange, updateVersionState]);
+    },
+    [onContentChange, updateVersionState],
+  );
 
   // Save user edit as a version
-  const saveUserEdit = useCallback((content: string, description?: string) => {
-    if (!isApplyingModificationRef.current) {
-      versionManagerRef.current.saveVersion(content, "user", description);
-      updateVersionState();
-    }
-  }, [updateVersionState]);
+  const saveUserEdit = useCallback(
+    (content: string, description?: string) => {
+      if (!isApplyingModificationRef.current) {
+        versionManagerRef.current.saveVersion(content, "user", description);
+        updateVersionState();
+      }
+    },
+    [updateVersionState],
+  );
 
   // Clear version history
   const clearHistory = useCallback(() => {
@@ -250,13 +296,14 @@ function flashEditor(editor: any) {
   const flashColor = "rgba(59, 130, 246, 0.1)"; // Blue flash
 
   if (editor.getDomNode()) {
-    editor.getDomNode()!.style.transition = "background-color 200ms ease-in-out";
+    editor.getDomNode()!.style.transition =
+      "background-color 200ms ease-in-out";
     editor.getDomNode()!.style.backgroundColor = flashColor;
-    
+
     setTimeout(() => {
       if (editor.getDomNode()) {
         editor.getDomNode()!.style.backgroundColor = originalBackground;
-        
+
         setTimeout(() => {
           if (editor.getDomNode()) {
             editor.getDomNode()!.style.transition = "";

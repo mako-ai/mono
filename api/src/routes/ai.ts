@@ -87,7 +87,8 @@ const chatTools: any[] = [
         action: {
           type: "string",
           enum: ["replace", "insert", "append"],
-          description: "How to modify the console content. Use 'replace' to set the entire content, 'append' to add to the end, or 'insert' to add at a specific position.",
+          description:
+            "How to modify the console content. Use 'replace' to set the entire content, 'append' to add to the end, or 'insert' to add at a specific position.",
         },
         content: {
           type: "string",
@@ -95,11 +96,14 @@ const chatTools: any[] = [
         },
         position: {
           type: "object",
-          description: "Position for insert action (optional). If not provided for insert, will insert at cursor position.",
+          description:
+            "Position for insert action (optional). If not provided for insert, will insert at cursor position.",
           properties: {
             line: { type: "number", description: "1-based line number" },
             column: { type: "number", description: "1-based column number" },
           },
+          required: ["line", "column"],
+          additionalProperties: false,
         },
       },
       required: ["action", "content"],

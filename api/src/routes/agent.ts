@@ -195,7 +195,10 @@ const executeQuery = async (
 //             calling definitions used elsewhere in the code-base.
 
 // We'll need to pass workspaceId to tools via context. Let's create a factory function.
-const createWorkspaceTools = (workspaceId: string) => {
+const createWorkspaceTools = (
+  workspaceId: string,
+  sendEvent?: (data: any) => void,
+) => {
   const listDatabasesTool = tool({
     name: "list_databases",
     description:
@@ -289,35 +292,43 @@ const createWorkspaceTools = (workspaceId: string) => {
           type: "string",
           enum: ["replace", "insert", "append"],
           description:
-            "How to modify the console content. Use 'replace' to set the entire content, 'append' to add to the end, or 'insert' to add at a specific position.",
+            "How to modify the console content. Use 'replace' to set the entire content, 'append' to add to the end, or 'insert' to add at cursor position.",
         },
         content: {
           type: "string",
           description: "The MongoDB query code to add to the console",
-        },
-        position: {
-          type: "object",
-          description:
-            "Position for insert action (optional). If not provided for insert, will insert at cursor position.",
-          properties: {
-            line: { type: "number", description: "1-based line number" },
-            column: { type: "number", description: "1-based column number" },
-          },
         },
       },
       required: ["action", "content"],
       additionalProperties: false,
     },
     execute: async (input: any) => {
-      // Just return the modification parameters - the actual console modification
-      // will be handled on the frontend via SSE events
+      // Store the modification in a closure variable that can be accessed
+      // by the event handler
+      const modification = {
+        action: input.action,
+        content: input.content,
+        position: input.position,
+      };
+
+      // Send the console modification event directly if sendEvent is available
+      if (sendEvent) {
+        console.log(
+          "Sending console_modification event from tool:",
+          modification,
+        );
+        sendEvent({
+          type: "console_modification",
+          modification: modification,
+        });
+      }
+
+      // Return both the modification data (for event processing) and
+      // a simple message (for display)
       return {
         success: true,
-        modification: {
-          action: input.action,
-          content: input.content,
-          position: input.position,
-        },
+        modification: modification,
+        message: `✓ Console ${input.action}d successfully`,
       };
     },
   });
@@ -335,7 +346,7 @@ const createWorkspaceTools = (workspaceId: string) => {
 // The Agent definition - Updated to be created dynamically with workspaceId
 // ------------------------------------------------------------------------------------
 
-const createDbAgent = (workspaceId: string) =>
+const createDbAgent = (workspaceId: string, sendEvent?: (data: any) => void) =>
   new Agent({
     name: "Database Assistant",
     instructions: `You are an expert MongoDB assistant with direct access to the user's query console.
@@ -345,10 +356,10 @@ const createDbAgent = (workspaceId: string) =>
   1. Decide which database to use (only one!)
   2. Decide which collections to use (one or several)
   3. Inspect the collections to understand the schema
-  4. Write a MongoDB query to answer the question, be careful not to return too many results.
+  4. Write a MongoDB query to answer the question, be careful not to return too many results (add a limit if opportune)
   5. Test the query by executing it and reading results, unless instructed otherwise.
   6. Use the modify_console tool to place the query in the user's console editor.
-  7. Explain what the query does in your response.
+  7. Explain what the query does and how it answers the user's question.
 
   If you aren't sure, ask clarifying questions before proceeding.
 
@@ -363,7 +374,9 @@ const createDbAgent = (workspaceId: string) =>
   - "Write a query" → Use modify_console with 'replace' action to set the entire console content
   - "Add to my query" → Use modify_console with 'append' action to add to existing content  
   - "Fix my query" → Use modify_console with 'replace' action with the corrected version
-  - "Insert at line X" → Use modify_console with 'insert' action with position
+  - "Insert at line X" → Use modify_console with 'insert' action (will insert at cursor position)
+
+  After modifying the console, explain what the query does but don't show the raw tool output.
 
   The available tools are:
     - list_databases: List all active MongoDB databases that the system knows about.
@@ -381,7 +394,7 @@ const createDbAgent = (workspaceId: string) =>
     | **Fields with dots**             | Access via \`$getField\`.                                                                                 | Dot-notation on such fields.                     |
 
     `,
-    tools: createWorkspaceTools(workspaceId),
+    tools: createWorkspaceTools(workspaceId, sendEvent),
     model: "o3",
   });
 
@@ -461,10 +474,11 @@ agentRoutes.post("/stream", async c => {
 
       try {
         const runStream: any = await runAgent(
-          createDbAgent(workspaceId),
+          createDbAgent(workspaceId, sendEvent),
           agentInput,
           {
             stream: true,
+            maxTurns: 100,
           },
         );
 
@@ -472,26 +486,27 @@ agentRoutes.post("/stream", async c => {
         let eventCount = 0;
         let textDeltaCount = 0;
 
-        // Debug: Log first 10 events to understand structure
+        // Debug: Log ALL events to understand structure
         for await (const event of runStream as AsyncIterable<any>) {
           eventCount++;
 
-          // Debug logging for first 20 events
-          if (eventCount <= 20) {
-            console.log(`Event #${eventCount}:`, {
-              type: event?.type,
-              dataType: event?.data?.type,
-              hasData: !!event?.data,
-              hasDelta: !!event?.data?.delta,
-              deltaType: typeof event?.data?.delta,
-              // Log a sample of the delta if it exists
-              deltaSample: event?.data?.delta
-                ? typeof event?.data?.delta === "string"
-                  ? event?.data?.delta.substring(0, 50)
-                  : "non-string"
-                : "no-delta",
-            });
-          }
+          // Debug logging - log ALL events to see tool outputs
+          console.log(`Event #${eventCount}:`, {
+            type: event?.type,
+            dataType: event?.data?.type,
+            hasData: !!event?.data,
+            hasDelta: !!event?.data?.delta,
+            hasItem: !!event?.item,
+            itemType: event?.item?.type,
+            itemOutput: event?.item?.output
+              ? JSON.stringify(event?.item?.output).substring(0, 100)
+              : undefined,
+            eventName: event?.name,
+            fullEvent:
+              event?.type === "run_item_stream_event"
+                ? JSON.stringify(event, null, 2)
+                : undefined,
+          });
 
           // Check all possible text delta patterns
           if (event?.type === "raw_model_stream_event") {
@@ -514,6 +529,18 @@ agentRoutes.post("/stream", async c => {
               assistantReply += textDelta;
               sendEvent({ type: "text", content: textDelta });
             }
+          }
+
+          // Check if this event contains tool output in any form
+          if (event?.item?.output || event?.output || event?.data?.output) {
+            console.log("Found event with output:", {
+              eventType: event.type,
+              hasItemOutput: !!event?.item?.output,
+              hasDirectOutput: !!event?.output,
+              hasDataOutput: !!event?.data?.output,
+              output:
+                event?.item?.output || event?.output || event?.data?.output,
+            });
           }
 
           // Process other events as before...
@@ -554,6 +581,20 @@ agentRoutes.post("/stream", async c => {
               item?.type === "tool_call_output_item" &&
               itemEvent.name === "output_added"
             ) {
+              // Debug log for tool output
+              console.log("Tool output item structure:", {
+                itemType: item.type,
+                hasOutput: !!item.output,
+                outputType: typeof item.output,
+                rawItemFunction: item.rawItem?.function,
+                rawItemName: item.rawItem?.name,
+                toolCallName: item.tool_call_name,
+                outputSample:
+                  typeof item.output === "string"
+                    ? item.output.substring(0, 100)
+                    : item.output,
+              });
+
               // For output items, we need to track which tool was called
               // This might require correlating with the tool_call_id
               const toolName =
@@ -569,13 +610,21 @@ agentRoutes.post("/stream", async c => {
               });
 
               // Check if this is a modify_console tool output
+              console.log(`Checking if tool ${toolName} is modify_console`);
               if (toolName === "modify_console" && item.output) {
                 try {
-                  const outputData = typeof item.output === "string" 
-                    ? JSON.parse(item.output) 
-                    : item.output;
-                  
+                  const outputData =
+                    typeof item.output === "string"
+                      ? JSON.parse(item.output)
+                      : item.output;
+
+                  console.log("Parsed modify_console output:", outputData);
+
                   if (outputData?.success && outputData?.modification) {
+                    console.log(
+                      "Sending console_modification event:",
+                      outputData.modification,
+                    );
                     sendEvent({
                       type: "console_modification",
                       modification: outputData.modification,

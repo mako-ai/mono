@@ -561,6 +561,9 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
           try {
             const parsed = JSON.parse(data);
 
+            // Debug log all events
+            console.log("Chat3 received event:", parsed);
+
             // Handle different event types
             if (parsed.type === "text") {
               assistantContent += parsed.content;
@@ -573,8 +576,15 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
               !sessionId
             ) {
               setSessionId(parsed.sessionId);
-            } else if (parsed.type === "console_modification" && parsed.modification) {
+            } else if (
+              parsed.type === "console_modification" &&
+              parsed.modification
+            ) {
               // Handle console modification event
+              console.log(
+                "Console modification event received:",
+                parsed.modification,
+              );
               if (onConsoleModification) {
                 onConsoleModification(parsed.modification);
               }
