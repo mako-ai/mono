@@ -1,4 +1,5 @@
 import { useAppStore, useAppDispatch, ConsoleTab } from "./appStore";
+import { generateObjectId } from "../utils/objectId";
 
 export type TabKind =
   | "console"
@@ -18,7 +19,7 @@ export const useConsoleStore = () => {
   const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
   const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
-    const id = Date.now().toString() + Math.random();
+    const id = generateObjectId(); // Use MongoDB ObjectId
     dispatch({
       type: "OPEN_CONSOLE_TAB",
       payload: {
@@ -116,7 +117,7 @@ useConsoleStore.getState = () => {
   const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
   const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
-    const id = Date.now().toString() + Math.random();
+    const id = generateObjectId(); // Use MongoDB ObjectId
     dispatch({
       type: "OPEN_CONSOLE_TAB",
       payload: {

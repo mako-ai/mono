@@ -59,6 +59,7 @@ interface AttachedContext {
   content: string;
   metadata?: {
     consoleId?: string;
+    filePath?: string;
   };
 }
 
@@ -558,6 +559,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
       content: consoleTab.content || "",
       metadata: {
         consoleId: consoleId,
+        filePath: consoleTab.filePath, // Include filePath for saved consoles
       },
     };
 
@@ -651,6 +653,8 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
                 parsed.modification,
               );
               if (onConsoleModification) {
+                // Pass the modification without a specific consoleId
+                // The App component will use the active console
                 onConsoleModification(parsed.modification);
               }
             }
@@ -1052,6 +1056,11 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
                       backgroundColor: "action.hover",
                     },
                   }}
+                  title={
+                    context.metadata?.filePath
+                      ? `Saved console: ${context.metadata.filePath}`
+                      : "Temporary console"
+                  }
                 />
               ))}
             </Box>

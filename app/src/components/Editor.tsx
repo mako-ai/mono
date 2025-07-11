@@ -162,13 +162,30 @@ function Editor() {
         modification,
       });
 
-      // Apply modification to the appropriate console
-      if (consoleRefs.current[consoleId]?.current) {
-        console.log("Applying modification to console:", consoleId);
-        consoleRefs.current[consoleId].current!.applyModification(modification);
-      } else {
-        console.error("Console ref not found for ID:", consoleId);
-      }
+      // Function to apply modification with retry
+      const applyModificationWithRetry = (retries = 10, delay = 100) => {
+        if (consoleRefs.current[consoleId]?.current) {
+          console.log("Applying modification to console:", consoleId);
+          consoleRefs.current[consoleId].current!.applyModification(
+            modification,
+          );
+        } else if (retries > 0) {
+          console.log(
+            `Console ref not ready yet for ID: ${consoleId}, retrying... (${retries} attempts left)`,
+          );
+          setTimeout(() => {
+            applyModificationWithRetry(retries - 1, delay);
+          }, delay);
+        } else {
+          console.error(
+            "Console ref not found after retries for ID:",
+            consoleId,
+          );
+        }
+      };
+
+      // Start the retry mechanism
+      applyModificationWithRetry();
     };
 
     window.addEventListener("console-modification", handleConsoleModification);
@@ -292,7 +309,12 @@ function Editor() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             method === "POST"
-              ? { path: savePath, content: contentToSave, databaseId }
+              ? {
+                  id: tabId, // Pass the tab ID as the console ID
+                  path: savePath,
+                  content: contentToSave,
+                  databaseId,
+                }
               : { content: contentToSave, databaseId },
           ),
         },

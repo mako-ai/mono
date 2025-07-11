@@ -52,7 +52,12 @@ interface ConsoleEntry {
 }
 
 interface ConsoleExplorerProps {
-  onConsoleSelect: (path: string, content: string, databaseId?: string) => void;
+  onConsoleSelect: (
+    path: string,
+    content: string,
+    databaseId?: string,
+    consoleId?: string, // Add consoleId parameter
+  ) => void;
 }
 
 export interface ConsoleExplorerRef {
@@ -145,8 +150,9 @@ function ConsoleExplorer(
 
       // Use the database ID from the response if available, otherwise from the node
       const databaseId = data.databaseId || node.databaseId;
+      const consoleId = data.id || node.id; // Get console ID from response or node
 
-      onConsoleSelect(node.path, data.content, databaseId);
+      onConsoleSelect(node.path, data.content, databaseId, consoleId);
     } catch (e: any) {
       console.error("Failed to fetch console content:", e);
     }
