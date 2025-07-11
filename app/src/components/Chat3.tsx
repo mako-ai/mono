@@ -32,9 +32,13 @@ import {
   Add as AddIcon,
   Chat as ChatIcon,
   Delete as DeleteIcon,
+  AlternateEmailOutlined,
+  Close,
+  Code,
 } from "@mui/icons-material";
 import { useTheme as useMuiTheme } from "@mui/material/styles";
 import { useWorkspace } from "../contexts/workspace-context";
+import { useConsoleStore } from "../store/consoleStore";
 
 interface Message {
   role: "user" | "assistant";
@@ -46,6 +50,16 @@ interface ChatSessionMeta {
   title: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface AttachedContext {
+  id: string;
+  type: "console";
+  title: string;
+  content: string;
+  metadata?: {
+    consoleId?: string;
+  };
 }
 
 const CodeBlock = React.memo(
@@ -369,6 +383,15 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
   const [steps, setSteps] = useState<string[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>("");
 
+  // Attachment state
+  const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
+  const [attachmentMenuAnchor, setAttachmentMenuAnchor] =
+    useState<null | HTMLElement>(null);
+  const attachmentMenuOpen = Boolean(attachmentMenuAnchor);
+
+  // Get console store
+  const { consoleTabs, activeConsoleId } = useConsoleStore();
+
   // History menu state
   const [historyMenuAnchor, setHistoryMenuAnchor] =
     useState<null | HTMLElement>(null);
@@ -405,6 +428,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
     const loadSession = async () => {
       if (!sessionId || !currentWorkspace) {
         setMessages([]);
+        setAttachedContext([]); // Clear attachments when no session
         return;
       }
       try {
@@ -414,6 +438,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
         if (res.ok) {
           const data = await res.json();
           setMessages(data.messages || []);
+          setAttachedContext([]); // Clear attachments when loading new session
         }
       } catch (_) {
         /* ignore */
@@ -513,6 +538,37 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
     }
   };
 
+  // Attachment menu handlers
+  const handleAttachmentMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAttachmentMenuAnchor(event.currentTarget);
+  };
+
+  const handleAttachmentMenuClose = () => {
+    setAttachmentMenuAnchor(null);
+  };
+
+  const handleAttachConsole = (consoleId: string) => {
+    const consoleTab = consoleTabs.find(tab => tab.id === consoleId);
+    if (!consoleTab) return;
+
+    const contextItem: AttachedContext = {
+      id: `console-${consoleId}-${Date.now()}`,
+      type: "console",
+      title: `${consoleTab.title} (Console)`,
+      content: consoleTab.content || "",
+      metadata: {
+        consoleId: consoleId,
+      },
+    };
+
+    setAttachedContext([contextItem]); // Replace any existing context
+    handleAttachmentMenuClose();
+  };
+
+  const removeContextItem = (id: string) => {
+    setAttachedContext(prev => prev.filter(item => item.id !== id));
+  };
+
   // ---------------------------------------------------------------------------
   // Messaging helpers
   // ---------------------------------------------------------------------------
@@ -522,12 +578,21 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
       throw new Error("No workspace selected");
     }
 
+    // Include attached context in the message
+    let messageWithContext = latestMessage;
+    if (attachedContext.length > 0) {
+      const contextInfo = attachedContext
+        .map(ctx => `[Attached ${ctx.title}]\n${ctx.content}`)
+        .join("\n\n");
+      messageWithContext = `${contextInfo}\n\n${latestMessage}`;
+    }
+
     const response = await fetch("/api/agent/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         sessionId,
-        message: latestMessage,
+        message: messageWithContext,
         workspaceId: currentWorkspace.id,
       }),
     });
@@ -745,6 +810,50 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
         )}
       </Menu>
 
+      {/* Attachment Menu */}
+      <Menu
+        anchorEl={attachmentMenuAnchor}
+        open={attachmentMenuOpen}
+        onClose={handleAttachmentMenuClose}
+        PaperProps={{
+          sx: { maxHeight: 300, width: 250 },
+        }}
+      >
+        {consoleTabs.length > 0 ? (
+          consoleTabs.map(consoleTab => (
+            <MenuItem
+              key={consoleTab.id}
+              onClick={() => handleAttachConsole(consoleTab.id)}
+              selected={attachedContext.some(
+                ctx => ctx.metadata?.consoleId === consoleTab.id,
+              )}
+            >
+              <ListItemIcon>
+                <Code fontSize="small" />
+              </ListItemIcon>
+              <ListItemText
+                primary={consoleTab.title}
+                secondary={
+                  consoleTab.content
+                    ? `${consoleTab.content.split("\n").length} lines${consoleTab.id === activeConsoleId ? " (Active)" : ""}`
+                    : "Empty"
+                }
+                primaryTypographyProps={{
+                  noWrap: true,
+                  sx: { maxWidth: 180 },
+                }}
+              />
+            </MenuItem>
+          ))
+        ) : (
+          <MenuItem disabled>
+            <Typography variant="body2" color="text.secondary">
+              No consoles available
+            </Typography>
+          </MenuItem>
+        )}
+      </Menu>
+
       {/* Messages */}
       <Box sx={{ flex: messages.length > 0 ? 1 : 0, overflow: "auto", p: 1 }}>
         <List dense>
@@ -897,6 +1006,58 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
           gap: 1,
         }}
       >
+        {/* Attachment area */}
+        <Box sx={{ display: "flex", flexDirection: "row", gap: 1 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleAttachmentMenuOpen}
+            disabled={loading || consoleTabs.length === 0}
+            startIcon={<AlternateEmailOutlined />}
+            sx={{
+              height: 24,
+              fontSize: "0.8125rem",
+              py: 0,
+              px: 1,
+              minWidth: "auto",
+              "& .MuiButton-startIcon": {
+                marginLeft: -0.5,
+                marginRight: attachedContext.length === 0 ? 0.5 : -0.5,
+              },
+              "& .MuiSvgIcon-root": {
+                fontSize: 16,
+              },
+            }}
+          >
+            {attachedContext.length === 0 && "Attach console"}
+          </Button>
+
+          {/* Attached Context Display */}
+          {attachedContext.length > 0 && (
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+              {attachedContext.map(context => (
+                <Chip
+                  key={context.id}
+                  label={context.title}
+                  size="small"
+                  icon={<Code />}
+                  onDelete={() => removeContextItem(context.id)}
+                  deleteIcon={<Close />}
+                  variant="outlined"
+                  sx={{
+                    borderRadius: 1,
+                    maxWidth: 200,
+                    backgroundColor: "background.paper",
+                    "&:hover": {
+                      backgroundColor: "action.hover",
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          )}
+        </Box>
+
         {/* Text Area */}
         <TextField
           fullWidth
