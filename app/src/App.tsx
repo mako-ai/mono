@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, styled } from "@mui/material";
 import { Routes, Route, useParams } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
@@ -15,7 +14,6 @@ import { AuthWrapper } from "./components/AuthWrapper";
 import { AcceptInvite } from "./components/AcceptInvite";
 import { WorkspaceProvider } from "./contexts/workspace-context";
 import { ConsoleModification } from "./hooks/useMonacoConsole";
-import { generateObjectId } from "./utils/objectId";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
