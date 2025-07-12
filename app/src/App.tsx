@@ -100,10 +100,15 @@ function MainApp() {
     filePath?: string,
     consoleId?: string, // Add optional consoleId parameter
   ) => {
-    // Try to find existing tab by ID (for saved consoles) or by title (for new ones)
-    const existing = consoleTabs.find(t =>
-      consoleId ? t.id === consoleId : t.title === title,
-    );
+    // Try to find existing tab by saved console ID (in metadata) or by title
+    const existing = consoleTabs.find(t => {
+      if (consoleId && (t as any).metadata?.savedConsoleId === consoleId) {
+        return true;
+      }
+      // For unsaved consoles, match by title
+      return !consoleId && t.title === title;
+    });
+
     if (existing) {
       setActiveConsole(existing.id);
       useChatStore.getState().ensureContextItems([
@@ -119,16 +124,15 @@ function MainApp() {
       return;
     }
 
-    // Use provided consoleId or generate a new one
-    const id =
-      consoleId ||
-      addConsoleTab({
-        title,
-        content,
-        initialContent: content,
-        databaseId,
-        filePath,
-      });
+    // Create a new tab - let addConsoleTab generate its own ID
+    const id = addConsoleTab({
+      title,
+      content,
+      initialContent: content,
+      databaseId,
+      filePath,
+      metadata: consoleId ? { savedConsoleId: consoleId } : undefined,
+    });
     setActiveConsole(id);
 
     useChatStore.getState().ensureContextItems([

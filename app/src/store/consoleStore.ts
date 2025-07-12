@@ -1,5 +1,6 @@
 import { useAppStore, useAppDispatch, ConsoleTab } from "./appStore";
 import { generateObjectId } from "../utils/objectId";
+import { ConsoleVersionManager } from "../utils/ConsoleVersionManager";
 
 export type TabKind =
   | "console"
@@ -7,6 +8,9 @@ export type TabKind =
   | "sources"
   | "members"
   | "sync-job-editor";
+
+// Store version managers for each console tab
+const versionManagers = new Map<string, ConsoleVersionManager>();
 
 // Selector helpers
 const selectConsoleState = (state: any) => state.consoles;
@@ -20,6 +24,12 @@ export const useConsoleStore = () => {
 
   const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
     const id = generateObjectId(); // Use MongoDB ObjectId
+
+    // Create version manager for console tabs
+    if (tab.kind === undefined || tab.kind === "console") {
+      versionManagers.set(id, new ConsoleVersionManager(id));
+    }
+
     dispatch({
       type: "OPEN_CONSOLE_TAB",
       payload: {
@@ -31,14 +41,22 @@ export const useConsoleStore = () => {
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
         icon: tab.icon,
-        metadata: (tab as any).metadata,
+        metadata: tab.metadata,
       },
     } as any);
     return id;
   };
 
-  const removeConsoleTab = (id: string) =>
+  const removeConsoleTab = (id: string) => {
+    // Clean up version manager
+    const versionManager = versionManagers.get(id);
+    if (versionManager) {
+      versionManager.cleanup();
+      versionManagers.delete(id);
+    }
+
     dispatch({ type: "CLOSE_CONSOLE_TAB", payload: { id } } as any);
+  };
 
   const setActiveConsole = (id: string | null) =>
     dispatch({ type: "FOCUS_CONSOLE_TAB", payload: { id } } as any);
@@ -88,6 +106,12 @@ export const useConsoleStore = () => {
     consoleTabs.forEach(tab => removeConsoleTab(tab.id));
   };
 
+  const getVersionManager = (
+    consoleId: string,
+  ): ConsoleVersionManager | null => {
+    return versionManagers.get(consoleId) || null;
+  };
+
   return {
     consoleTabs,
     activeConsoleId: activeTabId,
@@ -102,6 +126,7 @@ export const useConsoleStore = () => {
     updateConsoleTitle,
     updateConsoleDirty,
     updateConsoleIcon,
+    getVersionManager,
   };
 };
 
@@ -118,6 +143,12 @@ useConsoleStore.getState = () => {
 
   const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
     const id = generateObjectId(); // Use MongoDB ObjectId
+
+    // Create version manager for console tabs
+    if (tab.kind === undefined || tab.kind === "console") {
+      versionManagers.set(id, new ConsoleVersionManager(id));
+    }
+
     dispatch({
       type: "OPEN_CONSOLE_TAB",
       payload: {
@@ -129,14 +160,22 @@ useConsoleStore.getState = () => {
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
         icon: tab.icon,
-        metadata: (tab as any).metadata,
+        metadata: tab.metadata,
       },
     });
     return id;
   };
 
-  const removeConsoleTab = (id: string) =>
+  const removeConsoleTab = (id: string) => {
+    // Clean up version manager
+    const versionManager = versionManagers.get(id);
+    if (versionManager) {
+      versionManager.cleanup();
+      versionManagers.delete(id);
+    }
+
     dispatch({ type: "CLOSE_CONSOLE_TAB", payload: { id } });
+  };
 
   const setActiveConsole = (id: string | null) =>
     dispatch({ type: "FOCUS_CONSOLE_TAB", payload: { id } });
@@ -186,6 +225,12 @@ useConsoleStore.getState = () => {
     consoleTabs.forEach(tab => removeConsoleTab(tab.id));
   };
 
+  const getVersionManager = (
+    consoleId: string,
+  ): ConsoleVersionManager | null => {
+    return versionManagers.get(consoleId) || null;
+  };
+
   return {
     consoleTabs,
     activeConsoleId: activeTabId,
@@ -200,5 +245,6 @@ useConsoleStore.getState = () => {
     updateConsoleTitle,
     updateConsoleDirty,
     updateConsoleIcon,
+    getVersionManager,
   };
 };

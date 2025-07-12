@@ -17,6 +17,8 @@ import {
   IconButton,
   Divider,
   Badge,
+  Alert,
+  Stack,
 } from "@mui/material";
 import {
   PlayArrow,
@@ -24,8 +26,10 @@ import {
   Undo,
   Redo,
   History,
+  Check,
+  Close,
 } from "@mui/icons-material";
-import Editor from "@monaco-editor/react";
+import Editor, { DiffEditor } from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   useMonacoConsole,
@@ -46,6 +50,7 @@ interface Database {
 }
 
 interface ConsoleProps {
+  consoleId: string;
   initialContent: string;
   title?: string;
   onExecute: (content: string, databaseId?: string) => void;
@@ -72,10 +77,12 @@ export interface ConsoleRef {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  showDiff: (modification: ConsoleModification) => void;
 }
 
 const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const {
+    consoleId,
     initialContent,
     title,
     onExecute,
@@ -107,6 +114,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     saveUserEdit,
     isApplyingModification,
   } = useMonacoConsole({
+    consoleId,
     onContentChange: enableVersionControl ? onContentChange : undefined,
   });
 
@@ -122,6 +130,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   useEffect(() => {
     onSaveRef.current = onSave;
   }, [onSave]);
+
+  // Diff mode state
+  const [isDiffMode, setIsDiffMode] = useState(false);
+  const [pendingModification, setPendingModification] =
+    useState<ConsoleModification | null>(null);
+  const [originalContent, setOriginalContent] = useState("");
+  const [modifiedContent, setModifiedContent] = useState("");
 
   // Only track the initial content for resetting the editor when needed
   const [editorKey, setEditorKey] = useState(0);
@@ -286,11 +301,50 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
 
   const handleSave = useCallback(async () => {
     if (onSave) {
-      const content = getCurrentEditorContent();
+      // If in diff mode, save the modified content
+      const content =
+        isDiffMode && modifiedContent
+          ? modifiedContent
+          : getCurrentEditorContent();
       await onSave(content, filePath);
       // Parent component is responsible for feedback (e.g., snackbar, error modal)
     }
-  }, [onSave, getCurrentEditorContent, filePath]);
+  }, [onSave, getCurrentEditorContent, filePath, isDiffMode, modifiedContent]);
+
+  const handleExecute = useCallback(() => {
+    // If in diff mode, execute the modified content
+    if (isDiffMode && modifiedContent) {
+      executeContent(modifiedContent);
+      return;
+    }
+
+    // Prefer executing the currently selected text, if any, otherwise run the entire editor content
+    if (editorRef.current) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        const selection = editorRef.current.getSelection();
+        let textToExecute = "";
+
+        if (selection && !selection.isEmpty()) {
+          textToExecute = model.getValueInRange(selection);
+        } else {
+          textToExecute = model.getValue();
+        }
+
+        executeContent(textToExecute);
+        return;
+      }
+    }
+
+    // Fallback: execute the initial content
+    executeContent(initialContent);
+  }, [executeContent, initialContent, isDiffMode, modifiedContent]);
+
+  const handleDatabaseSelection = useCallback((event: any) => {
+    const newDatabaseId = event.target.value;
+    hasUserSelectedDatabaseRef.current = true; // Mark that user has manually selected
+    setSelectedDatabaseId(newDatabaseId);
+  }, []);
 
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
@@ -301,40 +355,14 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
 
       // CMD/CTRL + Enter execution support
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-        // Always use the current editor from ref to avoid stale closures
-        const currentEditor = editorRef.current;
-        if (!currentEditor) return;
-
-        const model = currentEditor.getModel();
-        if (!model) return;
-
-        const selection = currentEditor.getSelection();
-        let textToExecute = "";
-
-        if (selection && !selection.isEmpty()) {
-          textToExecute = model.getValueInRange(selection);
-        } else {
-          textToExecute = model.getValue();
-        }
-
-        // Execute directly with current database and current onExecute callback
-        if (textToExecute.trim()) {
-          onExecuteRef.current(
-            textToExecute,
-            selectedDatabaseIdRef.current || undefined,
-          );
-        }
+        // Use handleExecute which already has diff mode logic
+        handleExecute();
       });
 
       // CMD/CTRL + S save support (if onSave is provided)
       if (onSave) {
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-          const currentOnSave = onSaveRef.current;
-          if (currentOnSave) {
-            const currentEditor = editorRef.current;
-            const content = currentEditor?.getModel()?.getValue() || "";
-            currentOnSave(content, filePath);
-          }
+          handleSave();
         });
       }
 
@@ -367,7 +395,16 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         });
       }
     },
-    [filePath, enableVersionControl, setEditor, undo, redo], // Remove onExecute and onSave from dependencies since we're using refs
+    [
+      filePath,
+      enableVersionControl,
+      setEditor,
+      undo,
+      redo,
+      handleExecute,
+      handleSave,
+      onSave,
+    ],
   );
 
   // Debounced content change notification for persistence (zustand + localStorage)
@@ -414,33 +451,124 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     ],
   );
 
-  const handleExecute = useCallback(() => {
-    // Prefer executing the currently selected text, if any, otherwise run the entire editor content
-    if (editorRef.current) {
-      const model = editorRef.current.getModel();
-      if (model) {
-        const selection = editorRef.current.getSelection();
-        let textToExecute = "";
+  // Calculate modified content based on the modification
+  const calculateModifiedContent = useCallback(
+    (current: string, modification: ConsoleModification): string => {
+      switch (modification.action) {
+        case "replace":
+          return modification.content;
 
-        if (selection && !selection.isEmpty()) {
-          textToExecute = model.getValueInRange(selection);
-        } else {
-          textToExecute = model.getValue();
+        case "append":
+          return (
+            current +
+            (current.endsWith("\n") ? "" : "\n") +
+            modification.content
+          );
+
+        case "insert": {
+          if (!modification.position) {
+            return modification.content + current;
+          }
+
+          const lines = current.split("\n");
+          const { line, column } = modification.position;
+          const lineIndex = line - 1;
+
+          if (lineIndex >= 0 && lineIndex < lines.length) {
+            const targetLine = lines[lineIndex];
+            const before = targetLine.slice(0, column - 1);
+            const after = targetLine.slice(column - 1);
+            lines[lineIndex] = before + modification.content + after;
+          }
+
+          return lines.join("\n");
         }
 
-        executeContent(textToExecute);
-        return;
+        default:
+          return current;
       }
+    },
+    [],
+  );
+
+  // Show diff instead of applying modification immediately
+  const showDiff = useCallback(
+    (modification: ConsoleModification) => {
+      const currentContent = getCurrentEditorContent();
+      const newContent = calculateModifiedContent(currentContent, modification);
+
+      setOriginalContent(currentContent);
+      setModifiedContent(newContent);
+      setPendingModification(modification);
+      setIsDiffMode(true);
+    },
+    [getCurrentEditorContent, calculateModifiedContent],
+  );
+
+  // Accept the changes
+  const acceptChanges = useCallback(() => {
+    if (pendingModification && modifiedContent) {
+      // Exit diff mode first to restore the normal editor
+      setIsDiffMode(false);
+
+      // Force editor remount with new content by incrementing key
+      setEditorKey(prev => prev + 1);
+
+      // Store the modified content that will be used when editor mounts
+      isProgrammaticUpdateRef.current = true;
+      lastInitialContentRef.current = modifiedContent;
+
+      // Clear the diff state
+      const savedModifiedContent = modifiedContent;
+      const savedOriginalContent = originalContent;
+      const savedModification = pendingModification;
+
+      setPendingModification(null);
+      setOriginalContent("");
+      setModifiedContent("");
+
+      // Wait for editor to mount, then apply the content and save to history
+      setTimeout(() => {
+        if (editorRef.current) {
+          const model = editorRef.current.getModel();
+          if (model) {
+            model.setValue(savedModifiedContent);
+
+            // Save to version history using the hook functions
+            if (enableVersionControl) {
+              // The saveUserEdit function will handle version tracking
+              saveUserEdit(savedOriginalContent, "Before AI modification");
+              saveUserEdit(
+                savedModifiedContent,
+                `AI ${savedModification.action}`,
+              );
+            }
+
+            // Notify content change
+            if (onContentChange) {
+              onContentChange(savedModifiedContent);
+            }
+          }
+        }
+        isProgrammaticUpdateRef.current = false;
+      }, 100);
     }
+  }, [
+    pendingModification,
+    modifiedContent,
+    originalContent,
+    onContentChange,
+    enableVersionControl,
+    saveUserEdit,
+  ]);
 
-    // Fallback: execute the initial content
-    executeContent(initialContent);
-  }, [executeContent, initialContent]);
-
-  const handleDatabaseSelection = useCallback((event: any) => {
-    const newDatabaseId = event.target.value;
-    hasUserSelectedDatabaseRef.current = true; // Mark that user has manually selected
-    setSelectedDatabaseId(newDatabaseId);
+  // Reject the changes
+  const rejectChanges = useCallback(() => {
+    // Simply exit diff mode without applying changes
+    setIsDiffMode(false);
+    setPendingModification(null);
+    setOriginalContent("");
+    setModifiedContent("");
   }, []);
 
   useImperativeHandle(
@@ -459,6 +587,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       redo,
       canUndo,
       canRedo,
+      showDiff,
     }),
     [
       getCurrentEditorContent,
@@ -468,6 +597,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       redo,
       canUndo,
       canRedo,
+      showDiff,
     ],
   );
 
@@ -527,7 +657,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                   <IconButton
                     size="small"
                     onClick={undo}
-                    disabled={!canUndo}
+                    disabled={!canUndo || isDiffMode}
                     sx={{ p: 0.5 }}
                   >
                     <Undo fontSize="small" />
@@ -540,7 +670,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                   <IconButton
                     size="small"
                     onClick={redo}
-                    disabled={!canRedo}
+                    disabled={!canRedo || isDiffMode}
                     sx={{ p: 0.5 }}
                   >
                     <Redo fontSize="small" />
@@ -553,6 +683,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                   <IconButton
                     size="small"
                     onClick={onHistoryClick}
+                    disabled={isDiffMode}
                     sx={{ p: 0.5 }}
                   >
                     <Badge
@@ -593,24 +724,101 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         </FormControl>
       </Box>
 
-      <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
-        <Editor
-          key={editorKey}
-          defaultLanguage="javascript"
-          defaultValue={initialContent}
-          height="100%"
-          theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
-          onMount={handleEditorDidMount}
-          onChange={handleEditorChange}
-          options={{
-            automaticLayout: true,
-            readOnly: false,
-            minimap: { enabled: false },
-            fontSize: 12,
-            wordWrap: "on",
-            scrollBeyondLastLine: false,
+      {/* Diff mode action bar - shown below the main toolbar */}
+      {isDiffMode && (
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            px: 1,
+            pb: 1,
+            backgroundColor: "background.paper",
+            gap: 0.5,
+            justifyContent: "space-between",
           }}
-        />
+        >
+          <Alert
+            severity="info"
+            sx={{
+              p: 0,
+              pl: 1,
+              pr: 2,
+              "& .MuiAlert-icon": {
+                fontSize: "1.25rem",
+              },
+            }}
+          >
+            AI suggested changes - Review the diff below
+          </Alert>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              startIcon={<Check />}
+              onClick={acceptChanges}
+              disableElevation
+            >
+              Accept
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<Close />}
+              onClick={rejectChanges}
+              disableElevation
+            >
+              Reject
+            </Button>
+          </Box>
+        </Box>
+      )}
+
+      <Box ref={containerRef} sx={{ flexGrow: 1, height: 0 }}>
+        {!isDiffMode ? (
+          <Editor
+            key={editorKey}
+            defaultLanguage="javascript"
+            defaultValue={lastInitialContentRef.current || initialContent}
+            height="100%"
+            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+            onMount={handleEditorDidMount}
+            onChange={handleEditorChange}
+            options={{
+              automaticLayout: true,
+              readOnly: false,
+              minimap: { enabled: false },
+              fontSize: 12,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+            }}
+          />
+        ) : (
+          <DiffEditor
+            height="100%"
+            theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+            original={originalContent}
+            modified={modifiedContent}
+            options={{
+              automaticLayout: true,
+              readOnly: true,
+              minimap: { enabled: false },
+              fontSize: 12,
+              wordWrap: "on",
+              scrollBeyondLastLine: false,
+              renderSideBySide: false,
+              enableSplitViewResizing: false,
+              diffWordWrap: "on",
+            }}
+          />
+        )}
       </Box>
     </Box>
   );

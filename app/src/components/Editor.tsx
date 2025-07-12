@@ -80,6 +80,9 @@ function Editor() {
       hostName: string;
     }[]
   >([]);
+  const [versionHistoryTabId, setVersionHistoryTabId] = useState<string | null>(
+    null,
+  );
 
   // Tab store
   const {
@@ -162,19 +165,17 @@ function Editor() {
         modification,
       });
 
-      // Function to apply modification with retry
-      const applyModificationWithRetry = (retries = 10, delay = 100) => {
+      // Function to show diff with retry
+      const showDiffWithRetry = (retries = 10, delay = 100) => {
         if (consoleRefs.current[consoleId]?.current) {
-          console.log("Applying modification to console:", consoleId);
-          consoleRefs.current[consoleId].current!.applyModification(
-            modification,
-          );
+          console.log("Showing diff for console:", consoleId);
+          consoleRefs.current[consoleId].current!.showDiff(modification);
         } else if (retries > 0) {
           console.log(
             `Console ref not ready yet for ID: ${consoleId}, retrying... (${retries} attempts left)`,
           );
           setTimeout(() => {
-            applyModificationWithRetry(retries - 1, delay);
+            showDiffWithRetry(retries - 1, delay);
           }, delay);
         } else {
           console.error(
@@ -185,7 +186,7 @@ function Editor() {
       };
 
       // Start the retry mechanism
-      applyModificationWithRetry();
+      showDiffWithRetry();
     };
 
     window.addEventListener("console-modification", handleConsoleModification);
@@ -496,6 +497,7 @@ function Editor() {
                     <Panel defaultSize={60} minSize={1}>
                       <Console
                         ref={consoleRefs.current[tab.id]}
+                        consoleId={tab.id}
                         initialContent={tab.content}
                         title={tab.title}
                         onExecute={(content, db) =>
@@ -518,6 +520,8 @@ function Editor() {
                           updateConsoleDatabase(tab.id, dbId)
                         }
                         filePath={tab.filePath}
+                        enableVersionControl={true}
+                        onHistoryClick={() => setVersionHistoryTabId(tab.id)}
                       />
                     </Panel>
 

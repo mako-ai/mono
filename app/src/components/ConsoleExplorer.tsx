@@ -140,8 +140,9 @@ function ConsoleExplorer(
     }
 
     try {
+      // Use path for the API call, not ID
       const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/consoles/content?path=${node.id || node.path}`,
+        `/api/workspaces/${currentWorkspace.id}/consoles/content?path=${encodeURIComponent(node.path)}`,
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -319,8 +320,10 @@ function ConsoleExplorer(
     return nodes.map(node => {
       if (node.isDirectory) {
         const isExpanded = expandedFolders.has(node.path);
+        // Use ID if available, otherwise fall back to path for key
+        const nodeKey = node.id || node.path;
         return (
-          <div key={node.path}>
+          <div key={`dir-${nodeKey}`}>
             <ListItemButton
               onClick={() => handleFolderToggle(node.path)}
               onContextMenu={e => handleContextMenu(e, node)}
@@ -352,9 +355,11 @@ function ConsoleExplorer(
           </div>
         );
       }
+      // Use ID if available, otherwise fall back to path for key
+      const nodeKey = node.id || node.path;
       return (
         <ListItemButton
-          key={node.path}
+          key={`file-${nodeKey}`}
           onClick={() => handleFileClick(node)}
           onContextMenu={e => handleContextMenu(e, node)}
           sx={{ pl: 0.5 + depth }}
