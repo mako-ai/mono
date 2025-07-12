@@ -16,14 +16,16 @@ export interface VersionHistory {
   isCurrent: boolean;
 }
 
-const STORAGE_KEY = "console_version_history";
+const STORAGE_KEY_PREFIX = "console_version_history_";
 const MAX_VERSIONS = 50;
 
 export class ConsoleVersionManager {
   private versions: ConsoleVersion[] = [];
   private currentIndex = -1;
+  private storageKey: string;
 
-  constructor() {
+  constructor(consoleId: string) {
+    this.storageKey = STORAGE_KEY_PREFIX + consoleId;
     this.loadFromStorage();
   }
 
@@ -117,7 +119,7 @@ export class ConsoleVersionManager {
         versions: this.versions,
         currentIndex: this.currentIndex,
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
     } catch (error) {
       console.error("Failed to persist version history:", error);
     }
@@ -125,7 +127,7 @@ export class ConsoleVersionManager {
 
   private loadFromStorage(): void {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(this.storageKey);
       if (stored) {
         const data = JSON.parse(stored);
         if (data.versions && Array.isArray(data.versions)) {
@@ -139,6 +141,14 @@ export class ConsoleVersionManager {
     } catch (error) {
       console.error("Failed to load version history:", error);
       this.clear();
+    }
+  }
+
+  cleanup(): void {
+    try {
+      localStorage.removeItem(this.storageKey);
+    } catch (error) {
+      console.error("Failed to cleanup version history:", error);
     }
   }
 }

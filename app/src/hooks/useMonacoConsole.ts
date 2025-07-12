@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from "react";
 import { ConsoleVersionManager } from "../utils/ConsoleVersionManager";
+import { useConsoleStore } from "../store/consoleStore";
 
 export interface ConsoleModification {
   action: "replace" | "insert" | "append";
@@ -11,24 +12,34 @@ export interface ConsoleModification {
 }
 
 interface UseMonacoConsoleOptions {
+  consoleId: string;
   onContentChange?: (content: string) => void;
   onVersionChange?: (canUndo: boolean, canRedo: boolean) => void;
 }
 
-export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
-  const { onContentChange, onVersionChange } = options;
+export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
+  const { consoleId, onContentChange, onVersionChange } = options;
   const editorRef = useRef<any>(null);
-  const versionManagerRef = useRef(new ConsoleVersionManager());
   const isApplyingModificationRef = useRef(false);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+
+  // Get version manager from store
+  const { getVersionManager } = useConsoleStore();
+
+  // Get the version manager for this console
+  const getVersionManagerForConsole = useCallback(() => {
+    return getVersionManager(consoleId);
+  }, [consoleId, getVersionManager]);
 
   // Queue modifications that arrive before editor is ready
   const pendingModificationsRef = useRef<ConsoleModification[]>([]);
 
   // Update version control state
   const updateVersionState = useCallback(() => {
-    const manager = versionManagerRef.current;
+    const manager = getVersionManagerForConsole();
+    if (!manager) return;
+
     const newCanUndo = manager.canUndo();
     const newCanRedo = manager.canRedo();
 
@@ -38,7 +49,7 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
     if (onVersionChange) {
       onVersionChange(newCanUndo, newCanRedo);
     }
-  }, [onVersionChange]);
+  }, [getVersionManagerForConsole, onVersionChange]);
 
   // Set the editor reference
   const setEditor = useCallback((editor: any) => {
@@ -67,10 +78,16 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
         return;
       }
 
+      const versionManager = getVersionManagerForConsole();
+      if (!versionManager) {
+        console.error("No version manager for console:", consoleId);
+        return;
+      }
+
       // Save current state before modification
       const currentContent = model.getValue();
       console.log("Current content length:", currentContent.length);
-      versionManagerRef.current.saveVersion(
+      versionManager.saveVersion(
         currentContent,
         "user",
         "Before AI modification",
@@ -149,7 +166,7 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
           "New content length after modification:",
           newContent.length,
         );
-        versionManagerRef.current.saveVersion(
+        versionManager.saveVersion(
           newContent,
           "ai",
           `AI ${modification.action}`,
@@ -176,7 +193,12 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
       // Focus the editor
       editor.focus();
     },
-    [onContentChange, updateVersionState],
+    [
+      consoleId,
+      getVersionManagerForConsole,
+      onContentChange,
+      updateVersionState,
+    ],
   );
 
   // Undo functionality
@@ -184,7 +206,10 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
     const editor = editorRef.current;
     if (!editor) return;
 
-    const content = versionManagerRef.current.undo();
+    const versionManager = getVersionManagerForConsole();
+    if (!versionManager) return;
+
+    const content = versionManager.undo();
     if (content !== null) {
       const model = editor.getModel();
       if (model) {
@@ -199,14 +224,17 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
         }
       }
     }
-  }, [onContentChange, updateVersionState]);
+  }, [getVersionManagerForConsole, onContentChange, updateVersionState]);
 
   // Redo functionality
   const redo = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
 
-    const content = versionManagerRef.current.redo();
+    const versionManager = getVersionManagerForConsole();
+    if (!versionManager) return;
+
+    const content = versionManager.redo();
     if (content !== null) {
       const model = editor.getModel();
       if (model) {
@@ -221,12 +249,14 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
         }
       }
     }
-  }, [onContentChange, updateVersionState]);
+  }, [getVersionManagerForConsole, onContentChange, updateVersionState]);
 
   // Get version history
   const getHistory = useCallback(() => {
-    return versionManagerRef.current.getHistory();
-  }, []);
+    const versionManager = getVersionManagerForConsole();
+    if (!versionManager) return [];
+    return versionManager.getHistory();
+  }, [getVersionManagerForConsole]);
 
   // Restore a specific version
   const restoreVersion = useCallback(
@@ -234,7 +264,10 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
       const editor = editorRef.current;
       if (!editor) return;
 
-      const content = versionManagerRef.current.restoreVersion(versionId);
+      const versionManager = getVersionManagerForConsole();
+      if (!versionManager) return;
+
+      const content = versionManager.restoreVersion(versionId);
       if (content !== null) {
         const model = editor.getModel();
         if (model) {
@@ -250,25 +283,31 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions = {}) => {
         }
       }
     },
-    [onContentChange, updateVersionState],
+    [getVersionManagerForConsole, onContentChange, updateVersionState],
   );
 
   // Save user edit as a version
   const saveUserEdit = useCallback(
     (content: string, description?: string) => {
       if (!isApplyingModificationRef.current) {
-        versionManagerRef.current.saveVersion(content, "user", description);
+        const versionManager = getVersionManagerForConsole();
+        if (!versionManager) return;
+
+        versionManager.saveVersion(content, "user", description);
         updateVersionState();
       }
     },
-    [updateVersionState],
+    [getVersionManagerForConsole, updateVersionState],
   );
 
   // Clear version history
   const clearHistory = useCallback(() => {
-    versionManagerRef.current.clear();
+    const versionManager = getVersionManagerForConsole();
+    if (!versionManager) return;
+
+    versionManager.clear();
     updateVersionState();
-  }, [updateVersionState]);
+  }, [getVersionManagerForConsole, updateVersionState]);
 
   // Initialize version state on mount
   useEffect(() => {
