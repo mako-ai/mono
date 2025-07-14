@@ -3,6 +3,7 @@ import { Hono } from "hono";
 // @ts-ignore – module will be provided via dependency at runtime
 import { Agent, run as runAgent, tool } from "@openai/agents";
 import { ObjectId, Decimal128 } from "mongodb";
+import { v4 as uuidv4 } from "uuid";
 import {
   shouldGenerateTitle,
   generateChatTitle,
@@ -15,13 +16,120 @@ import { Types } from "mongoose";
 export const agentRoutes = new Hono();
 
 // ------------------------------------------------------------------------------------
-// Helper functions & shared instances
+// Thread Management Configuration
 // ------------------------------------------------------------------------------------
 
-// (Removed unused getDefaultWorkspace helper to satisfy lint rule)
+const CONTEXT_WINDOW_SIZE = 10; // Number of recent messages to include
+const MAX_CONTEXT_LENGTH = 4000; // Maximum characters for context
+
+interface ThreadContext {
+  threadId: string;
+  recentMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  metadata: {
+    messageCount: number;
+    lastActivityAt: Date;
+  };
+}
 
 // ------------------------------------------------------------------------------------
-// Database/Collection helpers - Updated for workspace-scoped operations
+// Thread Management Functions
+// ------------------------------------------------------------------------------------
+
+/**
+ * Get or create a thread context for efficient conversation management
+ */
+const getOrCreateThreadContext = async (
+  sessionId: string | undefined,
+  workspaceId: string,
+): Promise<ThreadContext> => {
+  if (sessionId) {
+    const existingChat = await Chat.findOne({
+      _id: new ObjectId(sessionId),
+      workspaceId: new ObjectId(workspaceId),
+    });
+
+    if (existingChat) {
+      // Get recent messages based on window size
+      const messages = existingChat.messages || [];
+      const recentMessages = messages.slice(-CONTEXT_WINDOW_SIZE);
+
+      // If chat doesn't have a threadId, create one and update the document
+      let threadId = existingChat.threadId;
+      if (!threadId) {
+        threadId = uuidv4();
+        // Update the chat with the new threadId
+        await Chat.findByIdAndUpdate(sessionId, { threadId });
+        console.log(
+          `Created threadId ${threadId} for existing chat ${sessionId}`,
+        );
+      }
+
+      return {
+        threadId,
+        recentMessages,
+        metadata: {
+          messageCount: messages.length,
+          lastActivityAt: existingChat.updatedAt,
+        },
+      };
+    }
+  }
+
+  // Create new thread
+  return {
+    threadId: uuidv4(),
+    recentMessages: [],
+    metadata: {
+      messageCount: 0,
+      lastActivityAt: new Date(),
+    },
+  };
+};
+
+/**
+ * Build optimized context for the agent
+ */
+const buildAgentContext = (
+  threadContext: ThreadContext,
+  newMessage: string,
+): string => {
+  const contextParts: string[] = [];
+
+  // Add note about conversation history for long conversations
+  if (threadContext.metadata.messageCount > CONTEXT_WINDOW_SIZE) {
+    contextParts.push(
+      `[Previous ${threadContext.metadata.messageCount - CONTEXT_WINDOW_SIZE} messages omitted]\n`,
+    );
+  }
+
+  // Add recent messages
+  if (threadContext.recentMessages.length > 0) {
+    contextParts.push("Recent conversation:");
+    for (const msg of threadContext.recentMessages) {
+      const speaker = msg.role === "user" ? "User" : "Assistant";
+      contextParts.push(`${speaker}: ${msg.content}`);
+    }
+    contextParts.push(""); // Empty line for separation
+  }
+
+  // Add current message
+  contextParts.push(`User: ${newMessage}`);
+
+  const fullContext = contextParts.join("\n");
+
+  // Truncate if too long (simple truncation, could be improved with smarter summarization)
+  if (fullContext.length > MAX_CONTEXT_LENGTH) {
+    const truncatedContext = fullContext.substring(
+      fullContext.length - MAX_CONTEXT_LENGTH,
+    );
+    return `[Context truncated]\n...${truncatedContext}`;
+  }
+
+  return fullContext;
+};
+
+// ------------------------------------------------------------------------------------
+// Database/Collection helpers (same as before)
 // ------------------------------------------------------------------------------------
 
 const listDatabases = async (workspaceId: string) => {
@@ -52,7 +160,6 @@ const listCollections = async (databaseId: string, workspaceId: string) => {
     throw new Error("Invalid database ID or workspace ID");
   }
 
-  // Ensure database belongs to the workspace for security
   const database = await Database.findOne({
     _id: new Types.ObjectId(databaseId),
     workspaceId: new Types.ObjectId(workspaceId),
@@ -79,7 +186,6 @@ const listCollections = async (databaseId: string, workspaceId: string) => {
   }));
 };
 
-// Infer a simple BSON type string for a given value
 const inferBsonType = (value: any): string => {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
@@ -87,13 +193,9 @@ const inferBsonType = (value: any): string => {
   if (value instanceof Date) return "date";
   if (value instanceof Decimal128) return "decimal";
   if (typeof value === "object") return "object";
-  return typeof value; // string, number, boolean, undefined, etc.
+  return typeof value;
 };
 
-/**
- * Sample a subset of documents from the collection and build a lightweight
- * schema summary of field names and their observed BSON types.
- */
 const inspectCollection = async (
   databaseId: string,
   collectionName: string,
@@ -106,7 +208,6 @@ const inspectCollection = async (
     throw new Error("Invalid database ID or workspace ID");
   }
 
-  // Ensure database belongs to the workspace for security
   const database = await Database.findOne({
     _id: new Types.ObjectId(databaseId),
     workspaceId: new Types.ObjectId(workspaceId),
@@ -128,12 +229,10 @@ const inspectCollection = async (
 
   const SAMPLE_SIZE = 100;
 
-  // Use aggregation with $sample to quickly get a representative subset
   const sampleDocuments = await collection
     .aggregate([{ $sample: { size: SAMPLE_SIZE } }])
     .toArray();
 
-  // Build schema summary
   const fieldTypeMap: Record<string, Set<string>> = {};
 
   for (const doc of sampleDocuments) {
@@ -155,9 +254,6 @@ const inspectCollection = async (
   };
 };
 
-/**
- * Execute a MongoDB query with workspace security
- */
 const executeQuery = async (
   query: string,
   databaseId: string,
@@ -170,7 +266,6 @@ const executeQuery = async (
     throw new Error("Invalid database ID or workspace ID");
   }
 
-  // Ensure database belongs to the workspace for security
   const database = await Database.findOne({
     _id: new Types.ObjectId(databaseId),
     workspaceId: new Types.ObjectId(workspaceId),
@@ -186,15 +281,9 @@ const executeQuery = async (
 };
 
 // ------------------------------------------------------------------------------------
-// Tool wrappers – these are exported to the OpenAI Agents SDK so that the model can
-// decide when to call them.
+// Tool wrappers (same as before)
 // ------------------------------------------------------------------------------------
 
-// IMPORTANT: The Agents SDK will automatically infer the JSON schema from the
-//             `parameters` object. This keeps us roughly consistent with the function
-//             calling definitions used elsewhere in the code-base.
-
-// We'll need to pass workspaceId to tools via context. Let's create a factory function.
 const createWorkspaceTools = (
   workspaceId: string,
   sendEvent?: (data: any) => void,
@@ -304,15 +393,12 @@ const createWorkspaceTools = (
       additionalProperties: false,
     },
     execute: async (input: any) => {
-      // Store the modification in a closure variable that can be accessed
-      // by the event handler
       const modification = {
         action: input.action,
         content: input.content,
         position: input.position,
       };
 
-      // Send the console modification event directly if sendEvent is available
       if (sendEvent) {
         console.log(
           "Sending console_modification event from tool:",
@@ -324,8 +410,6 @@ const createWorkspaceTools = (
         });
       }
 
-      // Return both the modification data (for event processing) and
-      // a simple message (for display)
       return {
         success: true,
         modification: modification,
@@ -349,7 +433,6 @@ const createWorkspaceTools = (
       const consoleId = input.consoleId;
 
       if (consoleId) {
-        // Find specific console by ID
         const console = consolesData.find((c: any) => c.id === consoleId);
         if (console) {
           return {
@@ -366,7 +449,6 @@ const createWorkspaceTools = (
           };
         }
       } else {
-        // Return the active console (first one in the array)
         if (consolesData.length > 0) {
           const activeConsole = consolesData[0];
           return {
@@ -397,7 +479,7 @@ const createWorkspaceTools = (
 };
 
 // ------------------------------------------------------------------------------------
-// The Agent definition - Updated to be created dynamically with workspaceId
+// Agent definition with thread awareness
 // ------------------------------------------------------------------------------------
 
 const createDbAgent = (
@@ -445,22 +527,92 @@ The available tools are:
   });
 
 // ------------------------------------------------------------------------------------
-// Chat-session helpers (shared with the /ai route but duplicated locally to avoid a
-// circular dependency).
+// Enhanced chat persistence with thread management
 // ------------------------------------------------------------------------------------
 
-const persistChatSession = async (sessionId: string, messages: any[]) => {
-  await Chat.findByIdAndUpdate(
-    sessionId,
-    { messages, updatedAt: new Date() },
-    { new: true },
-  );
+const persistChatSession = async (
+  sessionId: string | undefined,
+  threadContext: ThreadContext,
+  updatedMessages: any[],
+  workspaceId: string,
+): Promise<string> => {
+  const now = new Date();
+
+  if (!sessionId) {
+    // New conversation
+    const newChat = new Chat({
+      workspaceId: new ObjectId(workspaceId),
+      threadId: threadContext.threadId,
+      title: "New Chat",
+      messages: updatedMessages,
+      createdBy: "system", // TODO: Get from auth context
+      titleGenerated: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await newChat.save();
+    const newSessionId = newChat._id.toString();
+
+    // Generate title asynchronously
+    if (shouldGenerateTitle(updatedMessages)) {
+      generateChatTitle(updatedMessages)
+        .then(generatedTitle => {
+          return Chat.findByIdAndUpdate(newSessionId, {
+            title: generatedTitle,
+            titleGenerated: true,
+            updatedAt: new Date(),
+          });
+        })
+        .catch(error => {
+          console.error("Failed to generate title for new chat:", error);
+        });
+    }
+
+    return newSessionId;
+  } else {
+    // Update existing conversation
+    const updateData: any = {
+      messages: updatedMessages,
+      updatedAt: now,
+    };
+
+    // Update threadId if it wasn't set before
+    if (!threadContext.threadId) {
+      updateData.threadId = uuidv4();
+    }
+
+    const existingChat = await Chat.findByIdAndUpdate(sessionId, updateData, {
+      new: true,
+    });
+
+    // Generate title if needed
+    if (
+      existingChat &&
+      !existingChat.titleGenerated &&
+      shouldGenerateTitle(updatedMessages)
+    ) {
+      generateChatTitle(updatedMessages)
+        .then(generatedTitle => {
+          return Chat.findByIdAndUpdate(sessionId, {
+            title: generatedTitle,
+            titleGenerated: true,
+            updatedAt: new Date(),
+          });
+        })
+        .catch(error => {
+          console.error("Failed to generate title for existing chat:", error);
+        });
+    }
+
+    return sessionId;
+  }
 };
 
 // ------------------------------------------------------------------------------------
-// POST /   (mounted at /api/agent) – Run the agent once and return the assistant reply
+// POST /stream - Threaded version with optimized context management
 // ------------------------------------------------------------------------------------
-// Debug version - Add this temporarily to see what events are coming through
+
 agentRoutes.post("/stream", async c => {
   let body: any = {};
   try {
@@ -487,29 +639,17 @@ agentRoutes.post("/stream", async c => {
     );
   }
 
-  // Load existing messages...
-  let existingMessages: { role: "user" | "assistant"; content: string }[] = [];
-  let existingChat: any = null;
+  // Get or create thread context
+  const threadContext = await getOrCreateThreadContext(sessionId, workspaceId);
 
-  if (sessionId) {
-    try {
-      existingChat = await Chat.findOne({
-        _id: new ObjectId(sessionId),
-        workspaceId: new ObjectId(workspaceId),
-      });
-      if (existingChat && Array.isArray(existingChat.messages)) {
-        existingMessages = existingChat.messages as any[];
-      }
-    } catch {
-      // Ignore JSON parse errors – body may legitimately be empty
-    }
-  }
+  // Build optimized context for the agent
+  const agentInput = buildAgentContext(threadContext, message.trim());
 
-  const conversationLines: string[] = existingMessages.map(
-    m => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`,
-  );
-  conversationLines.push(`User: ${message.trim()}`);
-  const agentInput = conversationLines.join("\n\n");
+  console.log("Thread context:", {
+    threadId: threadContext.threadId,
+    recentMessagesCount: threadContext.recentMessages.length,
+    totalMessages: threadContext.metadata.messageCount,
+  });
 
   const encoder = new TextEncoder();
 
@@ -530,36 +670,16 @@ agentRoutes.post("/stream", async c => {
         );
 
         let assistantReply = "";
-        let eventCount = 0;
-        let textDeltaCount = 0;
+        let _eventCount = 0;
+        let _textDeltaCount = 0;
 
-        // Debug: Log ALL events to understand structure
         for await (const event of runStream as AsyncIterable<any>) {
-          eventCount++;
+          _eventCount++;
 
-          // Debug logging - log ALL events to see tool outputs
-          console.log(`Event #${eventCount}:`, {
-            type: event?.type,
-            dataType: event?.data?.type,
-            hasData: !!event?.data,
-            hasDelta: !!event?.data?.delta,
-            hasItem: !!event?.item,
-            itemType: event?.item?.type,
-            itemOutput: event?.item?.output
-              ? JSON.stringify(event?.item?.output).substring(0, 100)
-              : undefined,
-            eventName: event?.name,
-            fullEvent:
-              event?.type === "run_item_stream_event"
-                ? JSON.stringify(event, null, 2)
-                : undefined,
-          });
-
-          // Check all possible text delta patterns
+          // Process text deltas
           if (event?.type === "raw_model_stream_event") {
             const data = event.data;
 
-            // Try different field names that might contain text
             let textDelta = null;
             if (data?.type === "output_text_delta") {
               textDelta = data.delta;
@@ -572,45 +692,21 @@ agentRoutes.post("/stream", async c => {
             }
 
             if (textDelta && typeof textDelta === "string") {
-              textDeltaCount++;
+              _textDeltaCount++;
               assistantReply += textDelta;
               sendEvent({ type: "text", content: textDelta });
             }
           }
 
-          // Check if this event contains tool output in any form
-          if (event?.item?.output || event?.output || event?.data?.output) {
-            console.log("Found event with output:", {
-              eventType: event.type,
-              hasItemOutput: !!event?.item?.output,
-              hasDirectOutput: !!event?.output,
-              hasDataOutput: !!event?.data?.output,
-              output:
-                event?.item?.output || event?.output || event?.data?.output,
-            });
-          }
-
-          // Process other events as before...
+          // Process tool events
           if (event?.type === "run_item_stream_event") {
             const itemEvent = event;
             const item = itemEvent.item;
 
-            // Tool call started - debug the structure
             if (
               item?.type === "tool_call_item" &&
               itemEvent.name === "tool_called"
             ) {
-              console.log("Tool call item full structure:", {
-                itemType: item.type,
-                hasRawItem: !!item.rawItem,
-                rawItemType: item.rawItem?.type,
-                rawItemFunction: item.rawItem?.function,
-                rawItemFunctionName: item.rawItem?.function?.name,
-                rawItemName: item.rawItem?.name,
-                agentName: item.agent?.name,
-              });
-
-              // The tool name is in rawItem.function.name
               const toolName =
                 item.rawItem?.function?.name ||
                 item.rawItem?.name ||
@@ -623,27 +719,10 @@ agentRoutes.post("/stream", async c => {
               });
             }
 
-            // Tool call completed
             if (
               item?.type === "tool_call_output_item" &&
               itemEvent.name === "output_added"
             ) {
-              // Debug log for tool output
-              console.log("Tool output item structure:", {
-                itemType: item.type,
-                hasOutput: !!item.output,
-                outputType: typeof item.output,
-                rawItemFunction: item.rawItem?.function,
-                rawItemName: item.rawItem?.name,
-                toolCallName: item.tool_call_name,
-                outputSample:
-                  typeof item.output === "string"
-                    ? item.output.substring(0, 100)
-                    : item.output,
-              });
-
-              // For output items, we need to track which tool was called
-              // This might require correlating with the tool_call_id
               const toolName =
                 item.rawItem?.function?.name ||
                 item.rawItem?.name ||
@@ -656,8 +735,6 @@ agentRoutes.post("/stream", async c => {
                 status: "completed",
               });
 
-              // Check if this is a modify_console tool output
-              console.log(`Checking if tool ${toolName} is modify_console`);
               if (toolName === "modify_console" && item.output) {
                 try {
                   const outputData =
@@ -665,13 +742,7 @@ agentRoutes.post("/stream", async c => {
                       ? JSON.parse(item.output)
                       : item.output;
 
-                  console.log("Parsed modify_console output:", outputData);
-
                   if (outputData?.success && outputData?.modification) {
-                    console.log(
-                      "Sending console_modification event:",
-                      outputData.modification,
-                    );
                     sendEvent({
                       type: "console_modification",
                       modification: outputData.modification,
@@ -693,96 +764,34 @@ agentRoutes.post("/stream", async c => {
           }
         }
 
-        console.log(
-          `Total events processed: ${eventCount}, Text deltas found: ${textDeltaCount}`,
-        );
-
-        // Wait for completion
         await runStream.completed;
 
         if (!assistantReply && runStream.finalOutput) {
-          console.log("No streamed text, using finalOutput");
           assistantReply = runStream.finalOutput;
           sendEvent({ type: "text", content: assistantReply });
         }
 
-        // Persist messages with smart title generation...
-        const updatedMessages = [
-          ...existingMessages,
-          { role: "user", content: message.trim() },
-          { role: "assistant", content: assistantReply },
+        // Update messages with the new conversation turn
+        const allMessages = [
+          ...threadContext.recentMessages,
+          { role: "user" as const, content: message.trim() },
+          { role: "assistant" as const, content: assistantReply },
         ];
 
-        let finalSessionId = sessionId;
-        const now = new Date();
+        // Persist the chat session with thread management
+        const finalSessionId = await persistChatSession(
+          sessionId,
+          threadContext,
+          allMessages,
+          workspaceId,
+        );
 
-        if (!sessionId) {
-          // New conversation - start with a temporary title
-          const newChat = new Chat({
-            workspaceId: new ObjectId(workspaceId),
-            title: "New Chat", // Temporary title
-            messages: updatedMessages,
-            createdBy: "system", // TODO: Get from auth context when available
-            titleGenerated: false, // Flag to track if we've generated a proper title
-            createdAt: now,
-            updatedAt: now,
-          });
-
-          await newChat.save();
-          finalSessionId = newChat._id.toString();
-
-          // Generate title asynchronously without blocking the response
-          if (shouldGenerateTitle(updatedMessages)) {
-            // Fire-and-forget title generation
-            generateChatTitle(updatedMessages)
-              .then(generatedTitle => {
-                return Chat.findByIdAndUpdate(finalSessionId, {
-                  title: generatedTitle,
-                  titleGenerated: true,
-                  updatedAt: new Date(),
-                });
-              })
-              .then(() => {
-                console.log(
-                  `Generated title for new chat: "${finalSessionId}"`,
-                );
-              })
-              .catch(error => {
-                console.error("Failed to generate title for new chat:", error);
-              });
-          }
-        } else {
-          // Existing conversation - update messages
-          await persistChatSession(sessionId, updatedMessages);
-
-          // Generate title asynchronously for existing chats without blocking
-          if (
-            existingChat &&
-            !existingChat.titleGenerated &&
-            shouldGenerateTitle(updatedMessages)
-          ) {
-            // Fire-and-forget title generation
-            generateChatTitle(updatedMessages)
-              .then(generatedTitle => {
-                return Chat.findByIdAndUpdate(sessionId, {
-                  title: generatedTitle,
-                  titleGenerated: true,
-                  updatedAt: new Date(),
-                });
-              })
-              .then(() => {
-                console.log(
-                  `Generated title for existing chat: "${sessionId}"`,
-                );
-              })
-              .catch(error => {
-                console.error(
-                  "Failed to generate title for existing chat:",
-                  error,
-                );
-              });
-          }
-        }
+        // Send thread info
+        sendEvent({
+          type: "thread_info",
+          threadId: threadContext.threadId,
+          messageCount: allMessages.length,
+        });
 
         sendEvent({ type: "session", sessionId: finalSessionId });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
