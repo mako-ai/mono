@@ -13,6 +13,7 @@ import {
   Typography,
   Menu,
   ListItemIcon,
+  Alert,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import BuildIcon from "@mui/icons-material/BuildOutlined";
@@ -383,6 +384,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
   const [sessionId, setSessionId] = useState<string | "">("");
   const [steps, setSteps] = useState<string[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>("");
+  const [error, setError] = useState<string | null>(null);
 
   // Attachment state
   const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
@@ -556,7 +558,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
       id: `console-${consoleId}-${Date.now()}`,
       type: "console",
       title: `${consoleTab.title} (Console)`,
-      content: consoleTab.content || "",
+      content: "", // Don't store content - we'll read it from store when needed
       metadata: {
         consoleId: consoleId,
         filePath: consoleTab.filePath, // Include filePath for saved consoles
@@ -580,13 +582,49 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
       throw new Error("No workspace selected");
     }
 
-    // Include attached context in the message
+    // Include attached context reference in the message (not the full content)
     let messageWithContext = latestMessage;
     if (attachedContext.length > 0) {
       const contextInfo = attachedContext
-        .map(ctx => `[Attached ${ctx.title}]\n${ctx.content}`)
-        .join("\n\n");
+        .map(ctx => `[Attached Console: ${ctx.title}]`)
+        .join("\n");
       messageWithContext = `${contextInfo}\n\n${latestMessage}`;
+    }
+
+    // Prepare consoles data for the backend - read current values from store
+    const consolesData = attachedContext
+      .filter(ctx => ctx.type === "console")
+      .map(ctx => {
+        const consoleId = ctx.metadata?.consoleId || ctx.id;
+        // Find the current console content from the store
+        const currentConsole = consoleTabs.find(tab => tab.id === consoleId);
+
+        return {
+          id: consoleId,
+          title: currentConsole?.title || ctx.title,
+          content: currentConsole?.content || "", // Use current content from store
+          metadata: ctx.metadata,
+        };
+      });
+
+    // Always include the active console if it exists and isn't already attached
+    if (activeConsoleId && consoleTabs.length > 0) {
+      const activeConsole = consoleTabs.find(tab => tab.id === activeConsoleId);
+      const isAlreadyAttached = consolesData.some(
+        c => c.id === activeConsoleId,
+      );
+
+      if (activeConsole && !isAlreadyAttached) {
+        // Add active console as the first item (so it's the default for read_console)
+        consolesData.unshift({
+          id: activeConsoleId,
+          title: activeConsole.title,
+          content: activeConsole.content || "",
+          metadata: {
+            filePath: activeConsole.filePath,
+          },
+        });
+      }
     }
 
     const response = await fetch("/api/agent/stream", {
@@ -596,11 +634,27 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
         sessionId,
         message: messageWithContext,
         workspaceId: currentWorkspace.id,
+        consoles: consolesData, // Pass consoles array to backend
       }),
     });
 
-    if (!response.ok || !response.body) {
-      throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorJson.message || errorMessage;
+      } catch {
+        // If not JSON, use the text directly
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+      throw new Error(errorMessage);
+    }
+
+    if (!response.body) {
+      throw new Error("No response body");
     }
 
     const reader = response.body.getReader();
@@ -610,6 +664,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
 
     // Don't add optimistic message while loading, handle streaming separately
     setStreamingContent("");
+    setError(null); // Clear any previous errors
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
@@ -657,6 +712,13 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
                 // The App component will use the active console
                 onConsoleModification(parsed.modification);
               }
+            } else if (parsed.type === "error") {
+              // Handle error events
+              console.error("Error from agent:", parsed.message);
+              setError(parsed.message || "An error occurred");
+              // Still add the error to messages so it's visible in chat history
+              assistantContent = `Error: ${parsed.message || "An unknown error occurred"}`;
+              setStreamingContent(assistantContent);
             }
           } catch (_) {
             /* ignore */
@@ -682,6 +744,9 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
 
     const userMessage = input.trim();
 
+    // Clear any previous errors
+    setError(null);
+
     // Optimistically add user message
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
     setSteps([]);
@@ -691,6 +756,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
     try {
       await streamResponse(userMessage);
     } catch (err: any) {
+      setError(err.message || "Failed to send message");
       setMessages(prev => [
         ...prev,
         {
@@ -857,6 +923,19 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
           </MenuItem>
         )}
       </Menu>
+
+      {/* Error display */}
+      {error && (
+        <Box sx={{ p: 1 }}>
+          <Alert
+            severity="error"
+            onClose={() => setError(null)}
+            sx={{ fontSize: "0.875rem" }}
+          >
+            {error}
+          </Alert>
+        </Box>
+      )}
 
       {/* Messages */}
       <Box sx={{ flex: messages.length > 0 ? 1 : 0, overflow: "auto", p: 1 }}>

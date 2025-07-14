@@ -198,6 +198,7 @@ const executeQuery = async (
 const createWorkspaceTools = (
   workspaceId: string,
   sendEvent?: (data: any) => void,
+  consoles?: any[],
 ) => {
   const listDatabasesTool = tool({
     name: "list_databases",
@@ -333,12 +334,65 @@ const createWorkspaceTools = (
     },
   });
 
+  const readConsoleTool = tool({
+    name: "read_console",
+    description:
+      "Read the contents of the current console editor. Use this to examine the user's current query or code in the console. By default, reads from the currently active console.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    execute: async (input: any) => {
+      const consolesData = consoles || [];
+      const consoleId = input.consoleId;
+
+      if (consoleId) {
+        // Find specific console by ID
+        const console = consolesData.find((c: any) => c.id === consoleId);
+        if (console) {
+          return {
+            success: true,
+            consoleId: console.id,
+            title: console.title,
+            content: console.content || "",
+            metadata: console.metadata || {},
+          };
+        } else {
+          return {
+            success: false,
+            error: `Console with ID ${consoleId} not found`,
+          };
+        }
+      } else {
+        // Return the active console (first one in the array)
+        if (consolesData.length > 0) {
+          const activeConsole = consolesData[0];
+          return {
+            success: true,
+            consoleId: activeConsole.id,
+            title: activeConsole.title,
+            content: activeConsole.content || "",
+            metadata: activeConsole.metadata || {},
+          };
+        } else {
+          return {
+            success: false,
+            error: "No console is currently active",
+          };
+        }
+      }
+    },
+  });
+
   return [
     listDatabasesTool,
     listCollectionsTool,
     inspectCollectionTool,
     executeQueryTool,
     modifyConsoleTool,
+    readConsoleTool,
   ];
 };
 
@@ -346,55 +400,47 @@ const createWorkspaceTools = (
 // The Agent definition - Updated to be created dynamically with workspaceId
 // ------------------------------------------------------------------------------------
 
-const createDbAgent = (workspaceId: string, sendEvent?: (data: any) => void) =>
+const createDbAgent = (
+  workspaceId: string,
+  sendEvent?: (data: any) => void,
+  consoles?: any[],
+) =>
   new Agent({
     name: "Database Assistant",
-    instructions: `You are an expert MongoDB assistant with direct access to the user's query console.
-  Your goal is to help the user write MongoDB queries (mostly aggregation) to answer their questions.
-  Use the available tools to inspect the available databases, list their collections, inspect collections schemas and execute queries.
-  Your process should be:
-  1. Decide which database to use (only one!)
-  2. Decide which collections to use (one or several)
-  3. Inspect the collections to understand the schema
-  4. Write a MongoDB query to answer the question, be careful not to return too many results (add a limit if opportune)
-  5. Test the query by executing it and reading results, unless instructed otherwise.
-  6. Use the modify_console tool to place the query in the user's console editor.
-  7. Explain what the query does and how it answers the user's question.
+    instructions: `You are a helpful database assistant with direct access to the user's MongoDB databases and query console.
 
-  If you aren't sure, ask clarifying questions before proceeding.
+**Important:** If a user refers to "my query", "the console", or asks to "fix my query", ALWAYS use the read_console tool first to see what they're working on.
 
-  Always test the query yourself first, unless instructed otherwise.
-  Always wrap your code in a markdown code block with the language set to "javascript" or "json" depending on which it is.
-  Always add a comment at the top of the query with the database to be used.
-  Always add a limit to the query to avoid returning too many results (500 is a good default).
-  When doing markdown tables, make sure that they are valid and that there is enough newlines before and after the table.
-  When responding, prefer concise, clear explanations.
+## Your Capabilities:
+1. List and explore databases and collections
+2. Execute MongoDB queries using JavaScript driver syntax
+3. Analyze collection schemas and document structures  
+4. Read and modify the user's console editor
+5. Help debug and optimize queries
 
-  When users ask you to:
-  - "Write a query" → Use modify_console with 'replace' action to set the entire console content
-  - "Add to my query" → Use modify_console with 'append' action to add to existing content  
-  - "Fix my query" → Use modify_console with 'replace' action with the corrected version
-  - "Insert at line X" → Use modify_console with 'insert' action (will insert at cursor position)
+## Query Syntax:
+Always use proper MongoDB JavaScript driver syntax:
+- db.collection.find({})
+- db.collection.aggregate([...])
+- db.collection.findOne({})
+- etc.
 
-  After modifying the console, explain what the query does but don't show the raw tool output.
+## When Users Ask About Their Console:
+1. Use read_console to see what they're working on
+2. The active console is always available, even if not explicitly mentioned
+3. Provide targeted help based on the actual content
+4. Use modify_console to make corrections if needed
 
-  The available tools are:
-    - list_databases: List all active MongoDB databases that the system knows about.
-    - list_collections: List all collections for the provided database identifier.
-    - execute_query: Execute an arbitrary MongoDB query and return the results. The query should be written in JavaScript using MongoDB Node.js driver syntax.
-    - inspect_collection: Sample documents from a collection to infer field names and BSON data types. Returns the sample set and a schema summary.
-    - modify_console: Modify the MongoDB query in the console editor. Use this to update, replace, or insert queries in the user's console.
+Be concise but helpful. Explain what queries do and suggest improvements when appropriate.
 
-    | Requirement                      | Do ✓                                                                                                    | Don't ✗                                          |
-    | -------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-    | **Pivot all period-based data**  | Return **one document per entity**, with each period as a **field name** (\`"2025-01"\`, \`"2025-02"\`, …). | Never send separate docs per month/quarter/year. |
-    | **Flat, table-friendly objects** | Use clear identifier fields (\`product\`, \`closer\`, …).                                                   | Avoid nested arrays/objects for final output.    |
-    | **Column order**                 | Use \`$replaceRoot\` to build the final object so keys stay in logical order.                             | Don't rely on \`$project\` for re-shaping.         |
-    | **Missing periods**              | Fill with \`0\` or \`null\`.                                                                                | Leave gaps.                                      |
-    | **Fields with dots**             | Access via \`$getField\`.                                                                                 | Dot-notation on such fields.                     |
-
-    `,
-    tools: createWorkspaceTools(workspaceId, sendEvent),
+The available tools are:
+  - list_databases: List all active MongoDB databases that the system knows about.
+  - list_collections: List all collections for the provided database identifier.
+  - execute_query: Execute an arbitrary MongoDB query and return the results.
+  - inspect_collection: Sample documents from a collection to infer field names and BSON data types.
+  - modify_console: Modify the MongoDB query in the console editor.
+  - read_console: Read the contents of the current console editor (always has access to the active console).`,
+    tools: createWorkspaceTools(workspaceId, sendEvent, consoles),
     model: "o3",
   });
 
@@ -423,10 +469,11 @@ agentRoutes.post("/stream", async c => {
     console.error("Error parsing request body", e);
   }
 
-  const { message, sessionId, workspaceId } = body as {
+  const { message, sessionId, workspaceId, consoles } = body as {
     message?: string;
     sessionId?: string;
     workspaceId?: string;
+    consoles?: any[];
   };
 
   if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -474,7 +521,7 @@ agentRoutes.post("/stream", async c => {
 
       try {
         const runStream: any = await runAgent(
-          createDbAgent(workspaceId, sendEvent),
+          createDbAgent(workspaceId, sendEvent, consoles),
           agentInput,
           {
             stream: true,
