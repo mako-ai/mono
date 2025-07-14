@@ -293,10 +293,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const executeContent = useCallback(
     (content: string) => {
       if (content.trim()) {
-        onExecute(content, selectedDatabaseIdRef.current || undefined);
+        onExecuteRef.current(
+          content,
+          selectedDatabaseIdRef.current || undefined,
+        );
       }
     },
-    [onExecute],
+    [], // Remove onExecute from dependencies since we're using the ref
   );
 
   const handleSave = useCallback(async () => {
