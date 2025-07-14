@@ -109,6 +109,23 @@ const chatTools: any[] = [
       required: ["action", "content"],
     },
   },
+  {
+    type: "function",
+    name: "read_console",
+    description:
+      "Read the contents of the current console editor. Use this to examine the user's current query or code in the console.",
+    parameters: {
+      type: "object",
+      properties: {
+        consoleId: {
+          type: "string",
+          description:
+            "Optional console ID to read from. If not provided, reads from the currently active console.",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // --- Helper functions that implement the tools ----
@@ -144,7 +161,7 @@ const listCollections = async (databaseId: string) => {
 };
 
 // Tool execution helper
-const executeToolCall = async (fc: any) => {
+const executeToolCall = async (fc: any, context?: { consoles?: any[] }) => {
   let parsedArgs: any = {};
   try {
     parsedArgs = fc.arguments ? JSON.parse(fc.arguments) : {};
@@ -196,6 +213,48 @@ const executeToolCall = async (fc: any) => {
           },
         };
         break;
+      case "read_console": {
+        // Read console content from the context provided by frontend
+        const consoleId = parsedArgs.consoleId;
+        const consoles = context?.consoles || [];
+
+        if (consoleId) {
+          // Find specific console by ID
+          const console = consoles.find((c: any) => c.id === consoleId);
+          if (console) {
+            result = {
+              success: true,
+              consoleId: console.id,
+              title: console.title,
+              content: console.content || "",
+              metadata: console.metadata || {},
+            };
+          } else {
+            result = {
+              success: false,
+              error: `Console with ID ${consoleId} not found`,
+            };
+          }
+        } else {
+          // Return the active console (first one in the array)
+          if (consoles.length > 0) {
+            const activeConsole = consoles[0];
+            result = {
+              success: true,
+              consoleId: activeConsole.id,
+              title: activeConsole.title,
+              content: activeConsole.content || "",
+              metadata: activeConsole.metadata || {},
+            };
+          } else {
+            result = {
+              success: false,
+              error: "No console is currently active",
+            };
+          }
+        }
+        break;
+      }
       default:
         result = { error: `Unknown function: ${fc.name}` };
     }
@@ -262,6 +321,7 @@ aiRoutes.post("/chat/stream", async c => {
     console.log("/chat/stream body", JSON.stringify(body, null, 2));
 
     const sessionId = body.sessionId as string | undefined;
+    const consoles = body.consoles as any[] | undefined; // Extract consoles from request
 
     // 1. Build the base messages array (existing chat history if any)
     let messages: { role: string; content: string }[] = [];
@@ -310,6 +370,15 @@ When users ask you to:
 - "Add to my query" → Use 'append' action to add to existing content  
 - "Fix my query" → Use 'replace' with the corrected version
 - "Insert at line X" → Use 'insert' action with position
+
+When users mention their console or current query:
+- Use 'read_console' to examine the current console content first
+- This helps you understand what the user is working on
+- You can then provide targeted help or modifications
+
+If a user says something like "fix my query", "what's wrong with my query", or references "the console":
+1. First use 'read_console' to see what they're working on
+2. Then provide help or use 'modify_console' to make corrections
 
 Always explain what the query does after modifying the console. Be concise but helpful.`;
 
@@ -448,7 +517,7 @@ Always explain what the query does after modifying the console. Be concise but h
                   call_id: fc.call_id,
                 });
 
-                const result = await executeToolCall(fc);
+                const result = await executeToolCall(fc, { consoles });
 
                 // Send special event for console modifications
                 if (fc.name === "modify_console" && result.success) {
