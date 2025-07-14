@@ -8,8 +8,9 @@ This feature allows the AI agent to directly modify the MongoDB query console, s
 
 ### Backend Components
 
-1. **Tool Definition** (`/api/src/routes/ai.ts` and `/api/src/routes/agent.ts`)
-   - Added `modify_console` tool to both OpenAI SDK and Agent SDK implementations
+1. **Tool Definition** (`/api/src/routes/agent.ts`)
+
+   - Added `modify_console` tool to the Agent SDK implementation
    - Tool supports three actions: `replace`, `append`, and `insert`
    - Emits special SSE event `console_modification` when executed
 
@@ -20,23 +21,27 @@ This feature allows the AI agent to directly modify the MongoDB query console, s
 ### Frontend Components
 
 1. **ConsoleVersionManager** (`/app/src/utils/ConsoleVersionManager.ts`)
+
    - Manages version history with undo/redo functionality
    - Persists versions to localStorage
    - Tracks source (user/ai) for each version
    - Limits history to 50 versions
 
 2. **useMonacoConsole Hook** (`/app/src/hooks/useMonacoConsole.ts`)
+
    - Integrates Monaco editor with version management
    - Handles console modifications with visual feedback
    - Provides keyboard shortcuts for undo/redo
    - Manages user edit debouncing
 
 3. **Console Component** (`/app/src/components/Console.tsx`)
+
    - Enhanced with version control UI
    - Exposes modification methods through ref
    - Shows undo/redo buttons and history badge
 
 4. **Chat3 Component** (`/app/src/components/Chat3.tsx`)
+
    - Handles `console_modification` SSE events
    - Passes modifications to parent component
 
@@ -50,7 +55,7 @@ This feature allows the AI agent to directly modify the MongoDB query console, s
 ### Basic Integration
 
 ```tsx
-import AIConsole from './components/AIConsole';
+import AIConsole from "./components/AIConsole";
 
 function App() {
   const handleExecute = (query: string, databaseId?: string) => {
@@ -71,15 +76,15 @@ function App() {
 ### Standalone Console with Version Control
 
 ```tsx
-import Console from './components/Console';
+import Console from "./components/Console";
 
 function MyConsole() {
   const consoleRef = useRef<ConsoleRef>(null);
 
   const handleModification = () => {
     consoleRef.current?.applyModification({
-      action: 'replace',
-      content: 'db.users.find({ age: { $gt: 25 } }).limit(10)'
+      action: "replace",
+      content: "db.users.find({ age: { $gt: 25 } }).limit(10)",
     });
   };
 
@@ -87,7 +92,7 @@ function MyConsole() {
     <Console
       ref={consoleRef}
       enableVersionControl={true}
-      onHistoryClick={() => console.log('Show history')}
+      onHistoryClick={() => console.log("Show history")}
       // ... other props
     />
   );
@@ -101,10 +106,12 @@ function MyConsole() {
 Users can ask the AI to:
 
 1. **"Write a query to find all users over 25"**
+
    - AI uses `replace` action to set the entire console content
    - Console shows the query: `db.users.find({ age: { $gt: 25 } })`
 
 2. **"Add a limit of 10 to my query"**
+
    - AI uses `append` action to add to existing content
    - Adds `.limit(10)` to the existing query
 
@@ -160,15 +167,18 @@ Users can ask the AI to:
 ## Testing Scenarios
 
 1. **Basic Modification**
+
    - Ask: "Write a query to count all documents in the orders collection"
    - Expected: Console updates with `db.orders.count()`
 
 2. **Append Operation**
+
    - Start with: `db.users.find({ active: true })`
    - Ask: "Add sorting by created date"
    - Expected: `.sort({ createdAt: -1 })` appended
 
 3. **Version History**
+
    - Make several modifications
    - Test undo/redo functionality
    - Verify history persistence across page reloads

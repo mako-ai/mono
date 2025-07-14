@@ -10,7 +10,6 @@ import { executeRoutes } from "./routes/execute";
 import { databaseRoutes } from "./routes/database";
 import { dataSourceRoutes } from "./routes/sources";
 import { customPromptRoutes } from "./routes/custom-prompt";
-import { aiRoutes } from "./routes/ai";
 import { chatsRoutes } from "./routes/chats";
 import { agentRoutes } from "./routes/agent";
 import { authRoutes } from "./auth/auth.controller";
@@ -72,7 +71,6 @@ app.route("/api/workspaces/:workspaceId/sync-jobs", syncJobRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
-app.route("/api/ai", aiRoutes);
 app.route("/api/agent", agentRoutes);
 app.route("/api/connectors", connectorRoutes);
 

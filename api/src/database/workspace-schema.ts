@@ -328,6 +328,7 @@ export interface IChat extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   title: string;
+  threadId?: string; // Custom thread ID for conversation continuity
   messages: Array<{
     role: "user" | "assistant";
     content: string;
@@ -799,6 +800,11 @@ const ChatSchema = new Schema<IChat>(
       type: String,
       required: true,
       trim: true,
+    },
+    threadId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null values but ensure uniqueness when present
     },
     messages: [
       {
