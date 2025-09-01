@@ -156,6 +156,20 @@ export interface IWorkspace extends Document {
     billingTier: "free" | "pro" | "enterprise";
     customPrompt?: string;
   };
+  apiKeys?: IWorkspaceApiKey[];
+}
+
+/**
+ * API Key interface for workspace authentication
+ */
+export interface IWorkspaceApiKey {
+  _id?: Types.ObjectId;
+  name: string;
+  keyHash: string;
+  prefix: string; // First 8 characters to help identify the key
+  createdAt: Date;
+  lastUsedAt?: Date;
+  createdBy: string;
 }
 
 /**
@@ -452,6 +466,35 @@ Add any specific instructions for how the AI should interpret your data or respo
 *This prompt is combined with the system prompt to provide context-aware responses. You can edit this through the Settings page.*`,
       },
     },
+    apiKeys: [
+      {
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        keyHash: {
+          type: String,
+          required: true,
+        },
+        prefix: {
+          type: String,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        lastUsedAt: {
+          type: Date,
+        },
+        createdBy: {
+          type: String,
+          ref: "User",
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
