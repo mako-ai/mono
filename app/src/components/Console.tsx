@@ -18,7 +18,6 @@ import {
   Divider,
   Badge,
   Alert,
-  Stack,
 } from "@mui/material";
 import {
   PlayArrow,
@@ -399,7 +398,6 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       }
     },
     [
-      filePath,
       enableVersionControl,
       setEditor,
       undo,
