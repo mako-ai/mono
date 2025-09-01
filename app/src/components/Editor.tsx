@@ -236,6 +236,7 @@ function Editor() {
     }
 
     setIsExecuting(true);
+    const startTime = Date.now();
     try {
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
@@ -245,6 +246,7 @@ function Editor() {
           body: JSON.stringify({ query: contentToExecute }),
         },
       );
+      const executionTime = Date.now() - startTime;
       const data = await response.json();
       if (data.success) {
         setTabResults(prev => ({
@@ -253,6 +255,7 @@ function Editor() {
             results: data.data,
             executedAt: new Date().toISOString(),
             resultCount: Array.isArray(data.data) ? data.data.length : 1,
+            executionTime,
           },
         }));
       } else {
