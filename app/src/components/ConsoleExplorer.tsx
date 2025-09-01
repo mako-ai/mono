@@ -73,7 +73,6 @@ function ConsoleExplorer(
   const {
     trees,
     loading: loadingMap,
-    fetchTree,
     refresh: refreshTree,
   } = useConsoleTreeStore();
 
