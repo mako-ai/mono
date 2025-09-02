@@ -138,10 +138,15 @@ function ConsoleExplorer(
       return;
     }
 
+    if (!node.id) {
+      console.error("Console has no ID, cannot open");
+      return;
+    }
+
     try {
-      // Use path for the API call, not ID
+      // Use the console's unique ID for the API call
       const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/consoles/content?path=${encodeURIComponent(node.path)}`,
+        `/api/workspaces/${currentWorkspace.id}/consoles/content?id=${encodeURIComponent(node.id)}`,
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -150,7 +155,7 @@ function ConsoleExplorer(
 
       // Use the database ID from the response if available, otherwise from the node
       const databaseId = data.databaseId || node.databaseId;
-      const consoleId = data.id || node.id; // Get console ID from response or node
+      const consoleId = node.id; // Always use the node's ID
 
       onConsoleSelect(node.path, data.content, databaseId, consoleId);
     } catch (e: any) {

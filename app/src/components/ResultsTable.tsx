@@ -134,12 +134,46 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     });
 
     // Generate rows with unique IDs
-    const rowsData = normalizedResults.map((result, index) => ({
-      id: index,
-      ...(result && typeof result === "object" && !Array.isArray(result)
-        ? result
-        : { value: result }),
-    }));
+    const idMap = new Map<string, number>();
+    const rowsData = normalizedResults.map((result, index) => {
+      const rowData: any = {
+        ...(result && typeof result === "object" && !Array.isArray(result)
+          ? result
+          : { value: result }),
+      };
+
+      // Handle row ID generation
+      let rowId: string | number;
+
+      // Check if the row already has an id
+      if ("id" in rowData) {
+        const existingId = rowData.id;
+
+        // Convert null/undefined to string
+        if (existingId === null || existingId === undefined) {
+          rowId = String(existingId); // "null" or "undefined"
+        } else {
+          rowId = existingId;
+        }
+
+        // Make the ID unique if we've seen it before
+        const idStr = String(rowId);
+        const count = idMap.get(idStr) || 0;
+        if (count > 0) {
+          // Append the index to make it unique
+          rowId = `${idStr}_${index}`;
+        }
+        idMap.set(idStr, count + 1);
+      } else {
+        // No existing ID, use index
+        rowId = index;
+      }
+
+      return {
+        ...rowData,
+        id: rowId,
+      };
+    });
 
     return { columns: cols, rows: rowsData };
   }, [results]);

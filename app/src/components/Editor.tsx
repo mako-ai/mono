@@ -330,10 +330,9 @@ function Editor() {
           updateConsoleFilePath(tabId, savePath);
         }
 
-        // Always update the title to reflect the filename after saving
+        // Keep the full path as the title to distinguish between files with same name
         if (savePath) {
-          const fileName = savePath.split("/").pop() || savePath; // Extract filename from path
-          updateConsoleTitle(tabId, fileName);
+          updateConsoleTitle(tabId, savePath);
         }
 
         // Mark tab as dirty since it's now saved and should be persistent
