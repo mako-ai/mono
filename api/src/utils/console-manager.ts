@@ -199,13 +199,33 @@ export class ConsoleManager {
             workspaceId: new Types.ObjectId(workspaceId),
           });
         } else {
-          // Try to find by name (for backward compatibility)
+          // Try to find by path
           const parts = consolePath.split("/");
           const consoleName = parts[parts.length - 1];
-          console = await SavedConsole.findOne({
-            name: consoleName,
-            workspaceId: new Types.ObjectId(workspaceId),
-          });
+
+          if (parts.length > 1) {
+            // Console is in a folder - need to find the folder first
+            const folderParts = parts.slice(0, -1);
+            const folderId = await this.findFolderByPath(
+              folderParts,
+              workspaceId,
+            );
+
+            console = await SavedConsole.findOne({
+              name: consoleName,
+              workspaceId: new Types.ObjectId(workspaceId),
+              folderId: folderId
+                ? new Types.ObjectId(folderId)
+                : { $exists: false },
+            });
+          } else {
+            // Console is at root level
+            console = await SavedConsole.findOne({
+              name: consoleName,
+              workspaceId: new Types.ObjectId(workspaceId),
+              folderId: { $exists: false },
+            });
+          }
         }
 
         if (console) {
@@ -223,10 +243,10 @@ export class ConsoleManager {
   }
 
   /**
-   * Get full console data from database including database ID
+   * Get full console data from database by ID only
    */
   async getConsoleWithMetadata(
-    consolePath: string,
+    consoleId: string,
     workspaceId: string,
   ): Promise<{
     content: string;
@@ -235,23 +255,16 @@ export class ConsoleManager {
     id?: string;
   } | null> {
     try {
-      let console;
-
-      // Check if consolePath is an ObjectId
-      if (Types.ObjectId.isValid(consolePath)) {
-        console = await SavedConsole.findOne({
-          _id: new Types.ObjectId(consolePath),
-          workspaceId: new Types.ObjectId(workspaceId),
-        });
-      } else {
-        // Try to find by name (for backward compatibility)
-        const parts = consolePath.split("/");
-        const consoleName = parts[parts.length - 1];
-        console = await SavedConsole.findOne({
-          name: consoleName,
-          workspaceId: new Types.ObjectId(workspaceId),
-        });
+      // Only accept valid ObjectIds
+      if (!Types.ObjectId.isValid(consoleId)) {
+        console.error(`Invalid console ID: ${consoleId}`);
+        return null;
       }
+
+      const console = await SavedConsole.findOne({
+        _id: new Types.ObjectId(consoleId),
+        workspaceId: new Types.ObjectId(workspaceId),
+      });
 
       if (console) {
         return {
@@ -262,16 +275,7 @@ export class ConsoleManager {
         };
       }
 
-      // Fallback to filesystem - no metadata available
-      try {
-        const content = this.getConsoleFromFilesystem(consolePath);
-        return {
-          content,
-          language: this.detectLanguage(content),
-        };
-      } catch {
-        return null;
-      }
+      return null;
     } catch (error) {
       console.error("Error getting console with metadata:", error);
       return null;

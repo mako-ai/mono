@@ -14,6 +14,7 @@ import { AuthWrapper } from "./components/AuthWrapper";
 import { AcceptInvite } from "./components/AcceptInvite";
 import { WorkspaceProvider } from "./contexts/workspace-context";
 import { ConsoleModification } from "./hooks/useMonacoConsole";
+import { generateObjectId } from "./utils/objectId";
 
 // Styled PanelResizeHandle components (moved from Databases.tsx/Consoles.tsx)
 const StyledHorizontalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
@@ -44,8 +45,13 @@ function InvitePage() {
 // Main application component (extracted from original App)
 function MainApp() {
   const { activeView } = useAppStore();
-  const { addConsoleTab, setActiveConsole, consoleTabs, activeConsoleId } =
-    useConsoleStore();
+  const {
+    addConsoleTab,
+    setActiveConsole,
+    consoleTabs,
+    activeConsoleId,
+    updateConsoleContent,
+  } = useConsoleStore();
 
   // Handle console modification from AI
   const handleConsoleModification = async (
@@ -100,17 +106,17 @@ function MainApp() {
     filePath?: string,
     consoleId?: string, // Add optional consoleId parameter
   ) => {
-    // Try to find existing tab by saved console ID (in metadata) or by title
-    const existing = consoleTabs.find(t => {
-      if (consoleId && (t as any).metadata?.savedConsoleId === consoleId) {
-        return true;
-      }
-      // For unsaved consoles, match by title
-      return !consoleId && t.title === title;
-    });
+    // For existing consoles, use the server ID as the tab ID
+    const tabId = consoleId || generateObjectId();
+
+    // Check if a tab with this ID already exists
+    const existing = consoleTabs.find(t => t.id === tabId);
 
     if (existing) {
+      // Tab already exists, just focus it
       setActiveConsole(existing.id);
+      // Update the content in case it changed on the server
+      updateConsoleContent(existing.id, content);
       useChatStore.getState().ensureContextItems([
         {
           id: existing.id,
@@ -124,14 +130,14 @@ function MainApp() {
       return;
     }
 
-    // Create a new tab - let addConsoleTab generate its own ID
+    // Create a new tab with the determined ID
     const id = addConsoleTab({
+      id: tabId, // Pass the ID explicitly
       title,
       content,
       initialContent: content,
       databaseId,
       filePath,
-      metadata: consoleId ? { savedConsoleId: consoleId } : undefined,
     });
     setActiveConsole(id);
 

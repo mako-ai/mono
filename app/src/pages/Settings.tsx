@@ -17,6 +17,7 @@ import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import ThemeSelector from "../components/ThemeSelector";
 import { useCustomPrompt } from "../components/Chat/CustomPrompt";
 import { WorkspaceMembers } from "../components/WorkspaceMembers";
+import { ApiKeyManager } from "../components/ApiKeyManager";
 import { useWorkspace } from "../contexts/workspace-context";
 
 function Settings() {
@@ -194,6 +195,11 @@ function Settings() {
         {/* Workspace Members */}
         <Box sx={{ mb: 4 }}>
           <WorkspaceMembers />
+        </Box>
+
+        {/* API Keys */}
+        <Box sx={{ mb: 4 }}>
+          <ApiKeyManager />
         </Box>
 
         {/* Appearance Settings */}

@@ -22,8 +22,10 @@ export const useConsoleStore = () => {
   // Helper: convert Record to array for backward compatibility
   const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
-  const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
-    const id = generateObjectId(); // Use MongoDB ObjectId
+  const addConsoleTab = (
+    tab: Omit<ConsoleTab, "id"> & { id?: string },
+  ): string => {
+    const id = tab.id || generateObjectId(); // Use provided ID or generate new MongoDB ObjectId
 
     // Create version manager for console tabs
     if (tab.kind === undefined || tab.kind === "console") {
@@ -141,8 +143,10 @@ useConsoleStore.getState = () => {
 
   const consoleTabs: ConsoleTab[] = Object.values(tabs);
 
-  const addConsoleTab = (tab: Omit<ConsoleTab, "id">): string => {
-    const id = generateObjectId(); // Use MongoDB ObjectId
+  const addConsoleTab = (
+    tab: Omit<ConsoleTab, "id"> & { id?: string },
+  ): string => {
+    const id = tab.id || generateObjectId(); // Use provided ID or generate new MongoDB ObjectId
 
     // Create version manager for console tabs
     if (tab.kind === undefined || tab.kind === "console") {

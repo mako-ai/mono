@@ -8,6 +8,7 @@ import {
   AuthenticatedContext,
 } from "../middleware/workspace.middleware";
 import { Types } from "mongoose";
+import { Workspace } from "../database/workspace-schema";
 
 export const workspaceRoutes = new Hono();
 
@@ -709,6 +710,176 @@ workspaceRoutes.post(
           success: false,
           error:
             error instanceof Error ? error.message : "Failed to accept invite",
+        },
+        500,
+      );
+    }
+  },
+);
+
+// API Key Management Routes
+
+// GET /api/workspaces/:id/api-keys - List API keys
+workspaceRoutes.get(
+  "/:id/api-keys",
+  authMiddleware,
+  requireWorkspace,
+  requireWorkspaceRole(["owner", "admin"]),
+  async (c: AuthenticatedContext) => {
+    try {
+      const workspace = c.get("workspace");
+      const workspaceId = c.req.param("id");
+
+      if (workspaceId !== workspace._id.toString()) {
+        return c.json({ success: false, error: "Workspace ID mismatch" }, 400);
+      }
+
+      // Return API keys without the hash
+      const apiKeys =
+        workspace.apiKeys?.map((key: any) => ({
+          id: key._id,
+          name: key.name,
+          prefix: key.prefix,
+          createdAt: key.createdAt,
+          lastUsedAt: key.lastUsedAt,
+          createdBy: key.createdBy,
+        })) || [];
+
+      return c.json({
+        success: true,
+        apiKeys,
+      });
+    } catch (error) {
+      console.error("Error listing API keys:", error);
+      return c.json(
+        {
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Failed to list API keys",
+        },
+        500,
+      );
+    }
+  },
+);
+
+// POST /api/workspaces/:id/api-keys - Create new API key
+workspaceRoutes.post(
+  "/:id/api-keys",
+  authMiddleware,
+  requireWorkspace,
+  requireWorkspaceRole(["owner", "admin"]),
+  async (c: AuthenticatedContext) => {
+    try {
+      const workspace = c.get("workspace");
+      const user = c.get("user");
+      const workspaceId = c.req.param("id");
+      const body = await c.req.json();
+      const { name } = body;
+
+      if (workspaceId !== workspace._id.toString()) {
+        return c.json({ success: false, error: "Workspace ID mismatch" }, 400);
+      }
+
+      if (!name || typeof name !== "string" || name.trim().length === 0) {
+        return c.json(
+          { success: false, error: "API key name is required" },
+          400,
+        );
+      }
+
+      // Import the generateApiKey function
+      const { generateApiKey } = await import("../auth/api-key.middleware");
+
+      // Generate new API key
+      const { key, hash, prefix } = generateApiKey();
+
+      // Add API key to workspace
+      const newApiKey = {
+        name: name.trim(),
+        keyHash: hash,
+        prefix,
+        createdAt: new Date(),
+        createdBy: user!.id,
+      };
+
+      const updatedWorkspace = await Workspace.findByIdAndUpdate(
+        workspace._id,
+        {
+          $push: { apiKeys: newApiKey },
+        },
+        { new: true },
+      );
+
+      // Find the newly created API key
+      const createdKey = updatedWorkspace?.apiKeys?.slice(-1)[0];
+
+      return c.json({
+        success: true,
+        apiKey: {
+          id: createdKey?._id,
+          name: createdKey?.name,
+          prefix: createdKey?.prefix,
+          key, // Only return the full key once, during creation
+          createdAt: createdKey?.createdAt,
+        },
+        message:
+          "API key created successfully. Store this key securely - it won't be shown again.",
+      });
+    } catch (error) {
+      console.error("Error creating API key:", error);
+      return c.json(
+        {
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Failed to create API key",
+        },
+        500,
+      );
+    }
+  },
+);
+
+// DELETE /api/workspaces/:id/api-keys/:keyId - Delete API key
+workspaceRoutes.delete(
+  "/:id/api-keys/:keyId",
+  authMiddleware,
+  requireWorkspace,
+  requireWorkspaceRole(["owner", "admin"]),
+  async (c: AuthenticatedContext) => {
+    try {
+      const workspace = c.get("workspace");
+      const workspaceId = c.req.param("id");
+      const keyId = c.req.param("keyId");
+
+      if (workspaceId !== workspace._id.toString()) {
+        return c.json({ success: false, error: "Workspace ID mismatch" }, 400);
+      }
+
+      // Remove API key from workspace
+      const updatedWorkspace = await Workspace.findByIdAndUpdate(
+        workspace._id,
+        {
+          $pull: { apiKeys: { _id: keyId } },
+        },
+        { new: true },
+      );
+
+      if (!updatedWorkspace) {
+        return c.json({ success: false, error: "Workspace not found" }, 404);
+      }
+
+      return c.json({
+        success: true,
+        message: "API key deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting API key:", error);
+      return c.json(
+        {
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Failed to delete API key",
         },
         500,
       );
