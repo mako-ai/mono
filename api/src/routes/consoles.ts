@@ -3,7 +3,6 @@ import { ConsoleManager } from "../utils/console-manager";
 import {
   unifiedAuthMiddleware,
   isApiKeyAuth,
-  isSessionAuth,
 } from "../auth/unified-auth.middleware";
 import { Database, SavedConsole } from "../database/workspace-schema";
 import { workspaceService } from "../services/workspace.service";
