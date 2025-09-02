@@ -1,30 +1,57 @@
 import { Hono, Context } from "hono";
 import { ConsoleManager } from "../utils/console-manager";
-import { authMiddleware } from "../auth/auth.middleware";
-import { Database } from "../database/workspace-schema";
+import {
+  unifiedAuthMiddleware,
+  isApiKeyAuth,
+  isSessionAuth,
+} from "../auth/unified-auth.middleware";
+import { Database, SavedConsole } from "../database/workspace-schema";
 import { workspaceService } from "../services/workspace.service";
+import { databaseConnectionService } from "../services/database-connection.service";
+import { Types } from "mongoose";
 
 export const consoleRoutes = new Hono();
 const consoleManager = new ConsoleManager();
 
-// Apply auth middleware to all console routes
-consoleRoutes.use("*", authMiddleware);
+// Apply unified auth middleware to all console routes
+consoleRoutes.use("*", unifiedAuthMiddleware);
+
+// Helper function to verify workspace access
+async function verifyWorkspaceAccess(
+  c: Context,
+): Promise<{ hasAccess: boolean; workspaceId: string } | null> {
+  const workspaceId = c.req.param("workspaceId");
+
+  if (isApiKeyAuth(c)) {
+    // For API key auth, workspace is already verified and set in context
+    const workspace = c.get("workspace");
+    if (workspace && workspace._id.toString() === workspaceId) {
+      return { hasAccess: true, workspaceId };
+    }
+    return null;
+  }
+
+  // For session auth, check user access
+  const user = c.get("user");
+  if (user && (await workspaceService.hasAccess(workspaceId, user.id))) {
+    return { hasAccess: true, workspaceId };
+  }
+
+  return null;
+}
 
 // GET /api/workspaces/:workspaceId/consoles - List all consoles (tree structure) for workspace
 consoleRoutes.get("/", async (c: Context) => {
   try {
-    const workspaceId = c.req.param("workspaceId");
-    const user = c.get("user");
-
-    // Verify user has access to workspace
-    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+    const access = await verifyWorkspaceAccess(c);
+    if (!access) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
         403,
       );
     }
 
-    const tree = await consoleManager.listConsoles(workspaceId);
+    const tree = await consoleManager.listConsoles(access.workspaceId);
 
     return c.json({ success: true, tree });
   } catch (error) {
@@ -43,7 +70,7 @@ consoleRoutes.get("/", async (c: Context) => {
 consoleRoutes.get("/content", async (c: Context) => {
   try {
     const workspaceId = c.req.param("workspaceId");
-    const consolePath = c.req.query("path");
+    const consoleId = c.req.query("id");
     const user = c.get("user");
 
     // Verify user has access to workspace
@@ -54,15 +81,15 @@ consoleRoutes.get("/content", async (c: Context) => {
       );
     }
 
-    if (!consolePath) {
+    if (!consoleId) {
       return c.json(
-        { success: false, error: "Path query parameter is required" },
+        { success: false, error: "ID query parameter is required" },
         400,
       );
     }
 
     const consoleData = await consoleManager.getConsoleWithMetadata(
-      consolePath,
+      consoleId,
       workspaceId,
     );
 
@@ -79,7 +106,7 @@ consoleRoutes.get("/content", async (c: Context) => {
     });
   } catch (error) {
     console.error(
-      `Error fetching console content for ${c.req.query("path")}:`,
+      `Error fetching console content for ${c.req.query("id")}:`,
       error,
     );
     return c.json(
@@ -498,36 +525,250 @@ consoleRoutes.delete("/folders/:id", async (c: Context) => {
   }
 });
 
-// POST /api/workspaces/:workspaceId/consoles/:id/execute - Update execution stats when console is executed
+// POST /api/workspaces/:workspaceId/consoles/:id/execute - Execute a saved console
 consoleRoutes.post("/:id/execute", async (c: Context) => {
   try {
-    const workspaceId = c.req.param("workspaceId");
-    const consoleId = c.req.param("id");
-    const user = c.get("user");
-
-    // Verify user has access to workspace
-    if (!user || !(await workspaceService.hasAccess(workspaceId, user.id))) {
+    const access = await verifyWorkspaceAccess(c);
+    if (!access) {
       return c.json(
         { success: false, error: "Access denied to workspace" },
         403,
       );
     }
 
-    await consoleManager.updateExecutionStats(consoleId, workspaceId);
+    const consoleId = c.req.param("id");
 
-    return c.json({ success: true, message: "Execution stats updated" });
-  } catch (error) {
-    console.error(
-      `Error updating execution stats for console ${c.req.param("id")}:`,
-      error,
+    // Validate console ID
+    if (!Types.ObjectId.isValid(consoleId)) {
+      return c.json({ success: false, error: "Invalid console ID" }, 400);
+    }
+
+    // Find the console
+    const savedConsole = await SavedConsole.findOne({
+      _id: new Types.ObjectId(consoleId),
+      workspaceId: new Types.ObjectId(access.workspaceId),
+    });
+
+    if (!savedConsole) {
+      return c.json({ success: false, error: "Console not found" }, 404);
+    }
+
+    // If console has a database ID, verify it exists and belongs to workspace
+    let database = null;
+    if (savedConsole.databaseId) {
+      database = await Database.findOne({
+        _id: savedConsole.databaseId,
+        workspaceId: new Types.ObjectId(access.workspaceId),
+      });
+
+      if (!database) {
+        return c.json(
+          {
+            success: false,
+            error: "Associated database not found or access denied",
+          },
+          404,
+        );
+      }
+    }
+
+    // Execute the query based on language
+    let result;
+    if (!database) {
+      return c.json(
+        {
+          success: false,
+          error: "Console has no associated database",
+        },
+        400,
+      );
+    }
+
+    if (savedConsole.language === "mongodb") {
+      if (
+        savedConsole.mongoOptions &&
+        savedConsole.mongoOptions.collection &&
+        savedConsole.mongoOptions.operation
+      ) {
+        // For structured MongoDB operations (find, aggregate, etc.)
+        const mongoQuery = {
+          collection: savedConsole.mongoOptions.collection,
+          operation: savedConsole.mongoOptions.operation,
+          query: savedConsole.code,
+        };
+
+        result = await databaseConnectionService.executeQuery(
+          database,
+          mongoQuery,
+          savedConsole.mongoOptions,
+        );
+      } else {
+        // For JavaScript-style MongoDB queries (db.collection.find(), etc.)
+        result = await databaseConnectionService.executeQuery(
+          database,
+          savedConsole.code,
+        );
+      }
+    } else {
+      // For SQL and other languages, execute the code directly
+      result = await databaseConnectionService.executeQuery(
+        database,
+        savedConsole.code,
+      );
+    }
+
+    // Update execution stats
+    await SavedConsole.updateOne(
+      { _id: savedConsole._id },
+      {
+        $set: { lastExecutedAt: new Date() },
+        $inc: { executionCount: 1 },
+      },
     );
+
+    // Return the result
+    const data = result.data || [];
+    const rowCount = result.rowCount || (Array.isArray(data) ? data.length : 0);
+
+    return c.json({
+      success: true,
+      data: data,
+      rowCount: rowCount,
+      fields: result.fields || null,
+      console: {
+        id: savedConsole._id,
+        name: savedConsole.name,
+        language: savedConsole.language,
+        executedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Error executing console:", error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to execute console",
+      },
+      500,
+    );
+  }
+});
+
+// GET /api/workspaces/:workspaceId/consoles/list - List all consoles (flat list for API clients)
+consoleRoutes.get("/list", async (c: Context) => {
+  try {
+    const access = await verifyWorkspaceAccess(c);
+    if (!access) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403,
+      );
+    }
+
+    // Get all consoles for the workspace
+    const consoles = await SavedConsole.find({
+      workspaceId: new Types.ObjectId(access.workspaceId),
+    })
+      .select(
+        "_id name description language databaseId createdAt updatedAt lastExecutedAt executionCount",
+      )
+      .populate("databaseId", "name type")
+      .sort({ updatedAt: -1 });
+
+    return c.json({
+      success: true,
+      consoles: consoles.map(console => ({
+        id: console._id,
+        name: console.name,
+        description: console.description,
+        language: console.language,
+        database: console.databaseId
+          ? {
+              id: console.databaseId._id,
+              name: (console.databaseId as any).name,
+              type: (console.databaseId as any).type,
+            }
+          : null,
+        createdAt: console.createdAt,
+        updatedAt: console.updatedAt,
+        lastExecutedAt: console.lastExecutedAt,
+        executionCount: console.executionCount,
+      })),
+      total: consoles.length,
+    });
+  } catch (error) {
+    console.error("Error listing consoles:", error);
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to list consoles",
+      },
+      500,
+    );
+  }
+});
+
+// GET /api/workspaces/:workspaceId/consoles/:id/details - Get console details (for API clients)
+consoleRoutes.get("/:id/details", async (c: Context) => {
+  try {
+    const access = await verifyWorkspaceAccess(c);
+    if (!access) {
+      return c.json(
+        { success: false, error: "Access denied to workspace" },
+        403,
+      );
+    }
+
+    const consoleId = c.req.param("id");
+
+    // Validate console ID
+    if (!Types.ObjectId.isValid(consoleId)) {
+      return c.json({ success: false, error: "Invalid console ID" }, 400);
+    }
+
+    // Find the console
+    const savedConsole = await SavedConsole.findOne({
+      _id: new Types.ObjectId(consoleId),
+      workspaceId: new Types.ObjectId(access.workspaceId),
+    }).populate("databaseId", "name type");
+
+    if (!savedConsole) {
+      return c.json({ success: false, error: "Console not found" }, 404);
+    }
+
+    return c.json({
+      success: true,
+      console: {
+        id: savedConsole._id,
+        name: savedConsole.name,
+        description: savedConsole.description,
+        code: savedConsole.code,
+        language: savedConsole.language,
+        mongoOptions: savedConsole.mongoOptions,
+        database: savedConsole.databaseId
+          ? {
+              id: savedConsole.databaseId._id,
+              name: (savedConsole.databaseId as any).name,
+              type: (savedConsole.databaseId as any).type,
+            }
+          : null,
+        createdAt: savedConsole.createdAt,
+        updatedAt: savedConsole.updatedAt,
+        lastExecutedAt: savedConsole.lastExecutedAt,
+        executionCount: savedConsole.executionCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error getting console details:", error);
     return c.json(
       {
         success: false,
         error:
           error instanceof Error
             ? error.message
-            : "Unknown error updating execution stats",
+            : "Failed to get console details",
       },
       500,
     );

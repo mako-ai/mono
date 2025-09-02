@@ -236,6 +236,7 @@ function Editor() {
     }
 
     setIsExecuting(true);
+    const startTime = Date.now();
     try {
       const response = await fetch(
         `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
@@ -245,6 +246,7 @@ function Editor() {
           body: JSON.stringify({ query: contentToExecute }),
         },
       );
+      const executionTime = Date.now() - startTime;
       const data = await response.json();
       if (data.success) {
         setTabResults(prev => ({
@@ -253,6 +255,7 @@ function Editor() {
             results: data.data,
             executedAt: new Date().toISOString(),
             resultCount: Array.isArray(data.data) ? data.data.length : 1,
+            executionTime,
           },
         }));
       } else {
@@ -327,10 +330,9 @@ function Editor() {
           updateConsoleFilePath(tabId, savePath);
         }
 
-        // Always update the title to reflect the filename after saving
+        // Keep the full path as the title to distinguish between files with same name
         if (savePath) {
-          const fileName = savePath.split("/").pop() || savePath; // Extract filename from path
-          updateConsoleTitle(tabId, fileName);
+          updateConsoleTitle(tabId, savePath);
         }
 
         // Mark tab as dirty since it's now saved and should be persistent

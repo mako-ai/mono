@@ -18,7 +18,6 @@ import {
   Divider,
   Badge,
   Alert,
-  Stack,
 } from "@mui/material";
 import {
   PlayArrow,
@@ -28,13 +27,16 @@ import {
   History,
   Check,
   Close,
+  InfoOutline,
 } from "@mui/icons-material";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
+import { useWorkspace } from "../contexts/workspace-context";
 import {
   useMonacoConsole,
   ConsoleModification,
 } from "../hooks/useMonacoConsole";
+import ConsoleInfoModal from "./ConsoleInfoModal";
 
 interface Database {
   id: string;
@@ -101,6 +103,10 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const editorRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { effectiveMode } = useTheme();
+  const { currentWorkspace } = useWorkspace();
+
+  // State for info modal
+  const [infoModalOpen, setInfoModalOpen] = useState(false);
 
   // Use the Monaco console hook for version management
   const {
@@ -349,6 +355,16 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     setSelectedDatabaseId(newDatabaseId);
   }, []);
 
+  // Handler for opening info modal
+  const handleInfoClick = useCallback(() => {
+    setInfoModalOpen(true);
+  }, []);
+
+  // Handler for closing info modal
+  const handleInfoModalClose = useCallback(() => {
+    setInfoModalOpen(false);
+  }, []);
+
   const handleEditorDidMount = useCallback(
     (editor: any, monaco: any) => {
       editorRef.current = editor;
@@ -399,7 +415,6 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       }
     },
     [
-      filePath,
       enableVersionControl,
       setEditor,
       undo,
@@ -701,6 +716,18 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
               )}
             </>
           )}
+          <Divider orientation="vertical" flexItem />
+          <Button
+            onClick={handleInfoClick}
+            sx={{
+              minWidth: "32px",
+              width: "32px",
+              height: "32px",
+              p: 0,
+            }}
+          >
+            <InfoOutline fontSize="small" />
+          </Button>
         </Box>
 
         <FormControl size="small" variant="standard" sx={{ minWidth: 80 }}>
@@ -823,6 +850,14 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           />
         )}
       </Box>
+
+      {/* Info Modal */}
+      <ConsoleInfoModal
+        open={infoModalOpen}
+        onClose={handleInfoModalClose}
+        consoleId={consoleId}
+        workspaceId={currentWorkspace?.id}
+      />
     </Box>
   );
 });

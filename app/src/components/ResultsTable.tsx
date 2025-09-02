@@ -19,6 +19,7 @@ interface QueryResult {
   results?: any; // Can be anything: array, object, primitive, etc.
   executedAt: string;
   resultCount: number;
+  executionTime?: number; // Execution time in milliseconds
 }
 
 interface ResultsTableProps {
@@ -133,12 +134,46 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
     });
 
     // Generate rows with unique IDs
-    const rowsData = normalizedResults.map((result, index) => ({
-      id: index,
-      ...(result && typeof result === "object" && !Array.isArray(result)
-        ? result
-        : { value: result }),
-    }));
+    const idMap = new Map<string, number>();
+    const rowsData = normalizedResults.map((result, index) => {
+      const rowData: any = {
+        ...(result && typeof result === "object" && !Array.isArray(result)
+          ? result
+          : { value: result }),
+      };
+
+      // Handle row ID generation
+      let rowId: string | number;
+
+      // Check if the row already has an id
+      if ("id" in rowData) {
+        const existingId = rowData.id;
+
+        // Convert null/undefined to string
+        if (existingId === null || existingId === undefined) {
+          rowId = String(existingId); // "null" or "undefined"
+        } else {
+          rowId = existingId;
+        }
+
+        // Make the ID unique if we've seen it before
+        const idStr = String(rowId);
+        const count = idMap.get(idStr) || 0;
+        if (count > 0) {
+          // Append the index to make it unique
+          rowId = `${idStr}_${index}`;
+        }
+        idMap.set(idStr, count + 1);
+      } else {
+        // No existing ID, use index
+        rowId = index;
+      }
+
+      return {
+        ...rowData,
+        id: rowId,
+      };
+    });
 
     return { columns: cols, rows: rowsData };
   }, [results]);
@@ -245,6 +280,52 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
         overflow: "hidden",
       }}
     >
+      {/* Toolbar */}
+      <Box
+        sx={{
+          p: 0.5,
+          gap: 1,
+          display: "flex",
+          justifyContent: "flex-start",
+          alignItems: "center",
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          backgroundColor: "background.default",
+        }}
+      >
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={handleViewModeChange}
+          size="small"
+          aria-label="view mode"
+          sx={{
+            p: 0,
+          }}
+        >
+          <ToggleButton value="table" aria-label="table view">
+            <TableViewIcon fontSize="small" />
+          </ToggleButton>
+          <ToggleButton value="json" aria-label="json view">
+            <CodeIcon fontSize="small" />
+          </ToggleButton>
+        </ToggleButtonGroup>
+        <Button
+          variant="text"
+          size="small"
+          onClick={copyToClipboard}
+          sx={{
+            minWidth: "32px",
+            width: "32px",
+            height: "32px",
+            p: 0,
+          }}
+        >
+          <ContentCopyIcon fontSize="small" />
+        </Button>
+      </Box>
+
+      {/* Results content */}
       <Box
         sx={{
           flexGrow: 1,
@@ -259,6 +340,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             columns={columns}
             density="compact"
             disableRowSelectionOnClick
+            hideFooter
             style={{
               height: "100%",
               width: "100%",
@@ -318,43 +400,25 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           </Box>
         )}
       </Box>
+
+      {/* Footer with results info */}
       <Box
         sx={{
           p: 1,
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-start",
           alignItems: "center",
+          borderTop: "1px solid",
+          borderColor: "divider",
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          {results.resultCount} result(s) • Executed at{" "}
+          {results.resultCount} result(s) •{" "}
+          {results.executionTime !== undefined &&
+            `executed in ${results.executionTime} ms at `}
+          {results.executionTime === undefined && "Executed at "}
           {new Date(results.executedAt).toLocaleString()}
         </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={handleViewModeChange}
-            size="small"
-            aria-label="view mode"
-          >
-            <ToggleButton value="table" aria-label="table view">
-              <TableViewIcon fontSize="small" />
-            </ToggleButton>
-            <ToggleButton value="json" aria-label="json view">
-              <CodeIcon fontSize="small" />
-            </ToggleButton>
-          </ToggleButtonGroup>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<ContentCopyIcon />}
-            onClick={copyToClipboard}
-            sx={{ minWidth: "auto" }}
-          >
-            Copy Table
-          </Button>
-        </Box>
       </Box>
       <Snackbar
         open={snackbarOpen}
