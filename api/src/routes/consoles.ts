@@ -1,6 +1,10 @@
 import { Hono, Context } from "hono";
 import { ConsoleManager } from "../utils/console-manager";
-import { unifiedAuthMiddleware, isApiKeyAuth, isSessionAuth } from "../auth/unified-auth.middleware";
+import {
+  unifiedAuthMiddleware,
+  isApiKeyAuth,
+  isSessionAuth,
+} from "../auth/unified-auth.middleware";
 import { Database, SavedConsole } from "../database/workspace-schema";
 import { workspaceService } from "../services/workspace.service";
 import { databaseConnectionService } from "../services/database-connection.service";
@@ -13,9 +17,11 @@ const consoleManager = new ConsoleManager();
 consoleRoutes.use("*", unifiedAuthMiddleware);
 
 // Helper function to verify workspace access
-async function verifyWorkspaceAccess(c: Context): Promise<{ hasAccess: boolean; workspaceId: string } | null> {
+async function verifyWorkspaceAccess(
+  c: Context,
+): Promise<{ hasAccess: boolean; workspaceId: string } | null> {
   const workspaceId = c.req.param("workspaceId");
-  
+
   if (isApiKeyAuth(c)) {
     // For API key auth, workspace is already verified and set in context
     const workspace = c.get("workspace");
@@ -24,13 +30,13 @@ async function verifyWorkspaceAccess(c: Context): Promise<{ hasAccess: boolean; 
     }
     return null;
   }
-  
+
   // For session auth, check user access
   const user = c.get("user");
-  if (user && await workspaceService.hasAccess(workspaceId, user.id)) {
+  if (user && (await workspaceService.hasAccess(workspaceId, user.id))) {
     return { hasAccess: true, workspaceId };
   }
-  
+
   return null;
 }
 
@@ -64,7 +70,7 @@ consoleRoutes.get("/", async (c: Context) => {
 consoleRoutes.get("/content", async (c: Context) => {
   try {
     const workspaceId = c.req.param("workspaceId");
-    const consolePath = c.req.query("path");
+    const consoleId = c.req.query("id");
     const user = c.get("user");
 
     // Verify user has access to workspace
@@ -75,15 +81,15 @@ consoleRoutes.get("/content", async (c: Context) => {
       );
     }
 
-    if (!consolePath) {
+    if (!consoleId) {
       return c.json(
-        { success: false, error: "Path query parameter is required" },
+        { success: false, error: "ID query parameter is required" },
         400,
       );
     }
 
     const consoleData = await consoleManager.getConsoleWithMetadata(
-      consolePath,
+      consoleId,
       workspaceId,
     );
 
@@ -100,7 +106,7 @@ consoleRoutes.get("/content", async (c: Context) => {
     });
   } catch (error) {
     console.error(
-      `Error fetching console content for ${c.req.query("path")}:`,
+      `Error fetching console content for ${c.req.query("id")}:`,
       error,
     );
     return c.json(
@@ -531,7 +537,7 @@ consoleRoutes.post("/:id/execute", async (c: Context) => {
     }
 
     const consoleId = c.req.param("id");
-    
+
     // Validate console ID
     if (!Types.ObjectId.isValid(consoleId)) {
       return c.json({ success: false, error: "Invalid console ID" }, 400);
@@ -664,7 +670,9 @@ consoleRoutes.get("/list", async (c: Context) => {
     const consoles = await SavedConsole.find({
       workspaceId: new Types.ObjectId(access.workspaceId),
     })
-      .select("_id name description language databaseId createdAt updatedAt lastExecutedAt executionCount")
+      .select(
+        "_id name description language databaseId createdAt updatedAt lastExecutedAt executionCount",
+      )
       .populate("databaseId", "name type")
       .sort({ updatedAt: -1 });
 
