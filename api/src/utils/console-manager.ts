@@ -68,7 +68,10 @@ export class ConsoleManager {
 
     this.consolesDir = resolvedDir || cwdDir;
 
-    console.log(`📁 Consoles directory resolved to: ${this.consolesDir}`);
+    // Log only in development environment
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`📁 Consoles directory resolved to: ${this.consolesDir}`);
+    }
   }
 
   /**
@@ -118,8 +121,8 @@ export class ConsoleManager {
         if (folder.parentId) {
           const parent = folderMap.get(folder.parentId.toString());
           const child = folderMap.get(folder._id.toString());
-          if (parent && child) {
-            parent.children!.push(child);
+          if (parent && child && parent.children) {
+            parent.children.push(child);
             // Update path to include parent path
             child.path = `${parent.path}/${child.name}`;
           }
@@ -146,8 +149,8 @@ export class ConsoleManager {
 
         if (console.folderId) {
           const folder = folderMap.get(console.folderId.toString());
-          if (folder) {
-            folder.children!.push(consoleItem);
+          if (folder && folder.children) {
+            folder.children.push(consoleItem);
           } else {
             // Folder not found, add to root
             rootItems.push(consoleItem);
@@ -160,12 +163,14 @@ export class ConsoleManager {
 
       // Sort children in each folder
       for (const folder of folderMap.values()) {
-        folder.children!.sort((a, b) => {
-          // Directories first, then files
-          if (a.isDirectory && !b.isDirectory) return -1;
-          if (!a.isDirectory && b.isDirectory) return 1;
-          return a.name.localeCompare(b.name);
-        });
+        if (folder.children) {
+          folder.children.sort((a, b) => {
+            // Directories first, then files
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+            return a.name.localeCompare(b.name);
+          });
+        }
       }
 
       // Sort root items
@@ -190,11 +195,11 @@ export class ConsoleManager {
     try {
       // Try to get from database first (by path or ID)
       if (workspaceId) {
-        let console;
+        let savedConsole;
 
         // Check if consolePath is an ObjectId
         if (Types.ObjectId.isValid(consolePath)) {
-          console = await SavedConsole.findOne({
+          savedConsole = await SavedConsole.findOne({
             _id: new Types.ObjectId(consolePath),
             workspaceId: new Types.ObjectId(workspaceId),
           });
@@ -211,7 +216,7 @@ export class ConsoleManager {
               workspaceId,
             );
 
-            console = await SavedConsole.findOne({
+            savedConsole = await SavedConsole.findOne({
               name: consoleName,
               workspaceId: new Types.ObjectId(workspaceId),
               folderId: folderId
@@ -220,7 +225,7 @@ export class ConsoleManager {
             });
           } else {
             // Console is at root level
-            console = await SavedConsole.findOne({
+            savedConsole = await SavedConsole.findOne({
               name: consoleName,
               workspaceId: new Types.ObjectId(workspaceId),
               folderId: { $exists: false },
@@ -228,8 +233,8 @@ export class ConsoleManager {
           }
         }
 
-        if (console) {
-          return console.code;
+        if (savedConsole) {
+          return savedConsole.code;
         }
       }
 
@@ -261,17 +266,17 @@ export class ConsoleManager {
         return null;
       }
 
-      const console = await SavedConsole.findOne({
+      const savedConsole = await SavedConsole.findOne({
         _id: new Types.ObjectId(consoleId),
         workspaceId: new Types.ObjectId(workspaceId),
       });
 
-      if (console) {
+      if (savedConsole) {
         return {
-          content: console.code,
-          databaseId: console.databaseId?.toString(),
-          language: console.language,
-          id: console._id.toString(),
+          content: savedConsole.code,
+          databaseId: savedConsole.databaseId?.toString(),
+          language: savedConsole.language,
+          id: savedConsole._id.toString(),
         };
       }
 
@@ -317,7 +322,7 @@ export class ConsoleManager {
       }
 
       // Check if console already exists
-      let console = await SavedConsole.findOne({
+      let savedConsole = await SavedConsole.findOne({
         name: consoleName,
         workspaceId: new Types.ObjectId(workspaceId),
         ...(folderId && {
@@ -325,24 +330,24 @@ export class ConsoleManager {
         }),
       });
 
-      if (console) {
+      if (savedConsole) {
         // Update existing console
-        console.code = content;
-        console.updatedAt = new Date();
+        savedConsole.code = content;
+        savedConsole.updatedAt = new Date();
         if (databaseId !== undefined) {
-          console.databaseId = databaseId
+          savedConsole.databaseId = databaseId
             ? new Types.ObjectId(databaseId)
             : undefined;
         }
         if (options?.description !== undefined) {
-          console.description = options.description;
+          savedConsole.description = options.description;
         }
-        if (options?.language) console.language = options.language;
+        if (options?.language) savedConsole.language = options.language;
         if (options?.isPrivate !== undefined) {
-          console.isPrivate = options.isPrivate;
+          savedConsole.isPrivate = options.isPrivate;
         }
 
-        await console.save();
+        await savedConsole.save();
       } else {
         // Create new console
         const consoleData: any = {
@@ -363,11 +368,11 @@ export class ConsoleManager {
           consoleData._id = new Types.ObjectId(options.id);
         }
 
-        console = new SavedConsole(consoleData);
-        await console.save();
+        savedConsole = new SavedConsole(consoleData);
+        await savedConsole.save();
       }
 
-      return console;
+      return savedConsole;
     } catch (error) {
       console.error("Error saving console to database:", error);
       throw error;
@@ -541,19 +546,19 @@ export class ConsoleManager {
     try {
       if (workspaceId) {
         if (Types.ObjectId.isValid(consolePath)) {
-          const console = await SavedConsole.findOne({
+          const savedConsole = await SavedConsole.findOne({
             _id: new Types.ObjectId(consolePath),
             workspaceId: new Types.ObjectId(workspaceId),
           });
-          return !!console;
+          return !!savedConsole;
         } else {
           const parts = consolePath.split("/");
           const consoleName = parts[parts.length - 1];
-          const console = await SavedConsole.findOne({
+          const savedConsole = await SavedConsole.findOne({
             name: consoleName,
             workspaceId: new Types.ObjectId(workspaceId),
           });
-          return !!console;
+          return !!savedConsole;
         }
       }
 
@@ -729,6 +734,39 @@ export class ConsoleManager {
 
     // If folder has parent, get full path recursively
     return folder.path;
+  }
+
+  /**
+   * Find folder by path parts
+   * Returns the folder ID if found, undefined otherwise
+   */
+  private async findFolderByPath(
+    folderParts: string[],
+    workspaceId: string,
+  ): Promise<string | undefined> {
+    if (folderParts.length === 0) {
+      return undefined;
+    }
+
+    let currentParentId: string | undefined = undefined;
+
+    for (const folderName of folderParts) {
+      const folder: IConsoleFolder | null = await ConsoleFolder.findOne({
+        name: folderName,
+        workspaceId: new Types.ObjectId(workspaceId),
+        parentId: currentParentId
+          ? new Types.ObjectId(currentParentId)
+          : undefined,
+      });
+
+      if (!folder) {
+        return undefined;
+      }
+
+      currentParentId = folder._id.toString();
+    }
+
+    return currentParentId;
   }
 
   /**
