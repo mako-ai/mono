@@ -159,28 +159,32 @@ function Editor() {
         modification: ConsoleModification;
       }>;
 
-      const { consoleId, modification } = customEvent.detail;
-      console.log("Editor received console modification event:", {
-        consoleId,
-        modification,
-      });
+      const { consoleId: eventConsoleId, modification } = customEvent.detail;
+
+      // Use the current activeConsoleId instead of the one from the event
+      // This ensures we're always targeting the currently active console
+      const targetConsoleId = activeConsoleId || eventConsoleId;
 
       // Function to show diff with retry
       const showDiffWithRetry = (retries = 10, delay = 100) => {
-        if (consoleRefs.current[consoleId]?.current) {
-          console.log("Showing diff for console:", consoleId);
-          consoleRefs.current[consoleId].current!.showDiff(modification);
+        if (consoleRefs.current[targetConsoleId]?.current) {
+          consoleRefs.current[targetConsoleId].current.showDiff(modification);
         } else if (retries > 0) {
-          console.log(
-            `Console ref not ready yet for ID: ${consoleId}, retrying... (${retries} attempts left)`,
-          );
+          // Keep one log for troubleshooting
+          if (retries === 10) {
+            console.log(
+              `Console ref not ready for ID: ${targetConsoleId}, retrying...`,
+            );
+          }
           setTimeout(() => {
             showDiffWithRetry(retries - 1, delay);
           }, delay);
         } else {
           console.error(
-            "Console ref not found after retries for ID:",
-            consoleId,
+            "Console ref not found after retries. Target ID:",
+            targetConsoleId,
+            "Available IDs:",
+            Object.keys(consoleRefs.current),
           );
         }
       };
@@ -196,7 +200,7 @@ function Editor() {
         handleConsoleModification,
       );
     };
-  }, []);
+  }, [activeConsoleId, consoleTabs]);
 
   /* ------------------------ Console Actions ------------------------ */
   const handleTabChange = (_: React.SyntheticEvent, newValue: string) => {

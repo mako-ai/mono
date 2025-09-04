@@ -834,6 +834,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           <DiffEditor
             height="100%"
             theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
+            language="javascript"
             original={originalContent}
             modified={modifiedContent}
             options={{
