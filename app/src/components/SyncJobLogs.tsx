@@ -610,6 +610,7 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
                             sx={{
                               whiteSpace: "pre-wrap",
                               fontSize: "0.7rem",
+                              fontFamily: "monospace",
                             }}
                           >
                             {details.error.stack}
@@ -626,7 +627,10 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
                             key={idx}
                             variant="caption"
                             component="pre"
-                            sx={{ whiteSpace: "pre-wrap" }}
+                            sx={{
+                              whiteSpace: "pre-wrap",
+                              fontFamily: "monospace",
+                            }}
                           >
                             [{new Date(l.timestamp).toLocaleTimeString()}]{" "}
                             {l.level.toUpperCase()}: {l.message}

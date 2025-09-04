@@ -204,14 +204,14 @@ export async function performSyncChunk(
     // Collection setup
     const collectionName = `${dataSource.name}_${entity}`;
     const stagingCollectionName = `${collectionName}_staging`;
-    const useStaging = syncMode === "full" && !state; // Only use staging for first chunk of full sync
+    const useStaging = syncMode === "full"; // Use staging for ALL chunks of full sync
 
     const collection = useStaging
       ? db.collection(stagingCollectionName)
       : db.collection(collectionName);
 
-    if (useStaging) {
-      // Drop staging collection if exists
+    if (useStaging && !state) {
+      // Drop staging collection if exists (only on first chunk)
       try {
         await db.collection(stagingCollectionName).drop();
       } catch {
@@ -295,8 +295,8 @@ export async function performSyncChunk(
     if (completed) {
       progressReporter.reportComplete();
 
-      // Hot swap for full sync (only if this was the first chunk with staging)
-      if (useStaging) {
+      // Hot swap for full sync (only when sync is completed)
+      if (syncMode === "full") {
         try {
           await db.collection(collectionName).drop();
         } catch {
