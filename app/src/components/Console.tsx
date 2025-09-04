@@ -37,6 +37,7 @@ import {
   ConsoleModification,
 } from "../hooks/useMonacoConsole";
 import ConsoleInfoModal from "./ConsoleInfoModal";
+import { hashContent } from "../utils/hash";
 
 interface Database {
   id: string;
@@ -54,6 +55,7 @@ interface Database {
 interface ConsoleProps {
   consoleId: string;
   initialContent: string;
+  dbContentHash?: string;
   title?: string;
   onExecute: (content: string, databaseId?: string) => void;
   onSave?: (content: string, currentPath?: string) => Promise<boolean>;
@@ -66,6 +68,7 @@ interface ConsoleProps {
   filePath?: string;
   onHistoryClick?: () => void;
   enableVersionControl?: boolean;
+  onSaveSuccess?: (newDbContentHash: string) => void;
 }
 
 export interface ConsoleRef {
@@ -86,6 +89,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const {
     consoleId,
     initialContent,
+    dbContentHash,
     title,
     onExecute,
     onSave,
@@ -98,6 +102,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     filePath,
     onHistoryClick,
     enableVersionControl = false,
+    onSaveSuccess,
   } = props;
 
   const editorRef = useRef<any>(null);
@@ -107,6 +112,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
 
   // State for info modal
   const [infoModalOpen, setInfoModalOpen] = useState(false);
+
+  // State to track if there are unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // State to track Monaco's undo/redo availability
+  const [monacoCanUndo, setMonacoCanUndo] = useState(false);
+  const [monacoCanRedo, setMonacoCanRedo] = useState(false);
 
   // Use the Monaco console hook for version management
   const {
@@ -123,6 +135,14 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     consoleId,
     onContentChange: enableVersionControl ? onContentChange : undefined,
   });
+
+  // Track if we've saved the initial version
+  const hasInitialVersionRef = useRef(false);
+
+  // Reset initial version flag when console changes
+  useEffect(() => {
+    hasInitialVersionRef.current = false;
+  }, [consoleId]);
 
   // Keep refs of the latest callbacks to avoid stale closures in Monaco commands
   const onExecuteRef = useRef(onExecute);
@@ -150,6 +170,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   // Track if we're programmatically updating content to avoid feedback loops
   const isProgrammaticUpdateRef = useRef(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastInitialContentRef = useRef(initialContent);
 
   // Track if user has manually selected a database
   const hasUserSelectedDatabaseRef = useRef(false);
@@ -219,29 +240,23 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     }
   }, [selectedDatabaseId, handleDatabaseChange]);
 
-  // Only reset editor when we're actually switching to a different console/file
-  // Track the last initialContent to detect real changes vs feedback loops
-  const lastInitialContentRef = useRef(initialContent);
+  // Track the console ID to detect when we switch to a different console
+  const lastConsoleIdRef = useRef(consoleId);
 
   useEffect(() => {
-    if (!editorRef.current) {
-      // Editor not mounted yet, force remount with new content when it does appear
-      if (initialContent !== lastInitialContentRef.current) {
-        lastInitialContentRef.current = initialContent;
+    // Only update content when switching to a different console
+    if (consoleId !== lastConsoleIdRef.current) {
+      lastConsoleIdRef.current = consoleId;
+
+      if (!editorRef.current) {
+        // Editor not mounted yet, force remount with new content
         setEditorKey(prev => prev + 1);
+        return;
       }
-      return;
-    }
 
-    const model = editorRef.current.getModel();
-    const currentContent = model?.getValue() ?? "";
-
-    // Update the editor only when the incoming content is **actually** different
-    // from what the user currently sees. This prevents unnecessary model.setValue
-    // calls that would otherwise clear the undo stack.
-    if (initialContent !== currentContent) {
-      lastInitialContentRef.current = initialContent;
+      const model = editorRef.current.getModel();
       if (model) {
+        // Only set value when switching consoles to preserve undo stack
         isProgrammaticUpdateRef.current = true;
         model.setValue(initialContent);
         isProgrammaticUpdateRef.current = false;
@@ -253,9 +268,32 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           lineNumber: lineCount,
           column: lastLineLength + 1,
         });
+
+        // Reset Monaco undo/redo state after setting new content
+        setMonacoCanUndo(false);
+        setMonacoCanRedo(false);
       }
     }
-  }, [initialContent]);
+  }, [consoleId, initialContent]);
+
+  // Reset unsaved changes when dbContentHash changes (new DB version loaded)
+  useEffect(() => {
+    if (dbContentHash) {
+      // When we have a new DB hash, check if current content matches it
+      if (editorRef.current) {
+        const model = editorRef.current.getModel();
+        if (model) {
+          const currentContent = model.getValue();
+          const currentContentHash = hashContent(currentContent);
+          const hasChanges = currentContentHash !== dbContentHash;
+          setHasUnsavedChanges(hasChanges);
+        }
+      } else {
+        // Editor not mounted yet, assume no changes
+        setHasUnsavedChanges(false);
+      }
+    }
+  }, [dbContentHash]);
 
   // Cleanup debounce timeout on unmount
   useEffect(() => {
@@ -315,10 +353,28 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         isDiffMode && modifiedContent
           ? modifiedContent
           : getCurrentEditorContent();
-      await onSave(content, filePath);
+      const success = await onSave(content, filePath);
+
+      // Reset unsaved changes flag if save was successful
+      if (success) {
+        setHasUnsavedChanges(false);
+
+        // Notify parent of the new DB content hash
+        if (onSaveSuccess) {
+          const newDbContentHash = hashContent(content);
+          onSaveSuccess(newDbContentHash);
+        }
+      }
       // Parent component is responsible for feedback (e.g., snackbar, error modal)
     }
-  }, [onSave, getCurrentEditorContent, filePath, isDiffMode, modifiedContent]);
+  }, [
+    onSave,
+    getCurrentEditorContent,
+    filePath,
+    isDiffMode,
+    modifiedContent,
+    onSaveSuccess,
+  ]);
 
   const handleExecute = useCallback(() => {
     // If in diff mode, execute the modified content
@@ -355,6 +411,8 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     setSelectedDatabaseId(newDatabaseId);
   }, []);
 
+  // No need to wrap undo/redo - they will trigger content change which updates hasUnsavedChanges
+
   // Handler for opening info modal
   const handleInfoClick = useCallback(() => {
     setInfoModalOpen(true);
@@ -385,20 +443,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         });
       }
 
-      // Version control keyboard shortcuts
-      if (enableVersionControl) {
-        // Override default undo/redo to use our version system
-        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyZ, () => {
-          undo();
-        });
-
-        editor.addCommand(
-          monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyZ,
-          () => {
-            redo();
-          },
-        );
-      }
+      // Don't override Monaco's built-in undo/redo - it works perfectly!
 
       // Auto-focus the editor when it mounts
       editor.focus();
@@ -412,40 +457,86 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           lineNumber: lineCount,
           column: lastLineLength + 1,
         });
+
+        // Check initial content state
+        const currentContent = model.getValue();
+        const currentContentHash = hashContent(currentContent);
+        const hasChanges =
+          !dbContentHash || currentContentHash !== dbContentHash;
+        setHasUnsavedChanges(hasChanges);
+
+        // Save initial version for undo history
+        if (enableVersionControl && !hasInitialVersionRef.current) {
+          saveUserEdit(currentContent, "Initial content");
+          hasInitialVersionRef.current = true;
+        }
+
+        // Initialize Monaco undo/redo state
+        setMonacoCanUndo(model.canUndo());
+        setMonacoCanRedo(model.canRedo());
       }
     },
     [
       enableVersionControl,
       setEditor,
-      undo,
-      redo,
       handleExecute,
       handleSave,
       onSave,
+      dbContentHash,
+      saveUserEdit,
     ],
   );
 
   // Debounced content change notification for persistence (zustand + localStorage)
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
-      // Skip if this is a programmatic update (to prevent feedback loops)
-      if (isProgrammaticUpdateRef.current || isApplyingModification.current) {
+      const content = value || "";
+
+      // Always check if content has changed from DB version (even for undo/redo)
+      const currentContentHash = hashContent(content);
+      const hasChanges = !dbContentHash || currentContentHash !== dbContentHash;
+      setHasUnsavedChanges(hasChanges);
+
+      // Update Monaco undo/redo state
+      if (editorRef.current) {
+        const model = editorRef.current.getModel();
+        if (model) {
+          setMonacoCanUndo(model.canUndo());
+          setMonacoCanRedo(model.canRedo());
+        }
+      }
+
+      // Skip the rest if this is a programmatic update (to prevent feedback loops)
+      if (isProgrammaticUpdateRef.current) {
         return;
       }
 
-      const content = value || "";
-
       // Save user edit to version history if version control is enabled
-      if (enableVersionControl && content !== lastInitialContentRef.current) {
+      if (
+        enableVersionControl &&
+        content !== lastInitialContentRef.current &&
+        !isApplyingModification.current
+      ) {
+        // Save version immediately on first change after a pause
+        const shouldSaveImmediately = !debounceTimeoutRef.current;
+
         // Clear existing timeout
         if (debounceTimeoutRef.current) {
           clearTimeout(debounceTimeoutRef.current);
         }
 
-        // Debounce saving user edits to avoid too many versions
+        if (shouldSaveImmediately) {
+          // Save immediately for the first keystroke after a pause
+          saveUserEdit(content, "User edit");
+          lastInitialContentRef.current = content;
+        }
+
+        // Debounce subsequent saves
         debounceTimeoutRef.current = setTimeout(() => {
           saveUserEdit(content, "User edit");
-        }, 1000); // 1 second debounce for version saves
+          lastInitialContentRef.current = content;
+          debounceTimeoutRef.current = null;
+        }, 500); // Reduced to 500ms for better undo experience
       }
 
       // Normal content change callback
@@ -466,6 +557,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
       enableVersionControl,
       saveUserEdit,
       isApplyingModification,
+      dbContentHash,
     ],
   );
 
@@ -566,6 +658,12 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
             if (onContentChange) {
               onContentChange(savedModifiedContent);
             }
+
+            // Mark as having unsaved changes since AI modified the content
+            const currentContentHash = hashContent(savedModifiedContent);
+            const hasChanges =
+              !dbContentHash || currentContentHash !== dbContentHash;
+            setHasUnsavedChanges(hasChanges);
           }
         }
         isProgrammaticUpdateRef.current = false;
@@ -578,6 +676,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     onContentChange,
     enableVersionControl,
     saveUserEdit,
+    dbContentHash,
   ]);
 
   // Reject the changes
@@ -645,13 +744,19 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
 
           {onSave && (
             <Tooltip
-              title={filePath ? "Save (⌘/Ctrl+S)" : "Save As... (⌘/Ctrl+S)"}
+              title={
+                !hasUnsavedChanges
+                  ? "No changes to save"
+                  : filePath
+                    ? "Save (⌘/Ctrl+S)"
+                    : "Save As... (⌘/Ctrl+S)"
+              }
             >
               <Button
                 variant="text"
                 size="small"
                 onClick={handleSave}
-                disabled={isSaving || isExecuting}
+                disabled={isSaving || isExecuting || !hasUnsavedChanges}
                 disableElevation
                 sx={{
                   ml: 1,
@@ -659,6 +764,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                   width: "32px",
                   height: "32px",
                   p: 0,
+                  opacity: hasUnsavedChanges ? 1 : 0.5,
                 }}
               >
                 <SaveOutlined />
@@ -674,8 +780,20 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                 <span>
                   <IconButton
                     size="small"
-                    onClick={undo}
-                    disabled={!canUndo || isDiffMode}
+                    onClick={() => {
+                      if (editorRef.current) {
+                        editorRef.current.trigger("keyboard", "undo", null);
+                        // Update undo/redo state after action
+                        setTimeout(() => {
+                          const model = editorRef.current?.getModel();
+                          if (model) {
+                            setMonacoCanUndo(model.canUndo());
+                            setMonacoCanRedo(model.canRedo());
+                          }
+                        }, 0);
+                      }
+                    }}
+                    disabled={isDiffMode || !monacoCanUndo}
                     sx={{ p: 0.5 }}
                   >
                     <Undo fontSize="small" />
@@ -687,8 +805,20 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                 <span>
                   <IconButton
                     size="small"
-                    onClick={redo}
-                    disabled={!canRedo || isDiffMode}
+                    onClick={() => {
+                      if (editorRef.current) {
+                        editorRef.current.trigger("keyboard", "redo", null);
+                        // Update undo/redo state after action
+                        setTimeout(() => {
+                          const model = editorRef.current?.getModel();
+                          if (model) {
+                            setMonacoCanUndo(model.canUndo());
+                            setMonacoCanRedo(model.canRedo());
+                          }
+                        }, 0);
+                      }
+                    }}
+                    disabled={isDiffMode || !monacoCanRedo}
                     sx={{ p: 0.5 }}
                   >
                     <Redo fontSize="small" />

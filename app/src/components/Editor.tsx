@@ -29,7 +29,7 @@ import DataSourceTab from "./DataSourceTab";
 import { WorkspaceMembers } from "./WorkspaceMembers";
 import { SyncJobEditor } from "./SyncJobEditor";
 import { useConsoleStore } from "../store/consoleStore";
-import { useAppStore } from "../store";
+import { useAppStore, useAppDispatch } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
 import { ConsoleModification } from "../hooks/useMonacoConsole";
 
@@ -52,6 +52,7 @@ const StyledVerticalResizeHandle = styled(PanelResizeHandle)(({ theme }) => ({
 
 function Editor() {
   const { currentWorkspace } = useWorkspace();
+  const dispatch = useAppDispatch();
   const [tabResults, setTabResults] = useState<
     Record<string, QueryResult | null>
   >({});
@@ -505,6 +506,7 @@ function Editor() {
                         ref={consoleRefs.current[tab.id]}
                         consoleId={tab.id}
                         initialContent={tab.content}
+                        dbContentHash={tab.dbContentHash}
                         title={tab.title}
                         onExecute={(content, db) =>
                           handleConsoleExecute(tab.id, content, db)
@@ -519,6 +521,16 @@ function Editor() {
                           if (content !== tab.initialContent && !tab.isDirty) {
                             updateConsoleDirty(tab.id, true);
                           }
+                        }}
+                        onSaveSuccess={newDbContentHash => {
+                          // Update the dbContentHash in the store
+                          dispatch({
+                            type: "UPDATE_CONSOLE_DB_HASH",
+                            payload: {
+                              id: tab.id,
+                              dbContentHash: newDbContentHash,
+                            },
+                          });
                         }}
                         initialDatabaseId={tab.databaseId}
                         databases={availableDatabases}

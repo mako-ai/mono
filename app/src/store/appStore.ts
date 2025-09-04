@@ -21,6 +21,7 @@ export interface ConsoleTab {
   title: string;
   content: string;
   initialContent: string;
+  dbContentHash?: string; // Hash of the content last saved to database
   databaseId?: string;
   filePath?: string;
   kind?: "console" | "settings" | "sources" | "members" | "sync-job-editor";
@@ -138,6 +139,10 @@ export type Action =
       payload: { id: string; databaseId?: string };
     }
   | {
+      type: "UPDATE_CONSOLE_DB_HASH";
+      payload: { id: string; dbContentHash: string };
+    }
+  | {
       type: "SET_ATTACHED_CONTEXT";
       payload: { chatId: string; items: AttachedContext[] };
     }
@@ -184,6 +189,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         title,
         content,
         initialContent,
+        dbContentHash,
         databaseId,
         filePath,
         kind,
@@ -207,6 +213,7 @@ export const reducer = (state: GlobalState, action: Action): void => {
         title,
         content,
         initialContent,
+        dbContentHash,
         databaseId,
         filePath,
         kind: kind || "console",
@@ -337,6 +344,11 @@ export const reducer = (state: GlobalState, action: Action): void => {
     case "UPDATE_CONSOLE_DATABASE": {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.databaseId = action.payload.databaseId;
+      break;
+    }
+    case "UPDATE_CONSOLE_DB_HASH": {
+      const tab = state.consoles.tabs[action.payload.id];
+      if (tab) tab.dbContentHash = action.payload.dbContentHash;
       break;
     }
     case "CREATE_CHAT": {

@@ -1,6 +1,7 @@
 import { useAppStore, useAppDispatch, ConsoleTab } from "./appStore";
 import { generateObjectId } from "../utils/objectId";
 import { ConsoleVersionManager } from "../utils/ConsoleVersionManager";
+import { hashContent } from "../utils/hash";
 
 export type TabKind =
   | "console"
@@ -32,13 +33,18 @@ export const useConsoleStore = () => {
       versionManagers.set(id, new ConsoleVersionManager(id));
     }
 
+    // Compute dbContentHash if content is provided (e.g., when loading from DB)
+    const content = tab.content || tab.initialContent;
+    const dbContentHash = tab.filePath ? hashContent(content) : undefined;
+
     dispatch({
       type: "OPEN_CONSOLE_TAB",
       payload: {
         id,
         title: tab.title,
-        content: tab.content || tab.initialContent,
+        content,
         initialContent: tab.initialContent,
+        dbContentHash,
         databaseId: tab.databaseId,
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
@@ -153,13 +159,18 @@ useConsoleStore.getState = () => {
       versionManagers.set(id, new ConsoleVersionManager(id));
     }
 
+    // Compute dbContentHash if content is provided (e.g., when loading from DB)
+    const content = tab.content || tab.initialContent;
+    const dbContentHash = tab.filePath ? hashContent(content) : undefined;
+
     dispatch({
       type: "OPEN_CONSOLE_TAB",
       payload: {
         id,
         title: tab.title,
-        content: tab.content || tab.initialContent,
+        content,
         initialContent: tab.initialContent,
+        dbContentHash,
         databaseId: tab.databaseId,
         filePath: tab.filePath,
         kind: (tab as any).kind || "console",
