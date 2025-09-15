@@ -4,6 +4,9 @@ import {
   FetchOptions,
   ResumableFetchOptions,
   FetchState,
+  WebhookVerificationResult,
+  WebhookHandlerOptions,
+  WebhookEventMapping,
 } from "../base/BaseConnector";
 import Stripe from "stripe";
 
@@ -347,5 +350,232 @@ export class StripeConnector extends BaseConnector {
         await this.sleep(rateLimitDelay);
       }
     }
+  }
+
+  /**
+   * Check if connector supports webhooks
+   */
+  supportsWebhooks(): boolean {
+    return true;
+  }
+
+  /**
+   * Verify webhook signature and parse event
+   */
+  async verifyWebhook(
+    options: WebhookHandlerOptions,
+  ): Promise<WebhookVerificationResult> {
+    const { payload, headers, secret } = options;
+
+    console.log("=== STRIPE WEBHOOK VERIFICATION DEBUG ===");
+    console.log("Headers received:", JSON.stringify(headers, null, 2));
+
+    const signature = headers["stripe-signature"];
+    console.log("Stripe signature header:", signature);
+
+    if (!signature || typeof signature !== "string") {
+      console.error("Missing or invalid stripe-signature header");
+      return {
+        valid: false,
+        error: "Missing stripe-signature header",
+      };
+    }
+
+    if (!secret) {
+      console.error("Missing webhook secret");
+      return {
+        valid: false,
+        error: "Missing webhook secret",
+      };
+    }
+
+    console.log("Webhook secret:", secret);
+    console.log(
+      "Secret format check - starts with 'whsec_':",
+      secret.startsWith("whsec_"),
+    );
+    console.log("Payload type:", typeof payload);
+    console.log("Payload length:", payload.length);
+
+    try {
+      const stripe = this.getStripeClient();
+
+      // Stripe requires the raw body as a string or Buffer
+      // The payload should already be a string from the webhook route
+      const rawBody =
+        typeof payload === "string" ? payload : JSON.stringify(payload);
+
+      console.log("Calling stripe.webhooks.constructEvent...");
+      const event = stripe.webhooks.constructEvent(
+        rawBody,
+        signature,
+        secret, // Use the secret as-is, it should be the webhook endpoint secret (whsec_...)
+      );
+
+      console.log("Event constructed successfully:", event.type, event.id);
+      console.log("=== STRIPE WEBHOOK VERIFICATION SUCCESS ===");
+
+      return {
+        valid: true,
+        event,
+      };
+    } catch (err) {
+      console.error("Stripe webhook verification error:", err);
+      console.error("Error name:", err instanceof Error ? err.name : "unknown");
+      console.error(
+        "Error message:",
+        err instanceof Error ? err.message : "unknown",
+      );
+      console.error(
+        "Error stack:",
+        err instanceof Error ? err.stack : "unknown",
+      );
+      console.log("=== STRIPE WEBHOOK VERIFICATION FAILED ===");
+
+      return {
+        valid: false,
+        error: err instanceof Error ? err.message : "Invalid signature",
+      };
+    }
+  }
+
+  /**
+   * Get webhook event mapping
+   */
+  getWebhookEventMapping(eventType: string): WebhookEventMapping | null {
+    const mappings: Record<string, WebhookEventMapping> = {
+      // Customers
+      "customer.created": { entity: "customers", operation: "upsert" },
+      "customer.updated": { entity: "customers", operation: "upsert" },
+      "customer.deleted": { entity: "customers", operation: "delete" },
+
+      // Subscriptions
+      "customer.subscription.created": {
+        entity: "subscriptions",
+        operation: "upsert",
+      },
+      "customer.subscription.updated": {
+        entity: "subscriptions",
+        operation: "upsert",
+      },
+      "customer.subscription.deleted": {
+        entity: "subscriptions",
+        operation: "delete",
+      },
+      "subscription.created": { entity: "subscriptions", operation: "upsert" },
+      "subscription.updated": { entity: "subscriptions", operation: "upsert" },
+      "subscription.deleted": { entity: "subscriptions", operation: "delete" },
+
+      // Charges/Payments
+      "charge.succeeded": { entity: "charges", operation: "upsert" },
+      "charge.failed": { entity: "charges", operation: "upsert" },
+      "charge.captured": { entity: "charges", operation: "upsert" },
+      "charge.refunded": { entity: "charges", operation: "upsert" },
+      "charge.updated": { entity: "charges", operation: "upsert" },
+
+      // Payment Intents
+      "payment_intent.succeeded": {
+        entity: "payment_intents",
+        operation: "upsert",
+      },
+      "payment_intent.payment_failed": {
+        entity: "payment_intents",
+        operation: "upsert",
+      },
+      "payment_intent.created": {
+        entity: "payment_intents",
+        operation: "upsert",
+      },
+      "payment_intent.canceled": {
+        entity: "payment_intents",
+        operation: "upsert",
+      },
+
+      // Invoices
+      "invoice.created": { entity: "invoices", operation: "upsert" },
+      "invoice.finalized": { entity: "invoices", operation: "upsert" },
+      "invoice.paid": { entity: "invoices", operation: "upsert" },
+      "invoice.payment_failed": { entity: "invoices", operation: "upsert" },
+      "invoice.updated": { entity: "invoices", operation: "upsert" },
+      "invoice.deleted": { entity: "invoices", operation: "delete" },
+
+      // Products
+      "product.created": { entity: "products", operation: "upsert" },
+      "product.updated": { entity: "products", operation: "upsert" },
+      "product.deleted": { entity: "products", operation: "delete" },
+
+      // Prices/Plans
+      "price.created": { entity: "plans", operation: "upsert" },
+      "price.updated": { entity: "plans", operation: "upsert" },
+      "price.deleted": { entity: "plans", operation: "delete" },
+      "plan.created": { entity: "plans", operation: "upsert" },
+      "plan.updated": { entity: "plans", operation: "upsert" },
+      "plan.deleted": { entity: "plans", operation: "delete" },
+    };
+
+    return mappings[eventType] || null;
+  }
+
+  /**
+   * Get supported webhook event types
+   */
+  getSupportedWebhookEvents(): string[] {
+    return [
+      // Customers
+      "customer.created",
+      "customer.updated",
+      "customer.deleted",
+      // Subscriptions
+      "customer.subscription.created",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+      "subscription.created",
+      "subscription.updated",
+      "subscription.deleted",
+      // Charges
+      "charge.succeeded",
+      "charge.failed",
+      "charge.captured",
+      "charge.refunded",
+      "charge.updated",
+      // Payment Intents
+      "payment_intent.succeeded",
+      "payment_intent.payment_failed",
+      "payment_intent.created",
+      "payment_intent.canceled",
+      // Invoices
+      "invoice.created",
+      "invoice.finalized",
+      "invoice.paid",
+      "invoice.payment_failed",
+      "invoice.updated",
+      "invoice.deleted",
+      // Products
+      "product.created",
+      "product.updated",
+      "product.deleted",
+      // Prices/Plans
+      "price.created",
+      "price.updated",
+      "price.deleted",
+      "plan.created",
+      "plan.updated",
+      "plan.deleted",
+    ];
+  }
+
+  /**
+   * Extract entity data from webhook event
+   */
+  extractWebhookData(event: any): { id: string; data: any } | null {
+    if (!event || !event.data || !event.data.object) {
+      return null;
+    }
+
+    const data = event.data.object;
+    return {
+      id: data.id,
+      data: data,
+    };
   }
 }

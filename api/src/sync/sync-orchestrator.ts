@@ -140,6 +140,76 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Ensure required indexes exist on a collection for efficient sync operations
+ */
+async function ensureCollectionIndexes(
+  collection: any,
+  logger?: SyncLogger,
+): Promise<void> {
+  try {
+    // Get existing indexes
+    const existingIndexes = await collection.indexes();
+    const existingIndexNames = existingIndexes.map((idx: any) => idx.name);
+
+    // 1. Unique index on 'id' field for webhook updates
+    if (
+      !existingIndexNames.includes("id_unique_idx") &&
+      !existingIndexNames.includes("id_1")
+    ) {
+      await collection.createIndex(
+        { id: 1 },
+        {
+          unique: true,
+          background: true,
+          name: "id_unique_idx",
+          partialFilterExpression: { id: { $exists: true } },
+        },
+      );
+      logger?.log(
+        "info",
+        `Created unique id index for ${collection.collectionName}`,
+      );
+    }
+
+    // 2. Compound index for bulk sync upserts (uses both id and _dataSourceId)
+    if (!existingIndexNames.includes("sync_upsert_idx")) {
+      await collection.createIndex(
+        { id: 1, _dataSourceId: 1 },
+        {
+          background: true,
+          name: "sync_upsert_idx",
+        },
+      );
+      logger?.log(
+        "info",
+        `Created sync upsert index for ${collection.collectionName}`,
+      );
+    }
+
+    // 3. Index for incremental sync date queries
+    if (!existingIndexNames.includes("incremental_sync_idx")) {
+      await collection.createIndex(
+        { _dataSourceId: 1, _syncedAt: -1 },
+        {
+          background: true,
+          name: "incremental_sync_idx",
+        },
+      );
+      logger?.log(
+        "info",
+        `Created incremental sync index for ${collection.collectionName}`,
+      );
+    }
+  } catch (error) {
+    logger?.log(
+      "warn",
+      `Failed to create indexes: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    // Don't throw - indexes are for performance, not correctness
+  }
+}
+
+/**
  * Performs a single chunk of sync work and returns state for resumption
  */
 export async function performSyncChunk(
@@ -210,6 +280,11 @@ export async function performSyncChunk(
       ? db.collection(stagingCollectionName)
       : db.collection(collectionName);
 
+    // Ensure indexes exist for incremental sync on first chunk
+    if (!useStaging && !state) {
+      await ensureCollectionIndexes(collection, logger);
+    }
+
     if (useStaging && !state) {
       // Drop staging collection if exists (only on first chunk)
       try {
@@ -218,6 +293,10 @@ export async function performSyncChunk(
         // Ignore if doesn't exist
       }
       await db.createCollection(stagingCollectionName);
+
+      // Create indexes on staging collection for efficient inserts
+      const stagingCollection = db.collection(stagingCollectionName);
+      await ensureCollectionIndexes(stagingCollection, logger);
     }
 
     let lastSyncDate: Date | undefined;
@@ -264,20 +343,48 @@ export async function performSyncChunk(
               _syncedAt: new Date(),
             }));
 
-            // Prepare bulk operations
-            const bulkOps = processedRecords.map(record => ({
-              replaceOne: {
-                filter: {
-                  id: record.id,
-                  _dataSourceId: dataSource.id,
-                },
-                replacement: record,
-                upsert: true,
-              },
-            }));
-
-            // Write to database
-            await collection.bulkWrite(bulkOps, { ordered: false });
+            // Write to database with timing
+            const bulkStart = Date.now(); // Declare outside for catch scope
+            try {
+              let result;
+              if (useStaging) {
+                result = await collection.insertMany(processedRecords, {
+                  ordered: false,
+                });
+                console.log(`MongoDB insertMany mode used (full sync)`);
+                const bulkDuration = Date.now() - bulkStart;
+                console.log(
+                  `MongoDB write succeeded: ${result.insertedCount} inserted, took ${bulkDuration}ms for ${batch.length} records`,
+                );
+              } else {
+                const bulkOps = processedRecords.map(record => ({
+                  replaceOne: {
+                    filter: {
+                      id: record.id,
+                      _dataSourceId: dataSource.id,
+                    },
+                    replacement: record,
+                    upsert: true,
+                  },
+                }));
+                result = await collection.bulkWrite(bulkOps, {
+                  ordered: false,
+                });
+                console.log(
+                  `MongoDB bulkWrite upsert mode used (incremental sync)`,
+                );
+                const bulkDuration = Date.now() - bulkStart;
+                console.log(
+                  `MongoDB write succeeded: ${result.upsertedCount} upserted, ${result.modifiedCount} modified, took ${bulkDuration}ms for ${batch.length} records`,
+                );
+              }
+            } catch (bulkError: any) {
+              const bulkDuration = Date.now() - bulkStart;
+              console.error(
+                `MongoDB write failed after ${bulkDuration}ms: ${bulkError.message}`,
+              );
+              throw bulkError;
+            }
           },
           onProgress: (current, total) => {
             progressReporter.reportProgress(current, total);
@@ -478,6 +585,13 @@ export async function performSync(
           // Ignore if doesn't exist
         }
         await db.createCollection(stagingCollectionName);
+
+        // Create indexes on staging collection
+        const stagingCollection = db.collection(stagingCollectionName);
+        await ensureCollectionIndexes(stagingCollection, logger);
+      } else {
+        // Ensure indexes exist for incremental sync
+        await ensureCollectionIndexes(collection, logger);
       }
 
       let recordCount = 0;

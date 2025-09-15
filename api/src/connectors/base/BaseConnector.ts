@@ -53,6 +53,26 @@ export interface ResumableFetchOptions extends FetchOptions {
   state?: FetchState; // Resume from previous state
 }
 
+// Webhook verification result
+export interface WebhookVerificationResult {
+  valid: boolean;
+  event?: any; // The parsed webhook event
+  error?: string;
+}
+
+// Webhook event mapping
+export interface WebhookEventMapping {
+  entity: string;
+  operation: "upsert" | "delete";
+}
+
+// Webhook handler options
+export interface WebhookHandlerOptions {
+  payload: any;
+  headers: Record<string, string | string[] | undefined>;
+  secret?: string;
+}
+
 export abstract class BaseConnector {
   protected dataSource: IDataSource;
 
@@ -159,6 +179,51 @@ export abstract class BaseConnector {
    */
   protected async sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Check if connector supports webhooks
+   */
+  supportsWebhooks(): boolean {
+    // Connectors that support webhooks should override this
+    return false;
+  }
+
+  /**
+   * Verify webhook signature and parse event
+   */
+  async verifyWebhook(
+    _options: WebhookHandlerOptions,
+  ): Promise<WebhookVerificationResult> {
+    // Default implementation - connectors should override
+    return {
+      valid: false,
+      error: "Webhooks not supported by this connector",
+    };
+  }
+
+  /**
+   * Get webhook event mapping for a given event type
+   */
+  getWebhookEventMapping(_eventType: string): WebhookEventMapping | null {
+    // Default implementation - connectors should override
+    return null;
+  }
+
+  /**
+   * Get supported webhook event types
+   */
+  getSupportedWebhookEvents(): string[] {
+    // Default implementation - connectors should override
+    return [];
+  }
+
+  /**
+   * Extract entity data from webhook event
+   */
+  extractWebhookData(_event: any): { id: string; data: any } | null {
+    // Default implementation - connectors should override
+    return null;
   }
 }
 

@@ -23,12 +23,28 @@ const syncJobScheduleSchema = z.object({
   timezone: z.string().optional(),
 });
 
+const webhookConfigSchema = z.object({
+  endpoint: z.string(),
+  secret: z.string(),
+  enabled: z.boolean(),
+  lastReceivedAt: z.string().nullable().optional(),
+  totalReceived: z.number().optional(),
+  batchConfig: z
+    .object({
+      maxSize: z.number(),
+      maxWaitMs: z.number(),
+    })
+    .optional(),
+});
+
 const syncJobSchema = z.object({
   _id: z.string(),
   workspaceId: z.string(),
   dataSourceId: syncJobDataSourceSchema,
   destinationDatabaseId: syncJobDestinationSchema,
-  schedule: syncJobScheduleSchema,
+  type: z.enum(["scheduled", "webhook"]).optional(), // Remove default to detect missing type
+  schedule: syncJobScheduleSchema.optional(),
+  webhookConfig: webhookConfigSchema.optional(),
   entityFilter: z.array(z.string()).nullable().optional(),
   syncMode: z.enum(["full", "incremental"]),
   enabled: z.boolean(),
@@ -150,9 +166,26 @@ export const useSyncJobStore = create<SyncJobStore>()(
       },
 
       init: async (workspaceId: string) => {
-        const hasData = !!get().jobs[workspaceId];
-        if (!hasData) {
-          await get().fetchJobs(workspaceId);
+        const existingJobs = get().jobs[workspaceId];
+
+        // If we have cached jobs, check if any are missing the 'type' field
+        // This indicates stale data from before webhooks were implemented
+        if (existingJobs && existingJobs.length > 0) {
+          const hasStaleData = existingJobs.some(job => job.type === undefined);
+          if (hasStaleData) {
+            // Clear stale data from the store before refreshing
+            set(state => {
+              state.jobs[workspaceId] = [];
+            });
+            // Now refresh from API
+            await get().refresh(workspaceId);
+            return;
+          }
+        }
+
+        // If no data exists, fetch it
+        if (!existingJobs || existingJobs.length === 0) {
+          await get().refresh(workspaceId);
         }
       },
 
@@ -369,10 +402,10 @@ export const useSyncJobStore = create<SyncJobStore>()(
       },
     })),
     {
-      name: "sync-job-store",
+      name: "sync-job-store-v2", // Version bump to clear old persisted state
       storage: createValidatedStorage(
         syncJobStoreStateSchema,
-        "sync-job-store",
+        "sync-job-store-v2",
         initialState,
       ),
       partialize: state => ({

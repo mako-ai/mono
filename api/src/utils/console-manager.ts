@@ -554,10 +554,28 @@ export class ConsoleManager {
         } else {
           const parts = consolePath.split("/");
           const consoleName = parts[parts.length - 1];
-          const savedConsole = await SavedConsole.findOne({
+
+          // Get folder ID if there's a folder path
+          let folderId: string | undefined;
+          if (parts.length > 1) {
+            const folderParts = parts.slice(0, -1);
+            folderId = await this.findFolderByPath(folderParts, workspaceId);
+          }
+
+          // Check for console with same name in same folder (or root if no folder)
+          const query: any = {
             name: consoleName,
             workspaceId: new Types.ObjectId(workspaceId),
-          });
+          };
+
+          if (folderId) {
+            query.folderId = new Types.ObjectId(folderId);
+          } else {
+            // For root level consoles, check that folderId is null/undefined
+            query.$or = [{ folderId: null }, { folderId: { $exists: false } }];
+          }
+
+          const savedConsole = await SavedConsole.findOne(query);
           return !!savedConsole;
         }
       }

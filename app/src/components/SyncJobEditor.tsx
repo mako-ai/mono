@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Box } from "@mui/material";
-import { SyncJobForm } from "./SyncJobForm";
+import { ScheduledJobForm } from "./ScheduledJobForm";
+import { WebhookForm } from "./WebhookForm";
 import { SyncJobLogs } from "./SyncJobLogs";
+import { WebhookStats } from "./WebhookStats";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 
 interface SyncJobEditorProps {
   jobId?: string;
   isNew?: boolean;
+  jobType?: "scheduled" | "webhook"; // For new jobs, specify the type
   onSave?: () => void;
   onCancel?: () => void;
 }
@@ -15,20 +18,30 @@ interface SyncJobEditorProps {
 export function SyncJobEditor({
   jobId,
   isNew = false,
+  jobType = "scheduled",
   onSave,
   onCancel,
 }: SyncJobEditorProps) {
-  const [view, setView] = useState<"settings" | "logs">(
-    isNew || !jobId ? "settings" : "logs",
-  );
+  const [isEditing, setIsEditing] = useState(isNew);
   const [currentJobId, setCurrentJobId] = useState<string | undefined>(jobId);
   const { currentWorkspace } = useWorkspace();
-  const { runJob } = useSyncJobStore();
+  const { jobs: jobsMap, runJob } = useSyncJobStore();
+
+  // Get job details and derive webhook status
+  const jobs = currentWorkspace ? jobsMap[currentWorkspace.id] || [] : [];
+  const currentJob = currentJobId
+    ? jobs.find(j => j._id === currentJobId)
+    : null;
+
+  // Determine if this is a webhook job - for new jobs, use the prop; for existing, check the job
+  const isWebhookJob = isNew
+    ? jobType === "webhook"
+    : currentJob?.type === "webhook";
 
   const handleSaved = (newJobId: string) => {
     setCurrentJobId(newJobId);
-    // Switch to logs view after saving
-    setView("logs");
+    // Switch to info view after saving
+    setIsEditing(false);
     onSave?.();
   };
 
@@ -39,12 +52,17 @@ export function SyncJobEditor({
   };
 
   const handleEditClick = () => {
-    setView("settings");
+    setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
-    // Only switch back to logs view, don't close the tab
-    setView("logs");
+    if (isNew && !currentJobId) {
+      // For new jobs, use the onCancel callback to close the editor
+      onCancel?.();
+    } else {
+      // For existing jobs, just go back to info view
+      setIsEditing(false);
+    }
   };
 
   return (
@@ -55,38 +73,43 @@ export function SyncJobEditor({
         flexDirection: "column",
       }}
     >
-      {/* Form Component - hidden when not in settings view */}
-      <Box
-        sx={{
-          height: "100%",
-          display: view === "settings" ? "flex" : "none",
-          flexDirection: "column",
-        }}
-      >
-        <SyncJobForm
-          jobId={currentJobId}
-          isNew={isNew && !currentJobId}
-          onSave={onSave}
-          onSaved={handleSaved}
-          onCancel={handleCancelEdit}
-        />
-      </Box>
-
-      {/* Logs Component - hidden when not in logs view */}
-      {currentJobId && (
-        <Box
-          sx={{
-            height: "100%",
-            display: view === "logs" ? "flex" : "none",
-            flexDirection: "column",
-          }}
-        >
-          <SyncJobLogs
+      {/* Show form when editing or creating new */}
+      {isEditing ? (
+        isWebhookJob ? (
+          <WebhookForm
             jobId={currentJobId}
-            onRunNow={handleRunNow}
-            onEdit={handleEditClick}
+            isNew={isNew && !currentJobId}
+            onSave={onSave}
+            onSaved={handleSaved}
+            onCancel={handleCancelEdit}
           />
-        </Box>
+        ) : (
+          <ScheduledJobForm
+            jobId={currentJobId}
+            isNew={isNew && !currentJobId}
+            onSave={onSave}
+            onSaved={handleSaved}
+            onCancel={handleCancelEdit}
+          />
+        )
+      ) : (
+        /* Show info/logs when not editing */
+        <>
+          {currentJobId && !isWebhookJob && (
+            <SyncJobLogs
+              jobId={currentJobId}
+              onRunNow={handleRunNow}
+              onEdit={handleEditClick}
+            />
+          )}
+          {currentJobId && isWebhookJob && currentWorkspace && (
+            <WebhookStats
+              workspaceId={currentWorkspace.id}
+              jobId={currentJobId}
+              onEdit={handleEditClick}
+            />
+          )}
+        </>
       )}
     </Box>
   );

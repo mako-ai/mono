@@ -21,16 +21,19 @@ import {
   Alert,
 } from "@mui/material";
 import {
-  FolderOutlined as FolderIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
-  Refresh as RefreshIcon,
-  Add as AddIcon,
   CreateNewFolder as CreateFolderIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
-import { SquareTerminal as ConsoleIcon } from "lucide-react";
+import {
+  SquareTerminal as ConsoleIcon,
+  FolderClosed as FolderIcon,
+  FolderOpen as FolderOpenIcon,
+  RotateCw as RefreshIcon,
+  Plus as AddIcon,
+} from "lucide-react";
 import { useAppStore } from "../store/appStore";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleTreeStore } from "../store/consoleTreeStore";
@@ -331,13 +334,17 @@ function ConsoleExplorer(
             <ListItemButton
               onClick={() => handleFolderToggle(node.path)}
               onContextMenu={e => handleContextMenu(e, node)}
-              sx={{ py: 0.5, pl: 1 + depth }}
+              sx={{ py: 0.5, pl: 0.5 + depth }}
             >
-              <ListItemIcon sx={{ minWidth: 32 }}>
+              <ListItemIcon sx={{ minWidth: 20, mr: 0.25 }}>
                 {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
               </ListItemIcon>
               <ListItemIcon sx={{ minWidth: 32 }}>
-                <FolderIcon />
+                {isExpanded ? (
+                  <FolderOpenIcon strokeWidth={1.5} />
+                ) : (
+                  <FolderIcon strokeWidth={1.5} />
+                )}
               </ListItemIcon>
               <ListItemText
                 primary={node.name}
@@ -368,7 +375,7 @@ function ConsoleExplorer(
           onContextMenu={e => handleContextMenu(e, node)}
           sx={{ pl: 0.5 + depth }}
         >
-          <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
+          <ListItemIcon sx={{ minWidth: 20, visibility: "hidden", mr: 0.5 }} />
           <ListItemIcon sx={{ minWidth: 28 }}>
             <ConsoleIcon size={20} />
           </ListItemIcon>
@@ -392,7 +399,7 @@ function ConsoleExplorer(
   const renderSkeletonItems = () => {
     return Array.from({ length: 3 }).map((_, index) => (
       <ListItemButton key={`skeleton-${index}`} sx={{ pl: 0.5 }}>
-        <ListItemIcon sx={{ minWidth: 32, visibility: "hidden" }} />
+        <ListItemIcon sx={{ minWidth: 20, visibility: "hidden", mr: 0.5 }} />
         <ListItemIcon sx={{ minWidth: 28 }}>
           <Skeleton variant="circular" width={20} height={20} />
         </ListItemIcon>
@@ -411,7 +418,7 @@ function ConsoleExplorer(
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",
@@ -440,12 +447,12 @@ function ConsoleExplorer(
           <Box sx={{ display: "flex", gap: 0 }}>
             <Tooltip title="Add new folder">
               <IconButton onClick={handleMenuOpen} size="small">
-                <AddIcon />
+                <AddIcon size={20} strokeWidth={2} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Refresh">
               <IconButton onClick={fetchConsoleEntries} size="small">
-                <RefreshIcon />
+                <RefreshIcon size={20} strokeWidth={2} />
               </IconButton>
             </Tooltip>
           </Box>

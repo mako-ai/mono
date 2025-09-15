@@ -19,7 +19,9 @@ import {
   SquareTerminal as ConsoleIcon,
   Settings as SettingsIcon,
   CloudUpload as DataSourceIcon,
-  Calendar as SyncJobsIcon,
+  Clock as ScheduleIcon,
+  Webhook as WebhookIcon,
+  CirclePause as PauseIcon,
 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
@@ -348,6 +350,12 @@ function Editor() {
         );
         setSnackbarOpen(true);
         success = true;
+
+        // Refresh the console tree directly via store
+        const { useConsoleTreeStore } = await import(
+          "../store/consoleTreeStore"
+        );
+        await useConsoleTreeStore.getState().refresh(currentWorkspace.id);
       } else {
         setErrorMessage(JSON.stringify(data.error, null, 2));
         setErrorModalOpen(true);
@@ -413,13 +421,19 @@ function Editor() {
                           sx={{ width: 20, height: 20 }}
                         />
                       ) : tab.kind === "settings" ? (
-                        <SettingsIcon size={20} />
+                        <SettingsIcon size={20} strokeWidth={1.5} />
                       ) : tab.kind === "sources" ? (
-                        <DataSourceIcon size={20} />
+                        <DataSourceIcon size={20} strokeWidth={1.5} />
                       ) : tab.kind === "sync-job-editor" ? (
-                        <SyncJobsIcon size={20} />
+                        tab.metadata?.jobType === "webhook" ? (
+                          <WebhookIcon size={20} strokeWidth={1.5} />
+                        ) : tab.metadata?.enabled === false ? (
+                          <PauseIcon size={20} strokeWidth={1.5} />
+                        ) : (
+                          <ScheduleIcon size={20} strokeWidth={1.5} />
+                        )
                       ) : (
-                        <ConsoleIcon size={20} />
+                        <ConsoleIcon size={20} strokeWidth={1.5} />
                       )}
                       <span
                         style={{
@@ -487,6 +501,7 @@ function Editor() {
                   <SyncJobEditor
                     jobId={tab.metadata?.jobId}
                     isNew={tab.metadata?.isNew}
+                    jobType={tab.metadata?.jobType}
                     onSave={() => {
                       // The SyncJobEditor already handles refreshing the jobs list
                       // We don't need to close the tab anymore

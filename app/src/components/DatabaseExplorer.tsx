@@ -376,16 +376,16 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                   <ListItem disablePadding>
                     <ListItemButton
                       onClick={() => handleServerToggle(server.id)}
-                      sx={{ py: 0.5, pl: 1 }}
+                      sx={{ py: 0.5, pl: 0.5 }}
                     >
-                      <ListItemIcon sx={{ minWidth: 32 }}>
+                      <ListItemIcon sx={{ minWidth: 24, mr: 0 }}>
                         {isServerExpanded ? (
                           <ExpandMoreIcon />
                         ) : (
                           <ChevronRightIcon />
                         )}
                       </ListItemIcon>
-                      <ListItemIcon sx={{ minWidth: 32 }}>
+                      <ListItemIcon sx={{ minWidth: 24 }}>
                         {server.connectionString.includes("mongodb") ? (
                           <MongoDBIcon />
                         ) : (

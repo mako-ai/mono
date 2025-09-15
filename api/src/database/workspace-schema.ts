@@ -359,11 +359,19 @@ export interface IChat extends Document {
 export interface ISyncJob extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
+  type: "scheduled" | "webhook"; // Required field
   dataSourceId: Types.ObjectId;
   destinationDatabaseId: Types.ObjectId;
   schedule: {
     cron: string;
     timezone?: string;
+  };
+  webhookConfig?: {
+    endpoint: string;
+    secret: string;
+    lastReceivedAt?: Date;
+    totalReceived: number;
+    enabled: boolean;
   };
   entityFilter?: string[]; // Optional: specific entities to sync
   syncMode: "full" | "incremental";
@@ -405,6 +413,29 @@ export interface IJobExecution extends Document {
   } | null;
   context?: any;
   system?: any;
+}
+
+/**
+ * WebhookEvent model interface
+ */
+export interface IWebhookEvent extends Document {
+  _id: Types.ObjectId;
+  jobId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  eventId: string; // External event ID (e.g., Stripe's evt_xxx)
+  eventType: string; // e.g., "customer.updated"
+  receivedAt: Date;
+  processedAt?: Date;
+  status: "pending" | "processing" | "completed" | "failed";
+  attempts: number;
+  error?: {
+    message: string;
+    stack?: string;
+    code?: string;
+  };
+  rawPayload: any;
+  signature?: string; // For verification
+  processingDurationMs?: number;
 }
 
 /**
@@ -891,6 +922,11 @@ const SyncJobSchema = new Schema<ISyncJob>(
       ref: "Workspace",
       required: true,
     },
+    type: {
+      type: String,
+      enum: ["scheduled", "webhook"],
+      required: true,
+    },
     dataSourceId: {
       type: Schema.Types.ObjectId,
       ref: "DataSource",
@@ -904,9 +940,13 @@ const SyncJobSchema = new Schema<ISyncJob>(
     schedule: {
       cron: {
         type: String,
-        required: true,
+        required: function () {
+          return this.type === "scheduled";
+        },
         validate: {
           validator: function (v: string) {
+            // Skip validation for webhook jobs
+            if (this.type === "webhook") return true;
             // Basic cron validation - 5 or 6 fields
             const fields = v.split(" ");
             return fields.length === 5 || fields.length === 6;
@@ -917,6 +957,25 @@ const SyncJobSchema = new Schema<ISyncJob>(
       timezone: {
         type: String,
         default: "UTC",
+      },
+    },
+    webhookConfig: {
+      endpoint: {
+        type: String,
+        unique: true,
+        sparse: true,
+      },
+      secret: {
+        type: String,
+      },
+      lastReceivedAt: Date,
+      totalReceived: {
+        type: Number,
+        default: 0,
+      },
+      enabled: {
+        type: Boolean,
+        default: true,
       },
     },
     entityFilter: [String],
@@ -946,6 +1005,8 @@ const SyncJobSchema = new Schema<ISyncJob>(
   },
   {
     timestamps: true,
+    toJSON: { getters: true },
+    toObject: { getters: true },
   },
 );
 
@@ -1001,6 +1062,47 @@ const JobExecutionSchema = new Schema<IJobExecution>(
 // Indexes
 JobExecutionSchema.index({ jobId: 1, startedAt: -1 });
 
+/**
+ * WebhookEvent Schema
+ */
+const WebhookEventSchema = new Schema<IWebhookEvent>(
+  {
+    jobId: { type: Schema.Types.ObjectId, ref: "SyncJob", required: true },
+    workspaceId: {
+      type: Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true,
+    },
+    eventId: { type: String, required: true },
+    eventType: { type: String, required: true },
+    receivedAt: { type: Date, required: true, default: Date.now },
+    processedAt: Date,
+    status: {
+      type: String,
+      enum: ["pending", "processing", "completed", "failed"],
+      default: "pending",
+      required: true,
+    },
+    attempts: { type: Number, default: 0 },
+    error: {
+      message: String,
+      stack: String,
+      code: String,
+    },
+    rawPayload: { type: Schema.Types.Mixed, required: true },
+    signature: String,
+    processingDurationMs: Number,
+  },
+  {
+    timestamps: false,
+  },
+);
+
+// Indexes
+WebhookEventSchema.index({ jobId: 1, eventId: 1 }, { unique: true });
+WebhookEventSchema.index({ jobId: 1, status: 1, receivedAt: 1 });
+WebhookEventSchema.index({ workspaceId: 1, receivedAt: -1 });
+
 // Models
 export const Workspace = mongoose.model<IWorkspace>(
   "Workspace",
@@ -1032,4 +1134,8 @@ export const SyncJob = mongoose.model<ISyncJob>("SyncJob", SyncJobSchema);
 export const JobExecution = mongoose.model<IJobExecution>(
   "JobExecution",
   JobExecutionSchema,
+);
+export const WebhookEvent = mongoose.model<IWebhookEvent>(
+  "WebhookEvent",
+  WebhookEventSchema,
 );

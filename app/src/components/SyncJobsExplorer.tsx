@@ -11,9 +11,16 @@ import {
   Tooltip,
   Alert,
   Skeleton,
+  Menu,
+  MenuItem,
 } from "@mui/material";
-import { Add as AddIcon, Refresh as RefreshIcon } from "@mui/icons-material";
-import { CalendarCheck, CalendarOff } from "lucide-react";
+import {
+  Plus as AddIcon,
+  CirclePause as PauseIcon,
+  Clock as ScheduleIcon,
+  RotateCw as RefreshIcon,
+  Webhook as WebhookIcon,
+} from "lucide-react";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 import { useConsoleStore } from "../store/consoleStore";
@@ -30,6 +37,8 @@ export function SyncJobsExplorer() {
     selectJob,
     clearError,
   } = useSyncJobStore();
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
 
   const jobs = currentWorkspace ? jobsMap[currentWorkspace.id] || [] : [];
   const isLoading = currentWorkspace
@@ -51,15 +60,24 @@ export function SyncJobsExplorer() {
     }
   };
 
-  const handleCreateNew = () => {
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleCreateNew = (jobType: "scheduled" | "webhook") => {
     const id = addConsoleTab({
-      title: "New Sync Job",
+      title: `New ${jobType === "scheduled" ? "Scheduled" : "Webhook"} Job`,
       content: "",
       initialContent: "",
       kind: "sync-job-editor" as any,
-      metadata: { isNew: true },
+      metadata: { isNew: true, jobType },
     });
     setActiveConsole(id);
+    handleMenuClose();
   };
 
   const handleEditJob = (jobId: string) => {
@@ -78,7 +96,12 @@ export function SyncJobsExplorer() {
           content: "",
           initialContent: "",
           kind: "sync-job-editor" as any,
-          metadata: { jobId, isNew: false },
+          metadata: {
+            jobId,
+            isNew: false,
+            jobType: job.type,
+            enabled: job.enabled,
+          },
         });
         setActiveConsole(id);
       }
@@ -173,8 +196,8 @@ export function SyncJobsExplorer() {
           </Typography>
           <Box sx={{ display: "flex" }}>
             <Tooltip title="Add Sync Job">
-              <IconButton size="small" onClick={handleCreateNew}>
-                <AddIcon />
+              <IconButton size="small" onClick={handleMenuOpen}>
+                <AddIcon size={20} strokeWidth={2} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Refresh">
@@ -183,7 +206,7 @@ export function SyncJobsExplorer() {
                 onClick={handleRefresh}
                 disabled={isLoading}
               >
-                <RefreshIcon />
+                <RefreshIcon size={20} strokeWidth={2} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -220,30 +243,46 @@ export function SyncJobsExplorer() {
                   <ListItemButton
                     selected={selectedJobId === job._id}
                     onClick={() => handleEditJob(job._id)}
+                    sx={{
+                      px: 1,
+                      py: 0.2,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
                   >
-                    <Tooltip
-                      title={job.enabled ? "Job Enabled" : "Job Disabled"}
-                    >
-                      <ListItemIcon sx={{ minWidth: 28, cursor: "help" }}>
-                        {job.enabled ? (
-                          <CalendarCheck
-                            size={20}
-                            color="currentColor"
-                            style={{
-                              color: "var(--mui-palette-success-main)",
-                            }}
-                          />
-                        ) : (
-                          <CalendarOff
-                            size={20}
-                            color="currentColor"
-                            style={{
-                              color: "var(--mui-palette-text-disabled)",
-                            }}
-                          />
-                        )}
-                      </ListItemIcon>
-                    </Tooltip>
+                    <ListItemIcon sx={{ minWidth: 28 }}>
+                      {job.type === "webhook" ? (
+                        <WebhookIcon
+                          size={20}
+                          strokeWidth={1.5}
+                          style={{
+                            fontSize: 24,
+                            color: job.enabled
+                              ? "text.primary"
+                              : "text.disabled",
+                          }}
+                        />
+                      ) : job.enabled ? (
+                        <ScheduleIcon
+                          size={20}
+                          strokeWidth={1.5}
+                          style={{
+                            fontSize: 24,
+                            color: "text.primary",
+                          }}
+                        />
+                      ) : (
+                        <PauseIcon
+                          size={20}
+                          color="currentColor"
+                          strokeWidth={1.5}
+                          style={{
+                            color: "var(--mui-palette-text-disabled)",
+                          }}
+                        />
+                      )}
+                    </ListItemIcon>
                     <ListItemText
                       primary={`${job.dataSourceId.name} → ${job.destinationDatabaseId.name}`}
                       secondary={null}
@@ -312,6 +351,34 @@ export function SyncJobsExplorer() {
           </List>
         )}
       </Box>
+
+      {/* Add New Job Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "right",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "right",
+        }}
+      >
+        <MenuItem onClick={() => handleCreateNew("scheduled")}>
+          <ListItemIcon>
+            <ScheduleIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Scheduled Sync</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleCreateNew("webhook")}>
+          <ListItemIcon>
+            <WebhookIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Webhook Sync</ListItemText>
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }

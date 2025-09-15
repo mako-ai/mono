@@ -4,8 +4,12 @@ import {
   FetchOptions,
   ResumableFetchOptions,
   FetchState,
+  WebhookVerificationResult,
+  WebhookHandlerOptions,
+  WebhookEventMapping,
 } from "../base/BaseConnector";
 import axios, { AxiosInstance } from "axios";
+import crypto from "crypto";
 
 export class CloseConnector extends BaseConnector {
   private closeApi: AxiosInstance | null = null;
@@ -669,5 +673,133 @@ export class CloseConnector extends BaseConnector {
       console.warn(`Could not fetch total count for ${entity}:`, error);
       return undefined;
     }
+  }
+
+  /**
+   * Check if connector supports webhooks
+   */
+  supportsWebhooks(): boolean {
+    return true;
+  }
+
+  /**
+   * Verify webhook signature and parse event
+   */
+  async verifyWebhook(
+    options: WebhookHandlerOptions,
+  ): Promise<WebhookVerificationResult> {
+    const { payload, headers, secret } = options;
+
+    const signature = headers["close-signature"];
+    if (!signature || typeof signature !== "string") {
+      return {
+        valid: false,
+        error: "Missing close-signature header",
+      };
+    }
+
+    if (!secret) {
+      return {
+        valid: false,
+        error: "Missing webhook secret",
+      };
+    }
+
+    try {
+      // Close.io uses HMAC-SHA256 signature
+      const expectedSignature = crypto
+        .createHmac("sha256", secret)
+        .update(typeof payload === "string" ? payload : JSON.stringify(payload))
+        .digest("hex");
+
+      if (signature !== expectedSignature) {
+        return {
+          valid: false,
+          error: "Invalid signature",
+        };
+      }
+
+      // Parse the event from the payload
+      const event = typeof payload === "string" ? JSON.parse(payload) : payload;
+
+      return {
+        valid: true,
+        event,
+      };
+    } catch (err) {
+      return {
+        valid: false,
+        error: err instanceof Error ? err.message : "Failed to verify webhook",
+      };
+    }
+  }
+
+  /**
+   * Get webhook event mapping
+   */
+  getWebhookEventMapping(eventType: string): WebhookEventMapping | null {
+    const mappings: Record<string, WebhookEventMapping> = {
+      // Leads
+      "lead.created": { entity: "leads", operation: "upsert" },
+      "lead.updated": { entity: "leads", operation: "upsert" },
+      "lead.deleted": { entity: "leads", operation: "delete" },
+
+      // Contacts
+      "contact.created": { entity: "contacts", operation: "upsert" },
+      "contact.updated": { entity: "contacts", operation: "upsert" },
+      "contact.deleted": { entity: "contacts", operation: "delete" },
+
+      // Opportunities
+      "opportunity.created": { entity: "opportunities", operation: "upsert" },
+      "opportunity.updated": { entity: "opportunities", operation: "upsert" },
+      "opportunity.deleted": { entity: "opportunities", operation: "delete" },
+
+      // Activities
+      "activity.created": { entity: "activities", operation: "upsert" },
+      "activity.updated": { entity: "activities", operation: "upsert" },
+      "activity.deleted": { entity: "activities", operation: "delete" },
+    };
+
+    return mappings[eventType] || null;
+  }
+
+  /**
+   * Get supported webhook event types
+   */
+  getSupportedWebhookEvents(): string[] {
+    return [
+      // Leads
+      "lead.created",
+      "lead.updated",
+      "lead.deleted",
+      // Contacts
+      "contact.created",
+      "contact.updated",
+      "contact.deleted",
+      // Opportunities
+      "opportunity.created",
+      "opportunity.updated",
+      "opportunity.deleted",
+      // Activities
+      "activity.created",
+      "activity.updated",
+      "activity.deleted",
+    ];
+  }
+
+  /**
+   * Extract entity data from webhook event
+   */
+  extractWebhookData(event: any): { id: string; data: any } | null {
+    if (!event || !event.data) {
+      return null;
+    }
+
+    // Close.io webhook structure has data at the root level
+    const data = event.data || event;
+    return {
+      id: data.id,
+      data: data,
+    };
   }
 }
