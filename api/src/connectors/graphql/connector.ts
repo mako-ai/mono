@@ -59,7 +59,8 @@ export class GraphQLConnector extends BaseConnector {
               rows: 12,
               placeholder:
                 "query GetData($limit: Int!, $offset: Int!) {\n  items(limit: $limit, offset: $offset) {\n    id\n    name\n    created_at\n  }\n  items_aggregate {\n    aggregate {\n      count\n    }\n  }\n}",
-              helperText: "Your GraphQL query with pagination support",
+              helperText:
+                "Your GraphQL query with pagination support. For custom cursor pagination, use $first and $after instead of $limit and $offset.",
             },
             {
               name: "data_path",
@@ -318,7 +319,16 @@ export class GraphQLConnector extends BaseConnector {
       queryConfig.query.includes("$offset") ||
       queryConfig.query.includes("offset:");
 
+    // Add overall chunk timing
+    const chunkStart = Date.now();
+
     while (hasMore && iterations < maxIterations) {
+      // Log iteration start
+      const iterStart = Date.now();
+      console.log(
+        `Iteration ${iterations} started - Cursor: ${cursor || "none"}`,
+      );
+
       // Build query variables
       let queryVariables: any = {
         ...(queryConfig.variables || {}),
@@ -328,7 +338,7 @@ export class GraphQLConnector extends BaseConnector {
         queryVariables = {
           ...queryVariables,
           first: Number(settings.batchSize),
-          ...(cursor && { after: cursor }),
+          after: cursor !== null && cursor !== undefined ? cursor : 0, // Default to 0 for integer-based cursors
         };
       } else if (usesOffsetPagination) {
         queryVariables = {
@@ -345,20 +355,28 @@ export class GraphQLConnector extends BaseConnector {
         };
       }
 
-      // Execute query with retry logic
+      // Execute query (timing already logged in executeGraphQLQuery)
+      const queryStart = Date.now();
       const response = await this.executeWithRetry(
         () =>
           this.executeGraphQLQuery(queryConfig.query, queryVariables, settings),
         settings,
       );
+      const queryDuration = Date.now() - queryStart;
+      console.log(
+        `Full query execution (with retries) took ${queryDuration}ms`,
+      );
 
       // Extract data
+      const extractStart = Date.now();
       const data = this.getValueByPath(response, queryConfig.data_path);
       if (!Array.isArray(data)) {
         console.warn(`Data at path '${queryConfig.data_path}' is not an array`);
         hasMore = false;
         break;
       }
+      const extractDuration = Date.now() - extractStart;
+      console.log(`Data extraction took ${extractDuration}ms`);
 
       // Filter by date if incremental
       let filteredData = data;
@@ -370,17 +388,27 @@ export class GraphQLConnector extends BaseConnector {
         });
       }
 
-      // Pass batch to callback
+      // Pass batch to callback (measure insert time)
       if (filteredData.length > 0) {
+        const batchStart = Date.now();
         await onBatch(filteredData);
+        const batchDuration = Date.now() - batchStart;
+        console.log(
+          `Batch processing (inserts) took ${batchDuration}ms for ${filteredData.length} records`,
+        );
       }
 
+      // Update counts and progress
+      const progressStart = Date.now();
       currentCount += filteredData.length;
       if (onProgress) {
         onProgress(currentCount, totalCount);
       }
+      const progressDuration = Date.now() - progressStart;
+      console.log(`Progress update took ${progressDuration}ms`);
 
       // Check for more pages
+      const paginationStart = Date.now();
       if (queryConfig.has_next_page_path) {
         hasMore = this.getValueByPath(response, queryConfig.has_next_page_path);
       } else {
@@ -398,9 +426,24 @@ export class GraphQLConnector extends BaseConnector {
         iterations++;
 
         // Rate limiting
+        console.log(
+          `Slept for ${settings.rateLimitDelay}ms because of rate limiting`,
+        );
         await this.sleep(settings.rateLimitDelay);
       }
+      const paginationDuration = Date.now() - paginationStart;
+      console.log(`Pagination check and update took ${paginationDuration}ms`);
+
+      // Log iteration end
+      const iterDuration = Date.now() - iterStart;
+      console.log(`Iteration ${iterations - 1} completed in ${iterDuration}ms`);
     }
+
+    // Log overall chunk time
+    const chunkDuration = Date.now() - chunkStart;
+    console.log(
+      `Chunk completed in ${chunkDuration}ms - Total processed: ${currentCount}, Iterations: ${iterations}`,
+    );
 
     return {
       offset,
@@ -469,7 +512,7 @@ export class GraphQLConnector extends BaseConnector {
         queryVariables = {
           ...queryVariables,
           first: Number(settings.batchSize),
-          ...(cursor && { after: cursor }),
+          after: cursor !== null && cursor !== undefined ? cursor : 0, // Default to 0 for integer-based cursors
         };
       } else if (usesOffsetPagination) {
         queryVariables = {
@@ -536,6 +579,9 @@ export class GraphQLConnector extends BaseConnector {
         }
 
         // Rate limiting
+        console.log(
+          `Slept for ${settings.rateLimitDelay}ms because of rate limiting`,
+        );
         await this.sleep(settings.rateLimitDelay);
       }
     }
@@ -546,6 +592,9 @@ export class GraphQLConnector extends BaseConnector {
     variables?: any,
     settings?: any,
   ): Promise<any> {
+    console.log(`Starting GraphQL query execution`);
+    const startTime = Date.now();
+
     const client = this.getGraphQLClient();
     const response = await client.post(
       "",
@@ -554,6 +603,10 @@ export class GraphQLConnector extends BaseConnector {
         timeout: settings?.timeout || 30000,
       },
     );
+
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    console.log(`GraphQL server took ${duration}ms to respond`);
 
     if (response.data.errors && response.data.errors.length > 0) {
       const errorMessage = response.data.errors
@@ -585,27 +638,28 @@ export class GraphQLConnector extends BaseConnector {
           throw error;
         }
 
-        // Handle rate limiting
+        let delayMs: number;
+
         if (axios.isAxiosError(error) && error.response?.status === 429) {
           const retryAfter = error.response.headers["retry-after"];
-          const delayMs = retryAfter
+          delayMs = retryAfter
             ? parseInt(retryAfter, 10) * 1000
             : 1000 * Math.pow(2, attempts);
           console.warn(
             `Rate limited. Waiting ${delayMs}ms before retry ${attempts}/${settings.maxRetries}`,
           );
-          await this.sleep(delayMs);
         } else if (this.isRetryableError(error)) {
-          // Exponential backoff for other retryable errors
           const backoff = 500 * Math.pow(2, attempts);
+          delayMs = backoff;
           console.warn(
-            `Retryable error. Waiting ${backoff}ms before retry ${attempts}/${settings.maxRetries}`,
+            `Retryable error. Waiting ${delayMs}ms before retry ${attempts}/${settings.maxRetries}`,
           );
-          await this.sleep(backoff);
         } else {
-          // Non-retryable error
           throw error;
         }
+
+        console.log(`Slept for ${delayMs}ms for retry delay`);
+        await this.sleep(delayMs);
       }
     }
 
@@ -647,7 +701,7 @@ export class GraphQLConnector extends BaseConnector {
         countVariables.offset = 0;
       }
       if (queryText.includes("$after")) {
-        countVariables.after = null;
+        countVariables.after = 0; // Use 0 instead of null for non-nullable Int parameters
       }
 
       const response = await this.executeGraphQLQuery(

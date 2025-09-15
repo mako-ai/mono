@@ -8,16 +8,14 @@ import {
   Typography,
   Divider,
 } from "@mui/material";
-import {
-  AccountCircleOutlined as UserIcon,
-  Logout as LogoutIcon,
-} from "@mui/icons-material";
+import { Logout as LogoutIcon } from "@mui/icons-material";
 import {
   Settings as SettingsIcon,
   SquareChevronRight as ConsoleIcon,
   Database as DatabaseIcon,
-  CloudUpload as DataSourceIcon,
-  Calendar as SyncJobsIcon,
+  Cable as DataSourceIcon,
+  CloudUpload as SyncJobsIcon,
+  CircleUserRound as UserIcon,
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
 import { useConsoleStore } from "../store/consoleStore";
@@ -170,7 +168,7 @@ function Sidebar() {
                   isActive={isActive}
                   onClick={() => handleNavigation(item.view as NavigationView)}
                 >
-                  <Icon size={24} />
+                  <Icon size={24} strokeWidth={1.5} />
                 </NavButton>
               </Tooltip>
             );
@@ -189,7 +187,7 @@ function Sidebar() {
           {/* User Menu */}
           <Tooltip title="User Menu" placement="right">
             <NavButton onClick={handleUserMenuOpen}>
-              <UserIcon />
+              <UserIcon strokeWidth={1.5} />
             </NavButton>
           </Tooltip>
 
@@ -204,7 +202,7 @@ function Sidebar() {
                   isActive={isActive}
                   onClick={() => handleNavigation(item.view as NavigationView)}
                 >
-                  <Icon />
+                  <Icon strokeWidth={1.5} />
                 </NavButton>
               </Tooltip>
             );

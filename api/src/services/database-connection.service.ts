@@ -689,15 +689,76 @@ export class DatabaseConnectionService {
   ): Promise<any> {
     console.log("🔍 Executing query:", query.substring(0, 200) + "...");
 
+    // Track async index operations to surface errors even if not awaited by the user
+    const trackedIndexPromises: Promise<any>[] = [];
+    const trackedIndexErrors: any[] = [];
+
+    // Wrap a collection (and returned objects) to intercept ANY async calls and attach handlers
+    const wrapCollection = (collection: any) =>
+      new Proxy(collection, {
+        get: (target, prop, receiver) => {
+          const original = Reflect.get(target, prop, receiver);
+          if (typeof original === "function") {
+            return (...args: any[]) => {
+              try {
+                const result = original.apply(target, args);
+                if (result && typeof result.then === "function") {
+                  // Attach a handler so rejections are observed and recorded
+                  result.catch((err: any) => {
+                    trackedIndexErrors.push(err);
+                  });
+                  trackedIndexPromises.push(result);
+                }
+                // If the result is another driver object, wrap it too
+                if (result && typeof result === "object") {
+                  return wrapCollection(result);
+                }
+                return result;
+              } catch (err) {
+                trackedIndexErrors.push(err);
+                throw err;
+              }
+            };
+          }
+          if (original && typeof original === "object") {
+            return wrapCollection(original);
+          }
+          return original;
+        },
+      });
+
     // Create a proxy db object that can access any collection dynamically
     const dbProxy = new Proxy(db, {
       get: (target, prop) => {
         // First check if this property exists on the target (database methods)
         if (prop in target) {
           const value = (target as any)[prop];
-          // If it's a function, bind it to the target to maintain 'this' context
+          // If it's the collection() factory, wrap returned collection
+          if (prop === "collection" && typeof value === "function") {
+            return (name: string, options?: any) => {
+              const col = value.call(target, name, options);
+              return wrapCollection(col);
+            };
+          }
           if (typeof value === "function") {
-            return value.bind(target);
+            // Wrap db-level async methods to observe errors
+            return (...args: any[]) => {
+              const fn = value.bind(target);
+              const result = fn(...args);
+              if (result && typeof result.then === "function") {
+                result.catch((err: any) => {
+                  trackedIndexErrors.push(err);
+                });
+                trackedIndexPromises.push(result);
+              }
+              if (result && typeof result === "object") {
+                return wrapCollection(result);
+              }
+              return result;
+            };
+          }
+          if (value && typeof value === "object") {
+            return wrapCollection(value);
           }
           return value;
         }
@@ -721,13 +782,14 @@ export class DatabaseConnectionService {
 
         // Provide backwards-compatibility for Mongo-shell style helper db.getCollection(<n>)
         if (prop === "getCollection") {
-          return (name: string) => (target as Db).collection(name);
+          return (name: string) =>
+            wrapCollection((target as Db).collection(name));
         }
 
         // If it's a string and not a database method, treat it as a collection name
         if (typeof prop === "string") {
           console.log(`📋 Accessing collection: ${prop}`);
-          return target.collection(prop);
+          return wrapCollection(target.collection(prop));
         }
 
         return undefined;
@@ -777,6 +839,15 @@ export class DatabaseConnectionService {
         "🎯 Final result length/value:",
         Array.isArray(finalResult) ? finalResult.length : finalResult,
       );
+
+      // Wait for any tracked index operations to settle, then surface errors
+      if (trackedIndexPromises.length > 0) {
+        await Promise.allSettled(trackedIndexPromises);
+        if (trackedIndexErrors.length > 0) {
+          // Throw the first tracked error so it is returned to the client
+          throw trackedIndexErrors[0];
+        }
+      }
 
       // Ensure the result can be safely serialized to JSON (avoid circular refs)
       const getCircularReplacer = () => {

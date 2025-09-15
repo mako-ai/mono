@@ -4,9 +4,11 @@ import {
   DataSource,
   Database,
   JobExecution,
+  WebhookEvent,
 } from "../database/workspace-schema";
 import { Types } from "mongoose";
 import { inngest } from "../inngest";
+import { generateWebhookEndpoint } from "../utils/webhook.utils";
 
 export const syncJobRoutes = new Hono();
 
@@ -15,10 +17,60 @@ syncJobRoutes.get("/", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
 
-    const jobs = await SyncJob.find({ workspaceId })
-      .populate("dataSourceId", "name type")
-      .populate("destinationDatabaseId", "name type")
-      .sort({ createdAt: -1 });
+    const jobs = await SyncJob.aggregate([
+      { $match: { workspaceId: new Types.ObjectId(workspaceId) } },
+      {
+        $lookup: {
+          from: "datasources",
+          localField: "dataSourceId",
+          foreignField: "_id",
+          as: "dataSourceId",
+        },
+      },
+      {
+        $lookup: {
+          from: "databases",
+          localField: "destinationDatabaseId",
+          foreignField: "_id",
+          as: "destinationDatabaseId",
+        },
+      },
+      { $unwind: "$dataSourceId" },
+      { $unwind: "$destinationDatabaseId" },
+      {
+        $project: {
+          _id: 1,
+          workspaceId: 1,
+          type: 1,
+          schedule: 1,
+          webhookConfig: 1,
+          entityFilter: 1,
+          syncMode: 1,
+          enabled: 1,
+          lastRunAt: 1,
+          lastSuccessAt: 1,
+          lastError: 1,
+          nextRunAt: 1,
+          runCount: 1,
+          avgDurationMs: 1,
+          createdBy: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          "dataSourceId._id": 1,
+          "dataSourceId.name": 1,
+          "dataSourceId.type": 1,
+          "destinationDatabaseId._id": 1,
+          "destinationDatabaseId.name": 1,
+          "destinationDatabaseId.type": 1,
+        },
+      },
+      {
+        $sort: {
+          "dataSourceId.name": 1,
+          "destinationDatabaseId.name": 1,
+        },
+      },
+    ]);
 
     return c.json({
       success: true,
@@ -40,17 +92,22 @@ syncJobRoutes.get("/", async c => {
 syncJobRoutes.post("/", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
+    if (!workspaceId) {
+      return c.json({ success: false, error: "Workspace ID is required" }, 400);
+    }
     // TODO: Get userId from authentication
     const userId = "system";
     const body = await c.req.json();
 
-    // Validate required fields
-    const requiredFields = [
-      "name",
-      "dataSourceId",
-      "destinationDatabaseId",
-      "schedule",
-    ];
+    // Validate required fields based on job type
+    const jobType = body.type || "scheduled";
+    const requiredFields = ["dataSourceId", "destinationDatabaseId"];
+
+    // Schedule is only required for scheduled jobs
+    if (jobType === "scheduled") {
+      requiredFields.push("schedule");
+    }
+
     for (const field of requiredFields) {
       if (!body[field]) {
         return c.json({ success: false, error: `${field} is required` }, 400);
@@ -80,21 +137,48 @@ syncJobRoutes.post("/", async c => {
       );
     }
 
-    // Create sync job
-    const syncJob = new SyncJob({
+    // Create sync job with type-specific configuration
+    const syncJobData: any = {
       workspaceId: new Types.ObjectId(workspaceId),
-      name: body.name,
+      type: jobType,
       dataSourceId: new Types.ObjectId(body.dataSourceId),
       destinationDatabaseId: new Types.ObjectId(body.destinationDatabaseId),
-      schedule: {
-        cron: body.schedule.cron || body.schedule,
-        timezone: body.schedule.timezone || body.timezone || "UTC",
-      },
       entityFilter: body.entityFilter || [],
       syncMode: body.syncMode || "full",
       enabled: body.enabled !== false,
       createdBy: userId,
-    });
+    };
+
+    if (jobType === "scheduled") {
+      syncJobData.schedule = {
+        cron: body.schedule.cron || body.schedule,
+        timezone: body.schedule.timezone || body.timezone || "UTC",
+      };
+    } else if (jobType === "webhook") {
+      // Generate webhook configuration
+      const webhookEndpoint = generateWebhookEndpoint(
+        workspaceId,
+        new Types.ObjectId().toString(),
+      );
+      // Webhook secret must be provided by the user (from Stripe/Close)
+      const webhookSecret = body.webhookSecret || "";
+
+      syncJobData.webhookConfig = {
+        endpoint: webhookEndpoint,
+        secret: webhookSecret,
+        enabled: true,
+      };
+    }
+
+    const syncJob = new SyncJob(syncJobData);
+
+    // Update webhook endpoint with actual job ID
+    if (jobType === "webhook" && syncJob.webhookConfig) {
+      syncJob.webhookConfig.endpoint = generateWebhookEndpoint(
+        workspaceId,
+        syncJob._id.toString(),
+      );
+    }
 
     await syncJob.save();
 
@@ -169,7 +253,7 @@ syncJobRoutes.put("/:jobId", async c => {
     }
 
     // Update allowed fields
-    if (body.schedule) {
+    if (job.type === "scheduled" && body.schedule) {
       job.schedule = {
         cron: body.schedule.cron || body.schedule,
         timezone: body.schedule.timezone || job.schedule.timezone,
@@ -178,6 +262,21 @@ syncJobRoutes.put("/:jobId", async c => {
     if (body.entityFilter !== undefined) job.entityFilter = body.entityFilter;
     if (body.syncMode) job.syncMode = body.syncMode;
     if (body.enabled !== undefined) job.enabled = body.enabled;
+
+    // Update webhook-specific fields
+    if (job.type === "webhook" && job.webhookConfig) {
+      // Handle webhookSecret directly from body
+      if (body.webhookSecret !== undefined) {
+        job.webhookConfig.secret = body.webhookSecret;
+      }
+
+      // Handle other webhook config fields
+      if (body.webhookConfig) {
+        if (body.webhookConfig.enabled !== undefined) {
+          job.webhookConfig.enabled = body.webhookConfig.enabled;
+        }
+      }
+    }
 
     await job.save();
 
@@ -540,6 +639,203 @@ syncJobRoutes.get("/:jobId/executions/:executionId/logs", async c => {
     return c.json({ success: true, data: execution.logs || [] });
   } catch (error) {
     console.error("Error getting execution logs:", error);
+    return c.json({ success: false, error: "Server error" }, 500);
+  }
+});
+
+// GET webhook stats for a job
+syncJobRoutes.get("/:jobId/webhook/stats", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+
+    const job = await SyncJob.findOne({
+      _id: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+      type: "webhook",
+    });
+
+    if (!job) {
+      return c.json({ success: false, error: "Webhook job not found" }, 404);
+    }
+
+    // Get recent webhook events
+    const recentEvents = await WebhookEvent.find({
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    })
+      .sort({ receivedAt: -1 })
+      .limit(100)
+      .lean();
+
+    // Calculate stats
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const eventsToday = recentEvents.filter(
+      e => new Date(e.receivedAt) >= today,
+    ).length;
+    const failedEvents = recentEvents.filter(e => e.status === "failed").length;
+    const successRate =
+      recentEvents.length > 0
+        ? ((recentEvents.length - failedEvents) / recentEvents.length) * 100
+        : 100;
+
+    const stats = {
+      webhookUrl: job.webhookConfig?.endpoint,
+      lastReceived: job.webhookConfig?.lastReceivedAt
+        ? new Date(job.webhookConfig.lastReceivedAt).toISOString()
+        : null,
+      totalReceived: job.webhookConfig?.totalReceived || 0,
+      eventsToday,
+      successRate: Math.round(successRate),
+      recentEvents: recentEvents.slice(0, 10).map(event => ({
+        eventId: event.eventId,
+        eventType: event.eventType,
+        receivedAt: event.receivedAt,
+        status: event.status,
+        processingDurationMs: event.processingDurationMs,
+      })),
+    };
+
+    return c.json({ success: true, data: stats });
+  } catch (error) {
+    console.error("Error getting webhook stats:", error);
+    return c.json({ success: false, error: "Server error" }, 500);
+  }
+});
+
+// GET webhook events for a job
+syncJobRoutes.get("/:jobId/webhook/events", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+    const limit = parseInt(c.req.query("limit") || "50");
+    const offset = parseInt(c.req.query("offset") || "0");
+    const status = c.req.query("status");
+
+    const job = await SyncJob.findOne({
+      _id: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+      type: "webhook",
+    });
+
+    if (!job) {
+      return c.json({ success: false, error: "Webhook job not found" }, 404);
+    }
+
+    const query: any = {
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    };
+
+    if (status) {
+      query.status = status;
+    }
+
+    const events = await WebhookEvent.find(query)
+      .sort({ receivedAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean();
+
+    const total = await WebhookEvent.countDocuments(query);
+
+    return c.json({
+      success: true,
+      data: {
+        total,
+        limit,
+        offset,
+        events: events.map(event => ({
+          id: event._id,
+          eventId: event.eventId,
+          eventType: event.eventType,
+          receivedAt: event.receivedAt,
+          processedAt: event.processedAt,
+          status: event.status,
+          attempts: event.attempts,
+          error: event.error,
+          processingDurationMs: event.processingDurationMs,
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("Error getting webhook events:", error);
+    return c.json({ success: false, error: "Server error" }, 500);
+  }
+});
+
+// GET webhook event details
+syncJobRoutes.get("/:jobId/webhook/events/:eventId", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+    const eventId = c.req.param("eventId");
+
+    const event = await WebhookEvent.findOne({
+      _id: new Types.ObjectId(eventId),
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+    }).lean();
+
+    if (!event) {
+      return c.json({ success: false, error: "Webhook event not found" }, 404);
+    }
+
+    return c.json({ success: true, data: event });
+  } catch (error) {
+    console.error("Error getting webhook event details:", error);
+    return c.json({ success: false, error: "Server error" }, 500);
+  }
+});
+
+// POST retry webhook event
+syncJobRoutes.post("/:jobId/webhook/events/:eventId/retry", async c => {
+  try {
+    const workspaceId = c.req.param("workspaceId");
+    const jobId = c.req.param("jobId");
+    const eventId = c.req.param("eventId");
+
+    const event = await WebhookEvent.findOne({
+      _id: new Types.ObjectId(eventId),
+      jobId: new Types.ObjectId(jobId),
+      workspaceId: new Types.ObjectId(workspaceId),
+      status: { $in: ["failed", "completed"] }, // Can retry failed or completed events
+    });
+
+    if (!event) {
+      return c.json(
+        {
+          success: false,
+          error: "Webhook event not found or cannot be retried",
+        },
+        404,
+      );
+    }
+
+    // Reset event for retry
+    event.status = "pending";
+    await event.save();
+
+    // Trigger processing
+    await inngest.send({
+      name: "webhook/event.process",
+      data: {
+        jobId: event.jobId.toString(),
+        eventId: event.eventId,
+      },
+    });
+
+    return c.json({
+      success: true,
+      message: "Webhook event queued for retry",
+      data: {
+        eventId: event._id,
+      },
+    });
+  } catch (error) {
+    console.error("Error retrying webhook event:", error);
     return c.json({ success: false, error: "Server error" }, 500);
   }
 });

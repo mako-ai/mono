@@ -18,6 +18,7 @@ import { workspaceRoutes } from "./routes/workspaces";
 import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
 import { connectorRoutes } from "./routes/connectors";
 import { syncJobRoutes } from "./routes/sync-jobs";
+import { webhookRoutes } from "./routes/webhooks";
 import { functions, inngest } from "./inngest";
 import mongoose from "mongoose";
 import { databaseConnectionService } from "./services/database-connection.service";
@@ -54,6 +55,16 @@ app.use(
   }),
 );
 
+// Global JSON error handler – ensures errors are returned as JSON
+app.onError((err, c) => {
+  console.error("Unhandled API error:", err);
+  const message = err instanceof Error ? err.message : "Internal Server Error";
+  return c.json({ success: false, error: message }, 500);
+});
+
+// Not found handler for unknown routes
+app.notFound(c => c.json({ success: false, error: "Not Found" }, 404));
+
 // Health check
 app.get("/health", c => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -73,6 +84,7 @@ app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
 app.route("/api/agent", agentRoutes);
 app.route("/api/connectors", connectorRoutes);
+app.route("/api", webhookRoutes);
 
 // Inngest endpoint
 app.on(
@@ -156,6 +168,15 @@ serve({
 // Graceful shutdown handling
 process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => void gracefulShutdown("SIGINT"));
+
+// Process-level safety nets: log and keep server responsive
+process.on("unhandledRejection", reason => {
+  console.error("Unhandled Promise Rejection:", reason);
+});
+
+process.on("uncaughtException", err => {
+  console.error("Uncaught Exception:", err);
+});
 
 async function gracefulShutdown(signal: string): Promise<never> {
   console.log(`\n${signal} received. Starting graceful shutdown...`);

@@ -6,6 +6,11 @@ import {
   cancelSyncJobFunction,
   cleanupAbandonedJobsFunction,
 } from "./functions/sync-job";
+import {
+  webhookEventProcessFunction,
+  webhookCleanupFunction,
+  webhookRetryFunction,
+} from "./functions/webhook-job";
 
 // Check if we're running in development mode
 const isDevelopment =
@@ -18,6 +23,9 @@ const baseFunctions = [
   manualSyncJobFunction,
   cancelSyncJobFunction,
   cleanupAbandonedJobsFunction,
+  webhookEventProcessFunction,
+  webhookCleanupFunction,
+  webhookRetryFunction,
 ];
 
 // Conditionally add scheduled sync job function (only in production)
@@ -39,4 +47,9 @@ export {
   manualSyncJobFunction,
   cancelSyncJobFunction,
   cleanupAbandonedJobsFunction,
+};
+export {
+  webhookEventProcessFunction,
+  webhookCleanupFunction,
+  webhookRetryFunction,
 };

@@ -143,6 +143,10 @@ export type Action =
       payload: { id: string; dbContentHash: string };
     }
   | {
+      type: "UPDATE_CONSOLE_FILE_PATH";
+      payload: { id: string; filePath: string };
+    }
+  | {
       type: "SET_ATTACHED_CONTEXT";
       payload: { chatId: string; items: AttachedContext[] };
     }
@@ -349,6 +353,11 @@ export const reducer = (state: GlobalState, action: Action): void => {
     case "UPDATE_CONSOLE_DB_HASH": {
       const tab = state.consoles.tabs[action.payload.id];
       if (tab) tab.dbContentHash = action.payload.dbContentHash;
+      break;
+    }
+    case "UPDATE_CONSOLE_FILE_PATH": {
+      const tab = state.consoles.tabs[action.payload.id];
+      if (tab) tab.filePath = action.payload.filePath;
       break;
     }
     case "CREATE_CHAT": {

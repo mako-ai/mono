@@ -36,7 +36,7 @@ import { useDatabaseStore } from "../store/databaseStore";
 import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
 import { apiClient } from "../lib/api-client";
 
-interface SyncJobFormProps {
+interface ScheduledJobFormProps {
   jobId?: string;
   isNew?: boolean;
   onSave?: () => void;
@@ -67,13 +67,13 @@ const SCHEDULE_PRESETS = [
   { label: "Monthly on 1st", cron: "0 0 1 * *" },
 ];
 
-export function SyncJobForm({
+export function ScheduledJobForm({
   jobId,
   isNew = false,
   onSave,
   onSaved,
   onCancel,
-}: SyncJobFormProps) {
+}: ScheduledJobFormProps) {
   const { currentWorkspace } = useWorkspace();
   const {
     jobs: jobsMap,
@@ -282,16 +282,17 @@ export function SyncJobForm({
   useEffect(() => {
     if (!isNewMode && currentJobId && jobs.length > 0) {
       const job = jobs.find(j => j._id === currentJobId);
-      if (job) {
-        const formData = {
+      if (job && job.type === "scheduled") {
+        const formData: FormData = {
           dataSourceId: (job.dataSourceId as any)._id,
           destinationDatabaseId: (job.destinationDatabaseId as any)._id,
-          schedule: job.schedule.cron,
-          timezone: job.schedule.timezone || "UTC",
+          schedule: job.schedule?.cron || "0 * * * *",
+          timezone: job.schedule?.timezone || "UTC",
           syncMode: job.syncMode as "full" | "incremental",
           enabled: job.enabled,
           entityFilter: job.entityFilter || [],
         };
+
         reset(formData);
 
         // Set entity selection state
@@ -385,15 +386,16 @@ export function SyncJobForm({
       // Create payload compatible with the API
       const payload: any = {
         name: generatedName,
+        type: "scheduled",
         dataSourceId: data.dataSourceId,
         destinationDatabaseId: data.destinationDatabaseId,
+        syncMode: data.syncMode,
+        enabled: data.enabled,
+        entityFilter: data.entityFilter,
         schedule: {
           cron: data.schedule,
           timezone: data.timezone,
         },
-        syncMode: data.syncMode,
-        enabled: data.enabled,
-        entityFilter: data.entityFilter,
       };
 
       // Debug logging
@@ -758,7 +760,7 @@ export function SyncJobForm({
                 </>
               )}
 
-              {/* Schedule Mode */}
+              {/* Schedule Configuration */}
               <Box>
                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                   Schedule
@@ -775,13 +777,14 @@ export function SyncJobForm({
                 </ToggleButtonGroup>
               </Box>
 
-              {/* Schedule Input and Timezone */}
               <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
                 <Box sx={{ flex: scheduleMode === "preset" ? 2 : 1.5 }}>
                   <Controller
                     name="schedule"
                     control={control}
-                    rules={{ required: "Schedule is required" }}
+                    rules={{
+                      required: "Schedule is required",
+                    }}
                     render={({ field }) =>
                       scheduleMode === "preset" ? (
                         <FormControl fullWidth>

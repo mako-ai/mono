@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Box,
   CircularProgress,
@@ -16,6 +16,7 @@ import {
   PlayArrow as PlayArrowIcon,
   EditOutlined as EditIcon,
   Stop as StopIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { apiClient } from "../lib/api-client";
@@ -105,76 +106,8 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
     null,
   );
 
-  // Function to check job running status
-  const checkJobStatus = async () => {
-    if (!currentWorkspace?.id || !jobId) return;
-    try {
-      const response = await apiClient.get<{
-        success: boolean;
-        data: {
-          isRunning: boolean;
-          runningExecution: {
-            executionId: string;
-            startedAt: string;
-            lastHeartbeat: string;
-          } | null;
-        };
-      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/status`);
-
-      if (response.success) {
-        setIsRunning(response.data.isRunning);
-        setRunningExecutionId(
-          response.data.runningExecution?.executionId || null,
-        );
-      }
-    } catch (err) {
-      console.error("Failed to check job status", err);
-    }
-  };
-
-  // Function to cancel running job
-  const handleCancel = async () => {
-    if (!currentWorkspace?.id || !jobId) return;
-    try {
-      const response = await apiClient.post<{
-        success: boolean;
-        message: string;
-      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/cancel`, {
-        executionId: runningExecutionId, // Pass the executionId if available
-      });
-
-      if (response.success) {
-        // Wait a moment then refresh status
-        setTimeout(() => {
-          checkJobStatus();
-          // Refresh history to show cancelled execution
-          fetchHistory();
-        }, 1000);
-      } else {
-        setError("Failed to cancel job");
-      }
-    } catch (err) {
-      console.error("Failed to cancel job", err);
-      setError("Failed to cancel job execution");
-    }
-  };
-
-  // Function to handle run/cancel button click
-  const handleButtonClick = () => {
-    if (isRunning) {
-      handleCancel();
-    } else if (onRunNow) {
-      onRunNow();
-      // Start checking status after triggering run
-      setTimeout(() => {
-        checkJobStatus();
-        fetchHistory();
-      }, 1000);
-    }
-  };
-
   // Function to fetch history
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     if (!currentWorkspace?.id || !jobId) return;
     setIsLoading(true);
     try {
@@ -198,7 +131,81 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentWorkspace?.id, jobId]);
+
+  // Function to check job running status
+  const checkJobStatus = useCallback(async () => {
+    if (!currentWorkspace?.id || !jobId) return;
+    try {
+      const response = await apiClient.get<{
+        success: boolean;
+        data: {
+          isRunning: boolean;
+          runningExecution: {
+            executionId: string;
+            startedAt: string;
+            lastHeartbeat: string;
+          } | null;
+        };
+      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/status`);
+
+      if (response.success) {
+        setIsRunning(response.data.isRunning);
+        setRunningExecutionId(
+          response.data.runningExecution?.executionId || null,
+        );
+      }
+    } catch (err) {
+      console.error("Failed to check job status", err);
+    }
+  }, [currentWorkspace?.id, jobId]);
+
+  // Function to cancel running job
+  const handleCancel = useCallback(async () => {
+    if (!currentWorkspace?.id || !jobId) return;
+    try {
+      const response = await apiClient.post<{
+        success: boolean;
+        message: string;
+      }>(`/workspaces/${currentWorkspace.id}/sync-jobs/${jobId}/cancel`, {
+        executionId: runningExecutionId, // Pass the executionId if available
+      });
+
+      if (response.success) {
+        // Wait a moment then refresh status
+        setTimeout(() => {
+          checkJobStatus();
+          // Refresh history to show cancelled execution
+          fetchHistory();
+        }, 1000);
+      } else {
+        setError("Failed to cancel job");
+      }
+    } catch (err) {
+      console.error("Failed to cancel job", err);
+      setError("Failed to cancel job execution");
+    }
+  }, [
+    currentWorkspace?.id,
+    jobId,
+    runningExecutionId,
+    checkJobStatus,
+    fetchHistory,
+  ]);
+
+  // Function to handle run/cancel button click
+  const handleButtonClick = useCallback(() => {
+    if (isRunning) {
+      handleCancel();
+    } else if (onRunNow) {
+      onRunNow();
+      // Start checking status after triggering run
+      setTimeout(() => {
+        checkJobStatus();
+        fetchHistory();
+      }, 1000);
+    }
+  }, [isRunning, handleCancel, onRunNow, checkJobStatus, fetchHistory]);
 
   // Fetch job details
   useEffect(() => {
@@ -225,15 +232,7 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
   useEffect(() => {
     fetchHistory();
     checkJobStatus();
-
-    // Set up polling for status
-    const interval = setInterval(() => {
-      checkJobStatus();
-      fetchHistory();
-    }, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [currentWorkspace?.id, jobId]);
+  }, [currentWorkspace?.id, jobId, fetchHistory, checkJobStatus]);
 
   const selectedHistory =
     selectedIndex >= 0 && selectedIndex < history.length
@@ -303,7 +302,7 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
           backgroundColor: "background.paper",
         }}
       >
-        <Box>
+        <Box sx={{ display: "flex", gap: 1 }}>
           {onRunNow && (
             <Button
               variant={isRunning ? "contained" : "outlined"}
@@ -327,14 +326,23 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
               size="small"
               onClick={onEdit}
               disableElevation
-              sx={{
-                ml: 1,
-              }}
               startIcon={<EditIcon fontSize="small" />}
             >
               Edit
             </Button>
           )}
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => {
+              fetchHistory();
+              checkJobStatus();
+            }}
+            disabled={isLoading}
+            startIcon={<RefreshIcon fontSize="small" />}
+          >
+            Refresh
+          </Button>
         </Box>
       </Box>
 

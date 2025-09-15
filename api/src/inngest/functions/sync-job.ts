@@ -350,8 +350,8 @@ export const syncJobFunction = inngest.createFunction(
           destinationDatabaseId: new Types.ObjectId(job.destinationDatabaseId),
           syncMode: job.syncMode === "incremental" ? "incremental" : "full",
           entityFilter: job.entityFilter,
-          cronExpression: job.schedule.cron,
-          timezone: job.schedule.timezone || "UTC",
+          cronExpression: job.schedule?.cron || "N/A",
+          timezone: job.schedule?.timezone || "UTC",
         },
       );
       return logger;
@@ -394,6 +394,21 @@ export const syncJobFunction = inngest.createFunction(
         return { success: false, message: "Job is disabled" };
       }
 
+      // Webhook jobs should not be executed by the sync job function
+      if (job.type === "webhook") {
+        logger.error("CRITICAL: Webhook job reached sync job executor!", {
+          jobId,
+          jobType: job.type,
+          dataSourceId: job.dataSourceId,
+          schedule: job.schedule,
+          webhookConfig: !!job.webhookConfig,
+        });
+        return {
+          success: false,
+          message: "Webhook jobs cannot be executed as sync jobs",
+        };
+      }
+
       // Initialize logger and get execution ID
       executionId = await step.run("initialize-logger", async () => {
         const execLogger = getExecutionLogger(job);
@@ -415,12 +430,16 @@ export const syncJobFunction = inngest.createFunction(
 
       // Update job status
       const currentRunCount = await step.run("update-job-status", async () => {
-        const jobDoc = await SyncJob.findById(jobId);
-        if (jobDoc) {
-          jobDoc.lastRunAt = new Date();
-          jobDoc.runCount += 1;
-          await jobDoc.save();
-          return jobDoc.runCount;
+        const result = await SyncJob.findByIdAndUpdate(
+          jobId,
+          {
+            lastRunAt: new Date(),
+            $inc: { runCount: 1 },
+          },
+          { new: true },
+        );
+        if (result) {
+          return result.runCount;
         }
         return job.runCount + 1;
       });
@@ -913,11 +932,19 @@ export const scheduledSyncJobFunction = inngest.createFunction(
       timestamp: new Date().toISOString(),
     });
 
-    // Get all enabled sync jobs
+    // Get all enabled scheduled sync jobs (not webhooks)
     const jobs = (await step.run("fetch-enabled-jobs", async () => {
-      const syncJobs = await SyncJob.find({ enabled: true });
-      scheduleLogger.info("Found enabled sync jobs", {
+      const syncJobs = await SyncJob.find({
+        enabled: true,
+        type: "scheduled", // Only get scheduled jobs explicitly
+      });
+      scheduleLogger.info("Found enabled scheduled sync jobs", {
         count: syncJobs.length,
+        // Log job types for debugging
+        jobTypes: syncJobs.map(job => ({
+          id: job._id.toString(),
+          type: job.type,
+        })),
       });
       return syncJobs.map(job => job.toObject() as ISyncJob);
     })) as ISyncJob[];
@@ -932,6 +959,18 @@ export const scheduledSyncJobFunction = inngest.createFunction(
         try {
           const jobDisplayName = await getJobDisplayName(job);
           const jobLogger = getSyncLogger(`scheduler.${job._id}`);
+
+          // Safety check: skip webhook jobs (shouldn't happen with our filter, but just in case)
+          if (job.type === "webhook" || !job.schedule?.cron) {
+            jobLogger.warn("CRITICAL: Non-scheduled job found in scheduler!", {
+              jobId: job._id.toString(),
+              jobType: job.type,
+              hasSchedule: !!job.schedule,
+              hasCron: !!job.schedule?.cron,
+              schedule: job.schedule,
+            });
+            return false;
+          }
 
           jobLogger.debug("Checking job", {
             jobId: job._id.toString(),

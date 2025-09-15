@@ -85,8 +85,11 @@ export const useConsoleStore = () => {
     } as any);
   };
 
-  const updateConsoleFilePath = (_id: string, _filePath: string) => {
-    // Not fully implemented
+  const updateConsoleFilePath = (id: string, filePath: string) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_FILE_PATH",
+      payload: { id, filePath },
+    } as any);
   };
 
   const updateConsoleTitle = (id: string, title: string) => {
@@ -211,8 +214,11 @@ useConsoleStore.getState = () => {
     } as any);
   };
 
-  const updateConsoleFilePath = (_id: string, _filePath: string) => {
-    // Not fully implemented
+  const updateConsoleFilePath = (id: string, filePath: string) => {
+    dispatch({
+      type: "UPDATE_CONSOLE_FILE_PATH",
+      payload: { id, filePath },
+    } as any);
   };
 
   const updateConsoleTitle = (id: string, title: string) => {
