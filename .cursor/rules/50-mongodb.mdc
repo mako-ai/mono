@@ -7,11 +7,11 @@ description: MongoDB pooling, schema locations, and reliability fixes
 
 - Pooling fix and migration notes: [MONGODB_CONNECTION_POOLING_FIX.md](mdc:MONGODB_CONNECTION_POOLING_FIX.md), [UNIFIED_MONGODB_POOL_MIGRATION.md](mdc:UNIFIED_MONGODB_POOL_MIGRATION.md).
 - Topology closure fix: [MONGODB_TOPOLOGY_CLOSED_FIX.md](mdc:MONGODB_TOPOLOGY_CLOSED_FIX.md), [MONGODB_CONNECTION_REFACTORING_SUMMARY.md](mdc:MONGODB_CONNECTION_REFACTORING_SUMMARY.md).
-- Pool implementation: [api/src/core/mongodb-pool.ts](mdc:api/src/core/mongodb-pool.ts).
+- Connection provider: [api/src/services/database-connection.service.ts](mdc:api/src/services/database-connection.service.ts).
 - Schemas: [api/src/database/schema.ts](mdc:api/src/database/schema.ts), [api/src/database/workspace-schema.ts](mdc:api/src/database/workspace-schema.ts).
 
 Rules:
 
-- Always obtain clients from the unified pool; do not instantiate new `MongoClient` per request.
-- Ensure proper try/finally with client release; do not leak cursors or clients.
+- Always obtain clients via `database-connection.service`; do not instantiate new `MongoClient` per request.
+- Service resolves connection strings from workspace entities by ID; prefer `getConnectionById`.
 - Avoid schema drift; update both `schema.ts` and `workspace-schema.ts` when adding fields.

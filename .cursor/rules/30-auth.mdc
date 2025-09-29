@@ -9,6 +9,11 @@ description: Authentication stack (Lucia, API keys, unified middleware)
 - Middleware entry points: [api/src/auth/unified-auth.middleware.ts](mdc:api/src/auth/unified-auth.middleware.ts), [api/src/auth/api-key.middleware.ts](mdc:api/src/auth/api-key.middleware.ts).
 - Lucia config: [api/src/auth/lucia.ts](mdc:api/src/auth/lucia.ts) and adapter in [api/src/auth/mongodb-adapter.ts](mdc:api/src/auth/mongodb-adapter.ts).
 
+Environment (local defaults):
+
+- `BASE_URL=http://localhost:8080` (used for OAuth callbacks)
+- `CLIENT_URL=http://localhost:5173` (used for redirects from OAuth)
+
 Rules:
 
 - Prefer `unified-auth.middleware` at route boundaries; only fall back to API key middleware for machine-to-machine endpoints.

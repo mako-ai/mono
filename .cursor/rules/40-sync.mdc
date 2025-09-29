@@ -7,7 +7,9 @@ description: Sync jobs, chunked sync architecture, and Inngest usage
 
 - Architecture: [docs/Chunked-Sync-Architecture.md](mdc:docs/Chunked-Sync-Architecture.md), [SYNC_WORKER_ARCHITECTURE.md](mdc:SYNC_WORKER_ARCHITECTURE.md).
 - Migration and refactors: [SYNC_INNGEST_MIGRATION.md](mdc:SYNC_INNGEST_MIGRATION.md), [SYNC_REFACTORING_SUMMARY.md](mdc:SYNC_REFACTORING_SUMMARY.md), [SYNC_SCHEDULING_IMPLEMENTATION.md](mdc:SYNC_SCHEDULING_IMPLEMENTATION.md).
-- Entry points: [api/src/sync](mdc:api/src/sync) and compiled [dist/sync.js](mdc:dist/sync.js).
+- CLI entry point: [api/src/sync/cli.ts](mdc:api/src/sync/cli.ts) (run with `pnpm run sync`).
+- Connector registry (CLI): [api/src/sync/connector-registry.ts](mdc:api/src/sync/connector-registry.ts) with lazy imports.
+- Inngest integration: [api/src/inngest](mdc:api/src/inngest).
 
 Rules:
 
