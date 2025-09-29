@@ -1,0 +1,14 @@
+---
+globs: api/src/**/webhook*.ts,api/src/routes/**
+description: Webhook handlers, idempotency, and security guidance
+---
+
+# Webhook Guidelines
+
+- Overview and fixes: [WEBHOOK_IMPLEMENTATION.md](mdc:WEBHOOK_IMPLEMENTATION.md), [WEBHOOK_BUGS_FIXED.md](mdc:WEBHOOK_BUGS_FIXED.md), [WEBHOOK_SIMPLIFICATION_SUMMARY.md](mdc:WEBHOOK_SIMPLIFICATION_SUMMARY.md).
+
+Rules:
+
+- Verify signatures using provider libraries; reject on mismatch before parsing body.
+- Enforce idempotency by event ID; store processed IDs to prevent duplicates.
+- Keep handlers lean: validate, enqueue work (Inngest), and respond 200 quickly.

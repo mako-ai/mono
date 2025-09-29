@@ -1,0 +1,17 @@
+---
+globs: api/src/sync/**/*.ts,dist/sync*.js
+description: Sync jobs, chunked sync architecture, and Inngest usage
+---
+
+# Sync Guidelines
+
+- Architecture: [docs/Chunked-Sync-Architecture.md](mdc:docs/Chunked-Sync-Architecture.md), [SYNC_WORKER_ARCHITECTURE.md](mdc:SYNC_WORKER_ARCHITECTURE.md).
+- Migration and refactors: [SYNC_INNGEST_MIGRATION.md](mdc:SYNC_INNGEST_MIGRATION.md), [SYNC_REFACTORING_SUMMARY.md](mdc:SYNC_REFACTORING_SUMMARY.md), [SYNC_SCHEDULING_IMPLEMENTATION.md](mdc:SYNC_SCHEDULING_IMPLEMENTATION.md).
+- Entry points: [api/src/sync](mdc:api/src/sync) and compiled [dist/sync.js](mdc:dist/sync.js).
+
+Rules:
+
+- Use chunked sync pattern; avoid long blocking operations in a single job.
+- Delegate connector-specific logic to `api/src/connectors/**`.
+- All sync jobs should be idempotent and checkpoint progress (by cursor/offset) per workspace.
+- Prefer Inngest for scheduling/triggering; avoid ad-hoc timers.

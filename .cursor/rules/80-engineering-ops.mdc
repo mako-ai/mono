@@ -1,0 +1,17 @@
+---
+alwaysApply: false
+description: Operational guidance for logging, error handling, and testing
+---
+
+# Engineering Ops
+
+- Logging: follow [LOGTAPE_IMPLEMENTATION.md](mdc:LOGTAPE_IMPLEMENTATION.md); prefer structured logs and include workspace IDs.
+- Testing auth: use [AUTH_TESTING_CHECKLIST.md](mdc:AUTH_TESTING_CHECKLIST.md) when adding/changing protected routes.
+- Database migrations: see [DATABASE_MIGRATION.md](mdc:DATABASE_MIGRATION.md) and update schemas accordingly.
+- Console API docs: [CONSOLE_API_DOCUMENTATION.md](mdc:CONSOLE_API_DOCUMENTATION.md) for integration boundaries.
+
+Rules:
+
+- Do not log secrets, API keys, or tokens.
+- Fail fast on configuration errors; validate required env at startup.
+- Prefer background processing (Inngest) for slow operations.
