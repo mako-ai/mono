@@ -1,0 +1,15 @@
+---
+globs: *.ts,*.tsx
+description: TypeScript and React code style guidance
+---
+
+# TypeScript & React Guidelines
+
+- Prefer explicit types for exported APIs; avoid `any`.
+- Use early returns and guard clauses; keep nesting shallow.
+- Handle errors meaningfully; do not swallow exceptions.
+- Follow descriptive naming (functions are verbs, variables are nouns). Avoid abbreviations.
+- Keep comments short and explain "why", not "how". Avoid inline noise.
+- Match existing formatting and do not reformat unrelated code in edits.
+- Frontend: co-locate components under `app/src/components/**` and hooks under `app/src/hooks/**`.
+- Backend: group routes under `api/src/routes/**` and services under `api/src/services/**`.

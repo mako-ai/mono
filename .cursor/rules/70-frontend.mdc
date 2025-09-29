@@ -1,0 +1,16 @@
+---
+globs: app/src/**/*.ts,app/src/**/*.tsx
+description: Frontend conventions for Vite + React app
+---
+
+# Frontend Guidelines
+
+- Entry: [app/src/main.tsx](mdc:app/src/main.tsx), root app: [app/src/App.tsx](mdc:app/src/App.tsx).
+- State: colocate slices in [app/src/store/](mdc:app/src/store/); hooks in [app/src/hooks/](mdc:app/src/hooks/).
+- UI: components under [app/src/components/](mdc:app/src/components/); pages under [app/src/pages/](mdc:app/src/pages/).
+
+Rules:
+
+- Avoid prop drilling; introduce context or store slices where needed.
+- Keep components small; extract presentational components.
+- Do not import from `app/dist/**`.

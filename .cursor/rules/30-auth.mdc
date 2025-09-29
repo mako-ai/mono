@@ -1,0 +1,16 @@
+---
+globs: api/src/auth/**/*.ts
+description: Authentication stack (Lucia, API keys, unified middleware)
+---
+
+# Auth Guidelines
+
+- High-level overview: [AUTH_README.md](mdc:AUTH_README.md) and [AUTH_IMPLEMENTATION_SUMMARY.md](mdc:AUTH_IMPLEMENTATION_SUMMARY.md).
+- Middleware entry points: [api/src/auth/unified-auth.middleware.ts](mdc:api/src/auth/unified-auth.middleware.ts), [api/src/auth/api-key.middleware.ts](mdc:api/src/auth/api-key.middleware.ts).
+- Lucia config: [api/src/auth/lucia.ts](mdc:api/src/auth/lucia.ts) and adapter in [api/src/auth/mongodb-adapter.ts](mdc:api/src/auth/mongodb-adapter.ts).
+
+Rules:
+
+- Prefer `unified-auth.middleware` at route boundaries; only fall back to API key middleware for machine-to-machine endpoints.
+- Store sessions via the MongoDB adapter; do not bypass the adapter or write sessions directly.
+- When adding new protected endpoints, cover with entries in [AUTH_TESTING_CHECKLIST.md](mdc:AUTH_TESTING_CHECKLIST.md).
