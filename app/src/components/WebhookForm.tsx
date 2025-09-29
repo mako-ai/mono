@@ -71,8 +71,8 @@ export function WebhookForm({
   const databases = useDatabaseStore(state => state.databases);
   const fetchDatabases = useDatabaseStore(state => state.fetchDatabases);
 
-  const [dataSources, setDataSources] = useState<any[]>([]);
-  const [isLoadingDataSources, setIsLoadingDataSources] = useState(false);
+  const [connectors, setConnectors] = useState<any[]>([]);
+  const [isLoadingConnectors, setIsLoadingConnectors] = useState(false);
   const [webhookUrl, setWebhookUrl] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,27 +96,26 @@ export function WebhookForm({
 
   const watchDataSourceId = watch("dataSourceId");
 
-  // Fetch data sources
+  // Fetch connectors
   const fetchDataSources = async (workspaceId: string) => {
-    setIsLoadingDataSources(true);
+    setIsLoadingConnectors(true);
     try {
       const response = await apiClient.get<{
         success: boolean;
         data: any[];
-      }>(`/workspaces/${workspaceId}/sources`);
+      }>(`/workspaces/${workspaceId}/connectors`);
 
       if (response.success) {
-        // Filter data sources to only webhook-capable ones
-        const webhookCapableSources = (response.data || []).filter(
+        const webhookCapable = (response.data || []).filter(
           source => source.type === "stripe" || source.type === "close",
         );
-        setDataSources(webhookCapableSources);
+        setConnectors(webhookCapable);
       }
     } catch (error) {
-      console.error("Failed to fetch data sources:", error);
-      setError("Failed to load data sources");
+      console.error("Failed to fetch connectors:", error);
+      setError("Failed to load connectors");
     } finally {
-      setIsLoadingDataSources(false);
+      setIsLoadingConnectors(false);
     }
   };
 
@@ -170,7 +169,7 @@ export function WebhookForm({
 
     try {
       // Find the selected source and destination names
-      const selectedSource = dataSources.find(
+      const selectedSource = connectors.find(
         ds => ds._id === data.dataSourceId,
       );
       const selectedDatabase = databases.find(
@@ -335,9 +334,9 @@ export function WebhookForm({
                         startAdornment={
                           <DataIcon sx={{ mr: 1, color: "action.active" }} />
                         }
-                        disabled={isLoadingDataSources}
+                        disabled={isLoadingConnectors}
                       >
-                        {dataSources.map(source => (
+                        {connectors.map(source => (
                           <MenuItem key={source._id} value={source._id}>
                             <Box
                               sx={{
@@ -357,9 +356,9 @@ export function WebhookForm({
                           {errors.dataSourceId.message}
                         </FormHelperText>
                       )}
-                      {dataSources.length === 0 && !isLoadingDataSources && (
+                      {connectors.length === 0 && !isLoadingConnectors && (
                         <FormHelperText>
-                          Only Stripe and Close data sources support webhooks
+                          Only Stripe and Close connectors support webhooks
                         </FormHelperText>
                       )}
                     </FormControl>
@@ -504,7 +503,7 @@ export function WebhookForm({
                         )}
                       />
                       <Typography variant="caption" color="text.secondary">
-                        {dataSources.find(ds => ds._id === watchDataSourceId)
+                        {connectors.find(ds => ds._id === watchDataSourceId)
                           ?.type === "stripe"
                           ? "Get this from Stripe Dashboard > Webhooks > Your endpoint > Signing secret"
                           : "Enter the webhook signing secret from your provider"}

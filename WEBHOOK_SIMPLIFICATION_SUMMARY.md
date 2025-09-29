@@ -28,7 +28,7 @@ Successfully simplified webhook processing to handle events one by one instead o
   - Removed batch-related index
   - Removed `batchConfig` from SyncJob's `webhookConfig`
 
-### 4. **Sync Jobs Route Updates**
+### 4. **Transfers Route Updates**
 
 - Modified `api/src/routes/sync-jobs.ts`:
   - Removed batch configuration when creating webhook jobs

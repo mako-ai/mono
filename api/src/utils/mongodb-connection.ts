@@ -23,32 +23,28 @@ class MongoDBConnection {
   }
 
   /**
-   * Get a database connection by data source ID
+   * Get a database connection by database ID
    */
-  public async getDatabase(dataSourceId: string): Promise<Db> {
-    // Get the data source config from database
-    const dataSource = await Database.findById(dataSourceId);
+  public async getDatabase(databaseId: string): Promise<Db> {
+    // Get the database config from Database model
+    const dbRecord = await Database.findById(databaseId);
 
-    if (!dataSource) {
-      throw new Error(
-        `Data source '${dataSourceId}' not found in configuration`,
-      );
+    if (!dbRecord) {
+      throw new Error(`Database '${databaseId}' not found in configuration`);
     }
 
-    if (!dataSource.connection.connectionString) {
-      throw new Error(
-        `Data source '${dataSourceId}' is missing connection string`,
-      );
+    if (!dbRecord.connection.connectionString) {
+      throw new Error(`Database '${databaseId}' is missing connection string`);
     }
 
     console.log(
-      `🔌 Getting MongoDB connection for '${dataSourceId}': ${dataSource.connection.database || "default"} on ${dataSource.name}`,
+      `🔌 Getting MongoDB connection for '${databaseId}': ${dbRecord.connection.database || "default"} on ${dbRecord.name}`,
     );
 
     // Use unified pool to get connection
     const connection = await databaseConnectionService.getConnectionById(
       "datasource",
-      dataSourceId,
+      databaseId,
       async id => {
         const ds = await Database.findById(id);
         if (!ds || !ds.connection.connectionString) return null;
@@ -59,7 +55,7 @@ class MongoDBConnection {
       },
     );
 
-    console.log(`✅ Got connection for MongoDB '${dataSourceId}'`);
+    console.log(`✅ Got connection for MongoDB '${databaseId}'`);
 
     return connection.db;
   }
@@ -68,8 +64,8 @@ class MongoDBConnection {
    * Disconnect from a specific database
    * Note: With unified pool, this is a no-op as connections are managed by the pool
    */
-  public async disconnect(dataSourceId: string): Promise<void> {
-    console.log(`Disconnect requested for '${dataSourceId}' - handled by pool`);
+  public async disconnect(databaseId: string): Promise<void> {
+    console.log(`Disconnect requested for '${databaseId}' - handled by pool`);
   }
 
   /**

@@ -230,9 +230,9 @@ export interface IDatabase extends Document {
 }
 
 /**
- * DataSource model interface
+ * Connector model interface
  */
-export interface IDataSource extends Document {
+export interface IConnector extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
@@ -656,9 +656,9 @@ DatabaseSchema.index({ workspaceId: 1 });
 DatabaseSchema.index({ workspaceId: 1, name: 1 });
 
 /**
- * DataSource Schema
+ * Connector Schema
  */
-const DataSourceSchema = new Schema<IDataSource>(
+const ConnectorSchema = new Schema<IConnector>(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
@@ -736,12 +736,13 @@ const DataSourceSchema = new Schema<IDataSource>(
     timestamps: { createdAt: true, updatedAt: true },
     toJSON: { getters: true },
     toObject: { getters: true },
+    collection: "connectors",
   },
 );
 
 // Indexes
-DataSourceSchema.index({ workspaceId: 1 });
-DataSourceSchema.index({ workspaceId: 1, type: 1 });
+ConnectorSchema.index({ workspaceId: 1 });
+ConnectorSchema.index({ workspaceId: 1, type: 1 });
 
 /**
  * ConsoleFolder Schema
@@ -929,7 +930,7 @@ const SyncJobSchema = new Schema<ISyncJob>(
     },
     dataSourceId: {
       type: Schema.Types.ObjectId,
-      ref: "DataSource",
+      ref: "Connector",
       required: true,
     },
     destinationDatabaseId: {
@@ -1117,9 +1118,9 @@ export const WorkspaceInvite = mongoose.model<IWorkspaceInvite>(
   WorkspaceInviteSchema,
 );
 export const Database = mongoose.model<IDatabase>("Database", DatabaseSchema);
-export const DataSource = mongoose.model<IDataSource>(
-  "DataSource",
-  DataSourceSchema,
+export const Connector = mongoose.model<IConnector>(
+  "Connector",
+  ConnectorSchema,
 );
 export const ConsoleFolder = mongoose.model<IConsoleFolder>(
   "ConsoleFolder",

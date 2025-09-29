@@ -2,7 +2,7 @@ import { inngest } from "../client";
 import {
   SyncJob,
   ISyncJob,
-  DataSource,
+  Connector as DataSource,
   Database,
 } from "../../database/workspace-schema";
 import {
@@ -922,7 +922,7 @@ export const syncJobFunction = inngest.createFunction(
 export const scheduledSyncJobFunction = inngest.createFunction(
   {
     id: "scheduled-sync-job",
-    name: "Run Scheduled Sync Jobs",
+    name: "Run Scheduled Transfers",
   },
   { cron: "*/5 * * * *" }, // Run every 5 minutes to check for jobs to execute
   async ({ step, logger }) => {

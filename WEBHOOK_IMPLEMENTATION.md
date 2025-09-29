@@ -89,7 +89,7 @@ I've implemented a comprehensive webhook system that allows your app to receive 
 
 ### 1. Create a Webhook Sync Job
 
-1. Go to Sync Jobs
+1. Go to Transfers
 2. Click "Add Sync Job"
 3. Select "Webhook Sync" as the job type
 4. Choose your data source (Stripe/Close)

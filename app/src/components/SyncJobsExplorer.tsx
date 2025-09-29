@@ -192,7 +192,7 @@ export function SyncJobsExplorer() {
               whiteSpace: "nowrap",
             }}
           >
-            Sync Jobs
+            Transfers
           </Typography>
           <Box sx={{ display: "flex" }}>
             <Tooltip title="Add Sync Job">

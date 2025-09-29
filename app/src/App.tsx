@@ -191,7 +191,7 @@ function MainApp() {
             }}
           />
         );
-      case "sources":
+      case "connectors":
         return <DataSourceExplorer />;
       case "sync-jobs":
         return <SyncJobsExplorer />;

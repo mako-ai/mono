@@ -29,7 +29,7 @@ import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
 import { useDataSourceEntitiesStore } from "../store/dataSourceEntitiesStore";
 
-interface DataSource {
+interface Connector {
   _id: string;
   name: string;
   description?: string;
@@ -49,11 +49,11 @@ function DataSourceExplorer() {
     delete: deleteSource,
   } = useDataSourceEntitiesStore();
 
-  const sources: DataSource[] = useMemo(() => {
+  const connectors: Connector[] = useMemo(() => {
     if (!currentWorkspace) return [];
     return Object.values(entities).filter(
       e => e.workspaceId === currentWorkspace.id,
-    ) as DataSource[];
+    ) as Connector[];
   }, [entities, currentWorkspace]);
 
   const [error, setError] = useState<string | null>(null);
@@ -62,10 +62,10 @@ function DataSourceExplorer() {
   const [contextMenu, setContextMenu] = useState<{
     mouseX: number;
     mouseY: number;
-    item: DataSource;
+    item: Connector;
   } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<DataSource | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Connector | null>(null);
 
   const fetchSources = async () => {
     if (!currentWorkspace) return;
@@ -82,12 +82,12 @@ function DataSourceExplorer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWorkspace?.id]);
 
-  const openTabForSource = (source?: DataSource) => {
+  const openTabForSource = (source?: Connector) => {
     // If editing an existing source, try to reuse an open tab; for a new source always open a fresh tab
     if (source) {
       const contentKey = source._id;
       const existing = consoleTabs.find(
-        t => t.kind === "sources" && t.content === contentKey,
+        t => t.kind === "connectors" && t.content === contentKey,
       );
       if (existing) {
         setActiveConsole(existing.id);
@@ -98,17 +98,17 @@ function DataSourceExplorer() {
         title: source.name,
         content: contentKey,
         initialContent: contentKey,
-        kind: "sources",
+        kind: "connectors",
         icon: `/api/connectors/${source.type}/icon.svg`,
       });
       setActiveConsole(id);
     } else {
       // Always create a new tab for a brand-new data source form
       const id = addConsoleTab({
-        title: "New Data Source",
+        title: "New Connector",
         content: "", // will be populated after save
         initialContent: "",
-        kind: "sources",
+        kind: "connectors",
       });
       setActiveConsole(id);
     }
@@ -119,7 +119,7 @@ function DataSourceExplorer() {
   // ---------- Context menu helpers ----------
   const handleContextMenu = (
     event: React.MouseEvent<HTMLDivElement, MouseEvent>,
-    item: DataSource,
+    item: Connector,
   ) => {
     event.preventDefault();
     setContextMenu({
@@ -131,7 +131,7 @@ function DataSourceExplorer() {
 
   const handleContextMenuClose = () => setContextMenu(null);
 
-  const handleDelete = (item: DataSource) => {
+  const handleDelete = (item: Connector) => {
     setSelectedItem(item);
     setDeleteDialogOpen(true);
     handleContextMenuClose();
@@ -166,10 +166,10 @@ function DataSourceExplorer() {
               whiteSpace: "nowrap",
             }}
           >
-            Data Sources
+            Connectors
           </Typography>
           <Box sx={{ display: "flex" }}>
-            <Tooltip title="Add Data Source">
+            <Tooltip title="Add Connector">
               <IconButton size="small" onClick={handleAdd}>
                 <AddIcon />
               </IconButton>
@@ -195,13 +195,13 @@ function DataSourceExplorer() {
               {error}
             </Alert>
           </Box>
-        ) : sources.length === 0 ? (
+        ) : connectors.length === 0 ? (
           <Box sx={{ p: 3, textAlign: "center", color: "text.secondary" }}>
-            <Typography variant="body2">No data sources configured.</Typography>
+            <Typography variant="body2">No connectors configured.</Typography>
           </Box>
         ) : (
           <List dense>
-            {sources.map(src => (
+            {connectors.map(src => (
               <ListItem key={src._id} disablePadding>
                 <ListItemButton
                   onClick={() => openTabForSource(src)}
@@ -247,10 +247,10 @@ function DataSourceExplorer() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Delete Data Source</DialogTitle>
+        <DialogTitle>Delete Connector</DialogTitle>
         <DialogContent>
           <Alert severity="warning" sx={{ mb: 2 }}>
-            This will permanently delete the data source.
+            This will permanently delete the connector.
           </Alert>
           <Typography>
             Are you sure you want to delete "{selectedItem?.name}"?

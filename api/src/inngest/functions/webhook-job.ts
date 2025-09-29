@@ -2,7 +2,7 @@ import { inngest } from "../client";
 import {
   WebhookEvent,
   SyncJob,
-  DataSource,
+  Connector as DataSource,
   Database,
 } from "../../database/workspace-schema";
 import { getSyncLogger } from "../logging";

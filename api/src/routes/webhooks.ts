@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import {
   SyncJob,
   WebhookEvent,
-  DataSource,
+  Connector as DataSource,
 } from "../database/workspace-schema";
 import { inngest } from "../inngest/client";
 import { v4 as uuidv4 } from "uuid";

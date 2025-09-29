@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
 import {
   Box,
@@ -33,8 +33,8 @@ import {
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
 import { useDatabaseStore } from "../store/databaseStore";
-import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
 import { apiClient } from "../lib/api-client";
+import { useAvailableEntitiesStore } from "../store/availableEntitiesStore";
 
 interface ScheduledJobFormProps {
   jobId?: string;
@@ -77,7 +77,7 @@ export function ScheduledJobForm({
   const { currentWorkspace } = useWorkspace();
   const {
     jobs: jobsMap,
-    loading: loadingMap,
+    loading: _loadingMap,
     error: errorMap,
     createJob,
     updateJob,
@@ -86,31 +86,28 @@ export function ScheduledJobForm({
   } = useSyncJobStore();
 
   // Get workspace-specific data
-  const jobs = currentWorkspace ? jobsMap[currentWorkspace.id] || [] : [];
-  const jobsLoading = currentWorkspace
-    ? !!loadingMap[currentWorkspace.id]
-    : false;
+  const jobs = useMemo(
+    () => (currentWorkspace ? jobsMap[currentWorkspace.id] || [] : []),
+    [currentWorkspace, jobsMap],
+  );
   const storeError = currentWorkspace
     ? errorMap[currentWorkspace.id] || null
     : null;
   const databases = useDatabaseStore(state => state.databases);
   const fetchDatabases = useDatabaseStore(state => state.fetchDatabases);
 
-  // Get connector catalog data
-  const {
-    types: connectorTypes,
-    fetchCatalog,
-    loading: catalogLoading,
-  } = useConnectorCatalogStore();
+  // Note: We no longer rely on static catalog metadata for entities. We fetch
+  // dynamic entities from the backend per-connector endpoint instead.
 
-  const [dataSources, setDataSources] = useState<any[]>([]);
-  const [isLoadingDataSources, setIsLoadingDataSources] = useState(false);
+  const [connectors, setConnectors] = useState<any[]>([]);
+  const [isLoadingConnectors, setIsLoadingConnectors] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"preset" | "custom">(
     "preset",
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  // Local saved flag for future UX enhancements (snackbar/toast)
+  // Currently unused; keeping logic minimal to avoid noisy lint.
   const [currentJobId, setCurrentJobId] = useState<string | undefined>(jobId);
   const [isNewMode, setIsNewMode] = useState(isNew);
 
@@ -125,7 +122,7 @@ export function ScheduledJobForm({
   const {
     control,
     handleSubmit,
-    formState: { errors, isDirty },
+    formState: { errors },
     reset,
     watch,
     setValue,
@@ -145,78 +142,79 @@ export function ScheduledJobForm({
   const watchTimezone = watch("timezone");
   const watchDataSourceId = watch("dataSourceId");
 
-  // Fetch data sources
+  // Fetch connectors
   const fetchDataSources = async (workspaceId: string) => {
-    setIsLoadingDataSources(true);
+    setIsLoadingConnectors(true);
     try {
       const response = await apiClient.get<{
         success: boolean;
         data: any[];
-      }>(`/workspaces/${workspaceId}/sources`);
+      }>(`/workspaces/${workspaceId}/connectors`);
 
       if (response.success) {
-        setDataSources(response.data || []);
+        setConnectors(response.data || []);
       }
     } catch (error) {
-      console.error("Failed to fetch data sources:", error);
-      setError("Failed to load data sources");
+      console.error("Failed to fetch connectors:", error);
+      setError("Failed to load connectors");
     } finally {
-      setIsLoadingDataSources(false);
+      setIsLoadingConnectors(false);
     }
   };
 
-  // Get entities from connector catalog instead of making REST call
-  const updateAvailableEntities = (dataSourceId: string) => {
-    if (!dataSourceId) {
-      setAvailableEntities([]);
-      setEntitiesLoadState("idle");
-      return;
-    }
+  // Fetch entities via store for selected connector
+  const updateAvailableEntities = useCallback(
+    (dataSourceId: string) => {
+      if (!dataSourceId) {
+        setAvailableEntities([]);
+        setEntitiesLoadState("idle");
+        return;
+      }
 
-    // If we're still loading data sources or catalog, show loading state
-    if (
-      isLoadingDataSources ||
-      catalogLoading ||
-      !dataSources.length ||
-      !connectorTypes
-    ) {
+      // If we're still loading data sources, show loading state
+      if (isLoadingConnectors || !connectors.length) {
+        setEntitiesLoadState("loading");
+        return;
+      }
+
+      const selectedDataSource = connectors.find(ds => ds._id === dataSourceId);
+      if (!selectedDataSource) {
+        setAvailableEntities([]);
+        setEntitiesLoadState("error");
+        return;
+      }
+
+      // Fetch via store (centralized data flow)
       setEntitiesLoadState("loading");
-      return;
-    }
-
-    // Find the selected data source
-    const selectedDataSource = dataSources.find(ds => ds._id === dataSourceId);
-    if (!selectedDataSource) {
-      setAvailableEntities([]);
-      setEntitiesLoadState("error");
-      return;
-    }
-
-    // Find the connector type in the catalog
-    const connectorType = connectorTypes.find(
-      ct => ct.type === selectedDataSource.type,
-    );
-    if (!connectorType) {
-      console.warn(
-        `Connector type ${selectedDataSource.type} not found in catalog`,
-      );
-      setAvailableEntities([]);
-      setEntitiesLoadState("error");
-      return;
-    }
-
-    // Use the supportedEntities from the connector type
-    setAvailableEntities(connectorType.supportedEntities || []);
-    setEntitiesLoadState("loaded");
-
-    // Only reset selection when entities change if we're in new mode
-    // or if there's no existing entity selection from a loaded job
-    if (isNewMode || (!currentJobId && jobs.length === 0)) {
-      setSelectedEntities([]);
-      setSelectAllEntities(true);
-      setValue("entityFilter", []);
-    }
-  };
+      (async () => {
+        try {
+          if (!currentWorkspace?.id) throw new Error("No workspace selected");
+          const list = await useAvailableEntitiesStore
+            .getState()
+            .fetch(currentWorkspace.id, dataSourceId);
+          setAvailableEntities(list);
+          setEntitiesLoadState("loaded");
+          if (isNewMode || (!currentJobId && jobs.length === 0)) {
+            setSelectedEntities([]);
+            setSelectAllEntities(true);
+            setValue("entityFilter", []);
+          }
+        } catch (_err) {
+          setAvailableEntities([]);
+          setEntitiesLoadState("error");
+        }
+      })();
+    },
+    [
+      isLoadingConnectors,
+      connectors,
+      currentWorkspace?.id,
+      isNewMode,
+      currentJobId,
+      jobs.length,
+      setValue,
+    ],
+  );
 
   // Handle entity selection changes
   const handleEntityChange = (entity: string, checked: boolean) => {
@@ -263,19 +261,18 @@ export function ScheduledJobForm({
     if (currentWorkspace?.id) {
       fetchDataSources(currentWorkspace.id);
       fetchDatabases();
-      fetchCatalog(currentWorkspace.id);
     }
-  }, [currentWorkspace?.id, fetchDatabases, fetchCatalog]);
+  }, [currentWorkspace?.id, fetchDatabases]);
 
   // Update entities when data source changes
   useEffect(() => {
     updateAvailableEntities(watchDataSourceId);
   }, [
     watchDataSourceId,
-    dataSources,
-    connectorTypes,
-    isLoadingDataSources,
-    catalogLoading,
+    connectors,
+    isLoadingConnectors,
+    currentWorkspace?.id,
+    updateAvailableEntities,
   ]);
 
   // Load job data if editing
@@ -306,7 +303,7 @@ export function ScheduledJobForm({
 
         // Check if using a preset
         const isPreset = SCHEDULE_PRESETS.some(
-          p => p.cron === job.schedule.cron,
+          p => p.cron === (job.schedule?.cron || "0 * * * *"),
         );
         setScheduleMode(isPreset ? "preset" : "custom");
       }
@@ -373,7 +370,7 @@ export function ScheduledJobForm({
 
     try {
       // Find the selected source and destination names
-      const selectedSource = dataSources.find(
+      const selectedSource = connectors.find(
         ds => ds._id === data.dataSourceId,
       );
       const selectedDatabase = databases.find(
@@ -398,18 +395,11 @@ export function ScheduledJobForm({
         },
       };
 
-      // Debug logging
-      console.log("Form submission data:", {
-        selectAllEntities,
-        selectedEntities,
-        entityFilter: data.entityFilter,
-        payload: payload.entityFilter,
-      });
+      // Intentionally reduced noisy console logging in production
 
       let newJob;
       if (isNewMode) {
         newJob = await createJob(currentWorkspace.id, payload);
-        setSuccess(true);
         // Refresh the jobs list
         await useSyncJobStore.getState().fetchJobs(currentWorkspace.id);
 
@@ -427,7 +417,6 @@ export function ScheduledJobForm({
         onSave?.();
       } else if (currentJobId) {
         await updateJob(currentWorkspace.id, currentJobId, payload);
-        setSuccess(true);
         // Refresh the jobs list
         await useSyncJobStore.getState().fetchJobs(currentWorkspace.id);
 
@@ -580,9 +569,9 @@ export function ScheduledJobForm({
                         startAdornment={
                           <DataIcon sx={{ mr: 1, color: "action.active" }} />
                         }
-                        disabled={isLoadingDataSources}
+                        disabled={isLoadingConnectors}
                       >
-                        {dataSources.map(source => (
+                        {connectors.map(source => (
                           <MenuItem key={source._id} value={source._id}>
                             <Box
                               sx={{
@@ -744,16 +733,16 @@ export function ScheduledJobForm({
                         >
                           <Typography variant="body2">
                             {selectAllEntities
-                              ? "All entities will be synced from this data source."
+                              ? "All entities will be synced from this connector."
                               : selectedEntities.length > 0
                                 ? `${selectedEntities.length} of ${availableEntities.length} entities selected for sync.`
-                                : "⚠️ No entities selected. Please select at least one entity or choose 'All Entities' to proceed."}
+                                : "No entities selected. Please select at least one entity or choose 'All Entities' to proceed."}
                           </Typography>
                         </Alert>
                       </Box>
                     ) : entitiesLoadState === "loaded" ? (
                       <Alert severity="warning">
-                        No entities available for this data source.
+                        No entities available for this connector.
                       </Alert>
                     ) : null}
                   </Box>
@@ -768,7 +757,7 @@ export function ScheduledJobForm({
                 <ToggleButtonGroup
                   value={scheduleMode}
                   exclusive
-                  onChange={(e, value) => value && setScheduleMode(value)}
+                  onChange={(_, value) => value && setScheduleMode(value)}
                   size="small"
                   sx={{ mb: 2 }}
                 >

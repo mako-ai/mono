@@ -45,11 +45,11 @@ export class GraphQLConnector extends BaseConnector {
           itemFields: [
             {
               name: "name",
-              label: "Query Name",
+              label: "Entity Name",
               type: "string",
               required: true,
               placeholder: "items",
-              helperText: "Name for this query (used for collection naming)",
+              helperText: "Name for this entity (used for collection naming)",
             },
             {
               name: "query",
@@ -335,10 +335,17 @@ export class GraphQLConnector extends BaseConnector {
       };
 
       if (usesCursorPagination) {
+        // Infer $after type from the query definition to set a sensible default
+        const afterVarType = this.getGraphQLVariableType(
+          queryConfig.query,
+          "after",
+        );
+        const defaultAfter = this.getDefaultForAfter(afterVarType);
         queryVariables = {
           ...queryVariables,
           first: Number(settings.batchSize),
-          after: cursor !== null && cursor !== undefined ? cursor : 0, // Default to 0 for integer-based cursors
+          after:
+            cursor !== null && cursor !== undefined ? cursor : defaultAfter,
         };
       } else if (usesOffsetPagination) {
         queryVariables = {
@@ -509,10 +516,17 @@ export class GraphQLConnector extends BaseConnector {
       };
 
       if (usesCursorPagination) {
+        // Infer $after type from the query definition to set a sensible default
+        const afterVarType = this.getGraphQLVariableType(
+          queryConfig.query,
+          "after",
+        );
+        const defaultAfter = this.getDefaultForAfter(afterVarType);
         queryVariables = {
           ...queryVariables,
           first: Number(settings.batchSize),
-          after: cursor !== null && cursor !== undefined ? cursor : 0, // Default to 0 for integer-based cursors
+          after:
+            cursor !== null && cursor !== undefined ? cursor : defaultAfter,
         };
       } else if (usesOffsetPagination) {
         queryVariables = {
@@ -701,7 +715,11 @@ export class GraphQLConnector extends BaseConnector {
         countVariables.offset = 0;
       }
       if (queryText.includes("$after")) {
-        countVariables.after = 0; // Use 0 instead of null for non-nullable Int parameters
+        const afterVarType = this.getGraphQLVariableType(
+          queryConfig.query,
+          "after",
+        );
+        countVariables.after = this.getDefaultForAfter(afterVarType);
       }
 
       const response = await this.executeGraphQLQuery(
@@ -715,6 +733,37 @@ export class GraphQLConnector extends BaseConnector {
       console.warn("Could not fetch total count:", error);
       return undefined;
     }
+  }
+
+  // Extract a GraphQL variable's declared type from the query text, e.g.
+  // query($after: timestamptz = "1970-01-01") => returns "timestamptz"
+  private getGraphQLVariableType(
+    queryText: string,
+    varName: string,
+  ): string | undefined {
+    try {
+      const regex = new RegExp(`\\$${varName}\\s*:\\s*([!\\[\\]\\w_]+)`, "i");
+      const match = queryText.match(regex);
+      return match?.[1];
+    } catch {
+      return undefined;
+    }
+  }
+
+  // Choose a sensible default for the $after variable based on its type.
+  // - For Hasura timestamptz/String types, use a string date starting epoch.
+  // - For numeric types (Int), use 0.
+  private getDefaultForAfter(varType?: string): any {
+    if (!varType) return 0;
+    const t = varType.toLowerCase();
+    if (
+      t.includes("timestamptz") ||
+      t.includes("timestamp") ||
+      t.includes("string")
+    ) {
+      return "1970-01-01";
+    }
+    return 0;
   }
 
   private getQueryConfig(name: string): any {

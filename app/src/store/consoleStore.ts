@@ -6,7 +6,7 @@ import { hashContent } from "../utils/hash";
 export type TabKind =
   | "console"
   | "settings"
-  | "sources"
+  | "connectors"
   | "members"
   | "sync-job-editor";
 

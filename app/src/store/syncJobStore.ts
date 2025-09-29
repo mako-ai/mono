@@ -18,24 +18,30 @@ const syncJobDestinationSchema = z.object({
   type: z.string(),
 });
 
-const syncJobScheduleSchema = z.object({
-  cron: z.string(),
-  timezone: z.string().optional(),
-});
+// Allow schedule to be absent or partial (webhook jobs have no schedule)
+const syncJobScheduleSchema = z
+  .object({
+    cron: z.string().optional(),
+    timezone: z.string().optional(),
+  })
+  .partial()
+  .optional();
 
-const webhookConfigSchema = z.object({
-  endpoint: z.string(),
-  secret: z.string(),
-  enabled: z.boolean(),
-  lastReceivedAt: z.string().nullable().optional(),
-  totalReceived: z.number().optional(),
-  batchConfig: z
-    .object({
-      maxSize: z.number(),
-      maxWaitMs: z.number(),
-    })
-    .optional(),
-});
+const webhookConfigSchema = z
+  .object({
+    endpoint: z.string().optional(),
+    secret: z.string().optional(),
+    enabled: z.boolean().optional(),
+    lastReceivedAt: z.string().nullable().optional(),
+    totalReceived: z.number().optional(),
+    batchConfig: z
+      .object({
+        maxSize: z.number(),
+        maxWaitMs: z.number(),
+      })
+      .optional(),
+  })
+  .optional();
 
 const syncJobSchema = z.object({
   _id: z.string(),
@@ -43,8 +49,8 @@ const syncJobSchema = z.object({
   dataSourceId: syncJobDataSourceSchema,
   destinationDatabaseId: syncJobDestinationSchema,
   type: z.enum(["scheduled", "webhook"]).optional(), // Remove default to detect missing type
-  schedule: syncJobScheduleSchema.optional(),
-  webhookConfig: webhookConfigSchema.optional(),
+  schedule: syncJobScheduleSchema,
+  webhookConfig: webhookConfigSchema,
   entityFilter: z.array(z.string()).nullable().optional(),
   syncMode: z.enum(["full", "incremental"]),
   enabled: z.boolean(),

@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import {
   SyncJob,
-  DataSource,
+  Connector as DataSource,
   Database,
   JobExecution,
   WebhookEvent,
 } from "../database/workspace-schema";
-import { Types } from "mongoose";
+import { Types, PipelineStage } from "mongoose";
 import { inngest } from "../inngest";
 import { generateWebhookEndpoint } from "../utils/webhook.utils";
 
@@ -17,11 +17,11 @@ syncJobRoutes.get("/", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
 
-    const jobs = await SyncJob.aggregate([
+    const buildPipeline = (sourceCollection: string): PipelineStage[] => [
       { $match: { workspaceId: new Types.ObjectId(workspaceId) } },
       {
         $lookup: {
-          from: "datasources",
+          from: sourceCollection,
           localField: "dataSourceId",
           foreignField: "_id",
           as: "dataSourceId",
@@ -70,7 +70,9 @@ syncJobRoutes.get("/", async c => {
           "destinationDatabaseId.name": 1,
         },
       },
-    ]);
+    ];
+
+    const jobs = await SyncJob.aggregate(buildPipeline("connectors"));
 
     return c.json({
       success: true,
