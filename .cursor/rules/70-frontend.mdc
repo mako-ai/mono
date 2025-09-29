@@ -9,6 +9,10 @@ description: Frontend conventions for Vite + React app
 - State: colocate slices in [app/src/store/](mdc:app/src/store/); hooks in [app/src/hooks/](mdc:app/src/hooks/).
 - UI: components under [app/src/components/](mdc:app/src/components/); pages under [app/src/pages/](mdc:app/src/pages/).
 
+Dev server:
+
+- Vite runs on port 5173 and proxies `/api` to `http://localhost:8080` (see [app/vite.config.ts](mdc:app/vite.config.ts)).
+
 Rules:
 
 - Avoid prop drilling; introduce context or store slices where needed.

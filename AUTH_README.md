@@ -74,8 +74,9 @@ GITHUB_CLIENT_ID=your_github_client_id
 GITHUB_CLIENT_SECRET=your_github_client_secret
 
 # Application URLs
-BASE_URL=http://localhost:3001
-CLIENT_URL=http://localhost:3000
+# API server base URL and frontend URL
+BASE_URL=http://localhost:8080
+CLIENT_URL=http://localhost:5173
 
 # Session Configuration
 SESSION_SECRET=generate_32_char_random_string
@@ -126,7 +127,7 @@ mongod
 # Install dependencies
 pnpm install
 
-# Start development servers
+# Start development servers (API on 8080, app on 5173, Inngest dev)
 pnpm run dev
 ```
 
@@ -216,22 +217,15 @@ const fetchUserData = async () => {
 #### 1. Protect API Routes
 
 ```ts
-import { authMiddleware } from "./auth/auth.middleware";
+import { unifiedAuthMiddleware } from "./auth/unified-auth.middleware";
 
-// Require authentication
-app.get("/api/protected", authMiddleware, c => {
+// Require authentication (supports session or API key)
+app.get("/api/protected", unifiedAuthMiddleware, c => {
   const user = c.get("user");
   return c.json({ message: "Protected data", userId: user.id });
 });
 
-// Optional authentication
-app.get("/api/public", optionalAuthMiddleware, c => {
-  const user = c.get("user");
-  return c.json({
-    message: "Public data",
-    authenticated: !!user,
-  });
-});
+// For machine-to-machine endpoints, you can still use API key middleware directly if needed.
 ```
 
 #### 2. Access User in Routes

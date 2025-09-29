@@ -10,3 +10,9 @@ description: Build outputs, do-not-edit policy for dist, and deployment entry po
 - Deployment scripts and env: [deploy.sh](mdc:deploy.sh), [env.yaml](mdc:env.yaml), [cloud-run-env.yaml](mdc:cloud-run-env.yaml).
 - Inngest local/dev configuration: [INNGEST_DEV_CONFIG.md](mdc:INNGEST_DEV_CONFIG.md).
 - If a change requires new environment variables, document them in `env.yaml` and update relevant READMEs.
+
+Environment variables (local defaults):
+
+- `WEB_API_PORT=8080` (API server)
+- `BASE_URL=http://localhost:8080` (API base for OAuth callbacks)
+- `CLIENT_URL=http://localhost:5173` (frontend base URL)

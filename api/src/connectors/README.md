@@ -13,18 +13,18 @@ connectors/
 ├── base/
 │   └── BaseConnector.ts     # Abstract base class for all connectors
 ├── stripe/
-│   ├── StripeConnector.ts   # Stripe payment platform connector
+│   ├── connector.ts         # Stripe connector implementation
 │   ├── index.ts             # Module exports
 │   └── icon.svg             # Stripe connector icon
 ├── close/
-│   ├── CloseConnector.ts    # Close CRM connector
+│   ├── connector.ts         # Close CRM connector implementation
 │   ├── index.ts             # Module exports
 │   └── icon.svg             # Close connector icon
 ├── graphql/
-│   ├── GraphQLConnector.ts  # Generic GraphQL API connector
+│   ├── connector.ts         # Generic GraphQL API connector implementation
 │   ├── index.ts             # Module exports
 │   └── icon.svg             # GraphQL connector icon
-├── registry.ts              # Connector registry and management
+├── registry.ts              # Runtime connector discovery for the API server
 └── README.md               # This file
 ```
 
@@ -36,7 +36,7 @@ To add support for a new data source type:
 2. Create a connector class that extends `BaseConnector`
 3. Add an `index.ts` file to export your connector
 4. Include an `icon.svg` file for the web interface
-5. The connector will be automatically discovered by the registry
+5. The connector will be discovered by the runtime registry used by the API or lazily loaded by the sync registry.
 
 ### Example Connector Implementation
 
@@ -81,11 +81,12 @@ export class MyConnector extends BaseConnector {
 
 ### Connector Discovery
 
-The connector registry automatically discovers connectors by scanning subdirectories. Simply follow the naming convention:
+There are two registries:
 
-- Directory name: `myconnector/`
-- Connector class: `MyconnectorConnector`
-- Export from index.ts: `export { MyconnectorConnector } from "./MyconnectorConnector";`
+- API runtime registry: scans subdirectories and dynamically imports connectors at runtime (`connectors/registry.ts`).
+- Sync CLI registry: lazily imports connectors when needed (`sync/connector-registry.ts`).
+
+Naming conventions are simplified; each connector exports a class named `XxxConnector` from its `index.ts`.
 
 ## Configuration
 
@@ -116,7 +117,7 @@ All sensitive configuration data (API keys, passwords, etc.) is encrypted before
 ### GraphQL
 
 - Generic GraphQL API connector
-- Supports custom queries with pagination
+- Supports custom queries with offset or cursor pagination
 - Required config: `endpoint`, `queries`
 
 ## Future Connectors
@@ -136,6 +137,6 @@ When contributing a new connector:
 
 1. Follow the existing patterns and interfaces
 2. Include comprehensive error handling
-3. Implement rate limiting and retry logic
+3. Implement rate limiting and retry logic where appropriate
 4. Add tests for your connector
 5. Update this README with connector details
