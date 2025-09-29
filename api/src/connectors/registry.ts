@@ -1,10 +1,10 @@
 import { BaseConnector } from "./base/BaseConnector";
-import { IDataSource } from "../database/workspace-schema";
+import { IConnector } from "../database/workspace-schema";
 import * as fs from "fs";
 import * as path from "path";
 
 // Type for connector constructor
-type ConnectorConstructor = new (dataSource: IDataSource) => BaseConnector;
+type ConnectorConstructor = new (dataSource: IConnector) => BaseConnector;
 
 // Updated metadata interface
 interface ConnectorRegistryMetadata {
@@ -122,7 +122,7 @@ class ConnectorRegistry {
         type: dirName,
         config: {},
         settings: {},
-      } as unknown as IDataSource;
+      } as unknown as IConnector;
 
       let metadata;
       try {
@@ -161,7 +161,7 @@ class ConnectorRegistry {
   /**
    * Get a connector instance for a data source
    */
-  getConnector(dataSource: IDataSource): BaseConnector | null {
+  getConnector(dataSource: IConnector): BaseConnector | null {
     const metadata = this.connectors.get(dataSource.type);
     if (!metadata) {
       return null;
