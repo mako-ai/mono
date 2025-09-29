@@ -24,7 +24,7 @@ export interface ConsoleTab {
   dbContentHash?: string; // Hash of the content last saved to database
   databaseId?: string;
   filePath?: string;
-  kind?: "console" | "settings" | "sources" | "members" | "sync-job-editor";
+  kind?: "console" | "settings" | "connectors" | "members" | "sync-job-editor";
   isDirty?: boolean; // false/undefined = pristine (replaceable), true = dirty (persistent)
   icon?: string; // URL or path to icon, e.g., "/api/connectors/stripe/icon.svg"
   metadata?: Record<string, any>; // Additional data for special tab types
@@ -32,14 +32,14 @@ export interface ConsoleTab {
 
 export interface GlobalState {
   // Backward-compatibility top-level view props
-  activeView?: "databases" | "consoles" | "sources" | "sync-jobs";
+  activeView?: "databases" | "consoles" | "connectors" | "sync-jobs";
   activeEditorContent?: {
     content: string;
     fileName?: string;
     language?: string;
   };
   ui: {
-    leftPane: "databases" | "consoles" | "sources" | "sync-jobs";
+    leftPane: "databases" | "consoles" | "connectors" | "sync-jobs";
     loading: Record<string, boolean>; // keyed by request name
   };
   explorers: {
@@ -70,7 +70,7 @@ export interface GlobalState {
   };
 }
 
-export type AppView = "databases" | "consoles" | "sources" | "sync-jobs";
+export type AppView = "databases" | "consoles" | "connectors" | "sync-jobs";
 
 /*********************
  * Initial state     *
@@ -160,7 +160,7 @@ export type Action =
   | { type: "SET_LOADING"; payload: { key: string; value: boolean } }
   | {
       type: "NAVIGATE_LEFT_PANE";
-      payload: { pane: "databases" | "consoles" | "sources" | "sync-jobs" };
+      payload: { pane: "databases" | "consoles" | "connectors" | "sync-jobs" };
     }
   | {
       type: "SET_ACTIVE_EDITOR_CONTENT";
@@ -539,7 +539,7 @@ export const useAppStore = create<
   GlobalState & {
     dispatch: (a: Action) => void;
     setActiveView: (
-      view: "databases" | "consoles" | "sources" | "sync-jobs",
+      view: "databases" | "consoles" | "connectors" | "sync-jobs",
     ) => void;
     setActiveEditorContent: (
       content:

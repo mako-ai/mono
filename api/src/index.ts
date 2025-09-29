@@ -77,7 +77,8 @@ app.route("/api/workspaces/:workspaceId/databases", workspaceDatabaseRoutes);
 app.route("/api/workspaces/:workspaceId/consoles", consoleRoutes);
 app.route("/api/workspaces/:workspaceId/chats", chatsRoutes);
 app.route("/api/workspaces/:workspaceId/custom-prompt", customPromptRoutes);
-app.route("/api/workspaces/:workspaceId/sources", dataSourceRoutes);
+// Connectors routes
+app.route("/api/workspaces/:workspaceId/connectors", dataSourceRoutes);
 app.route("/api/workspaces/:workspaceId/sync-jobs", syncJobRoutes);
 app.route("/api/run", executeRoutes);
 app.route("/api/execute", executeRoutes);

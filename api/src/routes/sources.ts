@@ -1,13 +1,14 @@
 import { Hono } from "hono";
-import { DataSource } from "../database/workspace-schema";
+import { Connector as DataSource } from "../database/workspace-schema";
 import { connectorRegistry } from "../connectors/registry";
 import { syncConnectorRegistry } from "../sync/connector-registry";
 import * as crypto from "crypto";
 import { databaseDataSourceManager } from "../sync/database-data-source-manager";
+import mongoose, { Types } from "mongoose";
 
 export const dataSourceRoutes = new Hono();
 
-// GET /api/workspaces/:workspaceId/sources - List all data sources for a workspace
+// GET /api/workspaces/:workspaceId/connectors - List all connectors for a workspace
 dataSourceRoutes.get("/", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -18,7 +19,7 @@ dataSourceRoutes.get("/", async c => {
       return c.json({ success: false, error: "Workspace ID is required" }, 400);
     }
 
-    const dataSources = await DataSource.find({
+    let dataSources = await DataSource.find({
       workspaceId,
       // TODO: Add permission check
     })
@@ -37,7 +38,7 @@ dataSourceRoutes.get("/", async c => {
   }
 });
 
-// GET /api/workspaces/:workspaceId/sources/:id - Get specific data source
+// GET /api/workspaces/:workspaceId/connectors/:id - Get specific connector
 dataSourceRoutes.get("/:id", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -50,7 +51,7 @@ dataSourceRoutes.get("/:id", async c => {
     }).lean();
 
     if (!dataSource) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     return c.json({ success: true, data: dataSource });
@@ -65,7 +66,7 @@ dataSourceRoutes.get("/:id", async c => {
   }
 });
 
-// POST /api/workspaces/:workspaceId/sources - Create new data source
+// POST /api/workspaces/:workspaceId/connectors - Create new connector
 dataSourceRoutes.post("/", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -95,7 +96,7 @@ dataSourceRoutes.post("/", async c => {
       );
     }
 
-    // Create data source
+    // Create connector
     const dataSource = new DataSource({
       workspaceId,
       name: body.name,
@@ -120,7 +121,7 @@ dataSourceRoutes.post("/", async c => {
       {
         success: true,
         data: dataSource.toObject(),
-        message: "Data source created successfully",
+        message: "Connector created successfully",
       },
       201,
     );
@@ -135,7 +136,7 @@ dataSourceRoutes.post("/", async c => {
   }
 });
 
-// PUT /api/workspaces/:workspaceId/sources/:id - Update existing data source
+// PUT /api/workspaces/:workspaceId/connectors/:id - Update existing connector
 dataSourceRoutes.put("/:id", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -150,7 +151,7 @@ dataSourceRoutes.put("/:id", async c => {
     });
 
     if (!dataSource) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     // Get the current values (decrypted) for comparison
@@ -255,7 +256,7 @@ dataSourceRoutes.put("/:id", async c => {
       success: true,
       data: dataSource.toObject(),
       message: hasChanges
-        ? "Data source updated successfully"
+        ? "Connector updated successfully"
         : "No changes detected",
     });
   } catch (error) {
@@ -269,7 +270,7 @@ dataSourceRoutes.put("/:id", async c => {
   }
 });
 
-// DELETE /api/workspaces/:workspaceId/sources/:id - Delete data source
+// DELETE /api/workspaces/:workspaceId/connectors/:id - Delete connector
 dataSourceRoutes.delete("/:id", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -282,12 +283,12 @@ dataSourceRoutes.delete("/:id", async c => {
     });
 
     if (result.deletedCount === 0) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     return c.json({
       success: true,
-      message: "Data source deleted successfully",
+      message: "Connector deleted successfully",
     });
   } catch (error) {
     return c.json(
@@ -300,7 +301,7 @@ dataSourceRoutes.delete("/:id", async c => {
   }
 });
 
-// POST /api/workspaces/:workspaceId/sources/:id/test - Test data source connection
+// POST /api/workspaces/:workspaceId/connectors/:id/test - Test connector connection
 dataSourceRoutes.post("/:id/test", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -313,7 +314,7 @@ dataSourceRoutes.post("/:id/test", async c => {
     });
 
     if (!dataSource) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     // Get connector and test connection
@@ -345,7 +346,7 @@ dataSourceRoutes.post("/:id/test", async c => {
   }
 });
 
-// PATCH /api/workspaces/:workspaceId/sources/:id/enable - Enable/disable data source
+// PATCH /api/workspaces/:workspaceId/connectors/:id/enable - Enable/disable connector
 dataSourceRoutes.patch("/:id/enable", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
@@ -377,13 +378,13 @@ dataSourceRoutes.patch("/:id/enable", async c => {
     );
 
     if (!dataSource) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     return c.json({
       success: true,
       data: dataSource.toObject(),
-      message: `Data source ${
+      message: `Connector ${
         body.enabled ? "enabled" : "disabled"
       } successfully`,
     });
@@ -398,20 +399,20 @@ dataSourceRoutes.patch("/:id/enable", async c => {
   }
 });
 
-// GET /api/workspaces/:workspaceId/sources/:id/entities - Get available entities for a data source
+// GET /api/workspaces/:workspaceId/connectors/:id/entities - Get available entities for a connector
 dataSourceRoutes.get("/:id/entities", async c => {
   try {
     const workspaceId = c.req.param("workspaceId");
     const id = c.req.param("id");
 
-    // First, verify the data source belongs to the workspace
+    // First, verify the connector belongs to the workspace
     const ownershipCheck = await DataSource.findOne(
       { _id: id, workspaceId: workspaceId },
       { _id: 1 },
     ).lean();
     if (!ownershipCheck) {
       return c.json(
-        { success: false, error: "Data source not found in this workspace" },
+        { success: false, error: "Connector not found in this workspace" },
         404,
       );
     }
@@ -420,7 +421,7 @@ dataSourceRoutes.get("/:id/entities", async c => {
     const dataSource = await databaseDataSourceManager.getDataSource(id);
 
     if (!dataSource) {
-      return c.json({ success: false, error: "Data source not found" }, 404);
+      return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     // Get connector and its entities
@@ -452,7 +453,7 @@ dataSourceRoutes.get("/:id/entities", async c => {
   }
 });
 
-// POST /api/workspaces/:workspaceId/sources/decrypt - Decrypt a value for debugging
+// POST /api/workspaces/:workspaceId/connectors/decrypt - Decrypt a value for debugging
 dataSourceRoutes.post("/decrypt", async c => {
   try {
     const { encryptedValue } = await c.req.json();

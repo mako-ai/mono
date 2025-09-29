@@ -1,4 +1,4 @@
-import { IDataSource } from "../../database/workspace-schema";
+import { IConnector } from "../../database/workspace-schema";
 
 export interface SyncLogger {
   log(
@@ -74,9 +74,9 @@ export interface WebhookHandlerOptions {
 }
 
 export abstract class BaseConnector {
-  protected dataSource: IDataSource;
+  protected dataSource: IConnector;
 
-  constructor(dataSource: IDataSource) {
+  constructor(dataSource: IConnector) {
     this.dataSource = dataSource;
   }
 

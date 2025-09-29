@@ -13,8 +13,8 @@ import {
   Settings as SettingsIcon,
   SquareChevronRight as ConsoleIcon,
   Database as DatabaseIcon,
-  Cable as DataSourceIcon,
-  CloudUpload as SyncJobsIcon,
+  Plug as DataSourceIcon,
+  ArrowLeftRight as SyncJobsIcon,
   CircleUserRound as UserIcon,
 } from "lucide-react";
 import { useAppStore, AppView } from "../store";
@@ -23,7 +23,7 @@ import { useAuth } from "../contexts/auth-context";
 import { useState } from "react";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
-import { useDataSourceStore } from "../store/dataSourceStore";
+import { useConnectorStore } from "../store/connectorStore";
 
 const NavButton = styled(Button, {
   shouldForwardProp: prop => prop !== "isActive",
@@ -52,8 +52,8 @@ const topNavigationItems: { view: NavigationView; icon: any; label: string }[] =
   [
     { view: "databases", icon: DatabaseIcon, label: "Databases" },
     { view: "consoles", icon: ConsoleIcon, label: "Consoles" },
-    { view: "sources", icon: DataSourceIcon, label: "Data Sources" },
-    { view: "sync-jobs", icon: SyncJobsIcon, label: "Sync Jobs" },
+    { view: "sync-jobs", icon: SyncJobsIcon, label: "Transfers" },
+    { view: "connectors", icon: DataSourceIcon, label: "Connectors" },
   ];
 
 const bottomNavigationItems: {
@@ -83,7 +83,7 @@ function Sidebar() {
     try {
       // Clear all store data before logout
       useConnectorCatalogStore.getState().clearTypes();
-      useDataSourceStore.getState().clearDrafts();
+      useConnectorStore.getState().clearDrafts();
       useConsoleStore.getState().clearAllConsoles();
 
       await logout();
@@ -97,7 +97,7 @@ function Sidebar() {
     if (
       view === "databases" ||
       view === "consoles" ||
-      view === "sources" ||
+      view === "connectors" ||
       view === "sync-jobs"
     ) {
       setActiveView(view as AppView);
@@ -110,16 +110,16 @@ function Sidebar() {
         useConsoleStore.getState();
 
       const existing = findTabByKind(
-        view === "settings" ? "settings" : "sources",
+        view === "settings" ? "settings" : "connectors",
       );
       if (existing) {
         setActiveConsole(existing.id);
       } else {
         const id = addConsoleTab({
-          title: view === "settings" ? "Settings" : "Data Sources",
+          title: view === "settings" ? "Settings" : "Connectors",
           content: "", // Will be replaced with actual forms later
           initialContent: "",
-          kind: view === "settings" ? "settings" : "sources",
+          kind: view === "settings" ? "settings" : "connectors",
         });
         setActiveConsole(id);
       }

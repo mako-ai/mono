@@ -1,4 +1,4 @@
-# Sync Jobs Migration to Inngest
+# Transfers Migration to Inngest
 
 This document describes the migration from the built-in node-cron worker to Inngest for sync job scheduling and execution.
 
@@ -25,26 +25,31 @@ We've migrated the sync job scheduling system from a custom node-cron based work
 ## Key Improvements
 
 ### 1. Better Job Scheduling
+
 - Inngest handles cron scheduling with proper timezone support
 - Built-in concurrency control prevents duplicate job executions
 - Automatic retries with exponential backoff
 
 ### 2. Enhanced Observability
+
 - All job executions are tracked in Inngest's dashboard
 - Real-time monitoring of job status and logs
 - Easy debugging with step-by-step execution traces
 
 ### 3. Simplified Architecture
+
 - No need to manage worker processes
 - No complex lock management code
 - Inngest handles all the infrastructure complexity
 
 ### 4. Scalability
+
 - Inngest automatically scales based on workload
 - Jobs can run across multiple instances without conflicts
 - Built-in rate limiting and throttling
 
 ### 5. Jitter and Load Distribution
+
 - **Execution jitter** (0-60 seconds) - Applied when each job starts to prevent thundering herd
 - **Scheduling jitter** (0-5 seconds) - Applied between triggering multiple jobs at the same time
 - Helps distribute load across time to avoid overwhelming data sources
@@ -52,22 +57,26 @@ We've migrated the sync job scheduling system from a custom node-cron based work
 ## Functions
 
 ### 1. `syncJobFunction`
+
 - Executes individual sync jobs
 - Handles logging, error tracking, and status updates
 - Applies execution jitter to prevent thundering herd
 - Triggered by events: `sync/job.execute`
 
 ### 2. `scheduledSyncJobFunction`
+
 - Runs every minute to check for scheduled jobs
 - Parses cron expressions and triggers jobs as needed
 - Uses `cron-parser` for accurate scheduling
 - Applies scheduling jitter when multiple jobs need to run
 
 ### 3. `manualSyncJobFunction`
+
 - Handles manual job triggers from the UI
 - Triggered by events: `sync/job.manual`
 
 ### 4. `cleanupAbandonedJobsFunction`
+
 - Runs every 5 minutes
 - Cleans up abandoned job executions and stale locks
 - Maintains database hygiene
@@ -75,20 +84,24 @@ We've migrated the sync job scheduling system from a custom node-cron based work
 ## Environment Variables
 
 ### Removed
+
 - `ENABLE_SYNC_WORKER` - No longer needed
 
 ### Added
+
 - `INNGEST_EVENT_KEY` - Your Inngest event key (optional for local dev)
 - `INNGEST_SIGNING_KEY` - Your Inngest signing key (optional for local dev)
 
 ## Local Development
 
 1. Start the Inngest Dev Server:
+
 ```bash
 npx inngest-cli@latest dev
 ```
 
 2. Start your API server:
+
 ```bash
 pnpm api:dev
 ```
@@ -108,12 +121,14 @@ pnpm api:dev
 ## Testing
 
 ### Manual Job Execution
+
 ```bash
 # Trigger a sync job manually
 curl -X POST http://localhost:8080/api/workspaces/{workspaceId}/sync-jobs/{jobId}/run
 ```
 
 ### View Executions
+
 - Local: http://localhost:8288
 - Production: https://app.inngest.com
 

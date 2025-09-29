@@ -192,7 +192,7 @@ class DatabaseDataSourceManager {
     workspaceId?: string,
   ): Promise<DataSourceConfig[]> {
     const db = await this.getDb();
-    const collection = db.collection("datasources");
+    const collection = db.collection("connectors");
 
     const query: any = { isActive: true };
     if (workspaceId) {
@@ -228,7 +228,7 @@ class DatabaseDataSourceManager {
    */
   async getDataSource(id: string): Promise<DataSourceConfig | null> {
     const db = await this.getDb();
-    const collection = db.collection("datasources");
+    const collection = db.collection("connectors");
 
     if (!ObjectId.isValid(id)) {
       return null;
@@ -263,7 +263,7 @@ class DatabaseDataSourceManager {
    */
   async getDataSourcesByType(type: string): Promise<DataSourceConfig[]> {
     const db = await this.getDb();
-    const collection = db.collection("datasources");
+    const collection = db.collection("connectors");
 
     const sources = await collection.find({ type, isActive: true }).toArray();
 
@@ -294,7 +294,7 @@ class DatabaseDataSourceManager {
    */
   async listDataSourceIds(): Promise<string[]> {
     const db = await this.getDb();
-    const collection = db.collection("datasources");
+    const collection = db.collection("connectors");
 
     const sources = await collection
       .find({}, { projection: { _id: 1, name: 1 } })
@@ -308,7 +308,7 @@ class DatabaseDataSourceManager {
    */
   async listActiveDataSourceIds(): Promise<string[]> {
     const db = await this.getDb();
-    const collection = db.collection("datasources");
+    const collection = db.collection("connectors");
 
     const sources = await collection
       .find({ isActive: true }, { projection: { _id: 1, name: 1 } })

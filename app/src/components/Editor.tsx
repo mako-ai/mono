@@ -27,7 +27,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Console, { ConsoleRef } from "./Console";
 import ResultsTable from "./ResultsTable";
 import Settings from "../pages/Settings";
-import DataSourceTab from "./DataSourceTab";
+import ConnectorTab from "./ConnectorTab";
 import { WorkspaceMembers } from "./WorkspaceMembers";
 import { SyncJobEditor } from "./SyncJobEditor";
 import { useConsoleStore } from "../store/consoleStore";
@@ -422,7 +422,7 @@ function Editor() {
                         />
                       ) : tab.kind === "settings" ? (
                         <SettingsIcon size={20} strokeWidth={1.5} />
-                      ) : tab.kind === "sources" ? (
+                      ) : tab.kind === "connectors" ? (
                         <DataSourceIcon size={20} strokeWidth={1.5} />
                       ) : tab.kind === "sync-job-editor" ? (
                         tab.metadata?.jobType === "webhook" ? (
@@ -490,8 +490,8 @@ function Editor() {
                   <Settings />
                 ) : tab.kind === "members" ? (
                   <WorkspaceMembers />
-                ) : tab.kind === "sources" ? (
-                  <DataSourceTab
+                ) : tab.kind === "connectors" ? (
+                  <ConnectorTab
                     tabId={tab.id}
                     sourceId={
                       typeof tab.content === "string" ? tab.content : undefined

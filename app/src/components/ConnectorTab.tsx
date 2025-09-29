@@ -4,8 +4,8 @@ import ConnectorForm from "./ConnectorForm";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
 import { useConnectorCatalogStore } from "../store/connectorCatalogStore";
-import { useDataSourceEntitiesStore } from "../store/dataSourceEntitiesStore";
-import { useDataSourceStore } from "../store/dataSourceStore";
+import { useConnectorEntitiesStore } from "../store/connectorEntitiesStore";
+import { useConnectorStore } from "../store/connectorStore";
 
 interface ConnectorType {
   type: string;
@@ -17,7 +17,7 @@ interface ConnectorType {
 
 interface ConnectorTabProps {
   /**
-   * The id of the data source being edited. If undefined/empty -> create new.
+   * The id of the connector being edited. If undefined/empty -> create new.
    */
   sourceId?: string;
   /** Console tab id so we can close/update title */
@@ -39,7 +39,7 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
   } = useConsoleStore();
 
   // Draft store
-  const deleteDraft = useDataSourceStore(state => state.deleteDraft);
+  const deleteDraft = useConnectorStore(state => state.deleteDraft);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,20 +49,20 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
 
   /* ------------------ entity cache -------------------- */
   const {
-    fetchOne: fetchSource,
-    upsert: upsertSource,
+    fetchOne: fetchConnector,
+    upsert: upsertConnector,
     entities,
-  } = useDataSourceEntitiesStore();
+  } = useConnectorEntitiesStore();
 
   const [localSourceId, setLocalSourceId] = useState<string | undefined>(
     initialSourceId,
   );
   const effectiveSourceId = localSourceId;
-  const dataSourceKey =
+  const connectorKey =
     currentWorkspace && effectiveSourceId
       ? `${currentWorkspace.id}:${effectiveSourceId}`
       : null;
-  const connector = dataSourceKey ? (entities as any)[dataSourceKey] : null;
+  const connector = connectorKey ? (entities as any)[connectorKey] : null;
 
   const updateConsoleTitleRef = useRef(updateConsoleTitle);
   const consoleTabsRef = useRef(consoleTabs);
@@ -101,7 +101,7 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
       return;
     }
     setLoading(true);
-    fetchSource(currentWorkspace.id, effectiveSourceId).then(entity => {
+    fetchConnector(currentWorkspace.id, effectiveSourceId).then(entity => {
       if (entity) {
         updateConsoleTitleRef.current(tabId, entity.name || "Connector");
         updateTabIcon(entity.type);
@@ -115,7 +115,7 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
     currentWorkspace,
     effectiveSourceId,
     connector,
-    fetchSource,
+    fetchConnector,
     tabId,
     updateTabIcon,
   ]);
@@ -144,7 +144,7 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
       if (data.success) {
         // update entity cache
         if (currentWorkspace) {
-          upsertSource({ ...data.data, workspaceId: currentWorkspace.id });
+          upsertConnector({ ...data.data, workspaceId: currentWorkspace.id });
         }
         setError(null);
         updateTabIcon(data.data.type);
@@ -156,8 +156,7 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
 
         const newId = data.data._id;
         if (!effectiveSourceId && newId) {
-          // Persist the newly created data source id as the tab's content
-          // Using the store action avoids mutating immutable state directly
+          // Persist the newly created connector id as the tab's content
           updateConsoleContent(tabId, newId);
           setLocalSourceId(newId);
         }
@@ -203,4 +202,4 @@ const ConnectorTab: React.FC<ConnectorTabProps> = ({
   );
 };
 
-export default DataSourceTab;
+export default ConnectorTab;
