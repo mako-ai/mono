@@ -4,7 +4,6 @@ import { connectorRegistry } from "../connectors/registry";
 import { syncConnectorRegistry } from "../sync/connector-registry";
 import * as crypto from "crypto";
 import { databaseDataSourceManager } from "../sync/database-data-source-manager";
-import mongoose, { Types } from "mongoose";
 
 export const dataSourceRoutes = new Hono();
 
@@ -19,7 +18,7 @@ dataSourceRoutes.get("/", async c => {
       return c.json({ success: false, error: "Workspace ID is required" }, 400);
     }
 
-    let dataSources = await DataSource.find({
+    const dataSources = await DataSource.find({
       workspaceId,
       // TODO: Add permission check
     })
