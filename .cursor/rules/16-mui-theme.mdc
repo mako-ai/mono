@@ -1,0 +1,16 @@
+# MUI Styling via Global Theme
+
+Purpose: Keep visual consistency by centralizing MUI component styling in the global theme.
+
+Rules:
+
+- Use the global theme in `app/src/contexts/ThemeContext.tsx` for styling MUI components.
+- Prefer `components.<MuiX>.defaultProps` and `components.<MuiX>.styleOverrides` to adjust variants, sizes, paddings, borders, etc.
+- Default variants for inputs/selects should be defined globally (e.g., outlined) unless a component explicitly needs a different variant.
+- Do NOT set per-component ad-hoc styles for shared patterns; push common changes into the theme.
+- If a one-off deviation is required, document the reason inline and keep it local to that component.
+
+Enforcement guidance:
+
+- During reviews, suggest migrating repeated inline styles to the theme.
+- Reject edits that change common component variants locally without updating the theme, unless justified.

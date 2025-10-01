@@ -1,0 +1,17 @@
+# Connector Agnosticism & Schema-Driven UI
+
+Purpose: Ensure adding a new connector requires only dropping a new folder under `api/src/connectors/**` and exposing a schema; no app code outside that folder needs changes.
+
+Rules:
+
+- Connectors must be 100% self-contained under `api/src/connectors/<type>/`.
+- UI must be schema-driven: forms render using the schema returned by `/api/connectors/:type/schema`.
+- Do NOT hardcode connector-specific logic in shared components (e.g., `app/src/components/**`), routes, or services.
+- If conditional fields are needed, use schema properties like `showIf` and `type: "select"` with `options`; never add branching by connector type in UI code.
+- Connector registration happens via registries; adding a connector should not require editing the UI or non-registry backend files.
+- Keep any connector-specific data transformations inside the connector implementation.
+
+Enforcement guidance:
+
+- During reviews, reject edits that add `if (type === "xyz")` checks outside connector folders.
+- Prefer updating connector schemas over UI code to change field order, visibility, or control types.

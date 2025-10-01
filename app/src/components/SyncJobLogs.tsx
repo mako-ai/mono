@@ -10,6 +10,7 @@ import {
   Stack,
   styled,
   Button,
+  IconButton,
 } from "@mui/material";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import {
@@ -273,6 +274,22 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
     return date.toLocaleString();
   };
 
+  const formatDuration = (milliseconds: number): string => {
+    if (!Number.isFinite(milliseconds) || milliseconds < 0) return "N/A";
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    const parts: string[] = [];
+    if (days) parts.push(`${days}d`);
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+    return parts.join(" ");
+  };
+
   // Helper function to safely extract string values from potentially complex objects
   const extractStringValue = (value: any, fallback: string = ""): string => {
     if (typeof value === "string") {
@@ -331,18 +348,6 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
               Edit
             </Button>
           )}
-          <Button
-            variant="text"
-            size="small"
-            onClick={() => {
-              fetchHistory();
-              checkJobStatus();
-            }}
-            disabled={isLoading}
-            startIcon={<RefreshIcon fontSize="small" />}
-          >
-            Refresh
-          </Button>
         </Box>
       </Box>
 
@@ -438,6 +443,33 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
             maxSize={50}
             style={{ overflow: "auto" }}
           >
+            <Box
+              sx={{
+                p: 1,
+                pb: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottom: 1,
+                borderColor: "divider",
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                Run history
+              </Typography>
+              <IconButton
+                size="small"
+                aria-label="Refresh"
+                onClick={() => {
+                  fetchHistory();
+                  checkJobStatus();
+                }}
+                disabled={isLoading}
+                sx={{ color: "text.primary" }}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Box>
             {isLoading ? (
               <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
                 <CircularProgress size={24} />
@@ -536,7 +568,8 @@ export function SyncJobLogs({ jobId, onRunNow, onEdit }: SyncJobLogsProps) {
 
                     {details.duration !== undefined && (
                       <Typography variant="body2">
-                        <strong>Duration:</strong> {details.duration} ms
+                        <strong>Duration:</strong>{" "}
+                        {formatDuration(details.duration)}
                       </Typography>
                     )}
 

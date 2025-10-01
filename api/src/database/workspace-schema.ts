@@ -236,15 +236,7 @@ export interface IConnector extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
-  type:
-    | "stripe"
-    | "close"
-    | "graphql"
-    | "postgresql"
-    | "mysql"
-    | "webhook"
-    | "csv"
-    | "api";
+  type: string;
   description?: string;
   config: {
     // API sources
@@ -672,16 +664,6 @@ const ConnectorSchema = new Schema<IConnector>(
     },
     type: {
       type: String,
-      enum: [
-        "stripe",
-        "close",
-        "graphql",
-        "postgresql",
-        "mysql",
-        "webhook",
-        "csv",
-        "api",
-      ],
       required: true,
     },
     description: {
