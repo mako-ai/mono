@@ -7,7 +7,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Chat3 from "./components/Chat3";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
-import DataSourceExplorer from "./components/DataSourceExplorer";
+import DataSourceExplorer from "./components/ConnectorExplorer";
 import Editor from "./components/Editor";
 import { SyncJobsExplorer } from "./components/SyncJobsExplorer";
 import { AuthWrapper } from "./components/AuthWrapper";
