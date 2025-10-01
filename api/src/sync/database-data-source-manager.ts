@@ -1,106 +1,21 @@
 import { Db, ObjectId } from "mongodb";
 import * as crypto from "crypto";
 import * as dotenv from "dotenv";
+import { syncConnectorRegistry } from "./connector-registry";
 import { databaseConnectionService } from "../services/database-connection.service";
 
 dotenv.config();
 
 // Import connector schemas to determine which fields should be encrypted
-interface ConnectorFieldSchema {
+type ConnectorFieldSchema = {
   name: string;
   type: string;
   encrypted?: boolean;
-  [key: string]: any; // Allow other properties like label, required, etc.
-}
-
-interface ConnectorSchema {
-  fields: ConnectorFieldSchema[];
-}
-
-// Define schemas directly (matching what's in the connector classes)
-const CONNECTOR_SCHEMAS: { [key: string]: ConnectorSchema } = {
-  stripe: {
-    fields: [
-      { name: "api_key", label: "API Key", type: "password", required: true },
-      {
-        name: "api_base_url",
-        label: "API Base URL",
-        type: "string",
-        required: false,
-      },
-    ],
-  },
-  graphql: {
-    fields: [
-      {
-        name: "endpoint",
-        label: "GraphQL Endpoint URL",
-        type: "string",
-        required: true,
-      },
-      {
-        name: "headers",
-        label: "Custom Headers (JSON)",
-        type: "textarea",
-        required: false,
-        encrypted: true,
-      },
-      {
-        name: "query",
-        label: "GraphQL Query",
-        type: "textarea",
-        required: true,
-      },
-      {
-        name: "query_name",
-        label: "Query Name",
-        type: "string",
-        required: true,
-      },
-      { name: "data_path", label: "Data Path", type: "string", required: true },
-      {
-        name: "total_count_path",
-        label: "Total Count Path",
-        type: "string",
-        required: false,
-      },
-      {
-        name: "has_next_page_path",
-        label: "Has Next Page Path",
-        type: "string",
-        required: false,
-      },
-      {
-        name: "cursor_path",
-        label: "Cursor Path",
-        type: "string",
-        required: false,
-      },
-      {
-        name: "batch_size",
-        label: "Batch Size",
-        type: "number",
-        required: false,
-      },
-    ],
-  },
-  close: {
-    fields: [
-      { name: "api_key", label: "API Key", type: "password", required: true },
-    ],
-  },
-  mongodb: {
-    fields: [
-      {
-        name: "connection_string",
-        label: "Connection String",
-        type: "password",
-        required: true,
-      },
-      { name: "database", label: "Database", type: "string", required: true },
-    ],
-  },
+  itemFields?: ConnectorFieldSchema[];
+  [key: string]: any;
 };
+
+type ConnectorSchema = { fields: ConnectorFieldSchema[] };
 
 // Data source interface matching the database schema
 export interface DataSourceConfig {
@@ -169,18 +84,16 @@ class DatabaseDataSourceManager {
   private async getConnectorSchema(
     connectorType: string,
   ): Promise<ConnectorSchema | null> {
-    // Check cache first
     if (this.schemaCache.has(connectorType)) {
       return this.schemaCache.get(connectorType)!;
     }
-
-    // Get schema from our definitions
-    const schema = CONNECTOR_SCHEMAS[connectorType];
-    if (schema) {
-      this.schemaCache.set(connectorType, schema);
-      return schema;
+    // Ask the connector registry for the live schema
+    const schema =
+      await syncConnectorRegistry.getConfigSchemaForType(connectorType);
+    if (schema && schema.fields) {
+      this.schemaCache.set(connectorType, schema as ConnectorSchema);
+      return schema as ConnectorSchema;
     }
-
     console.warn(`No schema found for connector type: ${connectorType}`);
     return null;
   }
@@ -385,20 +298,64 @@ class DatabaseDataSourceManager {
       decrypted[key] = config[key];
     }
 
-    // Only decrypt fields marked as encrypted in the schema
-    for (const field of schema.fields) {
-      if (field.encrypted || field.type === "password") {
-        if (config[field.name] && typeof config[field.name] === "string") {
-          try {
-            decrypted[field.name] = this.decryptString(config[field.name]);
-          } catch (error) {
-            console.error(`Failed to decrypt field ${field.name}:`, error);
-            // Keep the original value if decryption fails
-            decrypted[field.name] = config[field.name];
+    // Helper to decrypt by schema node (supports nested object_array)
+    const decryptBySchema = (
+      targetObj: any,
+      schemaNode: ConnectorFieldSchema | ConnectorSchema,
+      basePath: string = "",
+    ) => {
+      const fields =
+        (schemaNode as ConnectorSchema).fields ||
+        ((schemaNode as ConnectorFieldSchema)
+          .itemFields as ConnectorFieldSchema[]) ||
+        [];
+      for (const fld of fields) {
+        const key = fld.name;
+        const value = basePath
+          ? targetObj?.[basePath]?.[key]
+          : targetObj?.[key];
+        const setValue = (v: any) => {
+          if (basePath) {
+            if (!targetObj[basePath]) targetObj[basePath] = {};
+            targetObj[basePath][key] = v;
+          } else {
+            targetObj[key] = v;
+          }
+        };
+
+        if (fld.type === "object_array" && Array.isArray(value)) {
+          value.forEach((item: any, idx: number) => {
+            // Recurse into item using itemFields
+            if (fld.itemFields && fld.itemFields.length > 0) {
+              const itemRef = basePath
+                ? targetObj[basePath][key][idx]
+                : targetObj[key][idx];
+              decryptBySchema(
+                itemRef,
+                { fields: fld.itemFields } as ConnectorSchema,
+                "",
+              );
+            }
+          });
+          continue;
+        }
+
+        if (fld.encrypted || fld.type === "password") {
+          const raw = value;
+          if (typeof raw === "string" && raw) {
+            try {
+              const dec = this.decryptString(raw);
+              setValue(dec);
+            } catch (error) {
+              console.error(`Failed to decrypt field ${key}:`, error);
+              setValue(raw);
+            }
           }
         }
       }
-    }
+    };
+
+    decryptBySchema(decrypted, schema as ConnectorSchema);
 
     return decrypted;
   }

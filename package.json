@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"pnpm --filter app run dev\" \"pnpm --filter api run dev\" \"pnpm dlx inngest-cli@latest dev\"",
-    "build": "pnpm run lint:fix:all && pnpm run app:build && pnpm run api:build && tsc",
+    "build": "pnpm run lint:fix:all && pnpm run app:build && pnpm run api:build && node scripts/check-connector-agnosticism.js && tsc",
     "start": "node dist/index.js",
     "test": "jest",
     "format": "prettier --write \"api/**/*.ts\"",
@@ -27,8 +27,8 @@
     "api:start": "pnpm --filter api run start",
     "api:lint": "pnpm --filter api run lint",
     "api:lint:fix": "pnpm --filter api run lint:fix",
-    "lint:all": "pnpm run app:lint && pnpm run api:lint",
-    "lint:fix:all": "pnpm run app:lint:fix && pnpm run api:lint:fix",
+    "lint:all": "pnpm run app:lint && pnpm run api:lint && node scripts/check-connector-agnosticism.js",
+    "lint:fix:all": "pnpm run app:lint:fix && pnpm run api:lint:fix && node scripts/check-connector-agnosticism.js",
     "install:all": "pnpm install -r"
   },
   "keywords": [

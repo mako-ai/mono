@@ -170,6 +170,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       MuiSelect: {
         defaultProps: {
           size: "small",
+          variant: "outlined",
         },
         styleOverrides: {
           root: ({ theme, ownerState }: any) => ({
@@ -179,7 +180,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               fontSize: "0.9em",
               padding: theme.spacing(0.5, 1),
             },
-            // Remove underline for the "standard" variant only
+            // Remove underline for the "standard" variant only (legacy)
             ...(ownerState.variant === "standard" && {
               "&:before, &:after": {
                 display: "none",
@@ -190,6 +191,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
               backgroundColor: theme.palette.action.hover,
             },
           }),
+        },
+      },
+      MuiFormControl: {
+        defaultProps: {
+          variant: "outlined",
+          margin: "normal",
+          size: "small",
         },
       },
       MuiInputBase: {

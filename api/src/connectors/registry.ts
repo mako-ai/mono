@@ -92,9 +92,18 @@ class ConnectorRegistry {
       for (const file of indexFiles) {
         const filePath = path.join(connectorPath, file);
         if (fs.existsSync(filePath)) {
+          connectorFile = filePath;
           break;
         }
       }
+    }
+
+    // Skip directories without a connector or index entry
+    if (!connectorFile) {
+      console.warn(
+        `⚠️  Skipping ${dirName}: no connector.ts/js or index.ts/js found`,
+      );
+      return;
     }
 
     try {

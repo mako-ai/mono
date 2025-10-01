@@ -1,5 +1,7 @@
 import { DataSourceConfig } from "./database-data-source-manager";
 import { BaseConnector } from "../connectors/base/BaseConnector";
+import * as fs from "fs";
+import * as path from "path";
 
 interface ConnectorRegistryEntry {
   type: string;
@@ -21,66 +23,106 @@ class SyncConnectorRegistry {
   private initialized = false;
 
   constructor() {
-    // Register connector metadata without loading the actual modules
-    this.registerConnectorMetadata();
+    void this.initializeConnectors();
   }
 
   /**
-   * Register connector metadata without importing the modules
+   * Get config schema for a connector type by calling its static getConfigSchema()
    */
-  private registerConnectorMetadata() {
-    // Register metadata only - no imports or instantiation
-    this.register({
-      type: "close",
-      connectorClass: null,
-      metadata: {
-        name: "Close",
-        version: "1.0.0",
-        description: "Close CRM connector",
-        supportedEntities: [
-          "leads",
-          "opportunities",
-          "activities",
-          "contacts",
-          "users",
-          "custom_fields",
-        ],
-      },
-    });
+  async getConfigSchemaForType(type: string): Promise<any | null> {
+    let entry = this.connectors.get(type);
+    if (!entry) {
+      // Attempt lazy load
+      try {
+        const mod = await import(`../connectors/${type}`);
+        const exportKey = Object.keys(mod).find(k => k.endsWith("Connector"));
+        if (!exportKey) return null;
+        const connectorClass = (mod as any)[exportKey];
+        entry = {
+          type,
+          connectorClass,
+          metadata: {
+            name: type,
+            version: "1.0.0",
+            description: `${type} connector`,
+            supportedEntities: [],
+          },
+        };
+        this.register(entry);
+      } catch {
+        return null;
+      }
+    }
 
-    this.register({
-      type: "stripe",
-      connectorClass: null,
-      metadata: {
-        name: "Stripe",
-        version: "1.0.0",
-        description: "Stripe payment platform connector",
-        supportedEntities: [
-          "customers",
-          "subscriptions",
-          "charges",
-          "invoices",
-          "products",
-          "plans",
-        ],
-      },
-    });
+    try {
+      const schema = (entry as any).connectorClass?.getConfigSchema?.();
+      return schema || null;
+    } catch {
+      return null;
+    }
+  }
+  /**
+   * Discover and register connectors by scanning the connectors directory
+   */
+  private async initializeConnectors() {
+    if (this.initialized) return;
 
-    this.register({
-      type: "graphql",
-      connectorClass: null,
-      metadata: {
-        name: "GraphQL",
-        version: "1.0.0",
-        description: "Generic GraphQL API connector",
-        supportedEntities: ["custom"],
-      },
-    });
+    try {
+      const connectorsDir = path.join(__dirname, "../connectors");
+      const entries = fs.readdirSync(connectorsDir, { withFileTypes: true });
+      const connectorDirs = entries
+        .filter(entry => entry.isDirectory() && entry.name !== "base")
+        .map(entry => entry.name);
 
-    this.initialized = true;
-    console.log(
-      "✅ Sync connector registry initialized (lazy loading enabled)",
-    );
+      for (const dirName of connectorDirs) {
+        const dirPath = path.join(connectorsDir, dirName);
+        const hasConnector = [
+          "connector.ts",
+          "connector.js",
+          "index.ts",
+          "index.js",
+        ].some(f => fs.existsSync(path.join(dirPath, f)));
+        if (!hasConnector) {
+          // Skip empty or non-connector folders (like temporary dirs)
+          continue;
+        }
+        try {
+          // Dynamically import the connector module
+          const modulePath = `../connectors/${dirName}`;
+          const mod = await import(modulePath);
+          const exportKey = Object.keys(mod).find(k => k.endsWith("Connector"));
+          if (!exportKey) {
+            console.warn(`No Connector class export found for ${dirName}`);
+            continue;
+          }
+          const connectorClass = (mod as any)[exportKey];
+
+          // Try to get metadata
+          let metadata = {
+            name: dirName.charAt(0).toUpperCase() + dirName.slice(1),
+            version: "1.0.0",
+            description: `${dirName} connector`,
+            supportedEntities: [],
+          };
+          try {
+            const temp = new connectorClass({ config: {} } as any);
+            if (typeof temp.getMetadata === "function") {
+              metadata = temp.getMetadata();
+            }
+          } catch {
+            // ignore, fallback to default metadata
+          }
+
+          this.register({ type: dirName, connectorClass, metadata });
+        } catch (err) {
+          console.warn(`Failed to load connector in ${dirName}:`, err);
+        }
+      }
+
+      this.initialized = true;
+    } catch (error) {
+      console.error("Failed to initialize sync connector registry:", error);
+    }
   }
 
   /**
@@ -96,43 +138,61 @@ class SyncConnectorRegistry {
   async getConnector(
     dataSource: DataSourceConfig,
   ): Promise<BaseConnector | null> {
-    const entry = this.connectors.get(dataSource.type);
+    let entry = this.connectors.get(dataSource.type);
     if (!entry) {
-      console.error(`Unknown connector type: ${dataSource.type}`);
-      return null;
+      // Attempt lazy load by type name (directory)
+      try {
+        const mod = await import(`../connectors/${dataSource.type}`);
+        const exportKey = Object.keys(mod).find(k => k.endsWith("Connector"));
+        if (exportKey) {
+          const connectorClass = (mod as any)[exportKey];
+          let metadata = {
+            name: dataSource.type,
+            version: "1.0.0",
+            description: `${dataSource.type} connector`,
+            supportedEntities: [],
+          };
+          try {
+            const temp = new connectorClass({ config: {} } as any);
+            if (typeof temp.getMetadata === "function") {
+              metadata = temp.getMetadata();
+            }
+          } catch {
+            // ignore metadata fetch errors
+          }
+          entry = { type: dataSource.type, connectorClass, metadata };
+          this.register(entry);
+        }
+      } catch {
+        console.error(`Unknown connector type: ${dataSource.type}`);
+        return null;
+      }
     }
 
-    // Lazily load the connector module only when needed
-    if (!entry.connectorClass) {
-      console.log(`Loading ${dataSource.type} connector...`);
+    // If somehow no class yet, try to import by convention
+    if (!entry || !entry.connectorClass) {
       try {
-        let connectorClass;
-        switch (dataSource.type) {
-          case "close": {
-            const closeModule = await import("../connectors/close");
-            connectorClass = closeModule.CloseConnector;
-            break;
+        const mod = await import(`../connectors/${dataSource.type}`);
+        const exportKey = Object.keys(mod).find(k => k.endsWith("Connector"));
+        if (exportKey) {
+          const klass = (mod as any)[exportKey];
+          if (!entry) {
+            entry = {
+              type: dataSource.type,
+              connectorClass: klass,
+              metadata: {
+                name: dataSource.type,
+                version: "1.0.0",
+                description: `${dataSource.type} connector`,
+                supportedEntities: [],
+              },
+            };
+            this.register(entry);
+          } else {
+            entry.connectorClass = klass;
           }
-          case "stripe": {
-            const stripeModule = await import("../connectors/stripe");
-            connectorClass = stripeModule.StripeConnector;
-            break;
-          }
-          case "graphql": {
-            const graphqlModule = await import("../connectors/graphql");
-            connectorClass = graphqlModule.GraphQLConnector;
-            break;
-          }
-          default:
-            throw new Error(`Unknown connector type: ${dataSource.type}`);
-        }
-
-        entry.connectorClass = connectorClass;
-
-        // Update metadata from the actual connector if needed
-        const tempInstance = new entry.connectorClass({ config: {} } as any);
-        if (tempInstance.getMetadata) {
-          entry.metadata = tempInstance.getMetadata();
+        } else {
+          throw new Error("No Connector export found");
         }
       } catch (error) {
         console.error(

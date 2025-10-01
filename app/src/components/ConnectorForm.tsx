@@ -42,7 +42,8 @@ export interface ConnectorFieldSchema {
     | "boolean"
     | "password"
     | "textarea"
-    | "object_array";
+    | "object_array"
+    | "select";
   required?: boolean;
   default?: any;
   helperText?: string;
@@ -50,6 +51,11 @@ export interface ConnectorFieldSchema {
   options?: Array<{ label: string; value: any }>;
   rows?: number;
   encrypted?: boolean;
+  showIf?: {
+    field: string;
+    equals?: any | any[];
+    notEquals?: any | any[];
+  };
   itemFields?: ConnectorFieldSchema[];
 }
 
@@ -149,6 +155,11 @@ function ConnectorForm({
         description: "",
         type: "",
         isActive: true,
+        // Sensible defaults to satisfy required validation
+        settings_sync_batch_size: 100,
+        settings_rate_limit_delay_ms: 200,
+        settings_max_retries: 3,
+        settings_timeout_ms: 30000,
       };
     }
 
@@ -290,6 +301,7 @@ function ConnectorForm({
   };
 
   const onSubmitInternal = (values: Record<string, any>) => {
+    // form submitted
     const { dirtyFields } = form.formState;
 
     const isNewConnector = !connector;
@@ -363,11 +375,20 @@ function ConnectorForm({
     }
 
     if (!isNewConnector && Object.keys(payload).length === 0) {
-      console.log("No changes detected in form");
+      console.warn("[ConnectorForm] no changes detected; skipping submit");
       return;
     }
 
-    onSubmit(payload);
+    // submitting payload
+    try {
+      onSubmit(payload);
+    } catch (err) {
+      console.error("[ConnectorForm] onSubmit threw", err);
+    }
+  };
+
+  const onSubmitError = (errors: Record<string, any>) => {
+    console.error("[ConnectorForm] validation errors", errors);
   };
 
   const renderDynamicField = (
@@ -417,7 +438,7 @@ function ConnectorForm({
           control={control}
           rules={{ required }}
           render={({ field }) => (
-            <FormControl fullWidth margin="normal" variant="standard">
+            <FormControl fullWidth margin="normal" variant="outlined">
               <InputLabel>{label}</InputLabel>
               <Select {...field} label={label}>
                 {options.map(opt => (
@@ -649,7 +670,8 @@ function ConnectorForm({
               </IconButton>
             </Box>
 
-            {field.itemFields?.map(subField => {
+            {/* Reorder fields to desired sequence for REST entities */}
+            {(field.itemFields || []).map(subField => {
               const fieldPath = `${field.name}.${index}.${subField.name}`;
 
               const registerProps = form.register(fieldPath);
@@ -662,6 +684,54 @@ function ConnectorForm({
                 helperText: subField.helperText,
                 defaultValue: (item as any)[subField.name] || "",
               };
+
+              // Generic conditional visibility via showIf
+              if (subField.showIf) {
+                const otherValue = form.watch(
+                  `${field.name}.${index}.${subField.showIf.field}`,
+                );
+                const eq = subField.showIf.equals;
+                const ne = subField.showIf.notEquals;
+                const eqOk = Array.isArray(eq)
+                  ? eq.includes(otherValue)
+                  : eq === undefined || otherValue === eq;
+                const neOk = Array.isArray(ne)
+                  ? !ne.includes(otherValue)
+                  : ne === undefined || otherValue !== ne;
+                if (!(eqOk && neOk)) return null;
+              }
+
+              // No connector-specific cases here; selection handled generically below
+
+              // Render dropdown when field is select or options are provided (e.g., HTTP Method)
+              if (
+                subField.type === "select" ||
+                (subField.options && subField.options.length > 0)
+              ) {
+                return (
+                  <Controller
+                    key={fieldPath}
+                    name={fieldPath}
+                    control={control}
+                    rules={{ required: subField.required }}
+                    defaultValue={
+                      (item as any)[subField.name] ?? subField.default ?? ""
+                    }
+                    render={({ field }) => (
+                      <FormControl fullWidth margin="normal" variant="outlined">
+                        <InputLabel>{subField.label}</InputLabel>
+                        <Select {...field} label={subField.label}>
+                          {(subField.options || []).map(opt => (
+                            <MenuItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                );
+              }
 
               if (subField.type === "textarea") {
                 return (
@@ -976,7 +1046,7 @@ function ConnectorForm({
       component="form"
       autoComplete="nope"
       noValidate
-      onSubmit={handleSubmit(onSubmitInternal)}
+      onSubmit={handleSubmit(onSubmitInternal, onSubmitError)}
       sx={{ p: 2, maxWidth: "800px", mx: "auto" }}
       data-form-type="other"
     >
