@@ -38,7 +38,7 @@ interface Connector {
   workspaceId: string;
 }
 
-function DataSourceExplorer() {
+function ConnectorExplorer() {
   const { currentWorkspace } = useWorkspace();
   const { consoleTabs, addConsoleTab, setActiveConsole } = useConsoleStore();
   const {
@@ -271,4 +271,4 @@ function DataSourceExplorer() {
   );
 }
 
-export default DataSourceExplorer;
+export default ConnectorExplorer;
