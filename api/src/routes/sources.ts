@@ -7,19 +7,90 @@ import { databaseDataSourceManager } from "../sync/database-data-source-manager"
 
 export const dataSourceRoutes = new Hono();
 
+// --- Helper: encrypt config values based on connector schema ---
+type ConnectorFieldSchema = {
+  name: string;
+  type: string;
+  encrypted?: boolean;
+  itemFields?: ConnectorFieldSchema[];
+};
+
+function encryptString(value: string): string {
+  const encryptionKey = process.env.ENCRYPTION_KEY;
+  if (!encryptionKey) {
+    throw new Error("ENCRYPTION_KEY environment variable is not set");
+  }
+  // If already looks encrypted (iv:encrypted_hex), skip
+  if (
+    typeof value === "string" &&
+    /^[0-9a-fA-F]{32}:[0-9a-fA-F]+$/.test(value)
+  ) {
+    return value;
+  }
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(
+    "aes-256-cbc",
+    Buffer.from(encryptionKey, "hex"),
+    iv,
+  );
+  let encrypted = cipher.update(value);
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return iv.toString("hex") + ":" + encrypted.toString("hex");
+}
+
+function applySchemaEncryption(
+  config: any,
+  schema: { fields: ConnectorFieldSchema[] } | null,
+): any {
+  if (!schema || !schema.fields || !config) return config;
+  const clone: any = { ...config };
+
+  const processFields = (target: any, fields: ConnectorFieldSchema[]): void => {
+    for (const field of fields) {
+      const key = field.name;
+      const val = target?.[key];
+      if (val === undefined) continue;
+
+      // Recurse into object_array items
+      if (field.type === "object_array" && Array.isArray(val)) {
+        if (field.itemFields && field.itemFields.length > 0) {
+          val.forEach((item: any) =>
+            processFields(item, field.itemFields as ConnectorFieldSchema[]),
+          );
+        }
+        continue;
+      }
+
+      const requiresEncryption =
+        field.encrypted === true || field.type === "password";
+      if (requiresEncryption && typeof val === "string" && val) {
+        try {
+          target[key] = encryptString(val);
+        } catch {
+          // If encryption fails, leave as-is
+          target[key] = val;
+        }
+      }
+    }
+  };
+
+  processFields(clone, schema.fields);
+  return clone;
+}
+
 // GET /api/workspaces/:workspaceId/connectors - List all connectors for a workspace
 dataSourceRoutes.get("/", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    const _workspaceId = c.req.param("workspaceId");
     // TODO: Add authentication and permission check
     // const user = await getUserFromRequest(c);
 
-    if (!workspaceId) {
+    if (!_workspaceId) {
       return c.json({ success: false, error: "Workspace ID is required" }, 400);
     }
 
     const dataSources = await DataSource.find({
-      workspaceId,
+      workspaceId: _workspaceId,
       // TODO: Add permission check
     })
       .sort({ createdAt: -1 })
@@ -40,13 +111,13 @@ dataSourceRoutes.get("/", async c => {
 // GET /api/workspaces/:workspaceId/connectors/:id - Get specific connector
 dataSourceRoutes.get("/:id", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    const _workspaceId = c.req.param("workspaceId");
     const id = c.req.param("id");
     // TODO: Add authentication and permission check
 
     const dataSource = await DataSource.findOne({
       _id: id,
-      workspaceId,
+      workspaceId: _workspaceId,
     }).lean();
 
     if (!dataSource) {
@@ -95,13 +166,18 @@ dataSourceRoutes.post("/", async c => {
       );
     }
 
+    // Load connector schema for schema-driven encryption
+    const schema = await syncConnectorRegistry.getConfigSchemaForType(
+      body.type,
+    );
+
     // Create connector
     const dataSource = new DataSource({
       workspaceId,
       name: body.name,
       type: body.type,
       description: body.description,
-      config: body.config || {},
+      config: applySchemaEncryption(body.config || {}, schema),
       settings: {
         sync_batch_size: body.settings?.sync_batch_size || 100,
         rate_limit_delay_ms: body.settings?.rate_limit_delay_ms || 200,
@@ -201,7 +277,10 @@ dataSourceRoutes.put("/:id", async c => {
 
       // Only update config if something changed
       if (configChanged) {
-        dataSource.config = newConfig;
+        const schema = await syncConnectorRegistry.getConfigSchemaForType(
+          dataSource.type,
+        );
+        dataSource.config = applySchemaEncryption(newConfig, schema);
         hasChanges = true;
       }
     }
@@ -303,26 +382,24 @@ dataSourceRoutes.delete("/:id", async c => {
 // POST /api/workspaces/:workspaceId/connectors/:id/test - Test connector connection
 dataSourceRoutes.post("/:id/test", async c => {
   try {
-    const workspaceId = c.req.param("workspaceId");
+    const _workspaceId = c.req.param("workspaceId");
     const id = c.req.param("id");
     // TODO: Add authentication and permission check
 
-    const dataSource = await DataSource.findOne({
-      _id: id,
-      workspaceId,
-    });
+    // Use manager to load decrypted configuration before testing
+    const ds = await databaseDataSourceManager.getDataSource(id);
 
-    if (!dataSource) {
+    if (!ds) {
       return c.json({ success: false, error: "Connector not found" }, 404);
     }
 
     // Get connector and test connection
-    const connector = connectorRegistry.getConnector(dataSource);
+    const connector = await syncConnectorRegistry.getConnector(ds);
     if (!connector) {
       return c.json(
         {
           success: false,
-          error: `No connector available for type: ${dataSource.type}`,
+          error: `No connector available for type: ${ds.type}`,
         },
         500,
       );
