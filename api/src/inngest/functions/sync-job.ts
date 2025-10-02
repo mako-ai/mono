@@ -513,7 +513,10 @@ export const syncJobFunction = inngest.createFunction(
               );
             }
 
-            const availableEntities = connector.getAvailableEntities();
+            // Filter entities to skip incomplete/malformed configurations (e.g., empty query bodies)
+            const availableEntities = connector
+              .getAvailableEntities()
+              .filter(e => typeof e === "string" && e.trim().length > 0);
 
             if (job.entityFilter && job.entityFilter.length > 0) {
               // Validate requested entities
@@ -525,7 +528,10 @@ export const syncJobFunction = inngest.createFunction(
                   `Invalid entities: ${invalidEntities.join(", ")}. Available: ${availableEntities.join(", ")}`,
                 );
               }
-              return job.entityFilter;
+              // Also filter requested list against non-empty names
+              return job.entityFilter.filter(
+                e => typeof e === "string" && e.trim().length > 0,
+              );
             } else {
               return availableEntities;
             }

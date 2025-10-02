@@ -171,7 +171,15 @@ export class PosthogConnector extends BaseConnector {
 
   getAvailableEntities(): string[] {
     const list = this.dataSource.config.queries || [];
-    return list.map((q: any) => q.name);
+    // Only include queries that have required fields filled in
+    return list
+      .filter((q: any) => {
+        const nameOk = typeof q?.name === "string" && q.name.trim().length > 0;
+        const queryOk =
+          typeof q?.query === "string" && q.query.trim().length > 0;
+        return nameOk && queryOk;
+      })
+      .map((q: any) => q.name);
   }
 
   supportsResumableFetching(): boolean {
@@ -183,7 +191,16 @@ export class PosthogConnector extends BaseConnector {
     const maxIterations = options.maxIterations || 10;
 
     const q = this.getQueryConfig(entity);
-    if (!q) throw new Error(`Query configuration '${entity}' not found`);
+    if (!q || !q.query || q.query.trim().length === 0) {
+      // Treat as empty/incomplete configuration; skip gracefully
+      if (onProgress) onProgress(0, undefined);
+      return {
+        offset: state?.offset || 0,
+        totalProcessed: state?.totalProcessed || 0,
+        hasMore: false,
+        iterationsInChunk: 0,
+      };
+    }
 
     const batchSize = Number(
       q.batch_size || options.batchSize || this.getBatchSize(),
@@ -349,4 +366,3 @@ export class PosthogConnector extends BaseConnector {
     throw new Error("Max retries exceeded");
   }
 }
-
