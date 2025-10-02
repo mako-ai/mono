@@ -303,6 +303,49 @@ function ConnectorForm({
   const onSubmitInternal = (values: Record<string, any>) => {
     // form submitted
     const { dirtyFields } = form.formState;
+    // Validate object_array required items before proceeding
+    if (schema) {
+      let hasItemErrors = false;
+      schema.fields.forEach(f => {
+        if (f.type === "object_array" && Array.isArray(f.itemFields)) {
+          const items: any[] = Array.isArray(values[f.name])
+            ? values[f.name]
+            : [];
+          if (f.required && items.length === 0) {
+            form.setError(f.name as any, {
+              type: "required",
+              message: "At least one item is required",
+            });
+            hasItemErrors = true;
+          }
+          items.forEach((item, idx) => {
+            f.itemFields!.forEach(sub => {
+              if (sub.required) {
+                const v = item?.[sub.name];
+                const isEmpty =
+                  v === undefined ||
+                  v === null ||
+                  (typeof v === "string" && v.trim() === "");
+                if (isEmpty) {
+                  const path = `${f.name}.${idx}.${sub.name}`;
+                  form.setError(path as any, {
+                    type: "required",
+                    message: "This field is required",
+                  });
+                  hasItemErrors = true;
+                }
+              }
+            });
+          });
+        }
+      });
+      if (hasItemErrors) {
+        setSnackbarMessage(
+          "Please complete all required fields in queries before saving.",
+        );
+        return;
+      }
+    }
 
     const isNewConnector = !connector;
 
@@ -673,15 +716,20 @@ function ConnectorForm({
             {/* Reorder fields to desired sequence for REST entities */}
             {(field.itemFields || []).map(subField => {
               const fieldPath = `${field.name}.${index}.${subField.name}`;
-
-              const registerProps = form.register(fieldPath);
+              const registerProps = form.register(fieldPath, {
+                required: subField.required,
+              });
+              const fieldState = form.getFieldState(fieldPath);
+              const hasError = !!fieldState.error;
 
               const commonTextProps = {
                 fullWidth: true,
                 margin: "normal" as const,
                 label: subField.label,
                 placeholder: subField.placeholder,
-                helperText: subField.helperText,
+                helperText: hasError
+                  ? "This field is required"
+                  : subField.helperText,
                 defaultValue: (item as any)[subField.name] || "",
               };
 
@@ -740,6 +788,8 @@ function ConnectorForm({
                     {...commonTextProps}
                     multiline
                     rows={subField.rows ?? 4}
+                    error={hasError}
+                    required={subField.required}
                     inputRef={registerProps.ref}
                     name={registerProps.name}
                     onChange={registerProps.onChange}
@@ -771,6 +821,8 @@ function ConnectorForm({
                   key={fieldPath}
                   {...commonTextProps}
                   type={subField.type === "number" ? "number" : "text"}
+                  error={hasError}
+                  required={subField.required}
                   inputRef={registerProps.ref}
                   name={registerProps.name}
                   onChange={registerProps.onChange}
