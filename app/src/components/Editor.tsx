@@ -133,6 +133,19 @@ function Editor() {
     return () => clearInterval(interval);
   }, [activeConsoleId, consoleTabs.length, setActiveEditorContent]);
 
+  // Update the page title based on the active tab
+  useEffect(() => {
+    const baseTitle = "Mako RevOps";
+    if (!activeConsoleId) {
+      document.title = baseTitle;
+      return;
+    }
+    const activeTab = consoleTabs.find(tab => tab.id === activeConsoleId);
+    document.title = activeTab?.title
+      ? `${activeTab.title} - ${baseTitle}`
+      : baseTitle;
+  }, [activeConsoleId, consoleTabs]);
+
   // Fetch databases when workspace changes
   useEffect(() => {
     const fetchDatabases = async () => {
