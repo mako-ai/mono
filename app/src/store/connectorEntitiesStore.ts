@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { apiClient } from "../lib/api-client";
 
 interface ConnectorEntity {
   _id: string;
@@ -59,16 +60,16 @@ export const useConnectorEntitiesStore = create<EntitiesState>()(
       });
       if (entity) return entity;
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${connectorId}`,
-        );
-        const data = await response.json();
+        const data = await apiClient.get<{
+          success: boolean;
+          data: any;
+        }>(`/workspaces/${workspaceId}/connectors/${connectorId}`);
         if (data.success) {
           set(state => {
-            state.entities[key] = { ...data.data, workspaceId };
+            state.entities[key] = { ...(data as any).data, workspaceId };
             delete state.loading[key];
           });
-          return data.data;
+          return (data as any).data;
         }
       } catch (err) {
         console.error("Failed to fetch connector", err);
@@ -85,18 +86,18 @@ export const useConnectorEntitiesStore = create<EntitiesState>()(
       });
 
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors`,
-        );
-        const data = await response.json();
+        const data = await apiClient.get<{
+          success: boolean;
+          data: any[];
+        }>(`/workspaces/${workspaceId}/connectors`);
         if (data.success) {
           set(state => {
-            data.data.forEach((ds: any) => {
+            (data as any).data.forEach((ds: any) => {
               const key = makeKey(workspaceId, ds._id);
               state.entities[key] = { ...ds, workspaceId };
             });
           });
-          return data.data;
+          return (data as any).data;
         }
       } catch (err) {
         console.error("Failed to fetch connectors list", err);
@@ -138,24 +139,22 @@ export const useConnectorEntitiesStore = create<EntitiesState>()(
       payload: Record<string, any>,
     ): Promise<{ data: ConnectorEntity | null; error: string | null }> => {
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
-        const data = await response.json();
+        const data = await apiClient.post<{
+          success: boolean;
+          data: any;
+        }>(`/workspaces/${workspaceId}/connectors`, payload);
         if (data.success) {
-          const entity = { ...data.data, workspaceId } as ConnectorEntity;
+          const entity = {
+            ...(data as any).data,
+            workspaceId,
+          } as ConnectorEntity;
           set(state => {
             const key = makeKey(workspaceId, entity._id);
             state.entities[key] = entity;
           });
           return { data: entity, error: null };
         }
-        return { data: null, error: data.error || "Failed to create" };
+        return { data: null, error: (data as any).error || "Failed to create" };
       } catch (err: any) {
         console.error("Create connector failed", err);
         return {
@@ -170,24 +169,22 @@ export const useConnectorEntitiesStore = create<EntitiesState>()(
       payload: Record<string, any>,
     ): Promise<{ data: ConnectorEntity | null; error: string | null }> => {
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${connectorId}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
-        const data = await response.json();
+        const data = await apiClient.put<{
+          success: boolean;
+          data: any;
+        }>(`/workspaces/${workspaceId}/connectors/${connectorId}`, payload);
         if (data.success) {
-          const entity = { ...data.data, workspaceId } as ConnectorEntity;
+          const entity = {
+            ...(data as any).data,
+            workspaceId,
+          } as ConnectorEntity;
           set(state => {
             const key = makeKey(workspaceId, entity._id);
             state.entities[key] = entity;
           });
           return { data: entity, error: null };
         }
-        return { data: null, error: data.error || "Failed to update" };
+        return { data: null, error: (data as any).error || "Failed to update" };
       } catch (err: any) {
         console.error("Update connector failed", err);
         return {
@@ -201,11 +198,10 @@ export const useConnectorEntitiesStore = create<EntitiesState>()(
       connectorId: string,
     ): Promise<{ success: boolean; error: string | null }> => {
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${connectorId}`,
-          { method: "DELETE" },
-        );
-        const data = await response.json();
+        const data = await apiClient.delete<{
+          success: boolean;
+          error?: string;
+        }>(`/workspaces/${workspaceId}/connectors/${connectorId}`);
         if (data.success) {
           set(state => {
             const key = makeKey(workspaceId, connectorId);
@@ -215,7 +211,7 @@ export const useConnectorEntitiesStore = create<EntitiesState>()(
         }
         return {
           success: false,
-          error: data.error || "Failed to delete",
+          error: (data as any).error || "Failed to delete",
         };
       } catch (err: any) {
         console.error("Delete connector failed", err);

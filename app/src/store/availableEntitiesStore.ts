@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { apiClient } from "../lib/api-client";
 
 interface AvailableEntitiesState {
   byConnector: Record<string, string[]>; // key = `${workspaceId}:${connectorId}`
@@ -35,12 +36,12 @@ export const useAvailableEntitiesStore = create<AvailableEntitiesState>()(
       });
 
       try {
-        const res = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${connectorId}/entities`,
-        );
-        const json = await res.json();
-        if (res.ok && json.success) {
-          const list: string[] = json.data || [];
+        const json = await apiClient.get<{
+          success: boolean;
+          data: string[];
+        }>(`/workspaces/${workspaceId}/connectors/${connectorId}/entities`);
+        if (json.success) {
+          const list: string[] = (json as any).data || [];
           set(state => {
             state.byConnector[key] = list;
             delete state.loading[key];
@@ -48,7 +49,7 @@ export const useAvailableEntitiesStore = create<AvailableEntitiesState>()(
           });
           return list;
         }
-        throw new Error(json.error || "Failed to fetch entities");
+        throw new Error((json as any).error || "Failed to fetch entities");
       } catch (err: any) {
         set(state => {
           state.error[key] = err?.message || "Failed to fetch entities";

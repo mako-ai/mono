@@ -1,4 +1,5 @@
 import { useAppStore, useAppDispatch, ConsoleTab } from "./appStore";
+import { apiClient } from "../lib/api-client";
 import { generateObjectId } from "../utils/objectId";
 import { ConsoleVersionManager } from "../utils/ConsoleVersionManager";
 import { hashContent } from "../utils/hash";
@@ -123,6 +124,83 @@ export const useConsoleStore = () => {
     return versionManagers.get(consoleId) || null;
   };
 
+  const executeQuery = async (
+    workspaceId: string,
+    databaseId: string,
+    query: string,
+  ): Promise<{ success: boolean; data?: any; error?: string }> => {
+    try {
+      const res = await apiClient.post<{
+        success: boolean;
+        data: any;
+        error?: string;
+      }>(`/workspaces/${workspaceId}/databases/${databaseId}/execute`, {
+        query,
+      });
+      return res.success
+        ? { success: true, data: (res as any).data }
+        : { success: false, error: (res as any).error || "Execution failed" };
+    } catch (e: any) {
+      return { success: false, error: e?.message || "Execution failed" };
+    }
+  };
+
+  const saveConsole = async (
+    workspaceId: string,
+    tabId: string,
+    content: string,
+    currentPath?: string,
+    databaseId?: string,
+    isNew?: boolean,
+  ): Promise<{
+    success: boolean;
+    path?: string;
+    id?: string;
+    error?: string;
+  }> => {
+    try {
+      let path = currentPath;
+      const method: "POST" | "PUT" = isNew ? "POST" : "PUT";
+      let endpoint: string;
+      if (!path) {
+        // Caller should prompt for file name before invoking this in UI
+        return { success: false, error: "Missing path" };
+      }
+      // Remove .js extension if present as backend doesn't expect it
+      if (path.endsWith(".js")) {
+        path = path.slice(0, -3);
+      }
+
+      if (method === "POST") {
+        endpoint = `/workspaces/${workspaceId}/consoles`;
+      } else {
+        endpoint = `/workspaces/${workspaceId}/consoles/${path}`;
+      }
+
+      if (method === "POST") {
+        const res = await apiClient.post<{
+          success: boolean;
+          data?: { id: string };
+          error?: string;
+        }>(endpoint, { id: tabId, path, content, databaseId });
+        return res.success
+          ? { success: true, path, id: (res as any).data?.id }
+          : { success: false, error: (res as any).error || "Save failed" };
+      } else {
+        const res = await apiClient.put<{
+          success: boolean;
+          data?: any;
+          error?: string;
+        }>(endpoint, { content, databaseId });
+        return res.success
+          ? { success: true, path }
+          : { success: false, error: (res as any).error || "Save failed" };
+      }
+    } catch (e: any) {
+      return { success: false, error: e?.message || "Save failed" };
+    }
+  };
+
   return {
     consoleTabs,
     activeConsoleId: activeTabId,
@@ -138,6 +216,8 @@ export const useConsoleStore = () => {
     updateConsoleDirty,
     updateConsoleIcon,
     getVersionManager,
+    executeQuery: executeQuery,
+    saveConsole: saveConsole,
   };
 };
 

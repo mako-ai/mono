@@ -83,9 +83,7 @@ function Editor() {
       hostName: string;
     }[]
   >([]);
-  const [versionHistoryTabId, setVersionHistoryTabId] = useState<string | null>(
-    null,
-  );
+  // Version history UI is currently disabled; re-enable when implemented
 
   // Tab store
   const {
@@ -98,6 +96,8 @@ function Editor() {
     updateConsoleTitle,
     updateConsoleDirty,
     setActiveConsole,
+    executeQuery,
+    saveConsole,
   } = useConsoleStore();
 
   // Refs for each Console instance
@@ -150,16 +150,13 @@ function Editor() {
   useEffect(() => {
     const fetchDatabases = async () => {
       if (!currentWorkspace) return;
-
       try {
-        const response = await fetch(
-          `/api/workspaces/${currentWorkspace.id}/databases`,
-        );
-        const data = await response.json();
-        if (data.success) {
-          // Use the databases directly from the new API structure
-          setAvailableDatabases(data.data);
-        }
+        const { apiClient } = await import("../lib/api-client");
+        const res = await apiClient.get<{
+          success: boolean;
+          data: any[];
+        }>(`/workspaces/${currentWorkspace.id}/databases`);
+        if (res.success) setAvailableDatabases((res as any).data);
       } catch (e) {
         console.error("Failed to fetch databases list", e);
       }
@@ -186,12 +183,7 @@ function Editor() {
         if (consoleRefs.current[targetConsoleId]?.current) {
           consoleRefs.current[targetConsoleId].current.showDiff(modification);
         } else if (retries > 0) {
-          // Keep one log for troubleshooting
-          if (retries === 10) {
-            console.log(
-              `Console ref not ready for ID: ${targetConsoleId}, retrying...`,
-            );
-          }
+          // Keep retrying silently
           setTimeout(() => {
             showDiffWithRetry(retries - 1, delay);
           }, delay);
@@ -258,28 +250,24 @@ function Editor() {
     setIsExecuting(true);
     const startTime = Date.now();
     try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/databases/${databaseId}/execute`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: contentToExecute }),
-        },
+      const result = await executeQuery(
+        currentWorkspace.id,
+        databaseId,
+        contentToExecute,
       );
       const executionTime = Date.now() - startTime;
-      const data = await response.json();
-      if (data.success) {
+      if (result.success) {
         setTabResults(prev => ({
           ...prev,
           [tabId]: {
-            results: data.data,
+            results: result.data,
             executedAt: new Date().toISOString(),
-            resultCount: Array.isArray(data.data) ? data.data.length : 1,
+            resultCount: Array.isArray(result.data) ? result.data.length : 1,
             executionTime,
           },
         }));
       } else {
-        setErrorMessage(JSON.stringify(data.error, null, 2));
+        setErrorMessage(JSON.stringify(result.error, null, 2));
         setErrorModalOpen(true);
         setTabResults(prev => ({ ...prev, [tabId]: null }));
       }
@@ -307,7 +295,7 @@ function Editor() {
     let success = false;
     try {
       let savePath = currentPath;
-      let method = "PUT";
+      let isNew = false;
       if (!savePath) {
         const fileName = prompt(
           "Enter a file name to save (e.g., myFolder/myConsole). .js will be appended if absent.",
@@ -317,36 +305,24 @@ function Editor() {
           return false;
         }
         savePath = fileName.endsWith(".js") ? fileName.slice(0, -3) : fileName;
-        method = "POST";
+        isNew = true;
       }
 
       // Get the current database ID for the tab
       const currentTab = consoleTabs.find(tab => tab.id === tabId);
       const databaseId = currentTab?.databaseId;
 
-      const response = await fetch(
-        method === "PUT"
-          ? `/api/workspaces/${currentWorkspace.id}/consoles/${savePath}`
-          : `/api/workspaces/${currentWorkspace.id}/consoles`,
-        {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(
-            method === "POST"
-              ? {
-                  id: tabId, // Pass the tab ID as the console ID
-                  path: savePath,
-                  content: contentToSave,
-                  databaseId,
-                }
-              : { content: contentToSave, databaseId },
-          ),
-        },
+      const result = await saveConsole(
+        currentWorkspace.id,
+        tabId,
+        contentToSave,
+        savePath,
+        databaseId,
+        isNew,
       );
-      const data = await response.json();
-      if (data.success) {
+      if (result.success) {
         // Update file path and title for new files (POST)
-        if (method === "POST" && savePath) {
+        if (isNew && savePath) {
           updateConsoleFilePath(tabId, savePath);
         }
 
@@ -359,18 +335,27 @@ function Editor() {
         updateConsoleDirty(tabId, true);
 
         setSnackbarMessage(
-          `Console saved ${method === "POST" ? "as" : "to"} '${savePath}.js'`,
+          `Console saved ${isNew ? "as" : "to"} '${savePath}.js'`,
         );
         setSnackbarOpen(true);
         success = true;
 
+        // Just add the console to the tree - no refresh needed
+        if (isNew) {
+          const { useConsoleTreeStore } = await import(
+            "../store/consoleTreeStore"
+          );
+          // The server SHOULD return the same ID we sent
+          // If not, something is wrong with the backend
+          useConsoleTreeStore
+            .getState()
+            .addConsole(currentWorkspace.id, savePath!, tabId);
+        }
+
         // Refresh the console tree directly via store
-        const { useConsoleTreeStore } = await import(
-          "../store/consoleTreeStore"
-        );
-        await useConsoleTreeStore.getState().refresh(currentWorkspace.id);
+        // No blocking refresh here; tree already updated optimistically
       } else {
-        setErrorMessage(JSON.stringify(data.error, null, 2));
+        setErrorMessage(JSON.stringify(result.error, null, 2));
         setErrorModalOpen(true);
       }
     } catch (e: any) {
@@ -567,7 +552,6 @@ function Editor() {
                         }
                         filePath={tab.filePath}
                         enableVersionControl={true}
-                        onHistoryClick={() => setVersionHistoryTabId(tab.id)}
                       />
                     </Panel>
 

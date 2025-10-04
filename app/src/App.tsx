@@ -57,7 +57,7 @@ function MainApp() {
   const handleConsoleModification = async (
     modification: ConsoleModification,
   ) => {
-    console.log("App handleConsoleModification called with:", modification);
+    // handleConsoleModification called
 
     // Always use the active console - this is what users expect
     // When they ask the AI to modify a console, they mean the one they're looking at
@@ -85,11 +85,11 @@ function MainApp() {
 
     // If we just created a new console, wait a bit for it to mount
     if (isNewConsole) {
-      console.log("New console created, waiting for mount...");
+      // wait for mount
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log("Using console ID for modification:", targetConsoleId);
+    // using console ID
 
     // Dispatch a custom event that the Editor component can listen to
     const event = new CustomEvent("console-modification", {
@@ -105,6 +105,7 @@ function MainApp() {
     extraContextItems: any[] = [],
     filePath?: string,
     consoleId?: string, // Add optional consoleId parameter
+    isPlaceholder?: boolean,
   ) => {
     // For existing consoles, use the server ID as the tab ID
     const tabId = consoleId || generateObjectId();
@@ -137,7 +138,8 @@ function MainApp() {
       content,
       initialContent: content,
       databaseId,
-      filePath,
+      // If placeholder, defer setting filePath so dbContentHash isn't computed
+      filePath: isPlaceholder ? undefined : filePath,
     });
     setActiveConsole(id);
 
@@ -179,7 +181,13 @@ function MainApp() {
       case "consoles":
         return (
           <ConsoleExplorer
-            onConsoleSelect={(path, content, databaseId, consoleId) => {
+            onConsoleSelect={(
+              path,
+              content,
+              databaseId,
+              consoleId,
+              isPlaceholder,
+            ) => {
               openOrFocusConsoleTab(
                 path,
                 content,
@@ -187,6 +195,7 @@ function MainApp() {
                 [],
                 path,
                 consoleId,
+                isPlaceholder,
               );
             }}
           />

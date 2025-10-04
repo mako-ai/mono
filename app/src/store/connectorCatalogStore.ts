@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
+import { apiClient } from "../lib/api-client";
 
 export interface ConnectorType {
   type: string;
@@ -46,16 +47,19 @@ export const useConnectorCatalogStore = create<CatalogState>()(
           state.error = null;
         });
         try {
-          const response = await fetch("/api/connectors/types");
-          const data = await response.json();
+          const data = await apiClient.get<{
+            success: boolean;
+            data: ConnectorType[];
+          }>("/connectors/types");
           if (data.success) {
             set(state => {
-              state.types = data.data;
+              state.types = (data as any).data;
               state.loading = false;
             });
           } else {
             set(state => {
-              state.error = data.error || "Failed to load connector types";
+              state.error =
+                (data as any).error || "Failed to load connector types";
               state.loading = false;
             });
           }
@@ -78,14 +82,16 @@ export const useConnectorCatalogStore = create<CatalogState>()(
         });
 
         try {
-          const res = await fetch(`/api/connectors/${type}/schema`);
-          const json = await res.json();
-          if (res.ok && json.success) {
+          const json = await apiClient.get<{
+            success: boolean;
+            data: ConnectorSchemaResponse;
+          }>(`/connectors/${type}/schema`);
+          if (json.success) {
             set(state => {
-              state.schemas[type] = json.data;
+              state.schemas[type] = (json as any).data;
               delete state.schemaLoading[type];
             });
-            return json.data;
+            return (json as any).data;
           }
         } catch (err) {
           console.error("Failed to fetch schema", err);

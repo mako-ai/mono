@@ -295,6 +295,32 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     }
   }, [dbContentHash]);
 
+  // Apply new initialContent from props when background fetch finishes
+  // Only overwrite if the editor is currently showing a placeholder or empty
+  useEffect(() => {
+    if (!editorRef.current) return;
+    const model = editorRef.current.getModel();
+    if (!model) return;
+    const current = model.getValue();
+    const isPlaceholder = current === "loading..." || current.trim() === "";
+    if (isPlaceholder && initialContent && current !== initialContent) {
+      isProgrammaticUpdateRef.current = true;
+      model.setValue(initialContent);
+      // Update undo/redo state
+      setMonacoCanUndo(model.canUndo());
+      setMonacoCanRedo(model.canRedo());
+      // Update unsaved changes flag against DB hash
+      if (dbContentHash) {
+        const currentContentHash = hashContent(initialContent);
+        const hasChanges = currentContentHash !== dbContentHash;
+        setHasUnsavedChanges(hasChanges);
+      } else {
+        setHasUnsavedChanges(false);
+      }
+      isProgrammaticUpdateRef.current = false;
+    }
+  }, [initialContent, dbContentHash]);
+
   // Cleanup debounce timeout on unmount
   useEffect(() => {
     return () => {
@@ -738,6 +764,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
             onClick={handleExecute}
             disabled={isExecuting || !selectedDatabaseId}
             disableElevation
+            sx={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "200px", // Adjust this value as needed
+              minWidth: "120px", // Ensure minimum width for readability
+            }}
           >
             {isExecuting ? "Executing..." : "Run (⌘/Ctrl+Enter)"}
           </Button>
