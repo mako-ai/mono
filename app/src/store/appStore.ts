@@ -38,6 +38,7 @@ export interface GlobalState {
     fileName?: string;
     language?: string;
   };
+  currentWorkspaceId?: string | null;
   ui: {
     leftPane: "databases" | "consoles" | "connectors" | "sync-jobs";
     loading: Record<string, boolean>; // keyed by request name
@@ -81,6 +82,7 @@ const defaultChatId = createDefaultChatId();
 export const initialState: GlobalState = {
   activeView: "consoles",
   activeEditorContent: undefined,
+  currentWorkspaceId: null,
   ui: {
     leftPane: "databases",
     loading: {},
@@ -541,6 +543,7 @@ export const useAppStore = create<
     setActiveView: (
       view: "databases" | "consoles" | "connectors" | "sync-jobs",
     ) => void;
+    setCurrentWorkspaceId: (workspaceId: string | null) => void;
     setActiveEditorContent: (
       content:
         | { content: string; fileName?: string; language?: string }
@@ -557,6 +560,10 @@ export const useAppStore = create<
           state.activeView = view;
           state.ui.leftPane = view;
         }),
+      setCurrentWorkspaceId: workspaceId =>
+        set(state => {
+          state.currentWorkspaceId = workspaceId;
+        }),
       setActiveEditorContent: content =>
         set(state => {
           state.activeEditorContent = content;
@@ -567,6 +574,7 @@ export const useAppStore = create<
       partialize: state => ({
         // Persist chat sessions, console tabs, and settings
         activeView: state.activeView,
+        currentWorkspaceId: state.currentWorkspaceId,
         chat: {
           sessions: Object.fromEntries(
             Object.entries(state.chat.sessions).filter(

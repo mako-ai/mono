@@ -22,6 +22,7 @@ import {
 } from "@mui/material";
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
+import { apiClient } from "../lib/api-client";
 
 interface CreateDatabaseDialogProps {
   open: boolean;
@@ -114,25 +115,18 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/databases`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name,
-            type,
-            connection: finalConnection,
-          }),
-        },
-      );
+      const data = await apiClient.post<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }>(`/workspaces/${currentWorkspace.id}/databases`, {
+        name,
+        type,
+        connection: finalConnection,
+      });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create database");
+      if (!data.success) {
+        throw new Error((data as any).error || "Failed to create database");
       }
 
       onSuccess();

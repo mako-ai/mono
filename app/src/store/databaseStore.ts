@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { apiClient } from "../lib/api-client";
 
 export interface CollectionInfo {
   name: string;
@@ -58,10 +59,10 @@ export const useDatabaseStore = create<DatabaseState>()(
         state.error[workspaceId] = null;
       });
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/databases`,
-        );
-        const data = await response.json();
+        const data = await apiClient.get<{
+          success: boolean;
+          data: Database[];
+        }>(`/workspaces/${workspaceId}/databases`);
         if (data.success) {
           const serverMap = new Map<string, Server>();
           (data.data as Database[]).forEach(db => {
@@ -118,14 +119,16 @@ export const useDatabaseStore = create<DatabaseState>()(
         state.loading[loadingKey] = true;
       });
       try {
-        const [collectionsResponse, viewsResponse] = await Promise.all([
-          fetch(
-            `/api/workspaces/${workspaceId}/databases/${databaseId}/collections`,
-          ),
-          fetch(`/api/workspaces/${workspaceId}/databases/${databaseId}/views`),
+        const [collectionsData, viewsData] = await Promise.all([
+          apiClient.get<{
+            success: boolean;
+            data: CollectionInfo[];
+          }>(`/workspaces/${workspaceId}/databases/${databaseId}/collections`),
+          apiClient.get<{
+            success: boolean;
+            data: CollectionInfo[];
+          }>(`/workspaces/${workspaceId}/databases/${databaseId}/views`),
         ]);
-        const collectionsData = await collectionsResponse.json();
-        const viewsData = await viewsResponse.json();
         if (collectionsData.success) {
           set(state => {
             state.collections[databaseId] = collectionsData.data.sort(
