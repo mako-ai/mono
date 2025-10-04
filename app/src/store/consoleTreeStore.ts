@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { apiClient } from "../lib/api-client";
 
 export interface ConsoleEntry {
   name: string;
@@ -24,6 +25,8 @@ interface TreeState {
   fetchTree: (workspaceId: string) => Promise<ConsoleEntry[]>;
   refresh: (workspaceId: string) => Promise<ConsoleEntry[]>;
   init: (workspaceId: string) => Promise<void>;
+  setTree: (workspaceId: string, tree: ConsoleEntry[]) => void;
+  addConsole: (workspaceId: string, path: string, id: string) => void;
   // Future mutations
 }
 
@@ -38,8 +41,10 @@ export const useConsoleTreeStore = create<TreeState>()(
         state.error[workspaceId] = null;
       });
       try {
-        const response = await fetch(`/api/workspaces/${workspaceId}/consoles`);
-        const data = await response.json();
+        const data = await apiClient.get<{
+          success: boolean;
+          tree?: ConsoleEntry[];
+        }>(`/workspaces/${workspaceId}/consoles`);
         if (data.tree && Array.isArray(data.tree)) {
           set(state => {
             state.trees[workspaceId] = data.tree as ConsoleEntry[];
@@ -67,6 +72,48 @@ export const useConsoleTreeStore = create<TreeState>()(
       if (!hasData) {
         await _get().fetchTree(workspaceId);
       }
+    },
+    setTree: (workspaceId, tree) => {
+      set(state => {
+        state.trees[workspaceId] = tree;
+      });
+    },
+    addConsole: (workspaceId, path, id) => {
+      set(state => {
+        const tree = state.trees[workspaceId] || [];
+        const segments = path.split("/").filter(Boolean);
+        const fileName = segments[segments.length - 1];
+
+        // Check if already exists
+        const exists = tree.some(item => item.id === id);
+        if (!exists) {
+          const newConsole = {
+            name: fileName,
+            path: path,
+            isDirectory: false,
+            id: id,
+          };
+
+          // Find the correct position to insert (alphabetically)
+          // Directories come first, then files, both sorted alphabetically
+          let insertIndex = tree.length;
+          for (let i = 0; i < tree.length; i++) {
+            const item = tree[i];
+            // If current item is a file and we're inserting a file
+            if (!item.isDirectory) {
+              // Compare names alphabetically
+              if (fileName.toLowerCase() < item.name.toLowerCase()) {
+                insertIndex = i;
+                break;
+              }
+            }
+          }
+
+          // Insert at the correct position
+          tree.splice(insertIndex, 0, newConsole);
+        }
+        state.trees[workspaceId] = tree;
+      });
     },
   })),
 );

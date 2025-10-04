@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { apiClient } from "../lib/api-client";
 
 interface ConnectorEntity {
   _id: string;
@@ -59,16 +60,16 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
       });
       if (entity) return entity;
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${sourceId}`,
-        );
-        const data = await response.json();
+        const data = await apiClient.get<{
+          success: boolean;
+          data: any;
+        }>(`/workspaces/${workspaceId}/connectors/${sourceId}`);
         if (data.success) {
           set(state => {
-            state.entities[key] = { ...data.data, workspaceId };
+            state.entities[key] = { ...(data as any).data, workspaceId };
             delete state.loading[key];
           });
-          return data.data;
+          return (data as any).data;
         }
       } catch (err) {
         console.error("Failed to fetch data source", err);
@@ -86,18 +87,18 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
       });
 
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors`,
-        );
-        const data = await response.json();
+        const data = await apiClient.get<{
+          success: boolean;
+          data: any[];
+        }>(`/workspaces/${workspaceId}/connectors`);
         if (data.success) {
           set(state => {
-            data.data.forEach((ds: any) => {
+            (data as any).data.forEach((ds: any) => {
               const key = makeKey(workspaceId, ds._id);
               state.entities[key] = { ...ds, workspaceId };
             });
           });
-          return data.data;
+          return (data as any).data;
         }
       } catch (err) {
         console.error("Failed to fetch sources list", err);
@@ -137,26 +138,24 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
     create: async (
       workspaceId: string,
       payload: Record<string, any>,
-    ): Promise<{ data: DataSourceEntity | null; error: string | null }> => {
+    ): Promise<{ data: ConnectorEntity | null; error: string | null }> => {
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
-        const data = await response.json();
+        const data = await apiClient.post<{
+          success: boolean;
+          data: any;
+        }>(`/workspaces/${workspaceId}/connectors`, payload);
         if (data.success) {
-          const entity = { ...data.data, workspaceId } as DataSourceEntity;
+          const entity = {
+            ...(data as any).data,
+            workspaceId,
+          } as ConnectorEntity;
           set(state => {
             const key = makeKey(workspaceId, entity._id);
             state.entities[key] = entity;
           });
           return { data: entity, error: null };
         }
-        return { data: null, error: data.error || "Failed to create" };
+        return { data: null, error: (data as any).error || "Failed to create" };
       } catch (err: any) {
         console.error("Create data source failed", err);
         return {
@@ -169,26 +168,24 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
       workspaceId: string,
       sourceId: string,
       payload: Record<string, any>,
-    ): Promise<{ data: DataSourceEntity | null; error: string | null }> => {
+    ): Promise<{ data: ConnectorEntity | null; error: string | null }> => {
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${sourceId}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
-        const data = await response.json();
+        const data = await apiClient.put<{
+          success: boolean;
+          data: any;
+        }>(`/workspaces/${workspaceId}/connectors/${sourceId}`, payload);
         if (data.success) {
-          const entity = { ...data.data, workspaceId } as DataSourceEntity;
+          const entity = {
+            ...(data as any).data,
+            workspaceId,
+          } as ConnectorEntity;
           set(state => {
             const key = makeKey(workspaceId, entity._id);
             state.entities[key] = entity;
           });
           return { data: entity, error: null };
         }
-        return { data: null, error: data.error || "Failed to update" };
+        return { data: null, error: (data as any).error || "Failed to update" };
       } catch (err: any) {
         console.error("Update data source failed", err);
         return {
@@ -202,11 +199,10 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
       sourceId: string,
     ): Promise<{ success: boolean; error: string | null }> => {
       try {
-        const response = await fetch(
-          `/api/workspaces/${workspaceId}/connectors/${sourceId}`,
-          { method: "DELETE" },
-        );
-        const data = await response.json();
+        const data = await apiClient.delete<{
+          success: boolean;
+          error?: string;
+        }>(`/workspaces/${workspaceId}/connectors/${sourceId}`);
         if (data.success) {
           set(state => {
             const key = makeKey(workspaceId, sourceId);
@@ -216,7 +212,7 @@ export const useDataSourceEntitiesStore = create<EntitiesState>()(
         }
         return {
           success: false,
-          error: data.error || "Failed to delete",
+          error: (data as any).error || "Failed to delete",
         };
       } catch (err: any) {
         console.error("Delete data source failed", err);

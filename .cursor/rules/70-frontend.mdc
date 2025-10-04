@@ -18,3 +18,12 @@ Rules:
 - Avoid prop drilling; introduce context or store slices where needed.
 - Keep components small; extract presentational components.
 - Do not import from `app/dist/**`.
+
+- API access pattern:
+  - All network calls must originate from Zustand stores under `app/src/store/**`.
+  - Components, pages, hooks, and contexts must not call `fetch`, `axios`, or `apiClient` directly; they must invoke store methods.
+  - Stores must use the centralized `apiClient` (`app/src/lib/api-client.ts`) for all requests. Do not use `fetch` or `axios` directly in stores.
+  - Workspace-scoped requests must target `/workspaces/:id/...`; rely on `apiClient` to inject the `x-workspace-id` header.
+  - For streaming or unusual endpoints, encapsulate the request in a store helper and return data/streams to components.
+  - Centralize error handling in stores; surface simple result types to components.
+  - Gate store calls on workspace readiness when applicable (e.g., after workspace context resolves).

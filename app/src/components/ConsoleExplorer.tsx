@@ -35,8 +35,10 @@ import {
   Plus as AddIcon,
 } from "lucide-react";
 import { useAppStore } from "../store/appStore";
+import { useConsoleStore } from "../store/consoleStore";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleTreeStore } from "../store/consoleTreeStore";
+import { useConsoleContentStore } from "../store/consoleContentStore";
 
 interface ConsoleEntry {
   name: string;
@@ -60,6 +62,7 @@ interface ConsoleExplorerProps {
     content: string,
     databaseId?: string,
     consoleId?: string, // Add consoleId parameter
+    isPlaceholder?: boolean,
   ) => void;
 }
 
@@ -84,6 +87,7 @@ function ConsoleExplorer(
     : [];
   const loading = currentWorkspace ? !!loadingMap[currentWorkspace.id] : false;
   const dispatch = useAppStore(s => s.dispatch);
+  const { activeConsoleId } = useConsoleStore();
   const expandedFoldersArray = useAppStore(
     s => s.explorers.console.expandedFolders,
   );
@@ -146,23 +150,47 @@ function ConsoleExplorer(
       return;
     }
 
+    // 1) Optimistically select the item and open/focus tab immediately
+    const consoleId = node.id;
+    const cached = useConsoleContentStore.getState().get(consoleId);
+    const initialContent = cached?.content ?? "loading...";
+    const databaseId = cached?.databaseId || node.databaseId;
+    onConsoleSelect(node.path, initialContent, databaseId, consoleId, !cached);
+
+    // 2) Fetch in background via apiClient and update store
     try {
-      // Use the console's unique ID for the API call
-      const response = await fetch(
-        `/api/workspaces/${currentWorkspace.id}/consoles/content?id=${encodeURIComponent(node.id)}`,
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const { apiClient } = await import("../lib/api-client");
+      const data = await apiClient.get<{
+        success: boolean;
+        content: string;
+        databaseId?: string;
+        id: string;
+      }>(`/workspaces/${currentWorkspace.id}/consoles/content`, {
+        id: consoleId,
+      });
+      if (data && (data as any).success) {
+        useConsoleContentStore.getState().set(consoleId, {
+          content: (data as any).content,
+          databaseId: (data as any).databaseId || node.databaseId,
+        });
+        // Optionally update tab content if it is still open and was showing stale/placeholder
+        const { updateConsoleContent } = (
+          await import("../store/consoleStore")
+        ).useConsoleStore.getState();
+        updateConsoleContent(consoleId, (data as any).content);
+
+        // Update dbContentHash so pristine/dirty state is correct
+        const { hashContent } = await import("../utils/hash");
+        const dbHash = hashContent((data as any).content);
+        const { useAppStore } = await import("../store/appStore");
+        useAppStore.getState().dispatch({
+          type: "UPDATE_CONSOLE_DB_HASH",
+          payload: { id: consoleId, dbContentHash: dbHash },
+        } as any);
       }
-      const data = await response.json();
-
-      // Use the database ID from the response if available, otherwise from the node
-      const databaseId = data.databaseId || node.databaseId;
-      const consoleId = node.id; // Always use the node's ID
-
-      onConsoleSelect(node.path, data.content, databaseId, consoleId);
-    } catch (e: any) {
-      console.error("Failed to fetch console content:", e);
+    } catch (e) {
+      // Background error shouldn't block UI
+      console.error("Background fetch failed", e);
     }
   };
 
@@ -368,12 +396,16 @@ function ConsoleExplorer(
       }
       // Use ID if available, otherwise fall back to path for key
       const nodeKey = node.id || node.path;
+      const isActive = node.id && activeConsoleId === node.id;
       return (
         <ListItemButton
           key={`file-${nodeKey}`}
           onClick={() => handleFileClick(node)}
           onContextMenu={e => handleContextMenu(e, node)}
-          sx={{ pl: 0.5 + depth }}
+          sx={{
+            pl: 0.5 + depth,
+            bgcolor: isActive ? "action.selected" : undefined,
+          }}
         >
           <ListItemIcon sx={{ minWidth: 20, visibility: "hidden", mr: 0.5 }} />
           <ListItemIcon sx={{ minWidth: 28 }}>
