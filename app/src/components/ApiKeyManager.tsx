@@ -30,7 +30,7 @@ import {
   VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
 import { formatDistanceToNow } from "date-fns";
-import axios from "axios";
+import { apiClient } from "../lib/api-client";
 import { useWorkspace } from "../contexts/workspace-context";
 
 interface ApiKey {
@@ -51,7 +51,7 @@ interface NewApiKeyResponse {
 }
 
 export function ApiKeyManager() {
-  const { currentWorkspace } = useWorkspace();
+  const { currentWorkspace, loading: workspaceLoading } = useWorkspace();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -68,14 +68,15 @@ export function ApiKeyManager() {
 
   // Fetch API keys
   const fetchApiKeys = async () => {
-    if (!currentWorkspace) return;
+    if (workspaceLoading || !currentWorkspace) return;
 
     try {
       setLoading(true);
-      const response = await axios.get(
-        `/api/workspaces/${currentWorkspace.id}/api-keys`,
-      );
-      setApiKeys(response.data.apiKeys || []);
+      const response = await apiClient.get<{
+        success: boolean;
+        apiKeys: ApiKey[];
+      }>(`/workspaces/${currentWorkspace.id}/api-keys`);
+      setApiKeys(response.apiKeys || []);
     } catch (error) {
       console.error("Failed to fetch API keys:", error);
       setSnackbar({
@@ -90,7 +91,8 @@ export function ApiKeyManager() {
 
   useEffect(() => {
     fetchApiKeys();
-  }, [currentWorkspace]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspace?.id, workspaceLoading]);
 
   // Create new API key
   const handleCreateApiKey = async () => {
@@ -100,12 +102,14 @@ export function ApiKeyManager() {
     setCreateError(null);
 
     try {
-      const response = await axios.post(
-        `/api/workspaces/${currentWorkspace.id}/api-keys`,
-        { name: newKeyName.trim() },
-      );
+      const response = await apiClient.post<{
+        success: boolean;
+        apiKey: NewApiKeyResponse;
+      }>(`/workspaces/${currentWorkspace.id}/api-keys`, {
+        name: newKeyName.trim(),
+      });
 
-      setNewApiKey(response.data.apiKey);
+      setNewApiKey(response.apiKey);
       setShowKey(true);
       setCreateDialogOpen(false);
       setNewKeyName("");
@@ -113,7 +117,7 @@ export function ApiKeyManager() {
       // Refresh the list
       fetchApiKeys();
     } catch (error: any) {
-      setCreateError(error.response?.data?.error || "Failed to create API key");
+      setCreateError(error.message || "Failed to create API key");
     } finally {
       setCreating(false);
     }
@@ -132,8 +136,8 @@ export function ApiKeyManager() {
     }
 
     try {
-      await axios.delete(
-        `/api/workspaces/${currentWorkspace.id}/api-keys/${keyId}`,
+      await apiClient.delete(
+        `/workspaces/${currentWorkspace.id}/api-keys/${keyId}`,
       );
 
       setSnackbar({

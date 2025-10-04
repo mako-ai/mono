@@ -15,6 +15,7 @@ import {
   type InviteMemberData,
 } from "../lib/workspace-client";
 import { useAuth } from "./auth-context";
+import { useAppStore } from "../store";
 
 interface WorkspaceContextState {
   // State
@@ -59,7 +60,8 @@ interface WorkspaceProviderProps {
 }
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { currentWorkspaceId, setCurrentWorkspaceId } = useAppStore();
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(
     null,
@@ -71,17 +73,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
   // Load workspaces when user is authenticated
   useEffect(() => {
+    if (authLoading) return; // wait for auth status to resolve
     if (user) {
       loadWorkspaces();
     } else {
-      // Clear workspace data when user logs out
+      // Clear in-memory workspace data when user is unauthenticated
+      // Preserve persisted workspace id so it can be restored on next login
       setWorkspaces([]);
       setCurrentWorkspace(null);
       setMembers([]);
       setInvites([]);
-      localStorage.removeItem("activeWorkspaceId");
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   // Load current workspace data when it changes
   useEffect(() => {
@@ -102,12 +105,34 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       ]);
 
       setWorkspaces(workspaceList);
-      setCurrentWorkspace(current);
+      // Prefer persisted workspace if available and exists in list
+      const persistedId =
+        currentWorkspaceId || localStorage.getItem("activeWorkspaceId");
+      const persisted = persistedId
+        ? workspaceList.find(ws => ws.id === persistedId)
+        : undefined;
+      if (persisted) {
+        // If backend's current workspace differs from persisted, switch it
+        if (!current || current.id !== persisted.id) {
+          try {
+            await workspaceClient.switchWorkspace(persisted.id);
+          } catch (switchErr) {
+            console.error(
+              "Failed to switch workspace to persisted id:",
+              switchErr,
+            );
+          }
+        }
+        setCurrentWorkspace(persisted);
+        setCurrentWorkspaceId(persisted.id);
+      } else {
+        setCurrentWorkspace(current);
+        if (current) setCurrentWorkspaceId(current.id);
+      }
 
       // Store active workspace ID
-      if (current) {
-        localStorage.setItem("activeWorkspaceId", current.id);
-      }
+      const activeId = (persisted && persisted.id) || (current && current.id);
+      if (activeId) localStorage.setItem("activeWorkspaceId", activeId);
     } catch (err: any) {
       setError(err.message || "Failed to load workspaces");
       console.error("Load workspaces error:", err);
@@ -184,6 +209,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         if (workspace) {
           setCurrentWorkspace(workspace);
           localStorage.setItem("activeWorkspaceId", id);
+          setCurrentWorkspaceId(id);
           // Reload the page to refresh all data with new workspace context
           window.location.reload();
         }
@@ -192,7 +218,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         throw err;
       }
     },
-    [workspaces],
+    [workspaces, setCurrentWorkspaceId],
   );
 
   const loadMembers = useCallback(async () => {
