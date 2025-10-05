@@ -31,7 +31,6 @@ export function SyncJobsExplorer() {
     jobs: jobsMap,
     loading: loadingMap,
     error: errorMap,
-    selectedJobId,
     init,
     refresh,
     selectJob,
@@ -46,7 +45,8 @@ export function SyncJobsExplorer() {
     : false;
   const error = currentWorkspace ? errorMap[currentWorkspace.id] || null : null;
 
-  const { addConsoleTab, setActiveConsole } = useConsoleStore();
+  const { consoleTabs, activeConsoleId, addConsoleTab, setActiveConsole } =
+    useConsoleStore();
 
   useEffect(() => {
     if (currentWorkspace) {
@@ -238,10 +238,19 @@ export function SyncJobsExplorer() {
           <List dense>
             {jobs.map(job => {
               const status = getJobStatus(job);
+              const isActive = !!(
+                activeConsoleId &&
+                consoleTabs.find(
+                  (t: any) =>
+                    t.id === activeConsoleId &&
+                    (t as any).kind === "sync-job-editor" &&
+                    (t as any).metadata?.jobId === job._id,
+                )
+              );
               return (
                 <ListItem key={job._id} disablePadding>
                   <ListItemButton
-                    selected={selectedJobId === job._id}
+                    selected={isActive}
                     onClick={() => handleEditJob(job._id)}
                     sx={{
                       px: 1,
