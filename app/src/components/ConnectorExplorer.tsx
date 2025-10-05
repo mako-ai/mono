@@ -40,7 +40,8 @@ interface Connector {
 
 function ConnectorExplorer() {
   const { currentWorkspace } = useWorkspace();
-  const { consoleTabs, addConsoleTab, setActiveConsole } = useConsoleStore();
+  const { consoleTabs, activeConsoleId, addConsoleTab, setActiveConsole } =
+    useConsoleStore();
   const {
     entities,
     loading,
@@ -201,24 +202,36 @@ function ConnectorExplorer() {
           </Box>
         ) : (
           <List dense>
-            {connectors.map(src => (
-              <ListItem key={src._id} disablePadding>
-                <ListItemButton
-                  onClick={() => openTabForSource(src)}
-                  onContextMenu={e => handleContextMenu(e, src)}
-                >
-                  <ListItemIcon sx={{ minWidth: 32 }}>
-                    <Box
-                      component="img"
-                      src={`/api/connectors/${src.type}/icon.svg`}
-                      alt={`${src.type} icon`}
-                      sx={{ width: 24, height: 24 }}
-                    />
-                  </ListItemIcon>
-                  <ListItemText primary={src.name} />
-                </ListItemButton>
-              </ListItem>
-            ))}
+            {connectors.map(src => {
+              const isActive = !!(
+                activeConsoleId &&
+                consoleTabs.find(
+                  t =>
+                    t.id === activeConsoleId &&
+                    t.kind === "connectors" &&
+                    t.content === src._id,
+                )
+              );
+              return (
+                <ListItem key={src._id} disablePadding>
+                  <ListItemButton
+                    selected={isActive}
+                    onClick={() => openTabForSource(src)}
+                    onContextMenu={e => handleContextMenu(e, src)}
+                  >
+                    <ListItemIcon sx={{ minWidth: 32 }}>
+                      <Box
+                        component="img"
+                        src={`/api/connectors/${src.type}/icon.svg`}
+                        alt={`${src.type} icon`}
+                        sx={{ width: 24, height: 24 }}
+                      />
+                    </ListItemIcon>
+                    <ListItemText primary={src.name} />
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
           </List>
         )}
       </Box>

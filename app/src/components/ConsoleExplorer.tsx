@@ -396,15 +396,15 @@ function ConsoleExplorer(
       }
       // Use ID if available, otherwise fall back to path for key
       const nodeKey = node.id || node.path;
-      const isActive = node.id && activeConsoleId === node.id;
+      const isActive = !!(node.id && activeConsoleId === node.id);
       return (
         <ListItemButton
           key={`file-${nodeKey}`}
           onClick={() => handleFileClick(node)}
           onContextMenu={e => handleContextMenu(e, node)}
+          selected={isActive}
           sx={{
             pl: 0.5 + depth,
-            bgcolor: isActive ? "action.selected" : undefined,
           }}
         >
           <ListItemIcon sx={{ minWidth: 20, visibility: "hidden", mr: 0.5 }} />
