@@ -15,19 +15,22 @@ import {
   Skeleton,
   Menu,
   MenuItem,
+  Tooltip,
 } from "@mui/material";
 import {
-  DnsOutlined as ServerIcon,
-  TableChartOutlined as CollectionIcon,
-  VisibilityOutlined as ViewIcon,
-  Refresh as RefreshIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
-  FolderOutlined as FolderIcon,
-  Add as AddIcon,
-  DeleteOutline as DeleteIcon,
+  DnsOutlined as ServerIcon,
 } from "@mui/icons-material";
-import { Database as DatabaseIcon } from "lucide-react";
+import {
+  Database as DatabaseIcon,
+  Table as CollectionIcon,
+  Eye as ViewIcon,
+  RotateCw as RefreshIcon,
+  FolderClosed as FolderIcon,
+  Plus as AddIcon,
+  Trash2 as DeleteIcon,
+} from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
 import CreateDatabaseDialog from "./CreateDatabaseDialog";
@@ -104,7 +107,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     collections,
     views,
     loading: loadingMap,
-    fetchServers: fetchServersStore,
     refreshServers,
     initServers,
     fetchDatabaseData,
@@ -130,8 +132,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     toggleDatabase,
     toggleCollectionGroup,
     toggleViewGroup,
-    expandServer,
-    expandDatabase,
     isDatabaseExpanded,
   } = useDatabaseExplorerStore();
 
@@ -313,7 +313,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",
@@ -339,13 +339,20 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
               Databases
             </Typography>
           </Box>
-          <Box sx={{ display: "flex" }}>
-            <IconButton size="small" onClick={() => setCreateDialogOpen(true)}>
-              <AddIcon />
-            </IconButton>
-            <IconButton size="small" onClick={handleRefresh}>
-              <RefreshIcon />
-            </IconButton>
+          <Box sx={{ display: "flex", gap: 0 }}>
+            <Tooltip title="Add new database">
+              <IconButton
+                size="small"
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                <AddIcon size={20} strokeWidth={2} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Refresh">
+              <IconButton size="small" onClick={handleRefresh}>
+                <RefreshIcon size={20} strokeWidth={2} />
+              </IconButton>
+            </Tooltip>
           </Box>
         </Box>
       </Box>
@@ -447,7 +454,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   )}
                                 </ListItemIcon>
                                 <ListItemIcon sx={{ minWidth: 32 }}>
-                                  <DatabaseIcon size={24} />
+                                  <DatabaseIcon size={24} strokeWidth={1.5} />
                                 </ListItemIcon>
                                 <ListItemText
                                   primary={
@@ -499,7 +506,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                       )}
                                     </ListItemIcon>
                                     <ListItemIcon sx={{ minWidth: 32 }}>
-                                      <FolderIcon />
+                                      <FolderIcon size={24} strokeWidth={1.5} />
                                     </ListItemIcon>
                                     <ListItemText
                                       primary={
@@ -565,7 +572,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                             sx={{ py: 0.25, pl: 7.5 }}
                                           >
                                             <ListItemIcon sx={{ minWidth: 28 }}>
-                                              <CollectionIcon fontSize="small" />
+                                              <CollectionIcon
+                                                size={18}
+                                                strokeWidth={1.5}
+                                              />
                                             </ListItemIcon>
                                             <ListItemText
                                               primary={
@@ -628,7 +638,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                       )}
                                     </ListItemIcon>
                                     <ListItemIcon sx={{ minWidth: 32 }}>
-                                      <FolderIcon />
+                                      <FolderIcon size={24} strokeWidth={1.5} />
                                     </ListItemIcon>
                                     <ListItemText
                                       primary={
@@ -681,7 +691,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                             sx={{ py: 0.25, pl: 7.5 }}
                                           >
                                             <ListItemIcon sx={{ minWidth: 28 }}>
-                                              <ViewIcon fontSize="small" />
+                                              <ViewIcon
+                                                size={18}
+                                                strokeWidth={1.5}
+                                              />
                                             </ListItemIcon>
                                             <ListItemText
                                               primary={
@@ -753,7 +766,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
           }}
         >
           <ListItemIcon>
-            <DeleteIcon fontSize="small" />
+            <DeleteIcon size={18} strokeWidth={1.5} />
           </ListItemIcon>
           Delete collection
         </MenuItem>
