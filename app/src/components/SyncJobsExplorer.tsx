@@ -176,7 +176,7 @@ export function SyncJobsExplorer() {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",
@@ -194,7 +194,7 @@ export function SyncJobsExplorer() {
           >
             Transfers
           </Typography>
-          <Box sx={{ display: "flex" }}>
+          <Box sx={{ display: "flex", gap: 0 }}>
             <Tooltip title="Add Sync Job">
               <IconButton size="small" onClick={handleMenuOpen}>
                 <AddIcon size={20} strokeWidth={2} />

@@ -386,6 +386,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           },
         },
       },
+      MuiIconButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: 6, // Square with rounded corners instead of circular
+          },
+        },
+      },
     },
   });
 

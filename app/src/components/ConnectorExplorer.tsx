@@ -20,10 +20,10 @@ import {
   Button,
 } from "@mui/material";
 import {
-  Add as AddIcon,
-  Refresh as RefreshIcon,
-  Delete as DeleteIcon,
-} from "@mui/icons-material";
+  Plus as AddIcon,
+  RotateCw as RefreshIcon,
+  Trash2 as DeleteIcon,
+} from "lucide-react";
 
 import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
@@ -56,7 +56,7 @@ function ConnectorExplorer() {
     ) as Connector[];
   }, [entities, currentWorkspace]);
 
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
 
   // Context-menu & delete handling state
   const [contextMenu, setContextMenu] = useState<{
@@ -150,7 +150,7 @@ function ConnectorExplorer() {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
-      <Box sx={{ px: 1, py: 0.25, borderBottom: 1, borderColor: "divider" }}>
+      <Box sx={{ px: 1, py: 0.5, borderBottom: 1, borderColor: "divider" }}>
         <Box
           sx={{
             display: "flex",
@@ -168,15 +168,15 @@ function ConnectorExplorer() {
           >
             Connectors
           </Typography>
-          <Box sx={{ display: "flex" }}>
+          <Box sx={{ display: "flex", gap: 0 }}>
             <Tooltip title="Add Connector">
               <IconButton size="small" onClick={handleAdd}>
-                <AddIcon />
+                <AddIcon size={20} strokeWidth={2} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Refresh">
               <IconButton size="small" onClick={fetchSources}>
-                <RefreshIcon />
+                <RefreshIcon size={20} strokeWidth={2} />
               </IconButton>
             </Tooltip>
           </Box>
@@ -234,8 +234,8 @@ function ConnectorExplorer() {
             : undefined
         }
       >
-        <MenuItem onClick={() => handleDelete(contextMenu!.item)}>
-          <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
+        <MenuItem onClick={() => contextMenu && handleDelete(contextMenu.item)}>
+          <DeleteIcon size={18} strokeWidth={1.5} style={{ marginRight: 8 }} />
           Delete
         </MenuItem>
       </Menu>
@@ -253,7 +253,7 @@ function ConnectorExplorer() {
             This will permanently delete the connector.
           </Alert>
           <Typography>
-            Are you sure you want to delete "{selectedItem?.name}"?
+            Are you sure you want to delete &quot;{selectedItem?.name}&quot;?
           </Typography>
         </DialogContent>
         <DialogActions>
