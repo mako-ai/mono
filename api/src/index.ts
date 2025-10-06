@@ -17,6 +17,11 @@ import { connectDatabase } from "./database/schema";
 import { workspaceRoutes } from "./routes/workspaces";
 import { workspaceDatabaseRoutes } from "./routes/workspace-databases";
 import { connectorRoutes } from "./routes/connectors";
+import { databaseSchemaRoutes } from "./routes/database-schemas";
+import { databaseTreeRoutes } from "./routes/database-tree";
+import { databaseRegistry } from "./databases/registry";
+import { BigQueryDatabaseDriver } from "./databases/drivers/bigquery/driver";
+import { MongoDatabaseDriver } from "./databases/drivers/mongodb/driver";
 import { syncJobRoutes } from "./routes/sync-jobs";
 import { webhookRoutes } from "./routes/webhooks";
 import { functions, inngest } from "./inngest";
@@ -85,6 +90,12 @@ app.route("/api/execute", executeRoutes);
 app.route("/api/database", databaseRoutes);
 app.route("/api/agent", agentRoutes);
 app.route("/api/connectors", connectorRoutes);
+app.route("/api/databases", databaseSchemaRoutes);
+app.route("/api/workspaces/:workspaceId/databases", databaseTreeRoutes);
+
+// Register database drivers
+databaseRegistry.register(new BigQueryDatabaseDriver());
+databaseRegistry.register(new MongoDatabaseDriver());
 app.route("/api", webhookRoutes);
 
 // Inngest endpoint

@@ -39,30 +39,38 @@ workspaceDatabaseRoutes.get(
 
       // Transform to API response format without connection details for security
       const transformedDatabases = databases.map((db: IDatabase) => {
-        // Create masked hostKey for grouping
+        // Create masked hostKey for grouping per database type
         let hostKey: string;
-        if (db.connection.connectionString) {
-          hostKey = maskPasswordInConnectionString(
-            db.connection.connectionString,
-          );
+        let hostName: string;
+        const conn: any = db.connection || {};
+        if (db.type === "bigquery") {
+          const projectId = conn.project_id || "unknown-project";
+          hostKey = `bigquery://${projectId}`;
+          hostName = `BigQuery (${projectId})`;
+        } else if (conn.connectionString) {
+          hostKey = maskPasswordInConnectionString(conn.connectionString);
+          hostName =
+            db.type === "mongodb" ? "MongoDB Atlas" : db.type.toUpperCase();
         } else {
-          hostKey = db.connection.host || "unknown";
+          hostKey = conn.host || "unknown";
+          hostName =
+            db.type === "mongodb"
+              ? `MongoDB (${conn.host || "localhost"})`
+              : `${db.type.toUpperCase()} (${conn.host || "localhost"})`;
         }
 
         return {
           id: db._id.toString(),
           name: db.name,
           description: "",
-          database: db.connection.database,
+          database: conn.database,
           type: db.type,
           active: true,
           lastConnectedAt: db.lastConnectedAt,
           // Helper fields for easier access (connection object removed for security)
-          displayName: db.connection.database || db.name || "Unknown Database",
+          displayName: conn.database || db.name || "Unknown Database",
           hostKey,
-          hostName: db.connection.connectionString
-            ? "MongoDB Atlas"
-            : `MongoDB (${db.connection.host || "localhost"})`,
+          hostName,
         };
       });
 
@@ -462,29 +470,48 @@ workspaceDatabaseRoutes.get(
         return c.json({ success: false, error: "Database not found" }, 404);
       }
 
-      if (database.type !== "mongodb") {
-        return c.json(
-          {
-            success: false,
-            error: "This endpoint is only for MongoDB databases",
-          },
-          400,
-        );
+      if (database.type === "mongodb") {
+        const connection =
+          await databaseConnectionService.getConnection(database);
+        const db = connection.db(database.connection.database);
+        const collections = await db.listCollections().toArray();
+
+        return c.json({
+          success: true,
+          data: collections.map((col: any) => ({
+            name: col.name,
+            type: col.type,
+            options: col.options,
+          })),
+        });
       }
 
-      const connection =
-        await databaseConnectionService.getConnection(database);
-      const db = connection.db(database.connection.database);
-      const collections = await db.listCollections().toArray();
+      if (database.type === "bigquery") {
+        try {
+          const datasets =
+            await databaseConnectionService.listBigQueryDatasets(database);
+          // Return dataset root nodes to match tree driver expectations
+          const data = datasets.map(ds => ({
+            name: `${ds}.__root__`,
+            type: "DATASET",
+            options: { datasetId: ds },
+          }));
+          return c.json({ success: true, data });
+        } catch (e: any) {
+          return c.json(
+            {
+              success: false,
+              error: e?.message || "Failed to list BigQuery datasets",
+            },
+            500,
+          );
+        }
+      }
 
-      return c.json({
-        success: true,
-        data: collections.map((col: any) => ({
-          name: col.name,
-          type: col.type,
-          options: col.options,
-        })),
-      });
+      return c.json(
+        { success: false, error: "Unsupported database type for collections" },
+        400,
+      );
     } catch (error) {
       console.error("Error getting collections:", error);
       return c.json(
@@ -613,29 +640,31 @@ workspaceDatabaseRoutes.get(
         return c.json({ success: false, error: "Database not found" }, 404);
       }
 
-      if (database.type !== "mongodb") {
-        return c.json(
-          {
-            success: false,
-            error: "This endpoint is only for MongoDB databases",
-          },
-          400,
-        );
+      if (database.type === "mongodb") {
+        const connection =
+          await databaseConnectionService.getConnection(database);
+        const db = connection.db(database.connection.database);
+        const views = await db.listCollections({ type: "view" }).toArray();
+
+        return c.json({
+          success: true,
+          data: views.map((view: any) => ({
+            name: view.name,
+            type: view.type,
+            options: view.options,
+          })),
+        });
       }
 
-      const connection =
-        await databaseConnectionService.getConnection(database);
-      const db = connection.db(database.connection.database);
-      const views = await db.listCollections({ type: "view" }).toArray();
+      if (database.type === "bigquery") {
+        // BigQuery does not have Mongo-style 'views' endpoint here; return empty for now
+        return c.json({ success: true, data: [] });
+      }
 
-      return c.json({
-        success: true,
-        data: views.map((view: any) => ({
-          name: view.name,
-          type: view.type,
-          options: view.options,
-        })),
-      });
+      return c.json(
+        { success: false, error: "Unsupported database type for views" },
+        400,
+      );
     } catch (error) {
       console.error("Error getting views:", error);
       return c.json(

@@ -5,6 +5,8 @@ import { Database as SqliteDatabase } from "sqlite3";
 import { open } from "sqlite";
 import { ConnectionPool } from "mssql";
 import { IDatabase } from "../database/workspace-schema";
+import axios, { AxiosInstance } from "axios";
+import crypto from "crypto";
 
 export interface QueryResult {
   success: boolean;
@@ -88,6 +90,8 @@ export class DatabaseConnectionService {
           return await this.testSQLiteConnection(database);
         case "mssql":
           return await this.testMSSQLConnection(database);
+        case "bigquery":
+          return await this.testBigQueryConnection(database);
         default:
           return {
             success: false,
@@ -122,6 +126,8 @@ export class DatabaseConnectionService {
           return await this.executeSQLiteQuery(database, query);
         case "mssql":
           return await this.executeMSSQLQuery(database, query);
+        case "bigquery":
+          return await this.executeBigQueryQuery(database, query, options);
         default:
           return {
             success: false,
@@ -174,6 +180,10 @@ export class DatabaseConnectionService {
         break;
       case "mssql":
         connection = await this.createMSSQLConnection(database);
+        break;
+      case "bigquery":
+        // BigQuery uses stateless HTTP requests; no persistent connection
+        connection = null;
         break;
       default:
         throw new Error(`Unsupported database type: ${database.type}`);
@@ -308,6 +318,351 @@ export class DatabaseConnectionService {
 
     // Create new connection
     return this.createMongoConnection(context, identifier, config, options);
+  }
+
+  // -------------------- BigQuery helpers --------------------
+  // Public: list BigQuery datasets (by datasetId)
+  async listBigQueryDatasets(database: IDatabase): Promise<string[]> {
+    const { project_id, service_account_json, api_base_url } =
+      (database.connection as any) || {};
+    if (!project_id || !service_account_json) {
+      throw new Error(
+        "BigQuery requires 'project_id' and 'service_account_json' in connection",
+      );
+    }
+
+    const client = await this.getBigQueryHttpClient(
+      service_account_json,
+      api_base_url,
+    );
+
+    const datasets: string[] = [];
+    let pageToken: string | undefined;
+    do {
+      const params: any = { maxResults: 1000 };
+      if (pageToken) params.pageToken = pageToken;
+      const res = await client.get(`/projects/${project_id}/datasets`, {
+        params,
+      });
+      const data = res.data || {};
+      const items: any[] = Array.isArray(data.datasets) ? data.datasets : [];
+      for (const ds of items) {
+        const id = ds?.datasetReference?.datasetId;
+        if (id) datasets.push(id);
+      }
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return datasets.sort((a, b) => a.localeCompare(b));
+  }
+
+  // Public: list BigQuery tables in a dataset
+  async listBigQueryTables(
+    database: IDatabase,
+    datasetId: string,
+  ): Promise<Array<{ name: string; type: string; options: any }>> {
+    const { project_id, service_account_json, api_base_url } =
+      (database.connection as any) || {};
+    if (!project_id || !service_account_json) {
+      throw new Error(
+        "BigQuery requires 'project_id' and 'service_account_json' in connection",
+      );
+    }
+
+    const client = await this.getBigQueryHttpClient(
+      service_account_json,
+      api_base_url,
+    );
+
+    const out: Array<{ name: string; type: string; options: any }> = [];
+    let pageToken: string | undefined;
+    do {
+      const params: any = { maxResults: 1000 };
+      if (pageToken) params.pageToken = pageToken;
+      const res = await client.get(
+        `/projects/${project_id}/datasets/${encodeURIComponent(
+          datasetId,
+        )}/tables`,
+        { params },
+      );
+      const data = res.data || {};
+      const tables: any[] = Array.isArray(data.tables) ? data.tables : [];
+      for (const t of tables) {
+        const tableId = t?.tableReference?.tableId;
+        if (!tableId) continue;
+        out.push({
+          name: `${datasetId}.${tableId}`,
+          type: t?.type || "TABLE",
+          options: { datasetId, tableId },
+        });
+      }
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+
+    return out;
+  }
+  private async testBigQueryConnection(
+    database: IDatabase,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { project_id, service_account_json, location, api_base_url } =
+        (database.connection as any) || {};
+      if (!project_id || !service_account_json) {
+        return {
+          success: false,
+          error:
+            "BigQuery requires 'project_id' and 'service_account_json' in connection",
+        };
+      }
+
+      const client = await this.getBigQueryHttpClient(
+        service_account_json,
+        api_base_url,
+      );
+      const body: any = {
+        query: "SELECT 1 AS one",
+        useLegacySql: false,
+        maxResults: 1,
+      };
+      if (location) body.location = location;
+      await client.post(`/projects/${project_id}/queries`, body);
+      return { success: true };
+    } catch (error: any) {
+      return {
+        success: false,
+        error:
+          (error?.response?.data?.error?.message as string) ||
+          (error?.message as string) ||
+          "BigQuery connection failed",
+      };
+    }
+  }
+
+  private async executeBigQueryQuery(
+    database: IDatabase,
+    query: string,
+    options?: { batchSize?: number; location?: string },
+  ): Promise<QueryResult> {
+    try {
+      if (typeof query !== "string" || !query.trim()) {
+        return { success: false, error: "Query must be a non-empty string" };
+      }
+      const {
+        project_id,
+        service_account_json,
+        location: dbLocation,
+        api_base_url,
+      } = (database.connection as any) || {};
+      if (!project_id || !service_account_json) {
+        return {
+          success: false,
+          error:
+            "BigQuery requires 'project_id' and 'service_account_json' in connection",
+        };
+      }
+
+      const client = await this.getBigQueryHttpClient(
+        service_account_json,
+        api_base_url,
+      );
+      const location = options?.location || dbLocation;
+      const batchSize = Math.max(
+        1,
+        Math.min(10000, options?.batchSize || 1000),
+      );
+
+      // Start the query
+      const startBody: any = {
+        query,
+        useLegacySql: false,
+        maxResults: batchSize,
+      };
+      if (location) startBody.location = location;
+      let response = await client.post(
+        `/projects/${project_id}/queries`,
+        startBody,
+      );
+
+      let data = response.data || {};
+      const jobId: string | undefined = data.jobReference?.jobId;
+      let schema: any = data.schema;
+      let pageToken: string | undefined = data.pageToken;
+      const rowsAccum: any[] = [];
+
+      // Collect first page
+      if (Array.isArray(data.rows) && schema) {
+        rowsAccum.push(...this.bqMapRowsToObjects(data.rows, schema));
+      }
+
+      // Paginate
+      while (pageToken) {
+        const params: any = { maxResults: batchSize };
+        if (pageToken) params.pageToken = pageToken;
+        if (location) params.location = location;
+        response = await client.get(
+          `/projects/${project_id}/queries/${jobId}`,
+          { params },
+        );
+        data = response.data || {};
+        schema = data.schema || schema;
+        if (Array.isArray(data.rows) && schema) {
+          rowsAccum.push(...this.bqMapRowsToObjects(data.rows, schema));
+        }
+        pageToken = data.pageToken;
+      }
+
+      return {
+        success: true,
+        data: rowsAccum,
+        rowCount: rowsAccum.length,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error:
+          (error?.response?.data?.error?.message as string) ||
+          (error?.message as string) ||
+          "BigQuery query failed",
+      };
+    }
+  }
+
+  // New: list BigQuery datasets and tables via REST (fast, no deprecated auth)
+  async listBigQueryDatasetsAndTables(
+    database: IDatabase,
+  ): Promise<Array<{ name: string; type: string; options: any }>> {
+    const datasetIds = await this.listBigQueryDatasets(database);
+
+    // Concurrency limiter
+    const limit = 5;
+    const results: Array<{ name: string; type: string; options: any }>[] = [];
+    let index = 0;
+    const runners: Promise<void>[] = [];
+    const runNext = async () => {
+      while (index < datasetIds.length) {
+        const current = datasetIds[index++];
+        const tables = await this.listBigQueryTables(database, current);
+        results.push(tables);
+      }
+    };
+    for (let i = 0; i < Math.min(limit, datasetIds.length); i++) {
+      runners.push(runNext());
+    }
+    await Promise.all(runners);
+
+    return results.flat();
+  }
+
+  private async getBigQueryHttpClient(
+    serviceAccountJson: string | object,
+    apiBaseUrl?: string,
+  ): Promise<AxiosInstance> {
+    const sa = this.parseServiceAccount(serviceAccountJson);
+    const token = await this.createGoogleAccessToken(sa);
+    const base = (apiBaseUrl || "https://bigquery.googleapis.com").trim();
+    const normalized = /^https?:\/\//i.test(base) ? base : `https://${base}`;
+    const baseURL = normalized.replace(/\/+$/, "") + "/bigquery/v2";
+    const client = axios.create({ baseURL });
+    client.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    client.defaults.headers.common["Content-Type"] = "application/json";
+    return client;
+  }
+
+  private parseServiceAccount(sa: string | object): {
+    client_email: string;
+    private_key: string;
+    token_uri: string;
+  } {
+    const obj = typeof sa === "string" ? JSON.parse(sa) : sa;
+    return {
+      client_email: (obj as any).client_email,
+      private_key: (obj as any).private_key,
+      token_uri:
+        (obj as any).token_uri || "https://oauth2.googleapis.com/token",
+    };
+  }
+
+  private async createGoogleAccessToken(sa: {
+    client_email: string;
+    private_key: string;
+    token_uri: string;
+  }): Promise<string> {
+    const now = Math.floor(Date.now() / 1000);
+    const header = { alg: "RS256", typ: "JWT" };
+    const payload = {
+      iss: sa.client_email,
+      scope: "https://www.googleapis.com/auth/bigquery.readonly",
+      aud: sa.token_uri,
+      iat: now,
+      exp: now + 3600,
+    } as any;
+    const base64url = (input: Buffer | string) =>
+      (Buffer.isBuffer(input) ? input : Buffer.from(input))
+        .toString("base64")
+        .replace(/=/g, "")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_");
+    const encodedHeader = base64url(JSON.stringify(header));
+    const encodedPayload = base64url(JSON.stringify(payload));
+    const signingInput = `${encodedHeader}.${encodedPayload}`;
+    const signer = crypto.createSign("RSA-SHA256");
+    signer.update(signingInput);
+    signer.end();
+    const signature = signer.sign(sa.private_key);
+    const assertion = `${signingInput}.${base64url(signature)}`;
+    const res = await axios.post(
+      sa.token_uri,
+      new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion,
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+    );
+    return res.data.access_token as string;
+  }
+
+  private bqMapRowsToObjects(rows: any[], schema: any): any[] {
+    const fields = (schema?.fields || []) as Array<any>;
+    return (rows || []).map(r => this.bqMapRow(r, fields));
+  }
+
+  private bqMapRow(row: any, fields: Array<any>): any {
+    const obj: Record<string, any> = {};
+    const cells: any[] = Array.isArray(row?.f) ? row.f : [];
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      const cell = cells[i]?.v;
+      obj[field.name] = this.bqParseCellValue(cell, field);
+    }
+    return obj;
+  }
+
+  private bqParseCellValue(value: any, field: any): any {
+    if (value === null || value === undefined) return null;
+    const mode = String(field?.mode || "").toUpperCase();
+    const type = String(field?.type || "").toUpperCase();
+    if (mode === "REPEATED") {
+      const arr: any[] = Array.isArray(value) ? value : [];
+      return arr.map(v =>
+        this.bqParseCellValue(v?.v ?? v, { ...field, mode: undefined }),
+      );
+    }
+    switch (type) {
+      case "RECORD":
+        return this.bqMapRow(value, field.fields || []);
+      case "INTEGER":
+      case "INT64":
+      case "FLOAT":
+      case "FLOAT64":
+      case "NUMERIC":
+      case "BIGNUMERIC":
+        return value === "" ? null : Number(value);
+      case "BOOLEAN":
+      case "BOOL":
+        return value === true || value === "true";
+      default:
+        return value;
+    }
   }
 
   private async createMongoConnection(

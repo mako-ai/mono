@@ -149,7 +149,7 @@ export interface IDatabase extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
-  type: "mongodb" | "postgresql" | "mysql" | "sqlite" | "mssql";
+  type: "mongodb" | "postgresql" | "mysql" | "sqlite" | "mssql" | "bigquery";
   connection: {
     host?: string;
     port?: number;
@@ -563,7 +563,7 @@ const DatabaseSchema = new Schema<IDatabase>(
     },
     type: {
       type: String,
-      enum: ["mongodb", "postgresql", "mysql", "sqlite", "mssql"],
+      enum: ["mongodb", "postgresql", "mysql", "sqlite", "mssql", "bigquery"],
       required: true,
     },
     connection: {
