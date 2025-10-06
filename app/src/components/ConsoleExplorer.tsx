@@ -471,9 +471,10 @@ function ConsoleExplorer(
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                textTransform: "uppercase",
               }}
             >
-              Saved Consoles
+              Consoles
             </Typography>
           </Box>
           <Box sx={{ display: "flex", gap: 0 }}>

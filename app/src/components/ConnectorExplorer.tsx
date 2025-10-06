@@ -165,6 +165,7 @@ function ConnectorExplorer() {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              textTransform: "uppercase",
             }}
           >
             Connectors

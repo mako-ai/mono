@@ -190,12 +190,13 @@ export function SyncJobsExplorer() {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              textTransform: "uppercase",
             }}
           >
             Transfers
           </Typography>
           <Box sx={{ display: "flex", gap: 0 }}>
-            <Tooltip title="Add Sync Job">
+            <Tooltip title="Add Transfer">
               <IconButton size="small" onClick={handleMenuOpen}>
                 <AddIcon size={20} strokeWidth={2} />
               </IconButton>

@@ -145,7 +145,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         fontSize: "1rem",
       },
       body2: {
-        fontSize: "0.875rem",
+        fontSize: "0.825rem",
       },
     },
     components: {
@@ -391,6 +391,16 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           root: {
             borderRadius: 6, // Square with rounded corners instead of circular
           },
+        },
+      },
+      MuiListItemText: {
+        styleOverrides: {
+          root: ({ theme, ownerState }: any) => ({
+            ...(ownerState?.dense && {
+              marginTop: theme.spacing(0.25),
+              marginBottom: theme.spacing(0.25),
+            }),
+          }),
         },
       },
     },

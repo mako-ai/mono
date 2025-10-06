@@ -49,9 +49,10 @@ Structure query results to be flat and table-friendly by default. This makes dat
 | :--- | :--- | :--- |
 | **Pivot Time-Series Data** | Return **one document per entity**, with periods as field names (\`"2024-01"\`, \`"2024-02"\`). | Separate documents per month/quarter/year. |
 | **Flat Output** | Use clear, top-level identifier fields (\`product\`, \`customer_id\`, etc.). | Nested objects or arrays in the final output. |
+| **Column Naming** | Prefer snake_case for output field names; explicitly rename via \`$project\`, \`$addFields\`, or \`$replaceRoot\`. Keep dynamic period keys (e.g., \`"YYYY-MM"\`) as-is. | camelCase or names with spaces in output columns. |
 | **Control Column Order**| Use \`$replaceRoot\` as the final stage to set a logical key order. | Relying on \`$project\`, which may not preserve order. |
 | **Fill Missing Gaps**| If pivoting time-series data, ensure all periods in the range exist, filling missing values with \`0\` or \`null\`. | Leaving gaps in the time-series data. |
-| **Handle Dotted Keys**| Access field names that contain dots (e.g., \`user.name\`) using \`$getField\`.| Using standard dot notation (\`\\"$user.name\\"\`) which will fail. |
+| **Handle Dotted Keys**| Access field names that contain dots (e.g., \`user.name\`) using \`$getField\`.| Using standard dot notation (\`"$user.name"\`) which will fail. |
 
 ---
 
@@ -86,19 +87,19 @@ db.orders.aggregate([
         product: "$productName", 
         month: { $dateToString: { format: "%Y-%m", date: "$orderDate" } }
       },
-      totalSales: { $sum: "$saleAmount" }
+      total_sales: { $sum: "$saleAmount" }
     }
   },
   {
     $group: {
       _id: "$_id.product",
-      monthlySales: { $push: { k: "$_id.month", v: "$totalSales" } }
+      monthly_sales: { $push: { k: "$_id.month", v: "$total_sales" } }
     }
   },
   {
     $replaceRoot: {
       newRoot: { 
-        $mergeObjects: [ { product: "$_id" }, { $arrayToObject: "$monthlySales" } ] 
+        $mergeObjects: [ { product: "$_id" }, { $arrayToObject: "$monthly_sales" } ] 
       }
     }
   }
