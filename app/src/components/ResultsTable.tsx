@@ -8,7 +8,11 @@ import {
   ToggleButtonGroup,
   ToggleButton,
 } from "@mui/material";
-import { DataGridPremium, GridColDef } from "@mui/x-data-grid-premium";
+import {
+  DataGridPremium,
+  GridColDef,
+  GridRenderCellParams,
+} from "@mui/x-data-grid-premium";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import TableViewIcon from "@mui/icons-material/TableView";
 import CodeIcon from "@mui/icons-material/Code";
@@ -32,11 +36,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
   const { effectiveMode } = useTheme();
 
   // Reset to table view whenever new results are received
+  const executedAt = results?.executedAt;
   useEffect(() => {
-    if (results) {
+    if (executedAt) {
       setViewMode("table");
     }
-  }, [results?.executedAt]); // Use executedAt as dependency to detect new query executions
+  }, [executedAt]); // Use executedAt as dependency to detect new query executions
 
   // Helper function to normalize any data into an array format
   const normalizeToArray = (data: any): any[] => {
@@ -128,9 +133,39 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           if (typeof value === "object" && value !== null) {
             return JSON.stringify(value);
           }
+          if (isNumericColumn) {
+            const num = typeof value === "number" ? value : Number(value);
+            if (!isNaN(num) && isFinite(num)) {
+              return new Intl.NumberFormat("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }).format(num);
+            }
+          }
           return String(value);
         },
       };
+    });
+
+    // Prepend index column on the far left
+    cols.unshift({
+      field: "__rowIndex",
+      headerName: "#",
+      width: 50,
+      minWidth: 50,
+      maxWidth: 50,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      disableReorder: true,
+      resizable: false,
+      align: "right",
+      headerAlign: "right",
+      renderCell: (params: GridRenderCellParams<any, any>) => {
+        const api: any = (params as any).api;
+        const i = api.getRowIndexRelativeToVisibleRows(params.id as any);
+        return typeof i === "number" ? i + 1 : "";
+      },
     });
 
     // Generate rows with unique IDs
@@ -190,7 +225,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
 
     try {
       // Get column headers
-      const headers = columns.map(col => col.field);
+      const headers = columns
+        .map(col => col.field)
+        .filter(field => field !== "__rowIndex");
 
       // Create CSV-like format that works well with Google Sheets
       const csvContent = [
@@ -338,9 +375,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           <DataGridPremium
             rows={rows}
             columns={columns}
+            pinnedColumns={{ left: ["__rowIndex"], right: [] }}
             density="compact"
             disableRowSelectionOnClick
             hideFooter
+            columnHeaderHeight={40}
+            rowHeight={40}
             style={{
               height: "100%",
               width: "100%",
@@ -348,15 +388,21 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
             }}
             sx={{
               "& .MuiDataGrid-cell": {
-                fontSize: "0.875rem",
+                fontSize: "12px",
+                fontFamily:
+                  'Monaco, Menlo, "Ubuntu Mono", Consolas, "Courier New", monospace',
                 overflow: "hidden",
                 textOverflow: "ellipsis",
               },
               "& .MuiDataGrid-columnHeaders": {
                 backgroundColor: "background.default",
+                fontFamily:
+                  'Monaco, Menlo, "Ubuntu Mono", Consolas, "Courier New", monospace',
               },
               "& .MuiDataGrid-columnHeader": {
                 backgroundColor: "background.default",
+                fontFamily:
+                  'Monaco, Menlo, "Ubuntu Mono", Consolas, "Courier New", monospace',
               },
               "& .MuiDataGrid-root": {
                 overflow: "hidden",

@@ -745,15 +745,23 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   );
 
   return (
-    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
       <Box
         sx={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          p: 1,
           backgroundColor: "background.paper",
-          gap: 1,
+          p: 0.5,
+          gap: 0.5,
+          borderBottom: 1,
+          borderColor: "divider",
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -893,7 +901,11 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           </Button>
         </Box>
 
-        <FormControl size="small" variant="standard" sx={{ minWidth: 80 }}>
+        <FormControl
+          size="small"
+          variant="standard"
+          sx={{ minWidth: 80, m: 0, p: 0 }}
+        >
           <Select
             variant="standard"
             disableUnderline
