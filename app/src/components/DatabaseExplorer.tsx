@@ -10,8 +10,6 @@ import {
   Alert,
   IconButton,
   Collapse,
-  Chip,
-  SvgIcon,
   Skeleton,
   Menu,
   MenuItem,
@@ -34,60 +32,16 @@ import {
 import { useDatabaseExplorerStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
 import CreateDatabaseDialog from "./CreateDatabaseDialog";
-import { useDatabaseStore } from "../store/databaseStore";
+import {
+  useDatabaseStore,
+  CollectionInfo,
+  Server,
+} from "../store/databaseStore";
+import { useDatabaseCatalogStore } from "../store/databaseCatalogStore";
+import { useDatabaseTreeStore, TreeNode } from "../store/databaseTreeStore";
 import { useConsoleStore } from "../store/consoleStore";
 
-const MongoDBIcon = () => (
-  <SvgIcon>
-    <svg
-      height="2500"
-      viewBox="8.738 -5.03622834 17.45992422 39.40619484"
-      width="2500"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="m15.9.087.854 1.604c.192.296.4.558.645.802a22.406 22.406 0 0 1 2.004 2.266c1.447 1.9 2.423 4.01 3.12 6.292.418 1.394.645 2.824.662 4.27.07 4.323-1.412 8.035-4.4 11.12a12.7 12.7 0 0 1 -1.57 1.342c-.296 0-.436-.227-.558-.436a3.589 3.589 0 0 1 -.436-1.255c-.105-.523-.174-1.046-.14-1.586v-.244c-.024-.052-.285-24.052-.181-24.175z"
-        fill="#599636"
-      />
-      <path
-        d="m15.9.034c-.035-.07-.07-.017-.105.017.017.35-.105.662-.296.96-.21.296-.488.523-.767.767-1.55 1.342-2.77 2.963-3.747 4.776-1.3 2.44-1.97 5.055-2.16 7.808-.087.993.314 4.497.627 5.508.854 2.684 2.388 4.933 4.375 6.885.488.47 1.01.906 1.55 1.325.157 0 .174-.14.21-.244a4.78 4.78 0 0 0 .157-.68l.35-2.614z"
-        fill="#6cac48"
-      />
-      <path
-        d="m16.754 28.845c.035-.4.227-.732.436-1.063-.21-.087-.366-.26-.488-.453a3.235 3.235 0 0 1 -.26-.575c-.244-.732-.296-1.5-.366-2.248v-.453c-.087.07-.105.662-.105.75a17.37 17.37 0 0 1 -.314 2.353c-.052.314-.087.627-.28.906 0 .035 0 .07.017.122.314.924.4 1.865.453 2.824v.35c0 .418-.017.33.33.47.14.052.296.07.436.174.105 0 .122-.087.122-.157l-.052-.575v-1.604c-.017-.28.035-.558.07-.82z"
-        fill="#c2bfbf"
-      />
-    </svg>
-  </SvgIcon>
-);
-
-interface Database {
-  id: string;
-  name: string;
-  description: string;
-  database: string;
-  type: string;
-  active: boolean;
-  lastConnectedAt?: string;
-  displayName: string;
-  hostKey: string;
-  hostName: string;
-}
-
-interface Server {
-  id: string;
-  name: string;
-  description: string;
-  connectionString: string;
-  active: boolean;
-  databases: Database[];
-}
-
-interface CollectionInfo {
-  name: string;
-  type: string;
-  options: any;
-}
+// Removed inline MongoDB icon; icons are served by API per database type
 
 interface DatabaseExplorerProps {
   onCollectionSelect?: (
@@ -104,13 +58,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 }) => {
   const {
     servers: serversMap,
-    collections,
-    views,
     loading: loadingMap,
     refreshServers,
     initServers,
-    fetchDatabaseData,
   } = useDatabaseStore();
+  const { fetchRoot, fetchChildren, nodes } = useDatabaseTreeStore();
 
   const { currentWorkspace } = useWorkspace();
 
@@ -118,6 +70,32 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   const servers = currentWorkspace ? serversMap[currentWorkspace.id] || [] : [];
   const loading = currentWorkspace ? !!loadingMap[currentWorkspace.id] : false;
+  const { types: dbTypes, fetchTypes } = useDatabaseCatalogStore();
+
+  useEffect(() => {
+    fetchTypes().catch(() => undefined);
+  }, [fetchTypes]);
+
+  const typeToIconUrl = (type: string): string | null => {
+    const meta = (dbTypes || []).find(t => t.type === type);
+    return meta?.iconUrl || null;
+  };
+
+  const ServerTypeIcon: React.FC<{ server: Server }> = ({ server }) => {
+    // Try to infer type from contained databases (first db type), fallback to generic
+    const inferredType = server.databases[0]?.type;
+    const iconUrl = inferredType ? typeToIconUrl(inferredType) : null;
+    if (iconUrl) {
+      return (
+        <img
+          src={iconUrl}
+          alt={inferredType}
+          style={{ width: 20, height: 20, display: "block" }}
+        />
+      );
+    }
+    return <ServerIcon />;
+  };
   const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
   const error = currentWorkspace
     ? useDatabaseStore.getState().error[currentWorkspace.id]
@@ -126,16 +104,22 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   const {
     expandedServers,
     expandedDatabases,
-    expandedCollectionGroups,
-    expandedViewGroups,
     toggleServer,
     toggleDatabase,
-    toggleCollectionGroup,
-    toggleViewGroup,
     isDatabaseExpanded,
   } = useDatabaseExplorerStore();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+
+  const toggleNode = (key: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const refreshServersLocal = async () => {
     if (!currentWorkspace) return;
@@ -152,7 +136,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   const fetchDatabaseDataLocal = async (databaseId: string) => {
     if (!currentWorkspace) return;
     setLoadingData(prev => new Set(prev).add(databaseId));
-    await fetchDatabaseData(currentWorkspace.id, databaseId);
+    await fetchRoot(currentWorkspace.id, databaseId);
     setLoadingData(prev => {
       const next = new Set(prev);
       next.delete(databaseId);
@@ -160,18 +144,18 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     });
   };
 
-  // Prefetch collections/views for every database under every server when servers change
   useEffect(() => {
     if (!currentWorkspace) return;
     servers.forEach(s => {
       s.databases.forEach(db => {
-        if (!collections[db.id] && !views[db.id]) {
+        const hasNodes = nodes[db.id] && nodes[db.id]["root"];
+        if (!hasNodes) {
           fetchDatabaseDataLocal(db.id);
         }
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [servers]);
+  }, [servers, currentWorkspace?.id]);
 
   const handleServerToggle = (serverId: string) => {
     toggleServer(serverId);
@@ -179,22 +163,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   const handleDatabaseToggle = (databaseId: string) => {
     toggleDatabase(databaseId);
-    // Fetch data if not already loaded and we're expanding
-    if (
-      !isDatabaseExpanded(databaseId) &&
-      !collections[databaseId] &&
-      !views[databaseId]
-    ) {
+    const hasNodes = nodes[databaseId] && nodes[databaseId]["root"];
+    if (!isDatabaseExpanded(databaseId) && !hasNodes) {
       fetchDatabaseDataLocal(databaseId);
     }
-  };
-
-  const handleCollectionGroupToggle = (databaseId: string) => {
-    toggleCollectionGroup(databaseId);
-  };
-
-  const handleViewGroupToggle = (databaseId: string) => {
-    toggleViewGroup(databaseId);
   };
 
   const handleCollectionClick = (
@@ -206,14 +178,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   };
 
   const handleRefresh = () => {
-    // Clear cached data so we don't keep stale information around between refreshes
     setLoadingData(new Set());
-
     refreshServersLocal();
   };
 
   const handleDatabaseCreated = () => {
-    // Refresh the server data after creating a new database
     handleRefresh();
   };
 
@@ -269,19 +238,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     item: { databaseId: string; collectionName: string };
   } | null>(null);
 
-  const handleCollectionContextMenu = (
-    event: React.MouseEvent,
-    databaseId: string,
-    collectionName: string,
-  ) => {
-    event.preventDefault();
-    setContextMenu({
-      mouseX: event.clientX + 2,
-      mouseY: event.clientY - 6,
-      item: { databaseId, collectionName },
-    });
-  };
-
   const handleDropCollection = () => {
     if (!contextMenu) return;
     const { databaseId, collectionName } = contextMenu.item;
@@ -310,6 +266,74 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
       </Box>
     );
   }
+
+  const renderNode = (
+    databaseId: string,
+    node: TreeNode,
+    level: number,
+  ): React.ReactNode => {
+    const nodeKey = `${databaseId}:${node.kind}:${node.id}`;
+    const isExpanded = expandedNodes.has(nodeKey);
+    const children = nodes[databaseId]?.[`${node.kind}:${node.id}`] || [];
+
+    const getIcon = () => {
+      switch (node.kind) {
+        case "dataset":
+        case "group":
+        case "schema":
+          return <FolderIcon size={18} strokeWidth={1.5} />;
+        case "table":
+        case "collection":
+          return <CollectionIcon size={18} strokeWidth={1.5} />;
+        case "view":
+          return <ViewIcon size={18} strokeWidth={1.5} />;
+        default:
+          return null;
+      }
+    };
+
+    return (
+      <React.Fragment key={nodeKey}>
+        <ListItem disablePadding>
+          <ListItemButton
+            onClick={async () => {
+              if (node.hasChildren) {
+                if (!children.length) {
+                  if (!currentWorkspace) return;
+                  await fetchChildren(currentWorkspace.id, databaseId, node);
+                }
+                toggleNode(nodeKey);
+              } else {
+                handleCollectionClick(databaseId, {
+                  name: node.id,
+                  type: node.kind,
+                  options: node.metadata,
+                } as any);
+              }
+            }}
+            sx={{ py: 0.25, pl: 3 + level * 2 }}
+          >
+            {node.hasChildren && (
+              <ListItemIcon sx={{ minWidth: 28 }}>
+                {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+              </ListItemIcon>
+            )}
+            <ListItemIcon sx={{ minWidth: 28 }}>{getIcon()}</ListItemIcon>
+            <ListItemText
+              primary={<Typography variant="body2">{node.label}</Typography>}
+            />
+          </ListItemButton>
+        </ListItem>
+        {node.hasChildren && (
+          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+            <List dense disablePadding>
+              {children.map(child => renderNode(databaseId, child, level + 1))}
+            </List>
+          </Collapse>
+        )}
+      </React.Fragment>
+    );
+  };
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -394,11 +418,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                         )}
                       </ListItemIcon>
                       <ListItemIcon sx={{ minWidth: 24 }}>
-                        {server.connectionString.includes("mongodb") ? (
-                          <MongoDBIcon />
-                        ) : (
-                          <ServerIcon />
-                        )}
+                        <ServerTypeIcon server={server} />
                       </ListItemIcon>
                       <ListItemText
                         primary={
@@ -434,8 +454,8 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                           database.id,
                         );
                         const isLoadingData = loadingData.has(database.id);
-                        const dbCollections = collections[database.id] || [];
-                        const dbViews = views[database.id] || [];
+                        const dbRootNodes: TreeNode[] =
+                          nodes[database.id]?.["root"] || [];
 
                         return (
                           <React.Fragment key={database.id}>
@@ -455,7 +475,30 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   )}
                                 </ListItemIcon>
                                 <ListItemIcon sx={{ minWidth: 32 }}>
-                                  <DatabaseIcon size={24} strokeWidth={1.5} />
+                                  {(() => {
+                                    const iconUrl = typeToIconUrl(
+                                      database.type,
+                                    );
+                                    if (iconUrl) {
+                                      return (
+                                        <img
+                                          src={iconUrl}
+                                          alt={database.type}
+                                          style={{
+                                            width: 20,
+                                            height: 20,
+                                            display: "block",
+                                          }}
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <DatabaseIcon
+                                        size={24}
+                                        strokeWidth={1.5}
+                                      />
+                                    );
+                                  })()}
                                 </ListItemIcon>
                                 <ListItemText
                                   primary={
@@ -489,233 +532,11 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                               unmountOnExit
                             >
                               <List dense disablePadding>
-                                {/* Collections Group */}
-                                <ListItem disablePadding>
-                                  <ListItemButton
-                                    onClick={() =>
-                                      handleCollectionGroupToggle(database.id)
-                                    }
-                                    sx={{ py: 0.5, pl: 3 }}
-                                  >
-                                    <ListItemIcon sx={{ minWidth: 32 }}>
-                                      {expandedCollectionGroups.has(
-                                        database.id,
-                                      ) ? (
-                                        <ExpandMoreIcon />
-                                      ) : (
-                                        <ChevronRightIcon />
-                                      )}
-                                    </ListItemIcon>
-                                    <ListItemIcon sx={{ minWidth: 32 }}>
-                                      <FolderIcon size={24} strokeWidth={1.5} />
-                                    </ListItemIcon>
-                                    <ListItemText
-                                      primary={
-                                        <Typography
-                                          variant="body2"
-                                          sx={{
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            whiteSpace: "nowrap",
-                                          }}
-                                        >
-                                          Collections (
-                                          {isLoadingData
-                                            ? "..."
-                                            : dbCollections.length}
-                                          )
-                                        </Typography>
-                                      }
-                                    />
-                                  </ListItemButton>
-                                </ListItem>
-
-                                <Collapse
-                                  in={expandedCollectionGroups.has(database.id)}
-                                  timeout="auto"
-                                  unmountOnExit
-                                >
-                                  <List dense disablePadding>
-                                    {isLoadingData ? (
-                                      renderCollectionSkeletonItems()
-                                    ) : dbCollections.length === 0 ? (
-                                      <Box
-                                        sx={{
-                                          py: 1,
-                                          pl: 9,
-                                          color: "text.secondary",
-                                        }}
-                                      >
-                                        <Typography variant="caption">
-                                          No collections found
-                                        </Typography>
-                                      </Box>
-                                    ) : (
-                                      dbCollections.map(collection => (
-                                        <ListItem
-                                          key={collection.name}
-                                          disablePadding
-                                        >
-                                          <ListItemButton
-                                            onClick={() =>
-                                              handleCollectionClick(
-                                                database.id,
-                                                collection,
-                                              )
-                                            }
-                                            onContextMenu={e =>
-                                              handleCollectionContextMenu(
-                                                e,
-                                                database.id,
-                                                collection.name,
-                                              )
-                                            }
-                                            sx={{ py: 0.25, pl: 7.5 }}
-                                          >
-                                            <ListItemIcon sx={{ minWidth: 28 }}>
-                                              <CollectionIcon
-                                                size={18}
-                                                strokeWidth={1.5}
-                                              />
-                                            </ListItemIcon>
-                                            <ListItemText
-                                              primary={
-                                                <Box
-                                                  sx={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 1,
-                                                    overflow: "hidden",
-                                                  }}
-                                                >
-                                                  <Typography
-                                                    variant="body2"
-                                                    sx={{
-                                                      overflow: "hidden",
-                                                      textOverflow: "ellipsis",
-                                                      whiteSpace: "nowrap",
-                                                    }}
-                                                  >
-                                                    {collection.name}
-                                                  </Typography>
-                                                  {collection.options
-                                                    ?.capped && (
-                                                    <Chip
-                                                      label="Capped"
-                                                      size="small"
-                                                      variant="outlined"
-                                                      color="warning"
-                                                      sx={{
-                                                        fontSize: "0.65rem",
-                                                        height: 14,
-                                                        flexShrink: 0,
-                                                      }}
-                                                    />
-                                                  )}
-                                                </Box>
-                                              }
-                                            />
-                                          </ListItemButton>
-                                        </ListItem>
-                                      ))
+                                {isLoadingData
+                                  ? renderCollectionSkeletonItems()
+                                  : dbRootNodes.map(node =>
+                                      renderNode(database.id, node, 1),
                                     )}
-                                  </List>
-                                </Collapse>
-
-                                {/* Views Group */}
-                                <ListItem disablePadding>
-                                  <ListItemButton
-                                    onClick={() =>
-                                      handleViewGroupToggle(database.id)
-                                    }
-                                    sx={{ py: 0.5, pl: 3 }}
-                                  >
-                                    <ListItemIcon sx={{ minWidth: 32 }}>
-                                      {expandedViewGroups.has(database.id) ? (
-                                        <ExpandMoreIcon />
-                                      ) : (
-                                        <ChevronRightIcon />
-                                      )}
-                                    </ListItemIcon>
-                                    <ListItemIcon sx={{ minWidth: 32 }}>
-                                      <FolderIcon size={24} strokeWidth={1.5} />
-                                    </ListItemIcon>
-                                    <ListItemText
-                                      primary={
-                                        <Typography
-                                          variant="body2"
-                                          sx={{
-                                            overflow: "hidden",
-                                            textOverflow: "ellipsis",
-                                            whiteSpace: "nowrap",
-                                          }}
-                                        >
-                                          Views (
-                                          {isLoadingData
-                                            ? "..."
-                                            : dbViews.length}
-                                          )
-                                        </Typography>
-                                      }
-                                    />
-                                  </ListItemButton>
-                                </ListItem>
-
-                                <Collapse
-                                  in={expandedViewGroups.has(database.id)}
-                                  timeout="auto"
-                                  unmountOnExit
-                                >
-                                  <List dense disablePadding>
-                                    {isLoadingData ? (
-                                      renderCollectionSkeletonItems()
-                                    ) : dbViews.length === 0 ? (
-                                      <Box
-                                        sx={{
-                                          py: 1,
-                                          pl: 9,
-                                          color: "text.secondary",
-                                        }}
-                                      >
-                                        <Typography variant="caption">
-                                          No views found
-                                        </Typography>
-                                      </Box>
-                                    ) : (
-                                      dbViews.map(view => (
-                                        <ListItem
-                                          key={view.name}
-                                          disablePadding
-                                        >
-                                          <ListItemButton
-                                            sx={{ py: 0.25, pl: 7.5 }}
-                                          >
-                                            <ListItemIcon sx={{ minWidth: 28 }}>
-                                              <ViewIcon
-                                                size={18}
-                                                strokeWidth={1.5}
-                                              />
-                                            </ListItemIcon>
-                                            <ListItemText
-                                              primary={
-                                                <Typography
-                                                  variant="body2"
-                                                  sx={{
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                  }}
-                                                >
-                                                  {view.name}
-                                                </Typography>
-                                              }
-                                            />
-                                          </ListItemButton>
-                                        </ListItem>
-                                      ))
-                                    )}
-                                  </List>
-                                </Collapse>
                               </List>
                             </Collapse>
                           </React.Fragment>

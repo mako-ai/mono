@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -14,32 +14,15 @@ import {
   Alert,
   CircularProgress,
   Typography,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  FormControlLabel,
-  Switch,
 } from "@mui/material";
-import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { apiClient } from "../lib/api-client";
+import { useDatabaseCatalogStore } from "../store/databaseCatalogStore";
 
 interface CreateDatabaseDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-}
-
-interface DatabaseConnection {
-  host?: string;
-  port?: number;
-  database?: string;
-  username?: string;
-  password?: string;
-  connectionString?: string;
-  authSource?: string;
-  replicaSet?: string;
-  ssl?: boolean;
 }
 
 const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
@@ -50,20 +33,14 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
   const { currentWorkspace } = useWorkspace();
   const [name, setName] = useState("");
   const [type, setType] = useState<string>("");
-  const [connection, setConnection] = useState<DatabaseConnection>({
-    ssl: false,
-  });
-  const [useConnectionString, setUseConnectionString] = useState(false);
+  const [connection, setConnection] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
     setName("");
     setType("");
-    setConnection({
-      ssl: false,
-    });
-    setUseConnectionString(false);
+    setConnection({});
     setError(null);
   };
 
@@ -77,38 +54,9 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       setError("Name and database type are required");
       return;
     }
-
     if (!currentWorkspace) {
       setError("No workspace selected");
       return;
-    }
-
-    const finalConnection = { ...connection };
-
-    if (useConnectionString) {
-      if (!connection.connectionString) {
-        setError("Connection string is required");
-        return;
-      }
-      // Ensure database name is extracted for MongoDB connection strings
-      if (type === "mongodb" && !finalConnection.database) {
-        const dbName = extractDatabaseFromConnectionString(
-          connection.connectionString,
-        );
-        if (dbName) {
-          finalConnection.database = dbName;
-        } else {
-          setError(
-            "Could not extract database name from connection string. Please ensure it includes the database name (e.g., /mydb)",
-          );
-          return;
-        }
-      }
-    } else {
-      if (!connection.host || !connection.database) {
-        setError("Host and database name are required");
-        return;
-      }
     }
 
     setLoading(true);
@@ -122,7 +70,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
       }>(`/workspaces/${currentWorkspace.id}/databases`, {
         name,
         type,
-        connection: finalConnection,
+        connection,
       });
 
       if (!data.success) {
@@ -138,57 +86,29 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
     }
   };
 
-  const getDefaultPort = (dbType: string): number => {
-    switch (dbType) {
-      case "mongodb":
-        return 27017;
-      case "postgresql":
-        return 5432;
-      case "mysql":
-        return 3306;
-      case "mssql":
-        return 1433;
-      case "sqlite":
-        return 0;
-      default:
-        return 0;
-    }
-  };
+  const {
+    fetchTypes,
+    fetchSchema,
+    types: dbTypes,
+    schemas,
+  } = useDatabaseCatalogStore();
 
-  const handleTypeChange = (newType: string) => {
+  useEffect(() => {
+    fetchTypes().catch(() => undefined);
+  }, [fetchTypes]);
+
+  const handleTypeChange = async (newType: string) => {
     setType(newType);
-    setConnection(prev => ({
-      ...prev,
-      port: getDefaultPort(newType),
-    }));
-    setUseConnectionString(newType === "mongodb");
-  };
-
-  const extractDatabaseFromConnectionString = (
-    connectionString: string,
-  ): string => {
-    try {
-      // Extract database name from MongoDB connection string
-      // Format: mongodb://user:pass@host:port/database or mongodb+srv://user:pass@host/database
-      const match = connectionString.match(/\/([^/?]+)(\?|$)/);
-      return match ? match[1] : "";
-    } catch {
-      return "";
+    const schema = schemas[newType] || (await fetchSchema(newType));
+    const defaults: Record<string, any> = {};
+    if (schema?.fields) {
+      schema.fields.forEach(f => {
+        if (f.default !== undefined) defaults[f.name] = f.default;
+        else if (f.type === "boolean") defaults[f.name] = false;
+        else defaults[f.name] = "";
+      });
     }
-  };
-
-  const handleConnectionStringChange = (connectionString: string) => {
-    const updatedConnection = { ...connection, connectionString };
-
-    // Auto-extract database name for MongoDB
-    if (type === "mongodb" && connectionString) {
-      const dbName = extractDatabaseFromConnectionString(connectionString);
-      if (dbName) {
-        updatedConnection.database = dbName;
-      }
-    }
-
-    setConnection(updatedConnection);
+    setConnection(defaults);
   };
 
   return (
@@ -219,208 +139,133 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
               label="Database Type"
               onChange={e => handleTypeChange(e.target.value)}
             >
-              <MenuItem value="mongodb">MongoDB</MenuItem>
-              <MenuItem value="postgresql">PostgreSQL</MenuItem>
-              <MenuItem value="mysql">MySQL</MenuItem>
-              <MenuItem value="sqlite">SQLite</MenuItem>
-              <MenuItem value="mssql">SQL Server</MenuItem>
+              {(dbTypes || []).map(t => (
+                <MenuItem key={t.type} value={t.type}>
+                  {t.displayName || t.type}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
-          {type && type !== "sqlite" && (
+          {/* Dynamic schema-driven form */}
+          {type && schemas[type]?.fields && (
             <>
-              {type === "mongodb" && (
-                <Box sx={{ mt: 2 }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={useConnectionString}
-                        onChange={e => setUseConnectionString(e.target.checked)}
+              {schemas[type].fields.map(field => {
+                const value = connection[field.name] ?? "";
+                const onChangeString = (v: string) =>
+                  setConnection(prev => ({ ...prev, [field.name]: v }));
+                const onChangeBool = (v: boolean) =>
+                  setConnection(prev => ({ ...prev, [field.name]: v }));
+                const onChangeNum = (v: string) =>
+                  setConnection(prev => ({
+                    ...prev,
+                    [field.name]: v ? Number(v) : undefined,
+                  }));
+                switch (field.type) {
+                  case "boolean":
+                    return (
+                      <FormControl key={field.name} fullWidth margin="normal">
+                        <Box sx={{ display: "flex", alignItems: "center" }}>
+                          <Typography sx={{ mr: 2 }}>{field.label}</Typography>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(value)}
+                            onChange={e => onChangeBool(e.target.checked)}
+                          />
+                        </Box>
+                        {field.helperText && (
+                          <Typography variant="caption" color="text.secondary">
+                            {field.helperText}
+                          </Typography>
+                        )}
+                      </FormControl>
+                    );
+                  case "textarea":
+                    return (
+                      <TextField
+                        key={field.name}
+                        fullWidth
+                        label={field.label}
+                        value={value}
+                        onChange={e => onChangeString(e.target.value)}
+                        margin="normal"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        helperText={field.helperText}
+                        multiline
+                        rows={field.rows || 3}
                       />
-                    }
-                    label="Use Connection String"
-                  />
-                  <Typography
-                    variant="caption"
-                    display="block"
-                    color="text.secondary"
-                  >
-                    Recommended for MongoDB Atlas or replica sets
-                  </Typography>
-                </Box>
-              )}
-
-              {useConnectionString ? (
-                <>
-                  <TextField
-                    fullWidth
-                    label="Connection String"
-                    value={connection.connectionString || ""}
-                    onChange={e => handleConnectionStringChange(e.target.value)}
-                    margin="normal"
-                    required
-                    placeholder="mongodb+srv://username:password@cluster.mongodb.net/database"
-                    multiline
-                    rows={2}
-                    helperText={
-                      connection.database
-                        ? `Detected database: ${connection.database}`
-                        : "Enter a connection string that includes the database name"
-                    }
-                  />
-                </>
-              ) : (
-                <>
-                  <TextField
-                    fullWidth
-                    label="Host"
-                    value={connection.host || ""}
-                    onChange={e =>
-                      setConnection(prev => ({
-                        ...prev,
-                        host: e.target.value,
-                      }))
-                    }
-                    margin="normal"
-                    required
-                    placeholder="localhost"
-                  />
-
-                  <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
-                    <TextField
-                      label="Port"
-                      type="number"
-                      value={connection.port || ""}
-                      onChange={e =>
-                        setConnection(prev => ({
-                          ...prev,
-                          port: parseInt(e.target.value) || undefined,
-                        }))
-                      }
-                      sx={{ width: "30%" }}
-                      placeholder={getDefaultPort(type).toString()}
-                    />
-
-                    <TextField
-                      fullWidth
-                      label="Database Name"
-                      value={connection.database || ""}
-                      onChange={e =>
-                        setConnection(prev => ({
-                          ...prev,
-                          database: e.target.value,
-                        }))
-                      }
-                      required
-                      placeholder="myapp"
-                    />
-                  </Box>
-
-                  <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
-                    <TextField
-                      fullWidth
-                      label="Username"
-                      value={connection.username || ""}
-                      onChange={e =>
-                        setConnection(prev => ({
-                          ...prev,
-                          username: e.target.value,
-                        }))
-                      }
-                      placeholder="admin"
-                    />
-
-                    <TextField
-                      fullWidth
-                      label="Password"
-                      type="password"
-                      value={connection.password || ""}
-                      onChange={e =>
-                        setConnection(prev => ({
-                          ...prev,
-                          password: e.target.value,
-                        }))
-                      }
-                      placeholder="••••••••"
-                    />
-                  </Box>
-                </>
-              )}
-
-              {/* Advanced Options */}
-              <Accordion sx={{ mt: 2 }}>
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography>Advanced Options</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                  <Box>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={connection.ssl || false}
-                          onChange={e =>
-                            setConnection(prev => ({
-                              ...prev,
-                              ssl: e.target.checked,
-                            }))
-                          }
-                        />
-                      }
-                      label="Use SSL/TLS"
-                    />
-
-                    {type === "mongodb" && !useConnectionString && (
-                      <>
-                        <TextField
-                          fullWidth
-                          label="Auth Source"
-                          value={connection.authSource || ""}
-                          onChange={e =>
-                            setConnection(prev => ({
-                              ...prev,
-                              authSource: e.target.value,
-                            }))
-                          }
-                          margin="normal"
-                          placeholder="admin"
-                        />
-
-                        <TextField
-                          fullWidth
-                          label="Replica Set"
-                          value={connection.replicaSet || ""}
-                          onChange={e =>
-                            setConnection(prev => ({
-                              ...prev,
-                              replicaSet: e.target.value,
-                            }))
-                          }
-                          margin="normal"
-                          placeholder="rs0"
-                        />
-                      </>
-                    )}
-                  </Box>
-                </AccordionDetails>
-              </Accordion>
+                    );
+                  case "password":
+                    return (
+                      <TextField
+                        key={field.name}
+                        fullWidth
+                        type="password"
+                        label={field.label}
+                        value={value}
+                        onChange={e => onChangeString(e.target.value)}
+                        margin="normal"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        helperText={field.helperText}
+                      />
+                    );
+                  case "number":
+                    return (
+                      <TextField
+                        key={field.name}
+                        fullWidth
+                        type="number"
+                        label={field.label}
+                        value={value}
+                        onChange={e => onChangeNum(e.target.value)}
+                        margin="normal"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        helperText={field.helperText}
+                      />
+                    );
+                  case "select":
+                    return (
+                      <FormControl
+                        key={field.name}
+                        fullWidth
+                        margin="normal"
+                        required={field.required}
+                      >
+                        <InputLabel>{field.label}</InputLabel>
+                        <Select
+                          value={value}
+                          label={field.label}
+                          onChange={e => onChangeString(String(e.target.value))}
+                        >
+                          {(field.options || []).map(opt => (
+                            <MenuItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    );
+                  case "string":
+                  default:
+                    return (
+                      <TextField
+                        key={field.name}
+                        fullWidth
+                        label={field.label}
+                        value={value}
+                        onChange={e => onChangeString(e.target.value)}
+                        margin="normal"
+                        required={field.required}
+                        placeholder={field.placeholder}
+                        helperText={field.helperText}
+                      />
+                    );
+                }
+              })}
             </>
-          )}
-
-          {type === "sqlite" && (
-            <TextField
-              fullWidth
-              label="Database File Path"
-              value={connection.database || ""}
-              onChange={e =>
-                setConnection(prev => ({
-                  ...prev,
-                  database: e.target.value,
-                }))
-              }
-              margin="normal"
-              required
-              placeholder="/path/to/database.db"
-            />
           )}
         </Box>
       </DialogContent>

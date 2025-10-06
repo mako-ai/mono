@@ -161,8 +161,31 @@ function MainApp() {
       case "databases":
         return (
           <DatabaseExplorer
-            onCollectionClick={(dbId, collection) => {
-              const prefill = `db.getCollection("${collection.name}").find({}).limit(500)`;
+            onCollectionClick={async (dbId, collection) => {
+              // Try server-provided template first
+              let prefill = `db.getCollection("${collection.name}").find({}).limit(500)`;
+              try {
+                const { useDatabaseTreeStore } = await import(
+                  "./store/databaseTreeStore"
+                );
+                const workspaceId = localStorage.getItem("activeWorkspaceId");
+                if (workspaceId) {
+                  const tpl = await useDatabaseTreeStore
+                    .getState()
+                    .fetchConsoleTemplate(workspaceId, dbId, {
+                      id: collection.name,
+                      kind: collection.type || "collection",
+                      metadata: collection.options,
+                    } as any);
+                  if (tpl?.template) prefill = tpl.template;
+                }
+              } catch {
+                // If server call fails, fallback to type-based default
+                const kind = (collection.type || "").toLowerCase();
+                if (kind !== "collection" && kind !== "view") {
+                  prefill = `SELECT * FROM ${collection.name} LIMIT 500;`;
+                }
+              }
               openOrFocusConsoleTab(collection.name, prefill, dbId, [
                 {
                   id: "collection-" + collection.name,

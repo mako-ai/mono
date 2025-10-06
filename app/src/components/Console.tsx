@@ -144,9 +144,27 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
     hasInitialVersionRef.current = false;
   }, [consoleId]);
 
+  // Track if user has manually selected a database
+  const hasUserSelectedDatabaseRef = useRef(false);
+
+  const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>(() => {
+    // Initialize with initialDatabaseId or first database or empty string
+    if (initialDatabaseId) return initialDatabaseId;
+    if (databases.length > 0) return databases[0].id;
+    return "";
+  });
+
   // Keep refs of the latest callbacks to avoid stale closures in Monaco commands
   const onExecuteRef = useRef(onExecute);
   const onSaveRef = useRef(onSave);
+
+  // Determine editor language based on selected database type if available
+  const editorLanguage = useMemo(() => {
+    const selectedDb = databases.find(db => db.id === selectedDatabaseId);
+    const dbType = selectedDb?.type;
+    // Use most stable highlighter: javascript for MongoDB shell, sql otherwise
+    return dbType === "mongodb" ? "javascript" : "sql";
+  }, [databases, selectedDatabaseId]);
 
   // Update refs whenever the callbacks change
   useEffect(() => {
@@ -171,16 +189,6 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   const isProgrammaticUpdateRef = useRef(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastInitialContentRef = useRef(initialContent);
-
-  // Track if user has manually selected a database
-  const hasUserSelectedDatabaseRef = useRef(false);
-
-  const [selectedDatabaseId, setSelectedDatabaseId] = useState<string>(() => {
-    // Initialize with initialDatabaseId or first database or empty string
-    if (initialDatabaseId) return initialDatabaseId;
-    if (databases.length > 0) return databases[0].id;
-    return "";
-  });
 
   // Keep a ref of the latest selected database so closures (e.g. Monaco keybindings) always see the up-to-date value
   const selectedDatabaseIdRef = useRef<string>(selectedDatabaseId);
@@ -972,7 +980,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         {!isDiffMode ? (
           <Editor
             key={editorKey}
-            defaultLanguage="javascript"
+            defaultLanguage={editorLanguage || "javascript"}
             defaultValue={lastInitialContentRef.current || initialContent}
             height="100%"
             theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
@@ -991,7 +999,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           <DiffEditor
             height="100%"
             theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
-            language="javascript"
+            language={editorLanguage || "javascript"}
             original={originalContent}
             modified={modifiedContent}
             options={{
