@@ -11,7 +11,9 @@ import {
 import { Chat, Database } from "../database/workspace-schema";
 import { databaseConnectionService } from "../services/database-connection.service";
 import { Types } from "mongoose";
-import { DATABASE_ASSISTANT_PROMPT } from "../database-assistant-prompt";
+import { MONGO_ASSISTANT_PROMPT } from "../mongo-assistant-prompt";
+import { BIGQUERY_ASSISTANT_PROMPT } from "../bigquery-assistant-prompt";
+import { TRIAGE_ASSISTANT_PROMPT } from "../triage-assistant-prompt";
 
 // Create a router that will be mounted at /api/agent
 export const agentRoutes = new Hono();
@@ -282,10 +284,10 @@ const executeQuery = async (
 };
 
 // ------------------------------------------------------------------------------------
-// Tool wrappers (same as before)
+// Tool wrappers: MongoDB
 // ------------------------------------------------------------------------------------
 
-const createWorkspaceTools = (
+const createMongoTools = (
   workspaceId: string,
   sendEvent?: (data: any) => void,
   consoles?: any[],
@@ -480,20 +482,367 @@ const createWorkspaceTools = (
 };
 
 // ------------------------------------------------------------------------------------
-// Agent definition with thread awareness
+// BigQuery helpers and tools
 // ------------------------------------------------------------------------------------
 
-const createDbAgent = (
+const listDatasets = async (databaseId: string, workspaceId: string) => {
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+  if (!database) throw new Error("Database not found or access denied");
+  if (database.type !== "bigquery") {
+    throw new Error("list_datasets only supports BigQuery databases");
+  }
+  const datasets = await databaseConnectionService.listBigQueryDatasets(
+    database as any,
+  );
+  return datasets.map(ds => ({ datasetId: ds }));
+};
+
+const listTables = async (
+  databaseId: string,
+  datasetId: string,
+  workspaceId: string,
+) => {
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+  if (!database) throw new Error("Database not found or access denied");
+  if (database.type !== "bigquery") {
+    throw new Error("list_tables only supports BigQuery databases");
+  }
+  const items = await databaseConnectionService.listBigQueryTables(
+    database as any,
+    datasetId,
+  );
+  return items.map(it => ({ name: it.name, type: it.type }));
+};
+
+const buildInspectTableSql = (
+  projectId: string,
+  datasetId: string,
+  tableId: string,
+) => {
+  return (
+    "SELECT column_name, data_type, is_nullable, ordinal_position\n" +
+    `FROM \`${projectId}.${datasetId}.INFORMATION_SCHEMA.COLUMNS\`\n` +
+    `WHERE table_name = '${tableId}'\n` +
+    "ORDER BY ordinal_position\n" +
+    "LIMIT 1000"
+  );
+};
+
+const inspectTable = async (
+  databaseId: string,
+  datasetId: string,
+  tableId: string,
+  workspaceId: string,
+) => {
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+  if (!database) throw new Error("Database not found or access denied");
+  if (database.type !== "bigquery") {
+    throw new Error("inspect_table only supports BigQuery databases");
+  }
+  const projectId = (database.connection as any)?.project_id;
+  if (!projectId) throw new Error("BigQuery connection missing project_id");
+  const sql = buildInspectTableSql(projectId, datasetId, tableId);
+  const res = await databaseConnectionService.executeQuery(
+    database as any,
+    sql,
+  );
+  if (!res.success) throw new Error(res.error || "Failed to inspect table");
+  return { columns: res.data };
+};
+
+const appendLimitIfMissing = (sql: string): string => {
+  const hasLimit = /\blimit\s+\d+\b/i.test(sql);
+  if (hasLimit) return sql;
+  // Avoid appending inside parentheses by trimming trailing semicolons first
+  const trimmed = sql.replace(/;\s*$/i, "");
+  return `${trimmed}\nLIMIT 500;`;
+};
+
+const executeBigQuerySql = async (
+  databaseId: string,
+  query: string,
+  workspaceId: string,
+) => {
+  if (
+    !Types.ObjectId.isValid(databaseId) ||
+    !Types.ObjectId.isValid(workspaceId)
+  ) {
+    throw new Error("Invalid database ID or workspace ID");
+  }
+  const database = await Database.findOne({
+    _id: new Types.ObjectId(databaseId),
+    workspaceId: new Types.ObjectId(workspaceId),
+  });
+  if (!database) throw new Error("Database not found or access denied");
+  if (database.type !== "bigquery") {
+    throw new Error(
+      "execute_query only supports BigQuery databases in this tool",
+    );
+  }
+  const safeQuery = appendLimitIfMissing(query);
+  const res = await databaseConnectionService.executeQuery(
+    database as any,
+    safeQuery,
+  );
+  return res;
+};
+
+const createBigQueryTools = (
   workspaceId: string,
   sendEvent?: (data: any) => void,
   consoles?: any[],
-) =>
-  new Agent({
-    name: "Database Assistant",
-    instructions: DATABASE_ASSISTANT_PROMPT,
-    tools: createWorkspaceTools(workspaceId, sendEvent, consoles),
+) => {
+  const listDatasetsTool = tool({
+    name: "bq_list_datasets",
+    description: "List BigQuery datasets for the provided database identifier.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: { type: "string", description: "The BigQuery database id" },
+      },
+      required: ["databaseId"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) => listDatasets(input.databaseId, workspaceId),
+  });
+
+  const listTablesTool = tool({
+    name: "bq_list_tables",
+    description: "List BigQuery tables for a given dataset.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: { type: "string" },
+        datasetId: { type: "string" },
+      },
+      required: ["databaseId", "datasetId"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      listTables(input.databaseId, input.datasetId, workspaceId),
+  });
+
+  const inspectTableTool = tool({
+    name: "bq_inspect_table",
+    description:
+      "Return columns with data types and nullability for a given table via INFORMATION_SCHEMA.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: { type: "string" },
+        datasetId: { type: "string" },
+        tableId: { type: "string" },
+      },
+      required: ["databaseId", "datasetId", "tableId"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      inspectTable(
+        input.databaseId,
+        input.datasetId,
+        input.tableId,
+        workspaceId,
+      ),
+  });
+
+  const executeSqlTool = tool({
+    name: "bq_execute_query",
+    description:
+      "Execute a BigQuery SQL query and return the results (LIMIT 500 enforced by default).",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: { type: "string" },
+        query: { type: "string" },
+      },
+      required: ["databaseId", "query"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      executeBigQuerySql(input.databaseId, input.query, workspaceId),
+  });
+
+  const modifyConsoleTool = tool({
+    name: "modify_console",
+    description:
+      "Modify the console SQL/editor. Use this to update, replace, or insert queries in the user's console.",
+    parameters: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["replace", "insert", "append"] },
+        content: { type: "string" },
+      },
+      required: ["action", "content"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) => {
+      const modification = {
+        action: input.action,
+        content: input.content,
+        position: input.position,
+      };
+      if (sendEvent) {
+        sendEvent({ type: "console_modification", modification });
+      }
+      return {
+        success: true,
+        modification,
+        message: `✓ Console ${input.action}d successfully`,
+      };
+    },
+  });
+
+  const readConsoleTool = tool({
+    name: "read_console",
+    description: "Read the contents of the current console editor.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    execute: async (input: any) => {
+      const consolesData = consoles || [];
+      const consoleId = input.consoleId;
+      if (consoleId) {
+        const console = consolesData.find((c: any) => c.id === consoleId);
+        if (console) {
+          return {
+            success: true,
+            consoleId: console.id,
+            title: console.title,
+            content: console.content || "",
+            metadata: console.metadata || {},
+          };
+        }
+        return {
+          success: false,
+          error: `Console with ID ${consoleId} not found`,
+        };
+      }
+      if (consolesData.length > 0) {
+        const activeConsole = consolesData[0];
+        return {
+          success: true,
+          consoleId: activeConsole.id,
+          title: activeConsole.title,
+          content: activeConsole.content || "",
+          metadata: activeConsole.metadata || {},
+        };
+      }
+      return { success: false, error: "No console is currently active" };
+    },
+  });
+
+  return [
+    listDatasetsTool,
+    listTablesTool,
+    inspectTableTool,
+    executeSqlTool,
+    modifyConsoleTool,
+    readConsoleTool,
+  ];
+};
+
+// ------------------------------------------------------------------------------------
+// Triage tools (lightweight discovery across DB types)
+// ------------------------------------------------------------------------------------
+
+const createTriageTools = (
+  workspaceId: string,
+  sendEvent?: (data: any) => void,
+  consoles?: any[],
+) => {
+  // Reuse mongo list tools and console tools, plus BigQuery dataset/table listing
+  const mongoTools = createMongoTools(workspaceId, sendEvent, consoles);
+  const bqTools = createBigQueryTools(workspaceId, sendEvent, consoles);
+
+  // Filter to discovery-only: list_databases, list_collections, bq_list_datasets, bq_list_tables, read_console, modify_console
+  const wanted = new Set([
+    "list_databases",
+    "list_collections",
+    "bq_list_datasets",
+    "bq_list_tables",
+    "read_console",
+    "modify_console",
+  ]);
+
+  const dedupeByName = (toolsArr: any[]) => {
+    const map = new Map<string, any>();
+    for (const t of toolsArr) {
+      const name = (t as any)?.schema?.name || (t as any)?.name;
+      const finalName = name || "unknown";
+      if (wanted.has(finalName)) map.set(finalName, t);
+    }
+    return Array.from(map.values());
+  };
+
+  return dedupeByName([...mongoTools, ...bqTools]);
+};
+
+// ------------------------------------------------------------------------------------
+// Agent definitions with thread awareness and modes
+// ------------------------------------------------------------------------------------
+
+type AgentMode = "mongo" | "bigquery" | "triage";
+
+const createAgentByMode = (
+  mode: AgentMode,
+  workspaceId: string,
+  sendEvent?: (data: any) => void,
+  consoles?: any[],
+) => {
+  if (mode === "mongo") {
+    return new Agent({
+      name: "MongoDB Assistant",
+      instructions: MONGO_ASSISTANT_PROMPT,
+      tools: createMongoTools(workspaceId, sendEvent, consoles),
+      model: "o3",
+    });
+  }
+  if (mode === "bigquery") {
+    return new Agent({
+      name: "BigQuery Assistant",
+      instructions: BIGQUERY_ASSISTANT_PROMPT,
+      tools: createBigQueryTools(workspaceId, sendEvent, consoles),
+      model: "o3",
+    });
+  }
+  // triage
+  return new Agent({
+    name: "Database Triage Assistant",
+    instructions: TRIAGE_ASSISTANT_PROMPT,
+    tools: createTriageTools(workspaceId, sendEvent, consoles),
     model: "o3",
   });
+};
 
 // ------------------------------------------------------------------------------------
 // Enhanced chat persistence with thread management
@@ -608,6 +957,22 @@ agentRoutes.post("/stream", async c => {
     );
   }
 
+  // Determine agent mode via consoles metadata or fall back to triage
+  const detectMode = (): AgentMode => {
+    const meta =
+      Array.isArray(consoles) && consoles.length > 0
+        ? consoles[0]?.metadata || {}
+        : {};
+    const type = (meta.type || meta.databaseType || "")
+      .toString()
+      .toLowerCase();
+    if (type === "mongodb") return "mongo";
+    if (type === "bigquery") return "bigquery";
+    return "triage";
+  };
+
+  const mode = detectMode();
+
   // Get or create thread context
   const threadContext = await getOrCreateThreadContext(sessionId, workspaceId);
 
@@ -630,7 +995,7 @@ agentRoutes.post("/stream", async c => {
 
       try {
         const runStream: any = await runAgent(
-          createDbAgent(workspaceId, sendEvent, consoles),
+          createAgentByMode(mode, workspaceId, sendEvent, consoles),
           agentInput,
           {
             stream: true,
@@ -761,6 +1126,9 @@ agentRoutes.post("/stream", async c => {
           threadId: threadContext.threadId,
           messageCount: allMessages.length,
         });
+
+        // Echo selected mode for client diagnostics
+        sendEvent({ type: "agent_mode", mode });
 
         sendEvent({ type: "session", sessionId: finalSessionId });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));

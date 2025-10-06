@@ -136,15 +136,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           if (typeof value === "object" && value !== null) {
             return JSON.stringify(value);
           }
-          if (isNumericColumn) {
-            const num = typeof value === "number" ? value : Number(value);
-            if (!isNaN(num) && isFinite(num)) {
-              return new Intl.NumberFormat("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }).format(num);
-            }
-          }
           return String(value);
         },
       };
