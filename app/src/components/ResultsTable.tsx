@@ -2,20 +2,23 @@ import React, { useMemo, useCallback, useEffect } from "react";
 import {
   Box,
   Typography,
-  Button,
   Snackbar,
   Alert,
   ToggleButtonGroup,
   ToggleButton,
+  Tooltip,
+  IconButton,
 } from "@mui/material";
 import {
   DataGridPremium,
   GridColDef,
   GridRenderCellParams,
 } from "@mui/x-data-grid-premium";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import TableViewIcon from "@mui/icons-material/TableView";
-import CodeIcon from "@mui/icons-material/Code";
+import {
+  Sheet as TableIcon,
+  Braces as JsonIcon,
+  ClipboardCopy as CopyIcon,
+} from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -336,30 +339,32 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results }) => {
           onChange={handleViewModeChange}
           size="small"
           aria-label="view mode"
-          sx={{
-            p: 0,
-          }}
         >
-          <ToggleButton value="table" aria-label="table view">
-            <TableViewIcon fontSize="small" />
-          </ToggleButton>
-          <ToggleButton value="json" aria-label="json view">
-            <CodeIcon fontSize="small" />
-          </ToggleButton>
+          <Tooltip title="Table view">
+            <ToggleButton value="table" aria-label="table view">
+              <TableIcon strokeWidth={1.5} size={22} />
+            </ToggleButton>
+          </Tooltip>
+          <Tooltip title="JSON view">
+            <ToggleButton value="json" aria-label="json view">
+              <JsonIcon strokeWidth={1.5} size={22} />
+            </ToggleButton>
+          </Tooltip>
         </ToggleButtonGroup>
-        <Button
-          variant="text"
-          size="small"
-          onClick={copyToClipboard}
-          sx={{
-            minWidth: "32px",
-            width: "32px",
-            height: "32px",
-            p: 0,
-          }}
-        >
-          <ContentCopyIcon fontSize="small" />
-        </Button>
+        <Tooltip title="Copy to clipboard">
+          <IconButton
+            size="small"
+            onClick={copyToClipboard}
+            sx={{
+              minWidth: "32px",
+              width: "32px",
+              height: "32px",
+              p: 0,
+            }}
+          >
+            <CopyIcon strokeWidth={1.5} size={22} />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Results content */}
