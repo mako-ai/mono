@@ -403,6 +403,31 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           }),
         },
       },
+      MuiToggleButtonGroup: {
+        styleOverrides: {
+          root: ({ theme }: any) => ({
+            padding: 1, // 1px padding around the group
+            borderRadius: 6,
+            gap: 1,
+            border: `1px solid ${theme.palette.divider}`,
+          }),
+          grouped: {
+            border: 0,
+            margin: 0,
+            borderRadius: 4,
+          },
+        },
+      },
+      MuiToggleButton: {
+        styleOverrides: {
+          root: {
+            padding: 2,
+            fontSize: "2rem",
+            borderRadius: 3,
+            textTransform: "none",
+          },
+        },
+      },
     },
   });
 

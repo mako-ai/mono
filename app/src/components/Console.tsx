@@ -19,16 +19,16 @@ import {
   Badge,
   Alert,
 } from "@mui/material";
+import { PlayArrow as PlayIcon } from "@mui/icons-material";
 import {
-  PlayArrow,
-  SaveOutlined,
-  Undo,
-  Redo,
-  History,
-  Check,
-  Close,
-  InfoOutline,
-} from "@mui/icons-material";
+  Check as CheckIcon,
+  Cross as CloseIcon,
+  Save as SaveIcon,
+  Undo as UndoIcon,
+  Redo as RedoIcon,
+  History as HistoryIcon,
+  Info as InfoOutlineIcon,
+} from "lucide-react";
 import Editor, { DiffEditor } from "@monaco-editor/react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useWorkspace } from "../contexts/workspace-context";
@@ -768,7 +768,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           <Button
             variant="contained"
             size="small"
-            startIcon={<PlayArrow />}
+            startIcon={<PlayIcon />}
             onClick={handleExecute}
             disabled={isExecuting || !selectedDatabaseId}
             disableElevation
@@ -793,23 +793,16 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                     : "Save As... (⌘/Ctrl+S)"
               }
             >
-              <Button
-                variant="text"
+              <IconButton
                 size="small"
                 onClick={handleSave}
                 disabled={isSaving || isExecuting || !hasUnsavedChanges}
-                disableElevation
                 sx={{
                   ml: 1,
-                  minWidth: "32px",
-                  width: "32px",
-                  height: "32px",
-                  p: 0,
-                  opacity: hasUnsavedChanges ? 1 : 0.5,
                 }}
               >
-                <SaveOutlined />
-              </Button>
+                <SaveIcon strokeWidth={2} size={22} />
+              </IconButton>
             </Tooltip>
           )}
 
@@ -835,9 +828,8 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                       }
                     }}
                     disabled={isDiffMode || !monacoCanUndo}
-                    sx={{ p: 0.5 }}
                   >
-                    <Undo fontSize="small" />
+                    <UndoIcon strokeWidth={2} size={22} />
                   </IconButton>
                 </span>
               </Tooltip>
@@ -860,9 +852,8 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                       }
                     }}
                     disabled={isDiffMode || !monacoCanRedo}
-                    sx={{ p: 0.5 }}
                   >
-                    <Redo fontSize="small" />
+                    <RedoIcon strokeWidth={2} size={22} />
                   </IconButton>
                 </span>
               </Tooltip>
@@ -873,14 +864,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
                     size="small"
                     onClick={onHistoryClick}
                     disabled={isDiffMode}
-                    sx={{ p: 0.5 }}
                   >
                     <Badge
                       badgeContent={getHistory().length}
                       color="primary"
                       max={99}
                     >
-                      <History fontSize="small" />
+                      <HistoryIcon strokeWidth={2} size={22} />
                     </Badge>
                   </IconButton>
                 </Tooltip>
@@ -888,17 +878,9 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
             </>
           )}
           <Divider orientation="vertical" flexItem />
-          <Button
-            onClick={handleInfoClick}
-            sx={{
-              minWidth: "32px",
-              width: "32px",
-              height: "32px",
-              p: 0,
-            }}
-          >
-            <InfoOutline fontSize="small" />
-          </Button>
+          <IconButton onClick={handleInfoClick} size="small">
+            <InfoOutlineIcon strokeWidth={2} size={22} />
+          </IconButton>
         </Box>
 
         <FormControl
@@ -966,7 +948,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
               variant="contained"
               color="success"
               size="small"
-              startIcon={<Check />}
+              startIcon={<CheckIcon strokeWidth={2} size={22} />}
               onClick={acceptChanges}
               disableElevation
             >
@@ -976,7 +958,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
               variant="outlined"
               color="error"
               size="small"
-              startIcon={<Close />}
+              startIcon={<CloseIcon strokeWidth={2} size={22} />}
               onClick={rejectChanges}
               disableElevation
             >
