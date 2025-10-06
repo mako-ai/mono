@@ -334,6 +334,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
+                textTransform: "uppercase",
               }}
             >
               Databases
@@ -589,7 +590,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                                 >
                                                   <Typography
                                                     variant="body2"
-                                                    fontSize="0.8rem"
                                                     sx={{
                                                       overflow: "hidden",
                                                       textOverflow: "ellipsis",
@@ -700,7 +700,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                               primary={
                                                 <Typography
                                                   variant="body2"
-                                                  fontSize="0.8rem"
                                                   sx={{
                                                     overflow: "hidden",
                                                     textOverflow: "ellipsis",
