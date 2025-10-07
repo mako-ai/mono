@@ -722,6 +722,22 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
                   consoleId: parsed.consoleId,
                 });
               }
+            } else if (parsed.type === "console_creation") {
+              // Handle console creation event
+              console.log(
+                "Console creation event received:",
+                parsed.consoleId,
+                parsed.title,
+              );
+              if (onConsoleModification) {
+                // Use the modification handler to create a new console
+                onConsoleModification({
+                  action: "create",
+                  content: "",
+                  consoleId: parsed.consoleId,
+                  title: parsed.title,
+                });
+              }
             } else if (parsed.type === "error") {
               // Handle error events
               console.error("Error from agent:", parsed.message);

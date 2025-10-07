@@ -4,11 +4,7 @@ import { tool } from "@openai/agents";
 import { Types } from "mongoose";
 import { Database } from "../../database/workspace-schema";
 import { databaseConnectionService } from "../../services/database-connection.service";
-import {
-  createConsoleTools,
-  SendEventFunction,
-  ConsoleData,
-} from "../shared/console-tools";
+import { createConsoleTools, ConsoleData } from "../shared/console-tools";
 
 const listDatabases = async (workspaceId: string) => {
   if (!Types.ObjectId.isValid(workspaceId)) {
@@ -144,8 +140,8 @@ const executeQuery = async (
 
 export const createMongoTools = (
   workspaceId: string,
-  sendEvent?: SendEventFunction,
   consoles?: ConsoleData[],
+  preferredConsoleId?: string,
 ) => {
   const listDatabasesTool = tool({
     name: "list_databases",
@@ -210,7 +206,7 @@ export const createMongoTools = (
       inspectCollection(input.databaseId, input.collectionName, workspaceId),
   });
 
-  const consoleTools = createConsoleTools(sendEvent, consoles);
+  const consoleTools = createConsoleTools(consoles, preferredConsoleId);
 
   return [
     listDatabasesTool,

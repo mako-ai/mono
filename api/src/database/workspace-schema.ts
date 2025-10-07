@@ -285,6 +285,7 @@ export interface IChat extends Document {
     content: string;
   }>;
   activeAgent?: "mongo" | "bigquery" | "triage"; // Pinned specialist for this thread
+  pinnedConsoleId?: string; // Console ID that this chat session is bound to
   createdBy: string;
   titleGenerated: boolean;
   createdAt: Date;
@@ -827,6 +828,10 @@ const ChatSchema = new Schema<IChat>(
       enum: ["mongo", "bigquery", "triage"],
       required: false,
     },
+    pinnedConsoleId: {
+      type: String,
+      required: false,
+    },
     createdBy: {
       type: String,
       ref: "User",
@@ -845,6 +850,7 @@ const ChatSchema = new Schema<IChat>(
 // Indexes
 ChatSchema.index({ workspaceId: 1 });
 ChatSchema.index({ workspaceId: 1, title: 1 });
+ChatSchema.index({ workspaceId: 1, createdBy: 1 }); // For user-specific chat queries
 
 /**
  * SyncJob Schema

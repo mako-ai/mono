@@ -4,11 +4,7 @@ import { tool } from "@openai/agents";
 import { Types } from "mongoose";
 import { Database } from "../../database/workspace-schema";
 import { databaseConnectionService } from "../../services/database-connection.service";
-import {
-  createConsoleTools,
-  SendEventFunction,
-  ConsoleData,
-} from "../shared/console-tools";
+import { createConsoleTools, ConsoleData } from "../shared/console-tools";
 
 const listDatasets = async (databaseId: string, workspaceId: string) => {
   if (
@@ -145,8 +141,8 @@ const executeBigQuerySql = async (
 
 export const createBigQueryTools = (
   workspaceId: string,
-  sendEvent?: SendEventFunction,
   consoles?: ConsoleData[],
+  preferredConsoleId?: string,
 ) => {
   const listDatasetsTool = tool({
     name: "bq_list_datasets",
@@ -213,7 +209,7 @@ export const createBigQueryTools = (
       executeBigQuerySql(input.databaseId, input.query, workspaceId),
   });
 
-  const consoleTools = createConsoleTools(sendEvent, consoles);
+  const consoleTools = createConsoleTools(consoles, preferredConsoleId);
 
   return [
     listDatasetsTool,

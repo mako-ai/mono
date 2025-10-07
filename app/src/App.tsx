@@ -49,16 +49,26 @@ function MainApp() {
 
   // Handle console modification from AI
   const handleConsoleModification = async (
-    modification: ConsoleModification,
+    modification: ConsoleModification & { consoleId?: string; title?: string },
   ) => {
     // handleConsoleModification called
 
     const { activeConsoleId, consoleTabs, addConsoleTab, setActiveConsole } =
       useConsoleStore.getState();
 
-    // Always use the active console - this is what users expect
-    // When they ask the AI to modify a console, they mean the one they're looking at
-    let targetConsoleId = activeConsoleId;
+    // Handle console creation
+    if (modification.action === "create" && modification.title) {
+      const newConsoleId = addConsoleTab({
+        title: modification.title,
+        content: modification.content || "",
+        initialContent: modification.content || "",
+      });
+      setActiveConsole(newConsoleId);
+      return;
+    }
+
+    // Use the provided consoleId if available, otherwise use the active console
+    let targetConsoleId = modification.consoleId || activeConsoleId;
     let isNewConsole = false;
 
     if (!targetConsoleId) {

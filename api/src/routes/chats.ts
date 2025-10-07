@@ -1,12 +1,25 @@
 import { Hono } from "hono";
 import { Chat } from "../database/workspace-schema";
 import { ObjectId } from "mongodb";
+import { unifiedAuthMiddleware } from "../auth/unified-auth.middleware";
+import { AuthenticatedContext } from "../middleware/workspace.middleware";
 
 export const chatsRoutes = new Hono();
 
+// Apply unified auth middleware to all chat routes
+chatsRoutes.use("*", unifiedAuthMiddleware);
+
 // List chat sessions (most recent first)
-chatsRoutes.get("/", async c => {
+chatsRoutes.get("/", async (c: AuthenticatedContext) => {
   try {
+    // Get authenticated user
+    const user = c.get("user");
+    const userId = user?.id;
+
+    if (!userId) {
+      return c.json({ error: "User not authenticated" }, 401);
+    }
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const workspaceId = c.req.param("workspaceId") as string;
@@ -15,8 +28,12 @@ chatsRoutes.get("/", async c => {
       return c.json({ error: "Invalid workspace id" }, 400);
     }
 
+    // Filter by both workspaceId AND createdBy for privacy
     const chats = await Chat.find(
-      { workspaceId: new ObjectId(workspaceId) },
+      {
+        workspaceId: new ObjectId(workspaceId),
+        createdBy: userId.toString(),
+      },
       { messages: 0 },
     ).sort({ updatedAt: -1 });
 
@@ -34,8 +51,16 @@ chatsRoutes.get("/", async c => {
 });
 
 // Create a new chat session
-chatsRoutes.post("/", async c => {
+chatsRoutes.post("/", async (c: AuthenticatedContext) => {
   try {
+    // Get authenticated user
+    const user = c.get("user");
+    const userId = user?.id;
+
+    if (!userId) {
+      return c.json({ error: "User not authenticated" }, 401);
+    }
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const workspaceId = c.req.param("workspaceId") as string;
@@ -58,7 +83,7 @@ chatsRoutes.post("/", async c => {
       workspaceId: new ObjectId(workspaceId),
       title,
       messages: [],
-      createdBy: "system", // TODO: Get from auth context when available
+      createdBy: userId.toString(), // Set actual user ID
       titleGenerated: false,
       createdAt: now,
       updatedAt: now,
@@ -74,8 +99,16 @@ chatsRoutes.post("/", async c => {
 });
 
 // Get a single chat session with messages
-chatsRoutes.get("/:id", async c => {
+chatsRoutes.get("/:id", async (c: AuthenticatedContext) => {
   try {
+    // Get authenticated user
+    const user = c.get("user");
+    const userId = user?.id;
+
+    if (!userId) {
+      return c.json({ error: "User not authenticated" }, 401);
+    }
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const workspaceId = c.req.param("workspaceId") as string;
@@ -89,9 +122,11 @@ chatsRoutes.get("/:id", async c => {
       return c.json({ error: "Invalid chat id" }, 400);
     }
 
+    // Filter by workspaceId, chat id, AND createdBy for privacy
     const chat = await Chat.findOne({
       _id: new ObjectId(id),
       workspaceId: new ObjectId(workspaceId),
+      createdBy: userId.toString(),
     });
 
     if (!chat) {
@@ -109,8 +144,16 @@ chatsRoutes.get("/:id", async c => {
 });
 
 // Update chat title (optional future use)
-chatsRoutes.put("/:id", async c => {
+chatsRoutes.put("/:id", async (c: AuthenticatedContext) => {
   try {
+    // Get authenticated user
+    const user = c.get("user");
+    const userId = user?.id;
+
+    if (!userId) {
+      return c.json({ error: "User not authenticated" }, 401);
+    }
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const workspaceId = c.req.param("workspaceId") as string;
@@ -136,8 +179,13 @@ chatsRoutes.put("/:id", async c => {
       return c.json({ error: "'title' is required" }, 400);
     }
 
+    // Only update if user owns the chat
     const result = await Chat.findOneAndUpdate(
-      { _id: new ObjectId(id), workspaceId: new ObjectId(workspaceId) },
+      {
+        _id: new ObjectId(id),
+        workspaceId: new ObjectId(workspaceId),
+        createdBy: userId.toString(),
+      },
       { title, updatedAt: new Date() },
       { new: true },
     );
@@ -154,8 +202,16 @@ chatsRoutes.put("/:id", async c => {
 });
 
 // Delete a chat session
-chatsRoutes.delete("/:id", async c => {
+chatsRoutes.delete("/:id", async (c: AuthenticatedContext) => {
   try {
+    // Get authenticated user
+    const user = c.get("user");
+    const userId = user?.id;
+
+    if (!userId) {
+      return c.json({ error: "User not authenticated" }, 401);
+    }
+
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
     const workspaceId = c.req.param("workspaceId") as string;
@@ -169,9 +225,11 @@ chatsRoutes.delete("/:id", async c => {
       return c.json({ error: "Invalid chat id" }, 400);
     }
 
+    // Only delete if user owns the chat
     const result = await Chat.findOneAndDelete({
       _id: new ObjectId(id),
       workspaceId: new ObjectId(workspaceId),
+      createdBy: userId.toString(),
     });
 
     if (!result) {

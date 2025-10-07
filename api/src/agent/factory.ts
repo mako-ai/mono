@@ -5,8 +5,8 @@ import { buildTriageAgent } from "./triage/agent";
 
 type AgentBuilder = (
   workspaceId: string,
-  sendEvent?: (data: any) => void,
   consoles?: any[],
+  preferredConsoleId?: string,
 ) => any; // Will be properly typed when we add interfaces
 
 const agentBuilders: Record<AgentKind, AgentBuilder> = {
@@ -29,7 +29,11 @@ export function createAgent(kind: AgentKind, config: AgentConfig): any {
     throw new Error(`Unsupported agent kind: ${kind}`);
   }
 
-  return builder(config.workspaceId, config.sendEvent, config.consoles);
+  return builder(
+    config.workspaceId,
+    config.consoles,
+    config.preferredConsoleId,
+  );
 }
 
 /**

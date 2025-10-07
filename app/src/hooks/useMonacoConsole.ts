@@ -3,7 +3,7 @@ import { ConsoleVersionManager } from "../utils/ConsoleVersionManager";
 import { useConsoleStore } from "../store/consoleStore";
 
 export interface ConsoleModification {
-  action: "replace" | "insert" | "append";
+  action: "replace" | "insert" | "append" | "create";
   content: string;
   position?: {
     line: number;
@@ -28,9 +28,10 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
   const { getVersionManager } = useConsoleStore();
 
   // Get the version manager for this console
-  const getVersionManagerForConsole = useCallback(() => {
-    return getVersionManager(consoleId);
-  }, [consoleId, getVersionManager]);
+  const getVersionManagerForConsole = useCallback(() => {}, [
+    consoleId,
+    getVersionManager,
+  ]);
 
   // Queue modifications that arrive before editor is ready
   const pendingModificationsRef = useRef<ConsoleModification[]>([]);

@@ -80,8 +80,9 @@ export const useDatabaseTreeStore = create<DatabaseTreeState>()(
         const params = new URLSearchParams();
         params.set("nodeId", node.id);
         params.set("kind", node.kind);
-        if (node.metadata)
+        if (node.metadata) {
           params.set("metadata", JSON.stringify(node.metadata));
+        }
         const res = await apiClient.get<{ success: boolean; data: TreeNode[] }>(
           `/workspaces/${workspaceId}/databases/${databaseId}/tree?${params.toString()}`,
         );
