@@ -14,9 +14,9 @@ import {
   Menu,
   ListItemIcon,
   Alert,
+  CircularProgress,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import BuildIcon from "@mui/icons-material/BuildOutlined";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -221,6 +221,77 @@ const CodeBlock = React.memo(
 
 CodeBlock.displayName = "CodeBlock";
 
+// ToolCallsDisplay component to show tool calls consistently
+const ToolCallsDisplay = React.memo(
+  ({
+    toolCalls,
+  }: {
+    toolCalls?: Array<{
+      toolName: string;
+      timestamp?: Date | string;
+      status?: "started" | "completed";
+      result?: any;
+    }>;
+  }) => {
+    if (!toolCalls || toolCalls.length === 0) return null;
+
+    // De-duplicate tool calls - keep only the most recent status for each tool
+    const uniqueToolCalls = toolCalls.reduce(
+      (acc, toolCall) => {
+        const existing = acc.find(tc => tc.toolName === toolCall.toolName);
+        if (!existing || toolCall.status === "completed") {
+          // Replace with newer status or add if new
+          return [
+            ...acc.filter(tc => tc.toolName !== toolCall.toolName),
+            toolCall,
+          ];
+        }
+        return acc;
+      },
+      [] as typeof toolCalls,
+    );
+
+    return (
+      <Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+        {uniqueToolCalls.map((toolCall, idx) => (
+          <Chip
+            key={`${toolCall.toolName}-${idx}`}
+            icon={
+              toolCall.status === "completed" ? (
+                <Check sx={{ fontSize: 16 }} />
+              ) : (
+                <CircularProgress size={14} thickness={5} />
+              )
+            }
+            label={toolCall.toolName}
+            size="small"
+            variant="outlined"
+            sx={{
+              backgroundColor: "background.paper",
+              borderRadius: 2,
+              opacity: 0.8,
+              fontSize: "0.75rem",
+              "& .MuiChip-icon": {
+                color:
+                  toolCall.status === "completed"
+                    ? "success.main"
+                    : "primary.main",
+              },
+            }}
+            title={
+              toolCall.status === "completed"
+                ? "Tool executed successfully"
+                : "Tool executing..."
+            }
+          />
+        ))}
+      </Box>
+    );
+  },
+);
+
+ToolCallsDisplay.displayName = "ToolCallsDisplay";
+
 // Rewrite MessageItem component
 const MessageItem = React.memo(
   ({
@@ -368,36 +439,12 @@ const MessageItem = React.memo(
               "& pre": { margin: 0, overflow: "hidden" },
             }}
           >
+            {/* Display tool calls first (chronologically before response) */}
+            {message.role === "assistant" && (
+              <ToolCallsDisplay toolCalls={message.toolCalls} />
+            )}
+            {/* Then display the message content */}
             {markdownContent}
-            {/* Display tool calls if present */}
-            {message.role === "assistant" &&
-              message.toolCalls &&
-              message.toolCalls.length > 0 && (
-                <Box
-                  sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}
-                >
-                  {message.toolCalls.map((toolCall, idx) => (
-                    <Chip
-                      key={`${toolCall.toolName}-${idx}`}
-                      icon={<BuildIcon fontSize="small" />}
-                      label={`${toolCall.toolName}${toolCall.status === "completed" ? " ✓" : ""}`}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        backgroundColor: "background.paper",
-                        borderRadius: 2,
-                        opacity: 0.8,
-                        fontSize: "0.75rem",
-                      }}
-                      title={
-                        toolCall.status === "completed"
-                          ? "Tool executed successfully"
-                          : "Tool called"
-                      }
-                    />
-                  ))}
-                </Box>
-              )}
           </Box>
         )}
       </ListItem>
@@ -745,29 +792,40 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
               // Track tool calls from step events
               if (parsed.name.startsWith("tool_called:")) {
                 const toolName = parsed.name.replace("tool_called:", "");
-                setStreamingToolCalls(prev => [
-                  ...prev,
-                  {
-                    toolName,
-                    timestamp: new Date().toISOString(),
-                    status: "started",
-                  },
-                ]);
+                setStreamingToolCalls(prev => {
+                  // Check if this tool already exists
+                  const existing = prev.find(tc => tc.toolName === toolName);
+                  if (existing) {
+                    // Update existing tool call status
+                    return prev.map(tc =>
+                      tc.toolName === toolName
+                        ? {
+                            ...tc,
+                            status: "started" as const,
+                            timestamp: new Date().toISOString(),
+                          }
+                        : tc,
+                    );
+                  }
+                  // Add new tool call
+                  return [
+                    ...prev,
+                    {
+                      toolName,
+                      timestamp: new Date().toISOString(),
+                      status: "started" as const,
+                    },
+                  ];
+                });
               } else if (parsed.name.startsWith("tool_output:")) {
                 const toolName = parsed.name.replace("tool_output:", "");
                 setStreamingToolCalls(prev => {
-                  // Find the last matching started tool and mark it completed
-                  const updated = [...prev];
-                  for (let i = updated.length - 1; i >= 0; i--) {
-                    if (
-                      updated[i].toolName === toolName &&
-                      updated[i].status === "started"
-                    ) {
-                      updated[i].status = "completed";
-                      break;
-                    }
-                  }
-                  return updated;
+                  // Update the matching tool to completed status
+                  return prev.map(tc =>
+                    tc.toolName === toolName
+                      ? { ...tc, status: "completed" as const }
+                      : tc,
+                  );
                 });
               }
             } else if (
@@ -834,21 +892,25 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
     }
 
     // After streaming is complete, add the final message to the messages array
-    if (assistantContent) {
+    if (assistantContent || streamingToolCalls.length > 0) {
+      // Capture tool calls before clearing
+      const finalToolCalls =
+        streamingToolCalls.length > 0 ? [...streamingToolCalls] : undefined;
+
       setMessages(prev => [
         ...prev,
         {
           role: "assistant",
-          content: assistantContent,
-          toolCalls:
-            streamingToolCalls.length > 0 ? streamingToolCalls : undefined,
+          content: assistantContent || "",
+          toolCalls: finalToolCalls,
         },
       ]);
-    }
 
-    setSteps([]);
-    setStreamingContent("");
-    setStreamingToolCalls([]);
+      // Clear states after adding message
+      setSteps([]);
+      setStreamingContent("");
+      setStreamingToolCalls([]);
+    }
   };
 
   const sendMessage = async () => {
@@ -1062,126 +1124,107 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
           ))}
           {loading && (
             <>
-              {/* Show step chips first when loading */}
-              <ListItem sx={{ p: 0, mt: 1 }}>
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                  {steps.map((s, idx) => (
-                    <Chip
-                      key={`${s}-${idx}`}
-                      icon={<BuildIcon fontSize="small" />}
-                      label={s}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        backgroundColor: "background.paper",
-                        borderRadius: 2,
-                      }}
-                    />
-                  ))}
-                  {steps.length === 0 && (
-                    <Chip label="Assistant is thinking…" size="small" />
-                  )}
-                </Box>
-              </ListItem>
-              {/* Show streaming assistant response below the chips */}
-              {streamingContent && (
-                <ListItem alignItems="flex-start" sx={{ p: 0 }}>
-                  <Box
-                    sx={{
-                      flex: 1,
+              {/* Show streaming assistant response */}
+              <ListItem alignItems="flex-start" sx={{ p: 0 }}>
+                <Box
+                  sx={{
+                    flex: 1,
+                    overflow: "hidden",
+                    fontSize: "0.875rem",
+                    "& pre": {
+                      margin: 0,
                       overflow: "hidden",
-                      fontSize: "0.875rem",
-                      "& pre": {
-                        margin: 0,
-                        overflow: "hidden",
+                    },
+                  }}
+                >
+                  {/* Display tool calls first (chronologically before response) */}
+                  <ToolCallsDisplay toolCalls={streamingToolCalls} />
+
+                  {/* Then show the streaming content */}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ className, children }) {
+                        const match = /language-(\w+)/.exec(className || "");
+                        const isInline = !match;
+                        const codeString = String(children).replace(/\n$/, "");
+                        return !isInline ? (
+                          <CodeBlock
+                            language={match![1]}
+                            key={codeString}
+                            isGenerating
+                          >
+                            {codeString}
+                          </CodeBlock>
+                        ) : (
+                          <code
+                            className={className}
+                            style={{ fontSize: "0.8rem" }}
+                          >
+                            {children}
+                          </code>
+                        );
+                      },
+                      table({ children }) {
+                        const muiTheme = useMuiTheme();
+                        return (
+                          <Box sx={{ overflow: "auto", my: 1 }}>
+                            <table
+                              style={{
+                                borderCollapse: "collapse",
+                                width: "100%",
+                                fontSize: "0.875rem",
+                                border: `1px solid ${muiTheme.palette.divider}`,
+                              }}
+                            >
+                              {children}
+                            </table>
+                          </Box>
+                        );
+                      },
+                      th({ children }) {
+                        const muiTheme = useMuiTheme();
+                        return (
+                          <th
+                            style={{
+                              padding: "8px 12px",
+                              textAlign: "left",
+                              backgroundColor:
+                                muiTheme.palette.background.paper,
+                              borderBottom: `2px solid ${muiTheme.palette.divider}`,
+                              borderRight: `1px solid ${muiTheme.palette.divider}`,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {children}
+                          </th>
+                        );
+                      },
+                      td({ children }) {
+                        const muiTheme = useMuiTheme();
+                        return (
+                          <td
+                            style={{
+                              padding: "8px 12px",
+                              borderBottom: `1px solid ${muiTheme.palette.divider}`,
+                              borderRight: `1px solid ${muiTheme.palette.divider}`,
+                              backgroundColor:
+                                muiTheme.palette.background.paper,
+                            }}
+                          >
+                            {children}
+                          </td>
+                        );
                       },
                     }}
                   >
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code({ className, children }) {
-                          const match = /language-(\w+)/.exec(className || "");
-                          const isInline = !match;
-                          const codeString = String(children).replace(
-                            /\n$/,
-                            "",
-                          );
-                          return !isInline ? (
-                            <CodeBlock
-                              language={match![1]}
-                              key={codeString}
-                              isGenerating
-                            >
-                              {codeString}
-                            </CodeBlock>
-                          ) : (
-                            <code
-                              className={className}
-                              style={{ fontSize: "0.8rem" }}
-                            >
-                              {children}
-                            </code>
-                          );
-                        },
-                        table({ children }) {
-                          const muiTheme = useMuiTheme();
-                          return (
-                            <Box sx={{ overflow: "auto", my: 1 }}>
-                              <table
-                                style={{
-                                  borderCollapse: "collapse",
-                                  width: "100%",
-                                  fontSize: "0.875rem",
-                                  border: `1px solid ${muiTheme.palette.divider}`,
-                                }}
-                              >
-                                {children}
-                              </table>
-                            </Box>
-                          );
-                        },
-                        th({ children }) {
-                          const muiTheme = useMuiTheme();
-                          return (
-                            <th
-                              style={{
-                                padding: "8px 12px",
-                                textAlign: "left",
-                                backgroundColor:
-                                  muiTheme.palette.background.paper,
-                                borderBottom: `2px solid ${muiTheme.palette.divider}`,
-                                borderRight: `1px solid ${muiTheme.palette.divider}`,
-                                fontWeight: 600,
-                              }}
-                            >
-                              {children}
-                            </th>
-                          );
-                        },
-                        td({ children }) {
-                          const muiTheme = useMuiTheme();
-                          return (
-                            <td
-                              style={{
-                                padding: "8px 12px",
-                                borderBottom: `1px solid ${muiTheme.palette.divider}`,
-                                borderRight: `1px solid ${muiTheme.palette.divider}`,
-                                backgroundColor:
-                                  muiTheme.palette.background.paper,
-                              }}
-                            >
-                              {children}
-                            </td>
-                          );
-                        },
-                      }}
-                    >
-                      {streamingContent}
-                    </ReactMarkdown>
-                  </Box>
-                </ListItem>
-              )}
+                    {streamingContent ||
+                      (steps.length === 0 && streamingToolCalls.length === 0
+                        ? "Assistant is thinking..."
+                        : "")}
+                  </ReactMarkdown>
+                </Box>
+              </ListItem>
             </>
           )}
         </List>
