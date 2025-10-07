@@ -190,7 +190,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
 
         const runStream: any = await runAgent(agentInstance, agentInput, {
           stream: true,
-          maxTurns: 20, // Allow enough turns for handoffs to complete
+          maxTurns: 100, // Allow enough turns for handoffs to complete
         });
 
         let assistantReply = "";
