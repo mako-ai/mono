@@ -1,5 +1,4 @@
 import { useRef, useCallback, useState, useEffect } from "react";
-import { ConsoleVersionManager } from "../utils/ConsoleVersionManager";
 import { useConsoleStore } from "../store/consoleStore";
 
 export interface ConsoleModification {
@@ -28,13 +27,9 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
   const { getVersionManager } = useConsoleStore();
 
   // Get the version manager for this console
-  const getVersionManagerForConsole = useCallback(() => {}, [
-    consoleId,
-    getVersionManager,
-  ]);
-
-  // Queue modifications that arrive before editor is ready
-  const pendingModificationsRef = useRef<ConsoleModification[]>([]);
+  const getVersionManagerForConsole = useCallback(() => {
+    return getVersionManager(consoleId);
+  }, [consoleId, getVersionManager]);
 
   // Update version control state
   const updateVersionState = useCallback(() => {
@@ -60,34 +55,23 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
   // Apply a console modification
   const applyModification = useCallback(
     (modification: ConsoleModification) => {
-      console.log(
-        "useMonacoConsole applyModification called with:",
-        modification,
-      );
-
       const editor = editorRef.current;
-      console.log("Editor ref exists:", !!editor);
       if (!editor) {
-        console.error("No editor ref - editor not mounted yet?");
         return;
       }
 
       const model = editor.getModel();
-      console.log("Model exists:", !!model);
       if (!model) {
-        console.error("No model on editor");
         return;
       }
 
       const versionManager = getVersionManagerForConsole();
       if (!versionManager) {
-        console.error("No version manager for console:", consoleId);
         return;
       }
 
       // Save current state before modification
       const currentContent = model.getValue();
-      console.log("Current content length:", currentContent.length);
       versionManager.saveVersion(
         currentContent,
         "user",
@@ -97,15 +81,9 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
       isApplyingModificationRef.current = true;
 
       try {
-        console.log("Applying modification action:", modification.action);
         switch (modification.action) {
           case "replace":
-            console.log(
-              "Setting model value to:",
-              modification.content.substring(0, 100) + "...",
-            );
             model.setValue(modification.content);
-            console.log("Model value set successfully");
             break;
 
           case "append": {
@@ -163,10 +141,6 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
 
         // Save the new state after modification
         const newContent = model.getValue();
-        console.log(
-          "New content length after modification:",
-          newContent.length,
-        );
         versionManager.saveVersion(
           newContent,
           "ai",
@@ -174,7 +148,6 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
         );
 
         // Flash the editor to indicate change
-        console.log("Flashing editor for visual feedback");
         flashEditor(editor);
 
         // Update version state
@@ -182,11 +155,8 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
 
         // Notify content change
         if (onContentChange) {
-          console.log("Notifying content change");
           onContentChange(newContent);
         }
-
-        console.log("Modification applied successfully!");
       } finally {
         isApplyingModificationRef.current = false;
       }
@@ -194,12 +164,7 @@ export const useMonacoConsole = (options: UseMonacoConsoleOptions) => {
       // Focus the editor
       editor.focus();
     },
-    [
-      consoleId,
-      getVersionManagerForConsole,
-      onContentChange,
-      updateVersionState,
-    ],
+    [getVersionManagerForConsole, onContentChange, updateVersionState],
   );
 
   // Undo functionality
@@ -335,18 +300,18 @@ function flashEditor(editor: any) {
   const originalBackground = editor.getDomNode()?.style.backgroundColor || "";
   const flashColor = "rgba(59, 130, 246, 0.1)"; // Blue flash
 
-  if (editor.getDomNode()) {
-    editor.getDomNode()!.style.transition =
-      "background-color 200ms ease-in-out";
-    editor.getDomNode()!.style.backgroundColor = flashColor;
+  const domNode = editor.getDomNode();
+  if (domNode) {
+    domNode.style.transition = "background-color 200ms ease-in-out";
+    domNode.style.backgroundColor = flashColor;
 
     setTimeout(() => {
-      if (editor.getDomNode()) {
-        editor.getDomNode()!.style.backgroundColor = originalBackground;
+      if (domNode) {
+        domNode.style.backgroundColor = originalBackground;
 
         setTimeout(() => {
-          if (editor.getDomNode()) {
-            editor.getDomNode()!.style.transition = "";
+          if (domNode) {
+            domNode.style.transition = "";
           }
         }, 200);
       }

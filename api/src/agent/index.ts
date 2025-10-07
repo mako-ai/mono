@@ -25,13 +25,6 @@ export {
   SendEventFunction,
 } from "./shared/console-tools";
 
-// Re-export legacy functions from agent.ts for backward compatibility
-export {
-  createMongoAgent,
-  createBigQueryAgent,
-  createTriageAgent,
-} from "./agent";
-
 // Factory functions
 export {
   createAgent,

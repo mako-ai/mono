@@ -197,6 +197,13 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
         let _eventCount = 0;
         let _textDeltaCount = 0;
         let currentAgent = activeAgent;
+        let handoffOccurred = false;
+        const toolCalls: Array<{
+          toolName: string;
+          timestamp: Date;
+          status: "started" | "completed";
+          result?: any;
+        }> = [];
 
         // Add timeout to prevent hanging connections
         const timeout = setTimeout(() => {
@@ -279,6 +286,26 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   `[Agent Stream] Handoff detected to: ${handoffAgent}`,
                 );
 
+                // Track handoff as a tool call
+                if (item?.type === "handoff_call_item") {
+                  handoffOccurred = true;
+                  const handoffToolName = handoffAgent?.includes("MongoDB")
+                    ? "transfer_to_mongodb"
+                    : handoffAgent?.includes("BigQuery")
+                      ? "transfer_to_bigquery"
+                      : "handoff";
+
+                  toolCalls.push({
+                    toolName: handoffToolName,
+                    timestamp: new Date(),
+                    status: "completed",
+                    result: { agent: handoffAgent },
+                  });
+
+                  // Clear any assistant reply that might be a handoff message
+                  assistantReply = "";
+                }
+
                 // Just notify the UI about the handoff, let the library handle the actual transition
                 if (handoffAgent) {
                   if (handoffAgent.includes("MongoDB")) {
@@ -290,6 +317,13 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                     type: "agent_mode",
                     mode: currentAgent,
                   });
+
+                  // Send handoff notification event
+                  sendEvent({
+                    type: "handoff",
+                    agent: currentAgent,
+                    message: `Switching to ${currentAgent === "mongo" ? "MongoDB" : "BigQuery"} assistant...`,
+                  });
                 }
               }
 
@@ -300,24 +334,68 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                 const toolName =
                   item.rawItem?.function?.name ||
                   item.rawItem?.name ||
+                  item.function?.name ||
+                  item.name ||
                   "unknown_tool";
+
+                // Debug log tool calls
+                if (toolName.includes("console")) {
+                  console.log(`[Agent Stream] Tool called: ${toolName}`, {
+                    itemType: item.type,
+                    rawItem: item.rawItem,
+                    function: item.function,
+                    name: item.name,
+                  });
+                }
 
                 sendEvent({
                   type: "step",
                   name: `tool_called:${toolName}`,
                   status: "started",
                 });
+
+                // Track tool call
+                toolCalls.push({
+                  toolName,
+                  timestamp: new Date(),
+                  status: "started",
+                });
               }
 
               if (
                 item?.type === "tool_call_output_item" &&
-                itemEvent.name === "output_added"
+                (itemEvent.name === "output_added" ||
+                  itemEvent.name === "tool_output")
               ) {
+                // Get tool name from various possible locations
                 const toolName =
                   item.rawItem?.function?.name ||
                   item.rawItem?.name ||
+                  item.function?.name ||
+                  item.name ||
                   item.tool_call_name ||
+                  // Try to get from the associated tool call
+                  item.rawItem?.callId ||
                   "completed_tool";
+
+                // Always log tool output items to debug
+                console.log(
+                  `[Agent Stream] Tool output for ${toolName}:`,
+                  JSON.stringify(
+                    {
+                      type: item.type,
+                      eventName: itemEvent.name,
+                      output: item.output,
+                      result: item.result,
+                      rawItem: item.rawItem,
+                      tool_call_name: item.tool_call_name,
+                      // Check all possible fields
+                      allKeys: Object.keys(item),
+                    },
+                    null,
+                    2,
+                  ),
+                );
 
                 sendEvent({
                   type: "step",
@@ -325,19 +403,75 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   status: "completed",
                 });
 
+                // Track tool completion
+                const output =
+                  item.output ||
+                  item.result ||
+                  item.rawItem?.output ||
+                  item.rawItem?.result ||
+                  item.rawItem?.providerData?.output ||
+                  item.providerData?.output;
+
+                // Find the matching started tool call and update it
+                const lastToolCall = toolCalls
+                  .filter(
+                    tc => tc.toolName === toolName && tc.status === "started",
+                  )
+                  .pop();
+
+                if (lastToolCall) {
+                  lastToolCall.status = "completed";
+                  lastToolCall.result = output;
+                } else {
+                  // If no matching started call, create a new completed entry
+                  toolCalls.push({
+                    toolName,
+                    timestamp: new Date(),
+                    status: "completed",
+                    result: output,
+                  });
+                }
+
                 // Check for console-related tool outputs
-                if (item.output) {
+
+                // Also check if this is specifically a console tool
+                const isConsoleToolOutput =
+                  toolName.includes("console") ||
+                  toolName === "modify_console" ||
+                  toolName === "create_console";
+
+                if (isConsoleToolOutput) {
+                  console.log(
+                    `[Agent Stream] Processing ${toolName} output, output field:`,
+                    output,
+                  );
+                }
+
+                if (output !== undefined && output !== null) {
                   try {
                     const outputData =
-                      typeof item.output === "string"
-                        ? JSON.parse(item.output)
-                        : item.output;
+                      typeof output === "string" ? JSON.parse(output) : output;
+
+                    // Debug logging for tool outputs
+                    if (isConsoleToolOutput) {
+                      console.log(
+                        `[Agent Stream] ${toolName} parsed output:`,
+                        JSON.stringify(outputData, null, 2),
+                      );
+                    }
 
                     // Handle console modifications and creations based on event markers
                     if (
                       outputData?._eventType === "console_modification" &&
                       outputData?.success
                     ) {
+                      console.log(
+                        "[Agent Stream] Sending console_modification event:",
+                        {
+                          modification: outputData.modification,
+                          consoleId: outputData.consoleId || effectiveConsoleId,
+                        },
+                      );
                       sendEvent({
                         type: "console_modification",
                         modification: outputData.modification,
@@ -347,6 +481,13 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                       outputData?._eventType === "console_creation" &&
                       outputData?.success
                     ) {
+                      console.log(
+                        "[Agent Stream] Sending console_creation event:",
+                        {
+                          consoleId: outputData.consoleId,
+                          title: outputData.title,
+                        },
+                      );
                       sendEvent({
                         type: "console_creation",
                         consoleId: outputData.consoleId,
@@ -356,7 +497,29 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                     }
                   } catch (e) {
                     console.error("Failed to parse tool output:", e);
+                    console.error("Raw output was:", output);
                   }
+                } else if (isConsoleToolOutput) {
+                  // If it's a console tool but no output found, log this for debugging
+                  console.error(
+                    `[Agent Stream] No output found for ${toolName} tool!`,
+                  );
+                  console.error(
+                    "Item structure:",
+                    JSON.stringify(
+                      {
+                        type: item.type,
+                        hasOutput: "output" in item,
+                        hasResult: "result" in item,
+                        hasRawItem: !!item.rawItem,
+                        rawItemKeys: item.rawItem
+                          ? Object.keys(item.rawItem)
+                          : [],
+                      },
+                      null,
+                      2,
+                    ),
+                  );
                 }
               }
 
@@ -392,37 +555,52 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
 
         clearTimeout(timeout);
 
+        // Check if we got any final output from the stream
         if (!assistantReply && runStream.finalOutput) {
           assistantReply = runStream.finalOutput;
           sendEvent({ type: "text", content: assistantReply });
         }
 
-        // Update messages with the new conversation turn
-        const allMessages = [
-          ...threadContext.recentMessages,
-          { role: "user" as const, content: message.trim() },
-          { role: "assistant" as const, content: assistantReply },
-        ];
+        // Important: If a handoff occurred but no text was generated, the stream should have continued
+        // with the new agent. We should only save messages when we have actual content.
+        if (assistantReply.trim() || (!handoffOccurred && message.trim())) {
+          // Update messages with the new conversation turn
+          const allMessages = [
+            ...threadContext.recentMessages,
+            { role: "user" as const, content: message.trim() },
+          ];
 
-        // Persist the chat session with thread management and pinning
-        const finalSessionId = await persistChatSession(
-          sessionId,
-          threadContext,
-          allMessages,
-          workspaceId,
-          currentAgent,
-          userId.toString(),
-          consoleId, // Pin the console if provided
-        );
+          // Only add assistant message if there's actual content
+          if (assistantReply.trim()) {
+            allMessages.push({
+              role: "assistant" as const,
+              content: assistantReply,
+              toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            });
+          }
 
-        // Send thread info
-        sendEvent({
-          type: "thread_info",
-          threadId: threadContext.threadId,
-          messageCount: allMessages.length,
-        });
+          // Persist the chat session with thread management and pinning
+          const finalSessionId = await persistChatSession(
+            sessionId,
+            threadContext,
+            allMessages,
+            workspaceId,
+            currentAgent,
+            userId.toString(),
+            consoleId, // Pin the console if provided
+          );
 
-        sendEvent({ type: "session", sessionId: finalSessionId });
+          // Send thread info
+          sendEvent({
+            type: "thread_info",
+            threadId: threadContext.threadId,
+            messageCount: allMessages.length,
+          });
+
+          sendEvent({ type: "session", sessionId: finalSessionId });
+        }
+
+        // Close the stream
         isClosed = true;
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         controller.close();

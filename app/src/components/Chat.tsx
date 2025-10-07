@@ -45,6 +45,12 @@ import { useConsoleStore } from "../store/consoleStore";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  toolCalls?: Array<{
+    toolName: string;
+    timestamp?: Date | string;
+    status?: "started" | "completed";
+    result?: any;
+  }>;
 }
 
 interface ChatSessionMeta {
@@ -363,6 +369,35 @@ const MessageItem = React.memo(
             }}
           >
             {markdownContent}
+            {/* Display tool calls if present */}
+            {message.role === "assistant" &&
+              message.toolCalls &&
+              message.toolCalls.length > 0 && (
+                <Box
+                  sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}
+                >
+                  {message.toolCalls.map((toolCall, idx) => (
+                    <Chip
+                      key={`${toolCall.toolName}-${idx}`}
+                      icon={<BuildIcon fontSize="small" />}
+                      label={`${toolCall.toolName}${toolCall.status === "completed" ? " ✓" : ""}`}
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        backgroundColor: "background.paper",
+                        borderRadius: 2,
+                        opacity: 0.8,
+                        fontSize: "0.75rem",
+                      }}
+                      title={
+                        toolCall.status === "completed"
+                          ? "Tool executed successfully"
+                          : "Tool called"
+                      }
+                    />
+                  ))}
+                </Box>
+              )}
           </Box>
         )}
       </ListItem>
@@ -372,11 +407,11 @@ const MessageItem = React.memo(
 
 MessageItem.displayName = "MessageItem";
 
-interface Chat3Props {
+interface ChatProps {
   onConsoleModification?: (modification: any) => void;
 }
 
-const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
+const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
   const { currentWorkspace } = useWorkspace();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -386,6 +421,13 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
   const [steps, setSteps] = useState<string[]>([]);
   const [streamingContent, setStreamingContent] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [streamingToolCalls, setStreamingToolCalls] = useState<
+    Array<{
+      toolName: string;
+      timestamp: string;
+      status: "started" | "completed";
+    }>
+  >([]);
 
   // Attachment state
   const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
@@ -671,6 +713,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
     // Don't add optimistic message while loading, handle streaming separately
     setStreamingContent("");
     setError(null); // Clear any previous errors
+    setStreamingToolCalls([]); // Clear tool calls from previous message
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
@@ -690,7 +733,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
             const parsed = JSON.parse(data);
 
             // Debug log all events
-            console.log("Chat3 received event:", parsed);
+            console.log("Chat received event:", parsed);
 
             // Handle different event types
             if (parsed.type === "text") {
@@ -698,6 +741,35 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
               setStreamingContent(assistantContent);
             } else if (parsed.type === "step" && parsed.name) {
               setSteps(prev => [...prev, parsed.name]);
+
+              // Track tool calls from step events
+              if (parsed.name.startsWith("tool_called:")) {
+                const toolName = parsed.name.replace("tool_called:", "");
+                setStreamingToolCalls(prev => [
+                  ...prev,
+                  {
+                    toolName,
+                    timestamp: new Date().toISOString(),
+                    status: "started",
+                  },
+                ]);
+              } else if (parsed.name.startsWith("tool_output:")) {
+                const toolName = parsed.name.replace("tool_output:", "");
+                setStreamingToolCalls(prev => {
+                  // Find the last matching started tool and mark it completed
+                  const updated = [...prev];
+                  for (let i = updated.length - 1; i >= 0; i--) {
+                    if (
+                      updated[i].toolName === toolName &&
+                      updated[i].status === "started"
+                    ) {
+                      updated[i].status = "completed";
+                      break;
+                    }
+                  }
+                  return updated;
+                });
+              }
             } else if (
               parsed.type === "session" &&
               parsed.sessionId &&
@@ -738,6 +810,14 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
                   title: parsed.title,
                 });
               }
+            } else if (parsed.type === "handoff") {
+              // Handle handoff events - show a status message but don't save it
+              console.log("Handoff event:", parsed);
+              // Don't add to assistantContent, just show in UI temporarily
+              setSteps(prev => [
+                ...prev,
+                `Switching to ${parsed.agent} assistant`,
+              ]);
             } else if (parsed.type === "error") {
               // Handle error events
               console.error("Error from agent:", parsed.message);
@@ -757,12 +837,18 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
     if (assistantContent) {
       setMessages(prev => [
         ...prev,
-        { role: "assistant", content: assistantContent },
+        {
+          role: "assistant",
+          content: assistantContent,
+          toolCalls:
+            streamingToolCalls.length > 0 ? streamingToolCalls : undefined,
+        },
       ]);
     }
 
     setSteps([]);
     setStreamingContent("");
+    setStreamingToolCalls([]);
   };
 
   const sendMessage = async () => {
@@ -1179,7 +1265,7 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
           multiline
           minRows={1}
           maxRows={6}
-          placeholder="Ask Chat3..."
+          placeholder="Ask Chat..."
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => {
@@ -1249,4 +1335,4 @@ const Chat3: React.FC<Chat3Props> = ({ onConsoleModification }) => {
   );
 };
 
-export default Chat3;
+export default Chat;

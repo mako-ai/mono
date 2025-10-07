@@ -283,6 +283,12 @@ export interface IChat extends Document {
   messages: Array<{
     role: "user" | "assistant";
     content: string;
+    toolCalls?: Array<{
+      toolName: string;
+      timestamp?: Date;
+      status?: "started" | "completed";
+      result?: any;
+    }>;
   }>;
   activeAgent?: "mongo" | "bigquery" | "triage"; // Pinned specialist for this thread
   pinnedConsoleId?: string; // Console ID that this chat session is bound to
@@ -821,6 +827,26 @@ const ChatSchema = new Schema<IChat>(
           type: String,
           required: true,
         },
+        toolCalls: [
+          {
+            toolName: {
+              type: String,
+              required: true,
+            },
+            timestamp: {
+              type: Date,
+              default: Date.now,
+            },
+            status: {
+              type: String,
+              enum: ["started", "completed"],
+              default: "completed",
+            },
+            result: {
+              type: Schema.Types.Mixed,
+            },
+          },
+        ],
       },
     ],
     activeAgent: {
