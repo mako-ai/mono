@@ -8,7 +8,16 @@ const MAX_CONTEXT_LENGTH = 4000;
 
 export interface ThreadContext {
   threadId: string;
-  recentMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  recentMessages: Array<{
+    role: "user" | "assistant";
+    content: string;
+    toolCalls?: Array<{
+      toolName: string;
+      timestamp?: Date;
+      status?: "started" | "completed";
+      result?: any;
+    }>;
+  }>;
   metadata: { messageCount: number; lastActivityAt: Date };
   activeAgent?: AgentKind;
 }

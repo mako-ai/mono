@@ -4,7 +4,7 @@ import Sidebar from "./components/Sidebar";
 import { useAppStore, useChatStore } from "./store";
 import { useConsoleStore } from "./store/consoleStore";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import Chat3 from "./components/Chat3";
+import Chat from "./components/Chat";
 import DatabaseExplorer from "./components/DatabaseExplorer";
 import ConsoleExplorer from "./components/ConsoleExplorer";
 import DataSourceExplorer from "./components/ConnectorExplorer";
@@ -289,7 +289,7 @@ function MainApp() {
                 borderColor: "divider",
               }}
             >
-              <Chat3 onConsoleModification={handleConsoleModification} />
+              <Chat onConsoleModification={handleConsoleModification} />
             </Box>
           </Panel>
         </PanelGroup>
