@@ -45,7 +45,7 @@ Follow this step-by-step process for every user request:
 
 Structure query results to be flat and table-friendly by default. This makes data easy to view in a grid.
 
-| Requirement | ✓ Do (Best Practice) | ✗ Don’t (Avoid) |
+| Requirement | ✓ Do (Best Practice) | ✗ Don't (Avoid) |
 | :--- | :--- | :--- |
 | **Pivot Time-Series Data** | Return **one document per entity**, with periods as field names ("2024-01", "2024-02"). | Separate documents per month/quarter/year. |
 | **Flat Output** | Use clear, top-level identifier fields (\`product\`, \`customer_id\`, etc.). | Nested objects or arrays in the final output. |
