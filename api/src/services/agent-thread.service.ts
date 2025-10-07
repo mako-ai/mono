@@ -16,12 +16,19 @@ export interface ThreadContext {
 export const getOrCreateThreadContext = async (
   sessionId: string | undefined,
   workspaceId: string,
+  userId?: string,
 ): Promise<ThreadContext> => {
   if (sessionId) {
-    const existingChat = await Chat.findOne({
+    const query: any = {
       _id: new ObjectId(sessionId),
       workspaceId: new ObjectId(workspaceId),
-    });
+    };
+    // Add user filter if userId is provided
+    if (userId) {
+      query.createdBy = userId;
+    }
+
+    const existingChat = await Chat.findOne(query);
     if (existingChat) {
       const messages = existingChat.messages || [];
       const recentMessages = messages.slice(-CONTEXT_WINDOW_SIZE);
@@ -84,6 +91,8 @@ export const persistChatSession = async (
   updatedMessages: any[],
   workspaceId: string,
   activeAgent?: AgentKind,
+  userId?: string,
+  pinnedConsoleId?: string,
 ): Promise<string> => {
   const now = new Date();
   if (!sessionId) {
@@ -92,11 +101,12 @@ export const persistChatSession = async (
       threadId: threadContext.threadId,
       title: "New Chat",
       messages: updatedMessages,
-      createdBy: "system",
+      createdBy: userId || "system",
       titleGenerated: false,
       createdAt: now,
       updatedAt: now,
       activeAgent,
+      pinnedConsoleId,
     });
     await newChat.save();
     return newChat._id.toString();
@@ -107,6 +117,9 @@ export const persistChatSession = async (
   }
   if (activeAgent) {
     updateData.activeAgent = activeAgent;
+  }
+  if (pinnedConsoleId !== undefined) {
+    updateData.pinnedConsoleId = pinnedConsoleId;
   }
   await Chat.findByIdAndUpdate(sessionId, updateData, { new: true });
   return sessionId;

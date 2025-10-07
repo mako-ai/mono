@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useWorkspace } from "../../contexts/workspace-context";
+import { useWorkspace } from "../contexts/workspace-context";
 
 // Default custom prompt content (fallback)
 const defaultCustomPromptContent = `# Custom Prompt Configuration

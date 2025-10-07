@@ -23,8 +23,8 @@ export interface ConsoleEvent {
 export type SendEventFunction = (data: ConsoleEvent) => void;
 
 export const createConsoleTools = (
-  sendEvent?: SendEventFunction,
   consoles?: ConsoleData[],
+  preferredConsoleId?: string,
 ) => {
   const modifyConsoleTool = tool({
     name: "modify_console",
@@ -42,28 +42,33 @@ export const createConsoleTools = (
           description: "The content to add or replace",
         },
         position: {
-          type: "number",
-          description: "Optional position for insert action",
+          type: ["number", "null"],
+          description: "Position for insert action (null for replace/append)",
         },
       },
-      required: ["action", "content"],
+      required: ["action", "content", "position"],
       additionalProperties: false,
     },
-    execute: async (input: ConsoleModification) => {
+    execute: async (input: unknown) => {
+      const typedInput = input as {
+        action: "replace" | "insert" | "append";
+        content: string;
+        position: number | null;
+      };
       const modification: ConsoleModification = {
-        action: input.action,
-        content: input.content,
-        position: input.position,
+        action: typedInput.action,
+        content: typedInput.content,
+        position:
+          typedInput.position === null ? undefined : typedInput.position,
       };
 
-      if (sendEvent) {
-        sendEvent({ type: "console_modification", modification });
-      }
-
+      // Return the modification data so the stream handler can send events
       return {
         success: true,
         modification,
-        message: `✓ Console ${input.action}d successfully`,
+        consoleId: preferredConsoleId,
+        message: `✓ Console ${typedInput.action}d successfully`,
+        _eventType: "console_modification", // Marker for stream handler
       };
     },
   });
@@ -75,18 +80,21 @@ export const createConsoleTools = (
       type: "object",
       properties: {
         consoleId: {
-          type: "string",
+          type: ["string", "null"],
           description:
-            "Optional console ID to read from. If not provided, reads the active console.",
+            "Console ID to read from (null to read the active console)",
         },
       },
-      required: [],
+      required: ["consoleId"],
       additionalProperties: false,
     },
-    execute: async (input: { consoleId?: string }) => {
+    execute: async (input: unknown) => {
+      const typedInput = input as { consoleId: string | null };
       const consolesData = consoles || [];
-      const { consoleId } = input;
+      const consoleId =
+        typedInput.consoleId === null ? undefined : typedInput.consoleId;
 
+      // Use explicit consoleId if provided
       if (consoleId) {
         const console = consolesData.find(c => c.id === consoleId);
         if (!console) {
@@ -104,7 +112,23 @@ export const createConsoleTools = (
         };
       }
 
-      // Return the first (active) console
+      // Otherwise, use preferred console ID if available
+      if (preferredConsoleId) {
+        const preferredConsole = consolesData.find(
+          c => c.id === preferredConsoleId,
+        );
+        if (preferredConsole) {
+          return {
+            success: true,
+            consoleId: preferredConsole.id,
+            title: preferredConsole.title,
+            content: preferredConsole.content || "",
+            metadata: preferredConsole.metadata || {},
+          };
+        }
+      }
+
+      // Fall back to the first (active) console
       if (consolesData.length > 0) {
         const activeConsole = consolesData[0];
         return {
@@ -123,5 +147,41 @@ export const createConsoleTools = (
     },
   });
 
-  return [modifyConsoleTool, readConsoleTool];
+  const createConsoleTool = tool({
+    name: "create_console",
+    description: "Create a new console editor tab.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Title for the new console tab",
+        },
+        content: {
+          type: "string",
+          description: "Initial content for the console",
+        },
+      },
+      required: ["title", "content"],
+      additionalProperties: false,
+    },
+    execute: async (input: unknown) => {
+      const typedInput = input as { title: string; content: string };
+
+      // Generate a unique ID for the new console
+      const newConsoleId = `console-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Return the creation data so the stream handler can send events
+      return {
+        success: true,
+        consoleId: newConsoleId,
+        title: typedInput.title,
+        content: typedInput.content,
+        message: `✓ New console "${typedInput.title}" created successfully`,
+        _eventType: "console_creation", // Marker for stream handler
+      };
+    },
+  });
+
+  return [modifyConsoleTool, readConsoleTool, createConsoleTool];
 };

@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import { Save as SaveIcon, Refresh as RefreshIcon } from "@mui/icons-material";
 import ThemeSelector from "../components/ThemeSelector";
-import { useCustomPrompt } from "../components/Chat/CustomPrompt";
+import { useCustomPrompt } from "../hooks/useCustomPrompt";
 import { WorkspaceMembers } from "../components/WorkspaceMembers";
 import { ApiKeyManager } from "../components/ApiKeyManager";
 import { useWorkspace } from "../contexts/workspace-context";

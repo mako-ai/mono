@@ -4,8 +4,8 @@ export type AgentKind = "mongo" | "bigquery" | "triage";
 
 export interface AgentConfig {
   workspaceId: string;
-  sendEvent?: (data: any) => void;
   consoles?: any[];
+  preferredConsoleId?: string;
 }
 
 export interface AgentMetadata {

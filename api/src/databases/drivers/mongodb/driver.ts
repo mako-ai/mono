@@ -15,7 +15,7 @@ export class MongoDatabaseDriver implements DatabaseDriver {
     } as any;
   }
 
-  async getTreeRoot(database: IDatabase): Promise<DatabaseTreeNode[]> {
+  async getTreeRoot(_database: IDatabase): Promise<DatabaseTreeNode[]> {
     return [
       {
         id: "collections",
@@ -40,12 +40,14 @@ export class MongoDatabaseDriver implements DatabaseDriver {
       return collections
         .map((c: any) => c.name)
         .sort((a: string, b: string) => a.localeCompare(b))
-        .map<DatabaseTreeNode>(name => ({
-          id: name,
-          label: name,
-          kind: "collection",
-          hasChildren: false,
-        }));
+        .map(
+          (name: string): DatabaseTreeNode => ({
+            id: name,
+            label: name,
+            kind: "collection",
+            hasChildren: false,
+          }),
+        );
     }
     if (parent.id === "views") {
       const client = await databaseConnectionService.getConnection(database);
@@ -54,12 +56,14 @@ export class MongoDatabaseDriver implements DatabaseDriver {
       return views
         .map((v: any) => v.name)
         .sort((a: string, b: string) => a.localeCompare(b))
-        .map<DatabaseTreeNode>(name => ({
-          id: name,
-          label: name,
-          kind: "view",
-          hasChildren: false,
-        }));
+        .map(
+          (name: string): DatabaseTreeNode => ({
+            id: name,
+            label: name,
+            kind: "view",
+            hasChildren: false,
+          }),
+        );
     }
     return [];
   }

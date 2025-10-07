@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import { persist } from "zustand/middleware";
-import { Message, AttachedContext } from "../components/Chat/types";
+import { Message, AttachedContext } from "../types/chat";
 
 /*********************
  * State definitions *

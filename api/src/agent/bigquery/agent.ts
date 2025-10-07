@@ -6,14 +6,14 @@ import { BIGQUERY_ASSISTANT_PROMPT } from "./prompt";
 
 export const buildBigQueryAgent = (
   workspaceId: string,
-  sendEvent?: (data: any) => void,
   consoles?: any[],
+  preferredConsoleId?: string,
 ) =>
   new Agent({
     name: "BigQuery Assistant",
     handoffDescription:
       "Specialist for BigQuery datasets and SQL. Use when the task targets analytics tables in BigQuery.",
     instructions: BIGQUERY_ASSISTANT_PROMPT,
-    tools: createBigQueryTools(workspaceId, sendEvent, consoles),
+    tools: createBigQueryTools(workspaceId, consoles, preferredConsoleId),
     model: "gpt-5",
   });

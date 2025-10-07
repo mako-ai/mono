@@ -6,11 +6,11 @@ import { createBigQueryTools } from "../bigquery/tools";
 
 export const createTriageTools = (
   workspaceId: string,
-  sendEvent?: (data: any) => void,
   consoles?: any[],
+  preferredConsoleId?: string,
 ): Tool[] => {
-  const mongo = createMongoTools(workspaceId, sendEvent, consoles);
-  const bq = createBigQueryTools(workspaceId, sendEvent, consoles);
+  const mongo = createMongoTools(workspaceId, consoles, preferredConsoleId);
+  const bq = createBigQueryTools(workspaceId, consoles, preferredConsoleId);
 
   // Allow discovery-only tools
   const allowed = new Set([

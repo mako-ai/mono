@@ -1,5 +1,5 @@
 import { useAppStore, ChatSession } from "./appStore";
-import { AttachedContext, Message } from "../components/Chat/types";
+import { AttachedContext, Message } from "../types/chat";
 import { useMemo } from "react";
 
 export const useChatStore = () => {
