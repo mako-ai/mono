@@ -475,6 +475,13 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
       status: "started" | "completed";
     }>
   >([]);
+  const streamingToolCallsRef = useRef<
+    Array<{
+      toolName: string;
+      timestamp: string;
+      status: "started" | "completed";
+    }>
+  >([]);
 
   // Attachment state
   const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
@@ -761,6 +768,7 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
     setStreamingContent("");
     setError(null); // Clear any previous errors
     setStreamingToolCalls([]); // Clear tool calls from previous message
+    streamingToolCallsRef.current = [];
 
     while (!done) {
       const { value, done: doneReading } = await reader.read();
@@ -793,11 +801,10 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
               if (parsed.name.startsWith("tool_called:")) {
                 const toolName = parsed.name.replace("tool_called:", "");
                 setStreamingToolCalls(prev => {
-                  // Check if this tool already exists
                   const existing = prev.find(tc => tc.toolName === toolName);
+                  let updated: typeof prev;
                   if (existing) {
-                    // Update existing tool call status
-                    return prev.map(tc =>
+                    updated = prev.map(tc =>
                       tc.toolName === toolName
                         ? {
                             ...tc,
@@ -806,26 +813,29 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
                           }
                         : tc,
                     );
+                  } else {
+                    updated = [
+                      ...prev,
+                      {
+                        toolName,
+                        timestamp: new Date().toISOString(),
+                        status: "started" as const,
+                      },
+                    ];
                   }
-                  // Add new tool call
-                  return [
-                    ...prev,
-                    {
-                      toolName,
-                      timestamp: new Date().toISOString(),
-                      status: "started" as const,
-                    },
-                  ];
+                  streamingToolCallsRef.current = updated;
+                  return updated;
                 });
               } else if (parsed.name.startsWith("tool_output:")) {
                 const toolName = parsed.name.replace("tool_output:", "");
                 setStreamingToolCalls(prev => {
-                  // Update the matching tool to completed status
-                  return prev.map(tc =>
+                  const updated = prev.map(tc =>
                     tc.toolName === toolName
                       ? { ...tc, status: "completed" as const }
                       : tc,
                   );
+                  streamingToolCallsRef.current = updated;
+                  return updated;
                 });
               }
             } else if (
@@ -892,10 +902,11 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
     }
 
     // After streaming is complete, add the final message to the messages array
-    if (assistantContent || streamingToolCalls.length > 0) {
-      // Capture tool calls before clearing
+    const latestToolCalls = streamingToolCallsRef.current;
+    if (assistantContent || latestToolCalls.length > 0) {
+      // Capture tool calls before clearing using ref to avoid stale closure
       const finalToolCalls =
-        streamingToolCalls.length > 0 ? [...streamingToolCalls] : undefined;
+        latestToolCalls.length > 0 ? [...latestToolCalls] : undefined;
 
       setMessages(prev => [
         ...prev,
@@ -910,6 +921,7 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
       setSteps([]);
       setStreamingContent("");
       setStreamingToolCalls([]);
+      streamingToolCallsRef.current = [];
     }
   };
 
