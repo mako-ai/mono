@@ -117,20 +117,15 @@ function Editor() {
     state => state.setActiveEditorContent,
   );
 
+  // Update active editor content when tab focus changes
   useEffect(() => {
-    const updateContent = () => {
-      if (activeConsoleId && consoleRefs.current[activeConsoleId]?.current) {
-        const content =
-          consoleRefs.current[activeConsoleId].current.getCurrentContent();
-        setActiveEditorContent(content);
-      } else {
-        setActiveEditorContent(undefined);
-      }
-    };
-
-    updateContent();
-    const interval = setInterval(updateContent, 1000);
-    return () => clearInterval(interval);
+    if (activeConsoleId && consoleRefs.current[activeConsoleId]?.current) {
+      const content =
+        consoleRefs.current[activeConsoleId].current.getCurrentContent();
+      setActiveEditorContent(content);
+    } else {
+      setActiveEditorContent(undefined);
+    }
   }, [activeConsoleId, consoleTabs.length, setActiveEditorContent]);
 
   // Update the page title based on the active tab
@@ -533,6 +528,11 @@ function Editor() {
                           updateConsoleContent(tab.id, content);
                           if (content !== tab.initialContent && !tab.isDirty) {
                             updateConsoleDirty(tab.id, true);
+                          }
+                          // Also refresh activeEditorContent for Chat consumers
+                          const ref = consoleRefs.current[tab.id]?.current;
+                          if (activeConsoleId === tab.id && ref) {
+                            setActiveEditorContent(ref.getCurrentContent());
                           }
                         }}
                         onSaveSuccess={newDbContentHash => {
