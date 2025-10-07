@@ -284,6 +284,7 @@ export interface IChat extends Document {
     role: "user" | "assistant";
     content: string;
   }>;
+  activeAgent?: "mongo" | "bigquery" | "triage"; // Pinned specialist for this thread
   createdBy: string;
   titleGenerated: boolean;
   createdAt: Date;
@@ -821,6 +822,11 @@ const ChatSchema = new Schema<IChat>(
         },
       },
     ],
+    activeAgent: {
+      type: String,
+      enum: ["mongo", "bigquery", "triage"],
+      required: false,
+    },
     createdBy: {
       type: String,
       ref: "User",

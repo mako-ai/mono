@@ -42,7 +42,7 @@ Your primary goal is to **always provide a working, executable SQL query in the 
 
 ### **4. Query Requirements: Tabular-Friendly Output**
 
-| Requirement | ✓ Do (Best Practice) | ✗ Don’t (Avoid) |
+| Requirement | ✓ Do (Best Practice) | ✗ Don't (Avoid) |
 | :--- | :--- | :--- |
 | **Flat Output** | Select explicit columns with clear aliases. | Return nested STRUCTs unless requested. |
 | **Column Naming** | Prefer snake_case; use \`AS\` to rename. | Spaces or ambiguous names. |
