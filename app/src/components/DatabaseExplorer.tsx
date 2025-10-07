@@ -43,6 +43,52 @@ import { useConsoleStore } from "../store/consoleStore";
 
 // Removed inline MongoDB icon; icons are served by API per database type
 
+const IconImg = React.memo(
+  ({ src, alt, size = 20 }: { src: string; alt: string; size?: number }) => (
+    <img
+      src={src}
+      alt={alt}
+      style={{ width: size, height: size, display: "block" }}
+      loading="lazy"
+    />
+  ),
+);
+IconImg.displayName = "IconImg";
+
+const ServerTypeIcon = React.memo(
+  ({
+    server,
+    typeToIconUrl,
+  }: {
+    server: Server;
+    typeToIconUrl: (type: string) => string | null;
+  }) => {
+    // Try to infer type from contained databases (first db type), fallback to generic
+    const inferredType = server.databases[0]?.type;
+    const iconUrl = inferredType ? typeToIconUrl(inferredType) : null;
+    if (iconUrl) {
+      return <IconImg src={iconUrl} alt={inferredType || "server"} />;
+    }
+    return <ServerIcon />;
+  },
+);
+ServerTypeIcon.displayName = "ServerTypeIcon";
+
+const DatabaseTypeIcon = React.memo(
+  ({
+    type,
+    typeToIconUrl,
+  }: {
+    type: string;
+    typeToIconUrl: (type: string) => string | null;
+  }) => {
+    const iconUrl = typeToIconUrl(type);
+    if (iconUrl) return <IconImg src={iconUrl} alt={type} />;
+    return <DatabaseIcon size={24} strokeWidth={1.5} />;
+  },
+);
+DatabaseTypeIcon.displayName = "DatabaseTypeIcon";
+
 interface DatabaseExplorerProps {
   onCollectionSelect?: (
     databaseId: string,
@@ -52,10 +98,10 @@ interface DatabaseExplorerProps {
   onCollectionClick?: (databaseId: string, collection: CollectionInfo) => void;
 }
 
-const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
+function DatabaseExplorer({
   onCollectionSelect,
   onCollectionClick,
-}) => {
+}: DatabaseExplorerProps) {
   const {
     servers: serversMap,
     loading: loadingMap,
@@ -66,7 +112,8 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
 
   const { currentWorkspace } = useWorkspace();
 
-  const { addConsoleTab, setActiveConsole } = useConsoleStore();
+  // Don't subscribe to console store - it causes re-renders on every keystroke
+  // Use getState() in handlers instead
 
   const servers = currentWorkspace ? serversMap[currentWorkspace.id] || [] : [];
   const loading = currentWorkspace ? !!loadingMap[currentWorkspace.id] : false;
@@ -79,22 +126,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
   const typeToIconUrl = (type: string): string | null => {
     const meta = (dbTypes || []).find(t => t.type === type);
     return meta?.iconUrl || null;
-  };
-
-  const ServerTypeIcon: React.FC<{ server: Server }> = ({ server }) => {
-    // Try to infer type from contained databases (first db type), fallback to generic
-    const inferredType = server.databases[0]?.type;
-    const iconUrl = inferredType ? typeToIconUrl(inferredType) : null;
-    if (iconUrl) {
-      return (
-        <img
-          src={iconUrl}
-          alt={inferredType}
-          style={{ width: 20, height: 20, display: "block" }}
-        />
-      );
-    }
-    return <ServerIcon />;
   };
   const [loadingData, setLoadingData] = useState<Set<string>>(new Set());
   const error = currentWorkspace
@@ -242,6 +273,7 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
     if (!contextMenu) return;
     const { databaseId, collectionName } = contextMenu.item;
     const command = `db.getCollection("${collectionName}").drop()`;
+    const { addConsoleTab, setActiveConsole } = useConsoleStore.getState();
     const tabId = addConsoleTab({
       title: `Drop ${collectionName}`,
       content: command,
@@ -418,7 +450,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                         )}
                       </ListItemIcon>
                       <ListItemIcon sx={{ minWidth: 24 }}>
-                        <ServerTypeIcon server={server} />
+                        <ServerTypeIcon
+                          server={server}
+                          typeToIconUrl={typeToIconUrl}
+                        />
                       </ListItemIcon>
                       <ListItemText
                         primary={
@@ -475,30 +510,10 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
                                   )}
                                 </ListItemIcon>
                                 <ListItemIcon sx={{ minWidth: 32 }}>
-                                  {(() => {
-                                    const iconUrl = typeToIconUrl(
-                                      database.type,
-                                    );
-                                    if (iconUrl) {
-                                      return (
-                                        <img
-                                          src={iconUrl}
-                                          alt={database.type}
-                                          style={{
-                                            width: 20,
-                                            height: 20,
-                                            display: "block",
-                                          }}
-                                        />
-                                      );
-                                    }
-                                    return (
-                                      <DatabaseIcon
-                                        size={24}
-                                        strokeWidth={1.5}
-                                      />
-                                    );
-                                  })()}
+                                  <DatabaseTypeIcon
+                                    type={database.type}
+                                    typeToIconUrl={typeToIconUrl}
+                                  />
                                 </ListItemIcon>
                                 <ListItemText
                                   primary={
@@ -593,6 +608,6 @@ const DatabaseExplorer: React.FC<DatabaseExplorerProps> = ({
       </Menu>
     </Box>
   );
-};
+}
 
-export default DatabaseExplorer;
+export default React.memo(DatabaseExplorer);

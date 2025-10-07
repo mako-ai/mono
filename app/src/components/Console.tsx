@@ -22,7 +22,7 @@ import {
 import { PlayArrow as PlayIcon } from "@mui/icons-material";
 import {
   Check as CheckIcon,
-  Cross as CloseIcon,
+  X as CloseIcon,
   Save as SaveIcon,
   Undo as UndoIcon,
   Redo as RedoIcon,

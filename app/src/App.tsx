@@ -44,20 +44,17 @@ function InvitePage() {
 
 // Main application component (extracted from original App)
 function MainApp() {
-  const { activeView } = useAppStore();
-  const {
-    addConsoleTab,
-    setActiveConsole,
-    consoleTabs,
-    activeConsoleId,
-    updateConsoleContent,
-  } = useConsoleStore();
+  const activeView = useAppStore(s => s.activeView);
+  // Avoid re-rendering MainApp on console state changes; use getState on demand
 
   // Handle console modification from AI
   const handleConsoleModification = async (
     modification: ConsoleModification,
   ) => {
     // handleConsoleModification called
+
+    const { activeConsoleId, consoleTabs, addConsoleTab, setActiveConsole } =
+      useConsoleStore.getState();
 
     // Always use the active console - this is what users expect
     // When they ask the AI to modify a console, they mean the one they're looking at
@@ -109,6 +106,13 @@ function MainApp() {
   ) => {
     // For existing consoles, use the server ID as the tab ID
     const tabId = consoleId || generateObjectId();
+
+    const {
+      consoleTabs,
+      setActiveConsole,
+      addConsoleTab,
+      updateConsoleContent,
+    } = useConsoleStore.getState();
 
     // Check if a tab with this ID already exists
     const existing = consoleTabs.find(t => t.id === tabId);
