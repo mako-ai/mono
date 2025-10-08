@@ -11,6 +11,10 @@ import {
   buildAgentContext,
   persistChatSession,
 } from "../services/agent-thread.service";
+import {
+  shouldGenerateTitle,
+  generateChatTitle,
+} from "../services/title-generator";
 import { unifiedAuthMiddleware } from "../auth/unified-auth.middleware";
 import { AuthenticatedContext } from "../middleware/workspace.middleware";
 import {
@@ -622,6 +626,33 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
           });
 
           sendEvent({ type: "session", sessionId: finalSessionId });
+
+          // Fire-and-forget: generate a descriptive chat title if not already set
+          void (async () => {
+            try {
+              // Only attempt if we have a valid session id and enough context
+              if (!finalSessionId) return;
+
+              if (!shouldGenerateTitle(allMessages)) return;
+
+              const title = await generateChatTitle(allMessages);
+              const trimmed = (title || "").trim();
+              if (!trimmed) return;
+
+              await Chat.findOneAndUpdate(
+                {
+                  _id: new ObjectId(finalSessionId),
+                  workspaceId: new ObjectId(workspaceId),
+                  createdBy: userId.toString(),
+                  titleGenerated: false,
+                },
+                { title: trimmed, titleGenerated: true, updatedAt: new Date() },
+                { new: true },
+              );
+            } catch (e) {
+              console.error("Title generation error:", e);
+            }
+          })();
         }
 
         // Close the stream
