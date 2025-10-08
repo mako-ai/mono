@@ -768,8 +768,6 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
           backgroundColor: "background.paper",
           p: 0.5,
           gap: 0.5,
-          borderBottom: 1,
-          borderColor: "divider",
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
