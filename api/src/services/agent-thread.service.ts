@@ -15,6 +15,7 @@ export interface ThreadContext {
       toolName: string;
       timestamp?: Date;
       status?: "started" | "completed";
+      input?: any;
       result?: any;
     }>;
   }>;

@@ -202,6 +202,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
           toolName: string;
           timestamp: Date;
           status: "started" | "completed";
+          input?: any;
           result?: any;
         }> = [];
 
@@ -338,6 +339,26 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   item.name ||
                   "unknown_tool";
 
+                // Attempt to extract tool input/arguments from multiple possible locations
+                const rawInput =
+                  item.rawItem?.function?.arguments ??
+                  item.function?.arguments ??
+                  item.rawItem?.arguments ??
+                  item.arguments ??
+                  item.input ??
+                  item.payload ??
+                  item.params ??
+                  item.parameters;
+
+                let parsedInput = rawInput;
+                if (typeof rawInput === "string") {
+                  try {
+                    parsedInput = JSON.parse(rawInput);
+                  } catch {
+                    // leave as string if not JSON
+                  }
+                }
+
                 // Debug log tool calls
                 if (toolName.includes("console")) {
                   console.log(`[Agent Stream] Tool called: ${toolName}`, {
@@ -352,6 +373,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   type: "step",
                   name: `tool_called:${toolName}`,
                   status: "started",
+                  input: parsedInput,
                 });
 
                 // Track tool call
@@ -359,6 +381,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   toolName,
                   timestamp: new Date(),
                   status: "started",
+                  input: parsedInput,
                 });
               }
 
@@ -397,13 +420,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   ),
                 );
 
-                sendEvent({
-                  type: "step",
-                  name: `tool_output:${toolName}`,
-                  status: "completed",
-                });
-
-                // Track tool completion
+                // Compute output before sending event
                 const output =
                   item.output ||
                   item.result ||
@@ -411,6 +428,13 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                   item.rawItem?.result ||
                   item.rawItem?.providerData?.output ||
                   item.providerData?.output;
+
+                sendEvent({
+                  type: "step",
+                  name: `tool_output:${toolName}`,
+                  status: "completed",
+                  output,
+                });
 
                 // Find the matching started tool call and update it
                 const lastToolCall = toolCalls

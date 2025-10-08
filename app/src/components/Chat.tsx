@@ -15,6 +15,10 @@ import {
   ListItemIcon,
   Alert,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import ReactMarkdown from "react-markdown";
@@ -42,15 +46,19 @@ import { useWorkspace } from "../contexts/workspace-context";
 import { useConsoleStore } from "../store/consoleStore";
 
 // Note: Using simplified Message interface for this component
+interface ToolCall {
+  toolName: string;
+  timestamp?: Date | string;
+  status?: "started" | "completed";
+  // Optional fields for debugging details when available
+  input?: any;
+  result?: any;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
-  toolCalls?: Array<{
-    toolName: string;
-    timestamp?: Date | string;
-    status?: "started" | "completed";
-    result?: any;
-  }>;
+  toolCalls?: Array<ToolCall>;
 }
 
 interface ChatSessionMeta {
@@ -76,10 +84,12 @@ const CodeBlock = React.memo(
     language,
     children,
     isGenerating,
+    scrollable,
   }: {
     language: string;
     children: string;
     isGenerating: boolean;
+    scrollable?: boolean;
   }) => {
     const muiTheme = useMuiTheme();
     const effectiveMode = muiTheme.palette.mode;
@@ -92,8 +102,12 @@ const CodeBlock = React.memo(
     const needsExpansion = lines.length > 12;
 
     // Show only first 12 lines if not expanded
-    const displayedCode =
-      needsExpansion && !isExpanded ? lines.slice(0, 12).join("\n") : children;
+    const isScrollable = !!scrollable;
+    const displayedCode = isScrollable
+      ? children
+      : needsExpansion && !isExpanded
+        ? lines.slice(0, 12).join("\n")
+        : children;
 
     const handleCopy = async () => {
       try {
@@ -173,14 +187,15 @@ const CodeBlock = React.memo(
             margin: 0,
             overflow: "auto",
             maxWidth: "100%",
-            paddingBottom: needsExpansion ? "2rem" : undefined,
+            maxHeight: isScrollable ? "50vh" : undefined,
+            paddingBottom: needsExpansion && !isScrollable ? "2rem" : undefined,
             paddingTop: "2rem", // Add padding to prevent copy button overlap
           }}
         >
           {displayedCode}
         </SyntaxHighlighter>
 
-        {needsExpansion && (
+        {needsExpansion && !isScrollable && (
           <Box
             sx={{
               position: "absolute",
@@ -225,13 +240,10 @@ CodeBlock.displayName = "CodeBlock";
 const ToolCallsDisplay = React.memo(
   ({
     toolCalls,
+    onToolClick,
   }: {
-    toolCalls?: Array<{
-      toolName: string;
-      timestamp?: Date | string;
-      status?: "started" | "completed";
-      result?: any;
-    }>;
+    toolCalls?: Array<ToolCall>;
+    onToolClick?: (toolCall: ToolCall) => void;
   }) => {
     if (!toolCalls || toolCalls.length === 0) return null;
 
@@ -271,6 +283,7 @@ const ToolCallsDisplay = React.memo(
               borderRadius: 2,
               opacity: 0.8,
               fontSize: "0.75rem",
+              cursor: onToolClick ? "pointer" : "default",
               "& .MuiChip-icon": {
                 color:
                   toolCall.status === "completed"
@@ -278,6 +291,7 @@ const ToolCallsDisplay = React.memo(
                     : "primary.main",
               },
             }}
+            onClick={onToolClick ? () => onToolClick(toolCall) : undefined}
             title={
               toolCall.status === "completed"
                 ? "Tool executed successfully"
@@ -298,10 +312,12 @@ const MessageItem = React.memo(
     message,
     isLastUser,
     loading,
+    onToolClick,
   }: {
     message: Message;
     isLastUser: boolean;
     loading: boolean;
+    onToolClick?: (toolCall: ToolCall) => void;
   }) => {
     const muiTheme = useMuiTheme();
 
@@ -441,7 +457,10 @@ const MessageItem = React.memo(
           >
             {/* Display tool calls first (chronologically before response) */}
             {message.role === "assistant" && (
-              <ToolCallsDisplay toolCalls={message.toolCalls} />
+              <ToolCallsDisplay
+                toolCalls={message.toolCalls}
+                onToolClick={onToolClick}
+              />
             )}
             {/* Then display the message content */}
             {markdownContent}
@@ -473,6 +492,8 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
       toolName: string;
       timestamp: string;
       status: "started" | "completed";
+      input?: any;
+      result?: any;
     }>
   >([]);
   const streamingToolCallsRef = useRef<
@@ -480,8 +501,14 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
       toolName: string;
       timestamp: string;
       status: "started" | "completed";
+      input?: any;
+      result?: any;
     }>
   >([]);
+  const [toolDialogOpen, setToolDialogOpen] = useState(false);
+  const [selectedToolCall, setSelectedToolCall] = useState<ToolCall | null>(
+    null,
+  );
 
   // Attachment state
   const [attachedContext, setAttachedContext] = useState<AttachedContext[]>([]);
@@ -810,6 +837,12 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
                             ...tc,
                             status: "started" as const,
                             timestamp: new Date().toISOString(),
+                            input:
+                              parsed.input ??
+                              parsed.args ??
+                              parsed.parameters ??
+                              parsed.payload ??
+                              tc.input,
                           }
                         : tc,
                     );
@@ -820,6 +853,11 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
                         toolName,
                         timestamp: new Date().toISOString(),
                         status: "started" as const,
+                        input:
+                          parsed.input ??
+                          parsed.args ??
+                          parsed.parameters ??
+                          parsed.payload,
                       },
                     ];
                   }
@@ -829,9 +867,15 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
               } else if (parsed.name.startsWith("tool_output:")) {
                 const toolName = parsed.name.replace("tool_output:", "");
                 setStreamingToolCalls(prev => {
+                  const maybeResult =
+                    parsed.output ?? parsed.result ?? parsed.data;
                   const updated = prev.map(tc =>
                     tc.toolName === toolName
-                      ? { ...tc, status: "completed" as const }
+                      ? {
+                          ...tc,
+                          status: "completed" as const,
+                          result: maybeResult ?? tc.result,
+                        }
                       : tc,
                   );
                   streamingToolCallsRef.current = updated;
@@ -953,6 +997,17 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Tool debug dialog handlers
+  const handleToolClick = (toolCall: ToolCall) => {
+    setSelectedToolCall(toolCall);
+    setToolDialogOpen(true);
+  };
+
+  const handleCloseToolDialog = () => {
+    setToolDialogOpen(false);
+    setSelectedToolCall(null);
   };
 
   // ---------------------------------------------------------------------------
@@ -1132,6 +1187,7 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
               message={m}
               isLastUser={idx === messages.length - 1 && m.role === "user"}
               loading={loading}
+              onToolClick={handleToolClick}
             />
           ))}
           {loading && (
@@ -1150,7 +1206,10 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
                   }}
                 >
                   {/* Display tool calls first (chronologically before response) */}
-                  <ToolCallsDisplay toolCalls={streamingToolCalls} />
+                  <ToolCallsDisplay
+                    toolCalls={streamingToolCalls}
+                    onToolClick={handleToolClick}
+                  />
 
                   {/* Then show the streaming content */}
                   <ReactMarkdown
@@ -1386,6 +1445,49 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
           </IconButton>
         </Box>
       </Paper>
+
+      {/* Tool Debug Dialog */}
+      <Dialog
+        open={toolDialogOpen}
+        onClose={handleCloseToolDialog}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          {selectedToolCall
+            ? `Tool: ${selectedToolCall.toolName}`
+            : "Tool Details"}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Input
+            </Typography>
+            <CodeBlock language="json" isGenerating={false} scrollable>
+              {selectedToolCall && selectedToolCall.input !== undefined
+                ? typeof selectedToolCall.input === "string"
+                  ? selectedToolCall.input
+                  : JSON.stringify(selectedToolCall.input, null, 2)
+                : "No input captured"}
+            </CodeBlock>
+          </Box>
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+              Output
+            </Typography>
+            <CodeBlock language="json" isGenerating={false} scrollable>
+              {selectedToolCall && selectedToolCall.result !== undefined
+                ? typeof selectedToolCall.result === "string"
+                  ? selectedToolCall.result
+                  : JSON.stringify(selectedToolCall.result, null, 2)
+                : "No output captured"}
+            </CodeBlock>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseToolDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

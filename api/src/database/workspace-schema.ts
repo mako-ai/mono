@@ -287,6 +287,7 @@ export interface IChat extends Document {
       toolName: string;
       timestamp?: Date;
       status?: "started" | "completed";
+      input?: any;
       result?: any;
     }>;
   }>;
@@ -841,6 +842,9 @@ const ChatSchema = new Schema<IChat>(
               type: String,
               enum: ["started", "completed"],
               default: "completed",
+            },
+            input: {
+              type: Schema.Types.Mixed,
             },
             result: {
               type: Schema.Types.Mixed,
