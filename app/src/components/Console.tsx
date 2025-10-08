@@ -157,6 +157,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   // Keep refs of the latest callbacks to avoid stale closures in Monaco commands
   const onExecuteRef = useRef(onExecute);
   const onSaveRef = useRef(onSave);
+  const filePathRef = useRef<string | undefined>(filePath);
 
   // Determine editor language based on selected database type if available
   const editorLanguage = useMemo(() => {
@@ -174,6 +175,13 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
   useEffect(() => {
     onSaveRef.current = onSave;
   }, [onSave]);
+
+  // Persist last known file path so subsequent saves don't downgrade to "Save As"
+  useEffect(() => {
+    if (filePath) {
+      filePathRef.current = filePath;
+    }
+  }, [filePath]);
 
   // Diff mode state
   const [isDiffMode, setIsDiffMode] = useState(false);
@@ -387,7 +395,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         isDiffMode && modifiedContent
           ? modifiedContent
           : getCurrentEditorContent();
-      const success = await onSave(content, filePath);
+      const success = await onSave(content, filePathRef.current);
 
       // Reset unsaved changes flag if save was successful
       if (success) {
@@ -794,7 +802,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
               title={
                 !hasUnsavedChanges
                   ? "No changes to save"
-                  : filePath
+                  : filePathRef.current
                     ? "Save (⌘/Ctrl+S)"
                     : "Save As... (⌘/Ctrl+S)"
               }
@@ -978,7 +986,7 @@ const Console = forwardRef<ConsoleRef, ConsoleProps>((props, ref) => {
         {!isDiffMode ? (
           <Editor
             key={editorKey}
-            defaultLanguage={editorLanguage || "javascript"}
+            language={editorLanguage || "javascript"}
             defaultValue={lastInitialContentRef.current || initialContent}
             height="100%"
             theme={effectiveMode === "dark" ? "vs-dark" : "vs"}
