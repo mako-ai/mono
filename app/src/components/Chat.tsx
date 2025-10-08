@@ -917,7 +917,7 @@ const Chat: React.FC<ChatProps> = ({ onConsoleModification }) => {
                 // Use the modification handler to create a new console
                 onConsoleModification({
                   action: "create",
-                  content: "",
+                  content: parsed.content || "",
                   consoleId: parsed.consoleId,
                   title: parsed.title,
                 });

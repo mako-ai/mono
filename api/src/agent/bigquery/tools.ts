@@ -6,12 +6,43 @@ import { Database } from "../../database/workspace-schema";
 import { databaseConnectionService } from "../../services/database-connection.service";
 import { createConsoleTools, ConsoleData } from "../shared/console-tools";
 
+const listBigQueryDatabases = async (workspaceId: string) => {
+  if (!Types.ObjectId.isValid(workspaceId)) {
+    throw new Error("Invalid workspace ID");
+  }
+  const databases = await Database.find({
+    workspaceId: new Types.ObjectId(workspaceId),
+  }).sort({ name: 1 });
+
+  return databases
+    .filter(db => db.type === "bigquery")
+    .map(db => {
+      const conn: any = (db as any).connection || {};
+      const projectId = conn.project_id || "unknown-project";
+      return {
+        id: db._id.toString(),
+        name: db.name,
+        description: "",
+        // For BigQuery, surface project identifier for display
+        database: projectId,
+        type: db.type,
+        active: true,
+        displayName: `BigQuery (${projectId})`,
+      };
+    });
+};
+
 const listDatasets = async (databaseId: string, workspaceId: string) => {
+  // Enforce non-empty, valid ObjectId for databaseId
   if (
+    typeof databaseId !== "string" ||
+    databaseId.trim().length === 0 ||
     !Types.ObjectId.isValid(databaseId) ||
     !Types.ObjectId.isValid(workspaceId)
   ) {
-    throw new Error("Invalid database ID or workspace ID");
+    throw new Error(
+      "'databaseId' is required and must be a valid database identifier",
+    );
   }
   const database = await Database.findOne({
     _id: new Types.ObjectId(databaseId),
@@ -144,6 +175,34 @@ export const createBigQueryTools = (
   consoles?: ConsoleData[],
   preferredConsoleId?: string,
 ) => {
+  // Discovery: list BigQuery database connections in this workspace
+  const listDatabasesBq = tool({
+    name: "bq_list_databases",
+    description:
+      "Return a list of all active BigQuery databases for the current workspace.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    execute: async (_: any) => listBigQueryDatabases(workspaceId),
+  });
+
+  // Optional alias to match generic naming within the BigQuery agent
+  const listDatabasesAlias = tool({
+    name: "list_databases",
+    description:
+      "Alias for listing BigQuery databases (scoped to the current workspace).",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    execute: async (_: any) => listBigQueryDatabases(workspaceId),
+  });
+
   const listDatasetsTool = tool({
     name: "bq_list_datasets",
     description: "List BigQuery datasets for the provided database identifier.",
@@ -156,9 +215,38 @@ export const createBigQueryTools = (
     execute: async (input: any) => listDatasets(input.databaseId, workspaceId),
   });
 
+  const listDatasetsAlias = tool({
+    name: "list_datasets",
+    description:
+      "Alias: List BigQuery datasets for the provided database identifier.",
+    parameters: {
+      type: "object",
+      properties: { databaseId: { type: "string" } },
+      required: ["databaseId"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) => listDatasets(input.databaseId, workspaceId),
+  });
+
   const listTablesTool = tool({
     name: "bq_list_tables",
     description: "List BigQuery tables for a given dataset.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: { type: "string" },
+        datasetId: { type: "string" },
+      },
+      required: ["databaseId", "datasetId"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      listTables(input.databaseId, input.datasetId, workspaceId),
+  });
+
+  const listTablesAlias = tool({
+    name: "list_tables",
+    description: "Alias: List BigQuery tables for a given dataset.",
     parameters: {
       type: "object",
       properties: {
@@ -195,6 +283,29 @@ export const createBigQueryTools = (
       ),
   });
 
+  const inspectTableAlias = tool({
+    name: "inspect_table",
+    description:
+      "Alias: Return columns with data types and nullability for a given table via INFORMATION_SCHEMA.",
+    parameters: {
+      type: "object",
+      properties: {
+        databaseId: { type: "string" },
+        datasetId: { type: "string" },
+        tableId: { type: "string" },
+      },
+      required: ["databaseId", "datasetId", "tableId"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      inspectTable(
+        input.databaseId,
+        input.datasetId,
+        input.tableId,
+        workspaceId,
+      ),
+  });
+
   const executeSqlTool = tool({
     name: "bq_execute_query",
     description:
@@ -209,13 +320,33 @@ export const createBigQueryTools = (
       executeBigQuerySql(input.databaseId, input.query, workspaceId),
   });
 
+  const executeSqlAlias = tool({
+    name: "execute_query",
+    description:
+      "Alias: Execute a BigQuery SQL query and return the results (LIMIT 500 enforced by default).",
+    parameters: {
+      type: "object",
+      properties: { databaseId: { type: "string" }, query: { type: "string" } },
+      required: ["databaseId", "query"],
+      additionalProperties: false,
+    },
+    execute: async (input: any) =>
+      executeBigQuerySql(input.databaseId, input.query, workspaceId),
+  });
+
   const consoleTools = createConsoleTools(consoles, preferredConsoleId);
 
   return [
+    listDatabasesBq,
+    listDatabasesAlias,
     listDatasetsTool,
+    listDatasetsAlias,
     listTablesTool,
+    listTablesAlias,
     inspectTableTool,
+    inspectTableAlias,
     executeSqlTool,
+    executeSqlAlias,
     ...consoleTools,
   ];
 };

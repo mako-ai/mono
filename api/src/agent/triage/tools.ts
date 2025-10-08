@@ -15,6 +15,7 @@ export const createTriageTools = (
   // Allow discovery-only tools
   const allowed = new Set([
     "list_databases",
+    "bq_list_databases",
     "list_collections",
     "inspect_collection",
     "bq_list_datasets",
