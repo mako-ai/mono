@@ -1,5 +1,5 @@
 import { MongoClient, Db, MongoClientOptions } from "mongodb";
-import { Client as PgClient } from "pg";
+import { Client as PgClient, Pool as PgPool } from "pg";
 import * as mysql from "mysql2/promise";
 import { Database as SqliteDatabase } from "sqlite3";
 import { open } from "sqlite";
@@ -7,6 +7,8 @@ import { ConnectionPool } from "mssql";
 import { IDatabase } from "../database/workspace-schema";
 import axios, { AxiosInstance } from "axios";
 import crypto from "crypto";
+import { DatabaseDriver } from "../databases/driver";
+import { CloudSQLPostgresDatabaseDriver } from "../databases/drivers/cloudsql-postgres/driver";
 
 export interface QueryResult {
   success: boolean;
@@ -47,6 +49,9 @@ interface PooledConnection {
  */
 export class DatabaseConnectionService {
   private connections: Map<string, any> = new Map();
+  private cloudSqlPgConnectors: Map<string, Connector> = new Map();
+  private cloudSqlPgPools: Map<string, PgPool> = new Map();
+  private drivers: Map<string, DatabaseDriver> = new Map();
 
   // MongoDB-specific pooling
   private mongoConnections: Map<string, PooledConnection> = new Map();
@@ -66,6 +71,10 @@ export class DatabaseConnectionService {
   };
 
   constructor() {
+    this.drivers.set(
+      "cloudsql-postgres",
+      new CloudSQLPostgresDatabaseDriver() as any,
+    );
     // Start cleanup interval for MongoDB connections
     this.cleanupInterval = setInterval(() => {
       void this.cleanupIdleMongoConnections();
@@ -92,6 +101,10 @@ export class DatabaseConnectionService {
           return await this.testMSSQLConnection(database);
         case "bigquery":
           return await this.testBigQueryConnection(database);
+        case "cloudsql-postgres":
+          return await (
+            this.drivers.get("cloudsql-postgres") as any
+          ).testConnection(database);
         default:
           return {
             success: false,
@@ -120,6 +133,10 @@ export class DatabaseConnectionService {
           return await this.executeMongoDBQuery(database, query, options);
         case "postgresql":
           return await this.executePostgreSQLQuery(database, query);
+        case "cloudsql-postgres":
+          return await this.drivers
+            .get("cloudsql-postgres")!
+            .executeQuery(database, query, options);
         case "mysql":
           return await this.executeMySQLQuery(database, query);
         case "sqlite":
@@ -172,6 +189,11 @@ export class DatabaseConnectionService {
       case "postgresql":
         connection = await this.createPostgreSQLConnection(database);
         break;
+      case "cloudsql-postgres":
+        connection = await this.drivers
+          .get("cloudsql-postgres")!
+          .getConnection(database);
+        break;
       case "mysql":
         connection = await this.createMySQLConnection(database);
         break;
@@ -200,6 +222,14 @@ export class DatabaseConnectionService {
     // Try to close MongoDB connection through pool
     await this.closeMongoConnection("datasource", databaseId);
 
+    // Close CloudSQL through driver
+    const cloudSqlDriver = this.drivers.get(
+      "cloudsql-postgres",
+    ) as CloudSQLPostgresDatabaseDriver;
+    if (cloudSqlDriver) {
+      await cloudSqlDriver.closeConnection(databaseId);
+    }
+
     // Also handle any non-MongoDB connections in the local cache
     const connection = this.connections.get(databaseId);
     if (connection) {
@@ -213,6 +243,17 @@ export class DatabaseConnectionService {
         console.error("Error closing cached connection:", error);
       } finally {
         this.connections.delete(databaseId);
+      }
+    }
+
+    const csConnector = this.cloudSqlPgConnectors.get(databaseId);
+    if (csConnector) {
+      try {
+        await csConnector.close();
+      } catch (error) {
+        console.error("Error closing Cloud SQL connector:", error);
+      } finally {
+        this.cloudSqlPgConnectors.delete(databaseId);
       }
     }
   }
@@ -246,6 +287,30 @@ export class DatabaseConnectionService {
       this.closeConnection(id),
     );
     await Promise.all(otherPromises);
+
+    // Close Cloud SQL pools first
+    const cloudSqlDriver = this.drivers.get(
+      "cloudsql-postgres",
+    ) as CloudSQLPostgresDatabaseDriver;
+    if (cloudSqlDriver) {
+      await cloudSqlDriver.closeAllConnections();
+    }
+    const poolPromises = Array.from(this.cloudSqlPgPools.values()).map(pool =>
+      pool
+        .end()
+        .catch(err => console.error("Error closing Cloud SQL pool:", err)),
+    );
+    await Promise.all(poolPromises);
+    this.cloudSqlPgPools.clear();
+
+    // Then close Cloud SQL connectors
+    const csPromises = Array.from(this.cloudSqlPgConnectors.values()).map(c =>
+      c
+        .close()
+        .catch(err => console.error("Error closing Cloud SQL connector:", err)),
+    );
+    await Promise.all(csPromises);
+    this.cloudSqlPgConnectors.clear();
   }
 
   /**
