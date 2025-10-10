@@ -124,6 +124,82 @@ const DATABASE_SCHEMAS: Record<string, DatabaseSchemaResponse> = {
       { name: "ssl", label: "Use SSL/TLS", type: "boolean", default: false },
     ],
   },
+  "cloudsql-postgres": {
+    fields: [
+      {
+        name: "instanceConnectionName",
+        label: "Instance Connection Name",
+        type: "string",
+        required: false,
+        placeholder: "my-project:region:my-instance",
+        helperText:
+          "Provide either Instance Connection Name or Domain Name (DNS failover).",
+      },
+      {
+        name: "domainName",
+        label: "Domain Name (optional)",
+        type: "string",
+        required: false,
+        placeholder: "prod-db.mycompany.example.com",
+        helperText: "Use DNS-based instance mapping with automatic failover.",
+      },
+      {
+        name: "database",
+        label: "Database",
+        type: "string",
+        required: true,
+        placeholder: "mydb",
+      },
+      {
+        name: "authType",
+        label: "Auth Type",
+        type: "select",
+        required: false,
+        default: "password",
+        options: [
+          { label: "Password", value: "password" },
+          { label: "IAM", value: "IAM" },
+        ],
+        helperText:
+          "Choose IAM to authenticate via Cloud SQL IAM Database Auth.",
+      },
+      {
+        name: "username",
+        label: "Username",
+        type: "string",
+        required: false,
+        helperText:
+          "For Password auth: postgres username. For IAM auth: leave empty (will use service-account@project.iam format automatically)",
+      },
+      {
+        name: "password",
+        label: "Password",
+        type: "password",
+        required: false,
+      },
+      {
+        name: "ipType",
+        label: "IP Type",
+        type: "select",
+        required: false,
+        default: "PUBLIC",
+        options: [
+          { label: "Public", value: "PUBLIC" },
+          { label: "Private", value: "PRIVATE" },
+        ],
+      },
+      {
+        name: "service_account_json",
+        label: "Service Account JSON",
+        type: "textarea",
+        required: false,
+        rows: 6,
+        placeholder: '{\n  "type": "service_account",\n  ...\n}',
+        helperText:
+          "Paste the full service account JSON key. It will be stored encrypted. Required for IAM authentication.",
+      },
+    ],
+  },
   mysql: {
     fields: [
       {

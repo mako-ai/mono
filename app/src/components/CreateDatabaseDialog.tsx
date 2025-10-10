@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -18,6 +18,7 @@ import {
 import { useWorkspace } from "../contexts/workspace-context";
 import { apiClient } from "../lib/api-client";
 import { useDatabaseCatalogStore } from "../store/databaseCatalogStore";
+import { useForm, Controller } from "react-hook-form";
 
 interface CreateDatabaseDialogProps {
   open: boolean;
@@ -31,52 +32,51 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
   onSuccess,
 }) => {
   const { currentWorkspace } = useWorkspace();
-  const [name, setName] = useState("");
-  const [type, setType] = useState<string>("");
-  const [connection, setConnection] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const resetForm = () => {
-    setName("");
-    setType("");
-    setConnection({});
-    setError(null);
+  type FormValues = {
+    name: string;
+    type: string;
+    connection: Record<string, any>;
   };
 
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<FormValues>({
+    defaultValues: { name: "", type: "", connection: {} },
+    mode: "onSubmit",
+    reValidateMode: "onChange",
+  });
+
   const handleClose = () => {
-    resetForm();
+    reset({ name: "", type: "", connection: {} });
+    setError(null);
     onClose();
   };
 
-  const handleSubmit = async () => {
-    if (!name || !type) {
-      setError("Name and database type are required");
-      return;
-    }
+  const onSubmit = async (values: FormValues) => {
     if (!currentWorkspace) {
       setError("No workspace selected");
       return;
     }
-
     setLoading(true);
     setError(null);
-
     try {
-      const data = await apiClient.post<{
+      const res = await apiClient.post<{
         success: boolean;
         data: any;
         message?: string;
-      }>(`/workspaces/${currentWorkspace.id}/databases`, {
-        name,
-        type,
-        connection,
-      });
-
-      if (!data.success) {
-        throw new Error((data as any).error || "Failed to create database");
+      }>(`/workspaces/${currentWorkspace.id}/databases`, values);
+      if (!res.success) {
+        throw new Error((res as any).error || "Failed to create database");
       }
-
       onSuccess();
       handleClose();
     } catch (err) {
@@ -94,11 +94,15 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
   } = useDatabaseCatalogStore();
 
   useEffect(() => {
-    fetchTypes().catch(() => undefined);
-  }, [fetchTypes]);
+    if (open) {
+      fetchTypes(true).catch(() => undefined);
+    }
+  }, [fetchTypes, open]);
+
+  const selectedType = watch("type");
 
   const handleTypeChange = async (newType: string) => {
-    setType(newType);
+    setValue("type", newType, { shouldValidate: true, shouldDirty: true });
     const schema = schemas[newType] || (await fetchSchema(newType));
     const defaults: Record<string, any> = {};
     if (schema?.fields) {
@@ -108,7 +112,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
         else defaults[f.name] = "";
       });
     }
-    setConnection(defaults);
+    reset(prev => ({ ...prev, type: newType, connection: defaults }));
   };
 
   return (
@@ -125,19 +129,26 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
           <TextField
             fullWidth
             label="Database Name"
-            value={name}
-            onChange={e => setName(e.target.value)}
+            {...register("name", { required: "Name is required" })}
             margin="normal"
             required
             placeholder="My Database"
+            error={Boolean(errors.name)}
+            helperText={errors.name?.message as string}
           />
 
           <FormControl fullWidth margin="normal" required>
             <InputLabel>Database Type</InputLabel>
+            {/* Hidden input to register 'type' as required for validation */}
+            <input
+              type="hidden"
+              {...register("type", { required: "Database type is required" })}
+            />
             <Select
-              value={type}
+              value={selectedType || ""}
               label="Database Type"
-              onChange={e => handleTypeChange(e.target.value)}
+              onChange={e => handleTypeChange(String(e.target.value))}
+              error={Boolean(errors.type)}
             >
               {(dbTypes || []).map(t => (
                 <MenuItem key={t.type} value={t.type}>
@@ -145,38 +156,61 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                 </MenuItem>
               ))}
             </Select>
+            {errors.type && (
+              <Typography variant="caption" color="error">
+                {(errors.type.message as string) || "Database type is required"}
+              </Typography>
+            )}
           </FormControl>
 
           {/* Dynamic schema-driven form */}
-          {type && schemas[type]?.fields && (
+          {selectedType && schemas[selectedType]?.fields && (
             <>
-              {schemas[type].fields.map(field => {
-                const value = connection[field.name] ?? "";
-                const onChangeString = (v: string) =>
-                  setConnection(prev => ({ ...prev, [field.name]: v }));
-                const onChangeBool = (v: boolean) =>
-                  setConnection(prev => ({ ...prev, [field.name]: v }));
-                const onChangeNum = (v: string) =>
-                  setConnection(prev => ({
-                    ...prev,
-                    [field.name]: v ? Number(v) : undefined,
-                  }));
+              {schemas[selectedType].fields.map(field => {
+                const fieldName = `connection.${field.name}` as const;
+                const requiredRule = field.required
+                  ? { required: `${field.label} is required` }
+                  : {};
+                const fieldError =
+                  ((errors.connection as any)?.[field.name]
+                    ?.message as string) || undefined;
                 switch (field.type) {
                   case "boolean":
                     return (
                       <FormControl key={field.name} fullWidth margin="normal">
                         <Box sx={{ display: "flex", alignItems: "center" }}>
                           <Typography sx={{ mr: 2 }}>{field.label}</Typography>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(value)}
-                            onChange={e => onChangeBool(e.target.checked)}
+                          <Controller
+                            control={control}
+                            name={fieldName as any}
+                            rules={requiredRule}
+                            render={({ field: ctrlField, fieldState }) => (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(ctrlField.value)}
+                                onChange={e =>
+                                  ctrlField.onChange(e.target.checked)
+                                }
+                                aria-invalid={
+                                  fieldState.error ? "true" : "false"
+                                }
+                              />
+                            )}
                           />
                         </Box>
-                        {field.helperText && (
-                          <Typography variant="caption" color="text.secondary">
-                            {field.helperText}
+                        {fieldError ? (
+                          <Typography variant="caption" color="error">
+                            {fieldError}
                           </Typography>
+                        ) : (
+                          field.helperText && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {field.helperText}
+                            </Typography>
+                          )
                         )}
                       </FormControl>
                     );
@@ -186,14 +220,13 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                         key={field.name}
                         fullWidth
                         label={field.label}
-                        value={value}
-                        onChange={e => onChangeString(e.target.value)}
                         margin="normal"
-                        required={field.required}
                         placeholder={field.placeholder}
-                        helperText={field.helperText}
                         multiline
                         rows={field.rows || 3}
+                        {...register(fieldName as any, requiredRule)}
+                        error={Boolean(fieldError)}
+                        helperText={fieldError ?? field.helperText}
                       />
                     );
                   case "password":
@@ -203,12 +236,11 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                         fullWidth
                         type="password"
                         label={field.label}
-                        value={value}
-                        onChange={e => onChangeString(e.target.value)}
                         margin="normal"
-                        required={field.required}
                         placeholder={field.placeholder}
-                        helperText={field.helperText}
+                        {...register(fieldName as any, requiredRule)}
+                        error={Boolean(fieldError)}
+                        helperText={fieldError ?? field.helperText}
                       />
                     );
                   case "number":
@@ -218,12 +250,14 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                         fullWidth
                         type="number"
                         label={field.label}
-                        value={value}
-                        onChange={e => onChangeNum(e.target.value)}
                         margin="normal"
-                        required={field.required}
                         placeholder={field.placeholder}
-                        helperText={field.helperText}
+                        {...register(fieldName as any, {
+                          ...requiredRule,
+                          valueAsNumber: true,
+                        })}
+                        error={Boolean(fieldError)}
+                        helperText={fieldError ?? field.helperText}
                       />
                     );
                   case "select":
@@ -233,19 +267,43 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                         fullWidth
                         margin="normal"
                         required={field.required}
+                        error={Boolean(fieldError)}
                       >
                         <InputLabel>{field.label}</InputLabel>
-                        <Select
-                          value={value}
-                          label={field.label}
-                          onChange={e => onChangeString(String(e.target.value))}
-                        >
-                          {(field.options || []).map(opt => (
-                            <MenuItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </MenuItem>
-                          ))}
-                        </Select>
+                        <Controller
+                          control={control}
+                          name={fieldName as any}
+                          rules={requiredRule}
+                          render={({ field: ctrlField }) => (
+                            <Select
+                              label={field.label}
+                              value={ctrlField.value ?? ""}
+                              onChange={e =>
+                                ctrlField.onChange(String(e.target.value))
+                              }
+                            >
+                              {(field.options || []).map(opt => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          )}
+                        />
+                        {fieldError ? (
+                          <Typography variant="caption" color="error">
+                            {fieldError}
+                          </Typography>
+                        ) : (
+                          field.helperText && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {field.helperText}
+                            </Typography>
+                          )
+                        )}
                       </FormControl>
                     );
                   case "string":
@@ -255,12 +313,11 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
                         key={field.name}
                         fullWidth
                         label={field.label}
-                        value={value}
-                        onChange={e => onChangeString(e.target.value)}
                         margin="normal"
-                        required={field.required}
                         placeholder={field.placeholder}
-                        helperText={field.helperText}
+                        {...register(fieldName as any, requiredRule)}
+                        error={Boolean(fieldError)}
+                        helperText={fieldError ?? field.helperText}
                       />
                     );
                 }
@@ -274,7 +331,7 @@ const CreateDatabaseDialog: React.FC<CreateDatabaseDialogProps> = ({
           Cancel
         </Button>
         <Button
-          onClick={handleSubmit}
+          onClick={handleSubmit(onSubmit)}
           variant="contained"
           disabled={loading}
           startIcon={loading ? <CircularProgress size={16} /> : null}
