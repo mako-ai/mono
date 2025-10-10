@@ -181,6 +181,7 @@ export class CloseConnector extends BaseConnector {
       const params: any = {
         _limit: batchSize,
         _skip: offset,
+        _order_by: "id", // Add consistent ordering for pagination stability
       };
 
       try {
@@ -301,6 +302,7 @@ export class CloseConnector extends BaseConnector {
         const params = {
           _limit: batchSize,
           _skip: offset,
+          // Note: /user/ endpoint doesn't support _order_by parameter
         };
 
         const response = await api.get("/user/", { params });
@@ -381,6 +383,7 @@ export class CloseConnector extends BaseConnector {
       const params: any = {
         _limit: batchSize,
         _skip: offset,
+        _order_by: "id", // Add consistent ordering for pagination stability
       };
 
       // Fetch data based on entity type
@@ -550,6 +553,7 @@ export class CloseConnector extends BaseConnector {
         const params = {
           _limit: batchSize,
           _skip: offset,
+          // Note: /user/ endpoint doesn't support _order_by parameter
         };
 
         const response = await api.get("/user/", { params });

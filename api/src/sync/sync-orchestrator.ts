@@ -346,38 +346,26 @@ export async function performSyncChunk(
             // Write to database with timing
             const bulkStart = Date.now(); // Declare outside for catch scope
             try {
-              let result;
-              if (useStaging) {
-                result = await collection.insertMany(processedRecords, {
-                  ordered: false,
-                });
-                console.log(`MongoDB insertMany mode used (full sync)`);
-                const bulkDuration = Date.now() - bulkStart;
-                console.log(
-                  `MongoDB write succeeded: ${result.insertedCount} inserted, took ${bulkDuration}ms for ${batch.length} records`,
-                );
-              } else {
-                const bulkOps = processedRecords.map(record => ({
-                  replaceOne: {
-                    filter: {
-                      id: record.id,
-                      _dataSourceId: dataSource.id,
-                    },
-                    replacement: record,
-                    upsert: true,
+              // Always use bulkWrite with upserts to handle duplicates gracefully
+              const bulkOps = processedRecords.map(record => ({
+                replaceOne: {
+                  filter: {
+                    id: record.id,
+                    _dataSourceId: dataSource.id,
                   },
-                }));
-                result = await collection.bulkWrite(bulkOps, {
-                  ordered: false,
-                });
-                console.log(
-                  `MongoDB bulkWrite upsert mode used (incremental sync)`,
-                );
-                const bulkDuration = Date.now() - bulkStart;
-                console.log(
-                  `MongoDB write succeeded: ${result.upsertedCount} upserted, ${result.modifiedCount} modified, took ${bulkDuration}ms for ${batch.length} records`,
-                );
-              }
+                  replacement: record,
+                  upsert: true,
+                },
+              }));
+              const result = await collection.bulkWrite(bulkOps, {
+                ordered: false,
+              });
+              const syncType = useStaging ? "full sync" : "incremental sync";
+              console.log(`MongoDB bulkWrite upsert mode used (${syncType})`);
+              const bulkDuration = Date.now() - bulkStart;
+              console.log(
+                `MongoDB write succeeded: ${result.upsertedCount} upserted, ${result.modifiedCount} modified, took ${bulkDuration}ms for ${batch.length} records`,
+              );
             } catch (bulkError: any) {
               const bulkDuration = Date.now() - bulkStart;
               console.error(
