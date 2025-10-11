@@ -10,7 +10,7 @@ import {
   IpAddressTypes,
 } from "@google-cloud/cloud-sql-connector";
 import { Client as PgClient, Pool as PgPool } from "pg";
-import { GoogleAuth, type AuthClient } from "google-auth-library";
+import { GoogleAuth, JWT, type AuthClient } from "google-auth-library";
 
 interface QueryResult {
   success: boolean;
@@ -19,6 +19,12 @@ interface QueryResult {
   rowCount?: number;
   fields?: any;
 }
+
+const CLOUDSQL_SCOPES = [
+  "https://www.googleapis.com/auth/cloud-platform",
+  "https://www.googleapis.com/auth/sqlservice.admin",
+  "https://www.googleapis.com/auth/sqlservice.login",
+] as const;
 
 export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
   private connectors: Map<string, Connector> = new Map();
@@ -385,7 +391,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
     });
 
     // Set up authentication
-    let auth: GoogleAuth | undefined;
+    let connectorAuth: GoogleAuth | AuthClient | undefined;
 
     // Check if service account JSON is provided (multi-tenant scenario)
     if (conn.service_account_json) {
@@ -402,28 +408,39 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           hasPrivateKey: !!credentials.private_key,
         });
 
-        auth = new GoogleAuth({
-          credentials,
-          scopes: [
-            "https://www.googleapis.com/auth/cloud-platform",
-            "https://www.googleapis.com/auth/sqlservice.admin",
-            "https://www.googleapis.com/auth/sqlservice.login",
-          ],
-          projectId: credentials.project_id,
+        const { client_email: email, private_key: key, project_id: projectId } =
+          credentials;
+        if (!email || !key) {
+          throw new Error(
+            "Service account JSON must include client_email and private_key.",
+          );
+        }
+
+        connectorAuth = new JWT({
+          email,
+          key,
+          scopes: [...CLOUDSQL_SCOPES],
+          projectId,
         });
 
         // Test if auth is working by trying to get an access token
         console.log("[CloudSQL] Testing auth by getting access token...");
         let authClient: AuthClient | null = null;
         try {
-          authClient = await auth.getClient();
-          console.log("[CloudSQL] Auth client obtained successfully");
-          const accessToken = await authClient.getAccessToken();
-          console.log("[CloudSQL] Access token obtained, auth is working");
+          authClient = connectorAuth;
+          const accessTokenResponse = await authClient.getAccessToken();
+          console.log("[CloudSQL] Access token obtained, auth is working", {
+            hasToken: !!accessTokenResponse?.token,
+            expiration: accessTokenResponse?.res?.data?.expiry_date,
+          });
         } catch (authTestError) {
           console.error("[CloudSQL] Auth test failed:", authTestError);
           throw new Error(
-            `Service account authentication failed: ${authTestError instanceof Error ? authTestError.message : "Unknown error"}`,
+            `Service account authentication failed: ${
+              authTestError instanceof Error
+                ? authTestError.message
+                : "Unknown error"
+            }`,
           );
         }
 
@@ -432,8 +449,8 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
             "Auth client initialization failed even though credentials were parsed successfully.",
           );
         }
-        console.log("[CloudSQL] Using GoogleAuth instance for connector");
-        const connector = new Connector({ auth });
+        console.log("[CloudSQL] Using JWT auth client for connector");
+        const connector = new Connector({ auth: connectorAuth });
         console.log("[CloudSQL] Connector created successfully");
         return connector;
       } catch (parseError) {
@@ -453,16 +470,16 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
         "[CloudSQL] No service account JSON provided, using Application Default Credentials",
       );
       try {
-        auth = new GoogleAuth({
-          scopes: [
-            "https://www.googleapis.com/auth/cloud-platform",
-            "https://www.googleapis.com/auth/sqlservice.admin",
-            "https://www.googleapis.com/auth/sqlservice.login",
-          ],
+        connectorAuth = new GoogleAuth({
+          scopes: [...CLOUDSQL_SCOPES],
         });
-        const authClient = await auth.getClient();
-        console.log("[CloudSQL] ADC credentials validated");
-        return new Connector({ auth });
+        const authClient = await connectorAuth.getClient();
+        console.log("[CloudSQL] Auth client obtained successfully");
+        const tokenResponse = await authClient.getAccessToken();
+        console.log("[CloudSQL] Access token obtained, auth is working", {
+          hasToken: !!tokenResponse?.token,
+        });
+        return new Connector({ auth: connectorAuth });
       } catch (authError) {
         console.error("[CloudSQL] Failed to create auth with ADC:", authError);
         throw new Error(
@@ -474,4 +491,5 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
       }
     }
   }
+
 }
