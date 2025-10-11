@@ -4,9 +4,13 @@ import {
   DatabaseTreeNode,
 } from "../../driver";
 import { IDatabase } from "../../../database/workspace-schema";
-import { Connector } from "@google-cloud/cloud-sql-connector";
+import {
+  Connector,
+  AuthTypes,
+  IpAddressTypes,
+} from "@google-cloud/cloud-sql-connector";
 import { Client as PgClient, Pool as PgPool } from "pg";
-import { GoogleAuth } from "google-auth-library";
+import { GoogleAuth, type AuthClient } from "google-auth-library";
 
 interface QueryResult {
   success: boolean;
@@ -111,7 +115,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
     let client: PgClient | null = null;
     try {
       const conn = (database.connection as any) || {};
-      connector = this._getConnector(database);
+      connector = await this._getConnector(database);
 
       const getOpts: any = {};
       if (conn.instanceConnectionName || conn.instance_connection_name) {
@@ -121,8 +125,31 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
       if (conn.domainName || conn.domain_name) {
         getOpts.domainName = conn.domainName || conn.domain_name;
       }
-      if (conn.ipType) getOpts.ipType = conn.ipType;
-      if (conn.authType) getOpts.authType = conn.authType;
+      const requestedIpType =
+        typeof conn.ipType === "string" ? conn.ipType.toUpperCase() : undefined;
+      const resolvedIpType =
+        requestedIpType && requestedIpType in IpAddressTypes
+          ? IpAddressTypes[
+              requestedIpType as keyof typeof IpAddressTypes
+            ]
+          : undefined;
+      if (resolvedIpType) {
+        getOpts.ipType = resolvedIpType;
+      }
+
+      const requestedAuthType =
+        typeof conn.authType === "string"
+          ? conn.authType.toUpperCase()
+          : undefined;
+      const resolvedAuthType =
+        requestedAuthType && requestedAuthType in AuthTypes
+          ? AuthTypes[
+              requestedAuthType as keyof typeof AuthTypes
+            ]
+          : undefined;
+      if (resolvedAuthType) {
+        getOpts.authType = resolvedAuthType;
+      }
 
       console.log("[CloudSQL] Calling connector.getOptions with:", getOpts);
 
@@ -146,7 +173,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
       }
 
       let user: string | undefined = conn.username;
-      if (String(conn.authType || "").toUpperCase() === "IAM") {
+      if (resolvedAuthType === AuthTypes.IAM) {
         if (!user && conn.service_account_json) {
           try {
             const sa =
@@ -181,7 +208,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
         ...(clientOpts as any),
         user,
         database: conn.database,
-        password: conn.authType === "IAM" ? "" : conn.password,
+        password: resolvedAuthType === AuthTypes.IAM ? "" : conn.password,
       });
 
       await client.connect();
@@ -223,7 +250,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
 
     try {
       const conn = (database.connection as any) || {};
-      const connector = this._getConnector(database);
+      const connector = await this._getConnector(database);
 
       const getOpts: any = {};
       if (conn.instanceConnectionName || conn.instance_connection_name) {
@@ -233,13 +260,36 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
       if (conn.domainName || conn.domain_name) {
         getOpts.domainName = conn.domainName || conn.domain_name;
       }
-      if (conn.ipType) getOpts.ipType = conn.ipType;
-      if (conn.authType) getOpts.authType = conn.authType;
+      const requestedIpType =
+        typeof conn.ipType === "string" ? conn.ipType.toUpperCase() : undefined;
+      const resolvedIpType =
+        requestedIpType && requestedIpType in IpAddressTypes
+          ? IpAddressTypes[
+              requestedIpType as keyof typeof IpAddressTypes
+            ]
+          : undefined;
+      if (resolvedIpType) {
+        getOpts.ipType = resolvedIpType;
+      }
+
+      const requestedAuthType =
+        typeof conn.authType === "string"
+          ? conn.authType.toUpperCase()
+          : undefined;
+      const resolvedAuthType =
+        requestedAuthType && requestedAuthType in AuthTypes
+          ? AuthTypes[
+              requestedAuthType as keyof typeof AuthTypes
+            ]
+          : undefined;
+      if (resolvedAuthType) {
+        getOpts.authType = resolvedAuthType;
+      }
 
       const clientOpts = await connector.getOptions(getOpts);
 
       let user: string | undefined = conn.username;
-      if (String(conn.authType || "").toUpperCase() === "IAM") {
+      if (resolvedAuthType === AuthTypes.IAM) {
         if (!user && conn.service_account_json) {
           // Try to extract email from service account JSON
           try {
@@ -284,7 +334,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
         ...(clientOpts as any),
         user,
         database: conn.database,
-        password: conn.authType === "IAM" ? "" : conn.password, // Empty password for IAM auth
+        password: resolvedAuthType === AuthTypes.IAM ? "" : conn.password, // Empty password for IAM auth
         max: 5,
       });
 
@@ -320,7 +370,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
     }
   }
 
-  private _getConnector(database: IDatabase): Connector {
+  private async _getConnector(database: IDatabase): Promise<Connector> {
     const conn = (database.connection as any) || {};
 
     // Debug logging to trace connection config
@@ -357,14 +407,16 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           scopes: [
             "https://www.googleapis.com/auth/cloud-platform",
             "https://www.googleapis.com/auth/sqlservice.admin",
+            "https://www.googleapis.com/auth/sqlservice.login",
           ],
           projectId: credentials.project_id,
         });
 
         // Test if auth is working by trying to get an access token
         console.log("[CloudSQL] Testing auth by getting access token...");
+        let authClient: AuthClient | null = null;
         try {
-          const authClient = await auth.getClient();
+          authClient = await auth.getClient();
           console.log("[CloudSQL] Auth client obtained successfully");
           const accessToken = await authClient.getAccessToken();
           console.log("[CloudSQL] Access token obtained, auth is working");
@@ -375,7 +427,12 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           );
         }
 
-        console.log("[CloudSQL] Creating connector with auth instance");
+        if (!authClient) {
+          throw new Error(
+            "Auth client initialization failed even though credentials were parsed successfully.",
+          );
+        }
+        console.log("[CloudSQL] Using GoogleAuth instance for connector");
         const connector = new Connector({ auth });
         console.log("[CloudSQL] Connector created successfully");
         return connector;
@@ -400,8 +457,11 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           scopes: [
             "https://www.googleapis.com/auth/cloud-platform",
             "https://www.googleapis.com/auth/sqlservice.admin",
+            "https://www.googleapis.com/auth/sqlservice.login",
           ],
         });
+        const authClient = await auth.getClient();
+        console.log("[CloudSQL] ADC credentials validated");
         return new Connector({ auth });
       } catch (authError) {
         console.error("[CloudSQL] Failed to create auth with ADC:", authError);
