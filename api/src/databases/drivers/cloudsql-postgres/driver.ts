@@ -50,7 +50,6 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
       pg_toast: true,
       pg_temp_1: true,
       pg_toast_temp_1: true,
-      public: true,
     };
     const rows: Array<{ schema_name: string }> = result.data || [];
     return rows
@@ -135,9 +134,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
         typeof conn.ipType === "string" ? conn.ipType.toUpperCase() : undefined;
       const resolvedIpType =
         requestedIpType && requestedIpType in IpAddressTypes
-          ? IpAddressTypes[
-              requestedIpType as keyof typeof IpAddressTypes
-            ]
+          ? IpAddressTypes[requestedIpType as keyof typeof IpAddressTypes]
           : undefined;
       if (resolvedIpType) {
         getOpts.ipType = resolvedIpType;
@@ -149,9 +146,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           : undefined;
       const resolvedAuthType =
         requestedAuthType && requestedAuthType in AuthTypes
-          ? AuthTypes[
-              requestedAuthType as keyof typeof AuthTypes
-            ]
+          ? AuthTypes[requestedAuthType as keyof typeof AuthTypes]
           : undefined;
       if (resolvedAuthType) {
         getOpts.authType = resolvedAuthType;
@@ -270,9 +265,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
         typeof conn.ipType === "string" ? conn.ipType.toUpperCase() : undefined;
       const resolvedIpType =
         requestedIpType && requestedIpType in IpAddressTypes
-          ? IpAddressTypes[
-              requestedIpType as keyof typeof IpAddressTypes
-            ]
+          ? IpAddressTypes[requestedIpType as keyof typeof IpAddressTypes]
           : undefined;
       if (resolvedIpType) {
         getOpts.ipType = resolvedIpType;
@@ -284,9 +277,7 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           : undefined;
       const resolvedAuthType =
         requestedAuthType && requestedAuthType in AuthTypes
-          ? AuthTypes[
-              requestedAuthType as keyof typeof AuthTypes
-            ]
+          ? AuthTypes[requestedAuthType as keyof typeof AuthTypes]
           : undefined;
       if (resolvedAuthType) {
         getOpts.authType = resolvedAuthType;
@@ -408,8 +399,11 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
           hasPrivateKey: !!credentials.private_key,
         });
 
-        const { client_email: email, private_key: key, project_id: projectId } =
-          credentials;
+        const {
+          client_email: email,
+          private_key: key,
+          project_id: projectId,
+        } = credentials;
         if (!email || !key) {
           throw new Error(
             "Service account JSON must include client_email and private_key.",
@@ -491,5 +485,4 @@ export class CloudSQLPostgresDatabaseDriver implements DatabaseDriver {
       }
     }
   }
-
 }
