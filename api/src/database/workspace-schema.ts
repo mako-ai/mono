@@ -149,7 +149,14 @@ export interface IDatabase extends Document {
   _id: Types.ObjectId;
   workspaceId: Types.ObjectId;
   name: string;
-  type: "mongodb" | "postgresql" | "mysql" | "sqlite" | "mssql" | "bigquery";
+  type:
+    | "mongodb"
+    | "postgresql"
+    | "cloudsql-postgres"
+    | "mysql"
+    | "sqlite"
+    | "mssql"
+    | "bigquery";
   connection: {
     host?: string;
     port?: number;
@@ -160,6 +167,14 @@ export interface IDatabase extends Document {
     authSource?: string;
     replicaSet?: string;
     ssl?: boolean;
+    // Cloud SQL Postgres
+    instanceConnectionName?: string; // e.g., "my-project:region:instance"
+    instance_connection_name?: string; // snake_case variant supported
+    domainName?: string; // optional DNS domain for automatic failover
+    domain_name?: string;
+    authType?: string; // 'IAM' or 'PASSWORD'
+    ipType?: string; // 'PUBLIC' | 'PRIVATE'
+    service_account_json?: string; // Stored encrypted
     sshTunnel?: {
       enabled: boolean;
       host?: string;
@@ -572,7 +587,15 @@ const DatabaseSchema = new Schema<IDatabase>(
     },
     type: {
       type: String,
-      enum: ["mongodb", "postgresql", "mysql", "sqlite", "mssql", "bigquery"],
+      enum: [
+        "mongodb",
+        "postgresql",
+        "cloudsql-postgres",
+        "mysql",
+        "sqlite",
+        "mssql",
+        "bigquery",
+      ],
       required: true,
     },
     connection: {

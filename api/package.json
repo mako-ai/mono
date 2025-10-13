@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",
+    "@google-cloud/cloud-sql-connector": "^1.8.4",
     "@hono/node-server": "^1.14.4",
     "@logtape/logtape": "^1.0.4",
     "@openai/agents": "^0.0.5",
@@ -38,6 +39,7 @@
     "mysql2": "^3.14.1",
     "openai": "^5.2.0",
     "pg": "^8.16.0",
+    "google-auth-library": "^10.4.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
     "stripe": "^14.25.0",
