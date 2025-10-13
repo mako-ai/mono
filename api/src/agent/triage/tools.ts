@@ -1,8 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – provided at runtime
-import { Tool } from "@openai/agents";
+import { Tool, tool } from "@openai/agents";
+import { Types } from "mongoose";
+import { Database } from "../../database/workspace-schema";
 import { AgentConfig, AgentRegistration } from "../types";
 import { listAgentRegistrations } from "../registry";
+import { createConsoleTools } from "../shared/console-tools";
 
 const getToolName = (tool: Tool): string | undefined =>
   (tool as any)?.schema?.name || (tool as any)?.name;
@@ -16,6 +19,46 @@ const buildConfig = (
   consoles,
   preferredConsoleId,
 });
+
+// List ALL databases without filtering by type - critical for triage to see everything
+const listAllDatabases = async (workspaceId: string) => {
+  if (!Types.ObjectId.isValid(workspaceId)) {
+    throw new Error("Invalid workspace ID");
+  }
+
+  const databases = await Database.find({
+    workspaceId: new Types.ObjectId(workspaceId),
+  }).sort({ name: 1 });
+
+  return databases.map(db => {
+    const connection: any = (db as any).connection || {};
+    let displayInfo = "";
+
+    // Format display info based on database type
+    if (db.type === "mongodb") {
+      displayInfo = connection.database || "Unknown Database";
+    } else if (db.type === "bigquery") {
+      displayInfo = connection.project_id || "Unknown Project";
+    } else if (db.type === "postgresql" || db.type === "cloudsql-postgres") {
+      const host =
+        connection.host || connection.instanceConnectionName || "unknown-host";
+      const database =
+        connection.database || connection.db || "unknown-database";
+      displayInfo = `${host}/${database}`;
+    } else {
+      displayInfo = connection.database || connection.db || "Unknown";
+    }
+
+    return {
+      id: db._id.toString(),
+      name: db.name,
+      type: db.type,
+      displayName: `${db.name} (${db.type}: ${displayInfo})`,
+      connection: connection,
+      active: true,
+    };
+  });
+};
 
 const gatherDiscoveryTools = (
   registration: AgentRegistration,
@@ -43,11 +86,38 @@ export const createTriageTools = (
 
   const toolsByName = new Map<string, Tool>();
 
+  // Add comprehensive list_databases tool FIRST - this overrides agent-specific filtered versions
+  const listDatabasesTool = tool({
+    name: "list_databases",
+    description:
+      "List ALL databases in the workspace (MongoDB, PostgreSQL, BigQuery, etc.) without filtering by type",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    execute: async () => listAllDatabases(workspaceId),
+  });
+  toolsByName.set("list_databases", listDatabasesTool);
+
+  // Add console tools - critical for triage to understand context
+  const consoleTools = createConsoleTools(consoles, preferredConsoleId);
+  for (const tool of consoleTools) {
+    const name = getToolName(tool);
+    if (name && (name === "read_console" || name === "list_consoles")) {
+      // Only add read_console and list_consoles for triage, not modify/create
+      toolsByName.set(name, tool);
+    }
+  }
+
+  // Then add discovery tools from registered agents (except list_databases which we override)
   for (const registration of listAgentRegistrations()) {
     const discoveryTools = gatherDiscoveryTools(registration, config);
     for (const tool of discoveryTools) {
       const name = getToolName(tool);
-      if (name && !toolsByName.has(name)) {
+      // Skip list_databases from agents since we have our comprehensive version
+      if (name && name !== "list_databases" && !toolsByName.has(name)) {
         toolsByName.set(name, tool);
       }
     }
