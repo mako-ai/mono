@@ -52,7 +52,7 @@ agentRoutes.use("*", unifiedAuthMiddleware);
 // Agent definitions with thread awareness and modes
 // ------------------------------------------------------------------------------------
 
-type AgentMode = "mongo" | "bigquery" | "triage";
+type AgentMode = "mongo" | "bigquery" | "postgres" | "triage";
 
 // persistence moved to services
 
@@ -152,6 +152,9 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
         const workspaceHasBigQuery = workspaceDatabases.some(
           db => db.type === "bigquery",
         );
+        const workspaceHasPostgres = workspaceDatabases.some(
+          db => db.type === "postgresql" || db.type === "cloudsql-postgres",
+        );
 
         // Use smart agent selection
         const sessionActiveAgent = (pinned as any)?.activeAgent as
@@ -163,6 +166,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
           consoles,
           workspaceHasMongoDB,
           workspaceHasBigQuery,
+          workspaceHasPostgres,
         });
 
         // Log selection confidence for debugging
@@ -173,6 +177,7 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
             consoles,
             workspaceHasMongoDB,
             workspaceHasBigQuery,
+            workspaceHasPostgres,
           },
           selectedAgent,
         );
@@ -294,11 +299,14 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                 // Track handoff as a tool call
                 if (item?.type === "handoff_call_item") {
                   handoffOccurred = true;
-                  const handoffToolName = handoffAgent?.includes("MongoDB")
+                  const agentNameLower = (handoffAgent || "").toLowerCase();
+                  const handoffToolName = agentNameLower.includes("mongodb")
                     ? "transfer_to_mongodb"
-                    : handoffAgent?.includes("BigQuery")
+                    : agentNameLower.includes("bigquery")
                       ? "transfer_to_bigquery"
-                      : "handoff";
+                      : agentNameLower.includes("postgres")
+                        ? "transfer_to_postgres"
+                        : "handoff";
 
                   toolCalls.push({
                     toolName: handoffToolName,
@@ -312,25 +320,37 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
                 }
 
                 // Just notify the UI about the handoff, let the library handle the actual transition
-                if (handoffAgent) {
-                  if (handoffAgent.includes("MongoDB")) {
-                    currentAgent = "mongo";
-                  } else if (handoffAgent.includes("BigQuery")) {
-                    currentAgent = "bigquery";
-                  }
-                  sendEvent({
-                    type: "agent_mode",
-                    mode: currentAgent,
-                  });
-
-                  // Send handoff notification event
-                  sendEvent({
-                    type: "handoff",
-                    agent: currentAgent,
-                    message: `Switching to ${currentAgent === "mongo" ? "MongoDB" : "BigQuery"} assistant...`,
-                  });
+              if (handoffAgent) {
+                const handoffAgentLower = handoffAgent.toLowerCase();
+                if (handoffAgentLower.includes("mongodb")) {
+                  currentAgent = "mongo";
+                } else if (handoffAgentLower.includes("bigquery")) {
+                  currentAgent = "bigquery";
+                } else if (handoffAgentLower.includes("postgres")) {
+                  currentAgent = "postgres";
                 }
+                sendEvent({
+                  type: "agent_mode",
+                  mode: currentAgent,
+                });
+
+                const agentLabel =
+                  currentAgent === "mongo"
+                    ? "MongoDB"
+                    : currentAgent === "bigquery"
+                      ? "BigQuery"
+                      : currentAgent === "postgres"
+                        ? "Postgres"
+                        : "Database";
+
+                // Send handoff notification event
+                sendEvent({
+                  type: "handoff",
+                  agent: currentAgent,
+                  message: `Switching to ${agentLabel} assistant...`,
+                });
               }
+            }
 
               if (
                 item?.type === "tool_call_item" &&

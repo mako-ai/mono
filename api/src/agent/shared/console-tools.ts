@@ -53,13 +53,25 @@ export const createConsoleTools = (
       const typedInput = input as {
         action: "replace" | "insert" | "append";
         content: string;
-        position: number | null;
+        position?: number | null;
       };
+
+      if (
+        typedInput.action === "insert" &&
+        (typedInput.position === undefined || typedInput.position === null)
+      ) {
+        throw new Error(
+          "position is required when action is set to 'insert'",
+        );
+      }
+
       const modification: ConsoleModification = {
         action: typedInput.action,
         content: typedInput.content,
         position:
-          typedInput.position === null ? undefined : typedInput.position,
+          typedInput.position === null || typedInput.position === undefined
+            ? undefined
+            : typedInput.position,
       };
 
       // Return the modification data so the stream handler can send events

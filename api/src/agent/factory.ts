@@ -1,19 +1,21 @@
-import { AgentKind, AgentConfig } from "./types";
-import { buildMongoAgent } from "./mongodb/agent";
-import { buildBigQueryAgent } from "./bigquery/agent";
+import {
+  AgentKind,
+  AgentConfig,
+  AgentBuilder,
+  DatabaseAgentKind,
+} from "./types";
+import {
+  getAgentRegistration,
+  getRegisteredAgentKinds,
+} from "./registry";
 import { buildTriageAgent } from "./triage/agent";
 
-type AgentBuilder = (
-  workspaceId: string,
-  consoles?: any[],
-  preferredConsoleId?: string,
-) => any; // Will be properly typed when we add interfaces
-
-const agentBuilders: Record<AgentKind, AgentBuilder> = {
-  mongo: buildMongoAgent,
-  bigquery: buildBigQueryAgent,
-  triage: buildTriageAgent,
-};
+const buildTriage: AgentBuilder = config =>
+  buildTriageAgent(
+    config.workspaceId,
+    config.consoles,
+    config.preferredConsoleId,
+  );
 
 /**
  * Factory function to create agents based on kind
@@ -23,17 +25,17 @@ const agentBuilders: Record<AgentKind, AgentBuilder> = {
  * @throws Error if agent kind is not supported
  */
 export function createAgent(kind: AgentKind, config: AgentConfig): any {
-  const builder = agentBuilders[kind];
+  if (kind === "triage") {
+    return buildTriage(config);
+  }
 
-  if (!builder) {
+  const registration = getAgentRegistration(kind as DatabaseAgentKind);
+
+  if (!registration) {
     throw new Error(`Unsupported agent kind: ${kind}`);
   }
 
-  return builder(
-    config.workspaceId,
-    config.consoles,
-    config.preferredConsoleId,
-  );
+  return registration.buildAgent(config);
 }
 
 /**
@@ -41,7 +43,10 @@ export function createAgent(kind: AgentKind, config: AgentConfig): any {
  * @returns Array of supported agent kinds
  */
 export function getSupportedAgentKinds(): AgentKind[] {
-  return Object.keys(agentBuilders) as AgentKind[];
+  return [
+    ...getRegisteredAgentKinds(),
+    "triage",
+  ] as AgentKind[];
 }
 
 /**
@@ -50,5 +55,6 @@ export function getSupportedAgentKinds(): AgentKind[] {
  * @returns True if the agent kind is supported
  */
 export function isAgentKindSupported(kind: string): kind is AgentKind {
-  return kind in agentBuilders;
+  if (kind === "triage") return true;
+  return getRegisteredAgentKinds().includes(kind as DatabaseAgentKind);
 }
