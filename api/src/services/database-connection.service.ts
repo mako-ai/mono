@@ -9,6 +9,7 @@ import axios, { AxiosInstance } from "axios";
 import crypto from "crypto";
 import { DatabaseDriver } from "../databases/driver";
 import { CloudSQLPostgresDatabaseDriver } from "../databases/drivers/cloudsql-postgres/driver";
+import { Connector } from "@google-cloud/cloud-sql-connector";
 
 export interface QueryResult {
   success: boolean;
@@ -190,9 +191,11 @@ export class DatabaseConnectionService {
         connection = await this.createPostgreSQLConnection(database);
         break;
       case "cloudsql-postgres":
-        connection = await this.drivers
-          .get("cloudsql-postgres")!
-          .getConnection(database);
+        connection = await (
+          this.drivers.get(
+            "cloudsql-postgres",
+          ) as CloudSQLPostgresDatabaseDriver
+        ).getConnection(database);
         break;
       case "mysql":
         connection = await this.createMySQLConnection(database);
@@ -305,9 +308,9 @@ export class DatabaseConnectionService {
 
     // Then close Cloud SQL connectors
     const csPromises = Array.from(this.cloudSqlPgConnectors.values()).map(c =>
-      c
-        .close()
-        .catch(err => console.error("Error closing Cloud SQL connector:", err)),
+      Promise.resolve(c.close()).catch((err: any) =>
+        console.error("Error closing Cloud SQL connector:", err),
+      ),
     );
     await Promise.all(csPromises);
     this.cloudSqlPgConnectors.clear();
