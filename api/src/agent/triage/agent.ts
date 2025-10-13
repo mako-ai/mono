@@ -2,34 +2,47 @@
 // @ts-ignore – provided at runtime
 import { Agent, handoff } from "@openai/agents";
 import { TRIAGE_ASSISTANT_PROMPT } from "./prompt";
-import { buildMongoAgent } from "../mongodb/agent";
-import { buildBigQueryAgent } from "../bigquery/agent";
 import { createTriageTools } from "./tools";
+import { AgentConfig } from "../types";
+import { listAgentRegistrations } from "../registry";
+
+const buildAgentConfig = (
+  workspaceId: string,
+  consoles?: any[],
+  preferredConsoleId?: string,
+): AgentConfig => ({
+  workspaceId,
+  consoles,
+  preferredConsoleId,
+});
+
+const buildHandoffs = (config: AgentConfig) =>
+  listAgentRegistrations()
+    .filter(registration => registration.handoff)
+    .map(registration => {
+      const agentInstance = registration.buildAgent(config);
+
+      return handoff(agentInstance, {
+        toolNameOverride: registration.handoff?.toolName,
+        toolDescriptionOverride:
+          registration.handoff?.description ||
+          registration.metadata.handoffDescription,
+      });
+    });
 
 export const buildTriageAgent = (
   workspaceId: string,
   consoles?: any[],
   preferredConsoleId?: string,
 ) => {
-  const mongoAgent = buildMongoAgent(workspaceId, consoles, preferredConsoleId);
-  const bqAgent = buildBigQueryAgent(workspaceId, consoles, preferredConsoleId);
+  const config = buildAgentConfig(workspaceId, consoles, preferredConsoleId);
+
   return Agent.create({
     name: "Database Triage Agent",
     instructions: TRIAGE_ASSISTANT_PROMPT,
     // Lightweight discovery tools to inspect available schemas before delegating
     tools: createTriageTools(workspaceId, consoles, preferredConsoleId),
-    handoffs: [
-      handoff(mongoAgent, {
-        toolNameOverride: "transfer_to_mongodb",
-        toolDescriptionOverride:
-          "Transfer the conversation to the MongoDB Assistant for MongoDB-related tasks.",
-      }),
-      handoff(bqAgent, {
-        toolNameOverride: "transfer_to_bigquery",
-        toolDescriptionOverride:
-          "Transfer the conversation to the BigQuery Assistant for BigQuery-related tasks.",
-      }),
-    ],
+    handoffs: buildHandoffs(config),
     model: "gpt-5",
   });
 };

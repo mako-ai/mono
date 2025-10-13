@@ -1,38 +1,57 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore – provided at runtime
 import { Tool } from "@openai/agents";
-import { createMongoTools } from "../mongodb/tools";
-import { createBigQueryTools } from "../bigquery/tools";
+import { AgentConfig, AgentRegistration } from "../types";
+import { listAgentRegistrations } from "../registry";
+
+const getToolName = (tool: Tool): string | undefined =>
+  (tool as any)?.schema?.name || (tool as any)?.name;
+
+const buildConfig = (
+  workspaceId: string,
+  consoles?: any[],
+  preferredConsoleId?: string,
+): AgentConfig => ({
+  workspaceId,
+  consoles,
+  preferredConsoleId,
+});
+
+const gatherDiscoveryTools = (
+  registration: AgentRegistration,
+  config: AgentConfig,
+): Tool[] => {
+  if (!registration.createTools || !registration.discoveryToolNames?.length) {
+    return [];
+  }
+
+  const allowedNames = new Set(registration.discoveryToolNames);
+  const tools = registration.createTools(config);
+
+  return tools.filter(tool => {
+    const name = getToolName(tool);
+    return name ? allowedNames.has(name) : false;
+  });
+};
 
 export const createTriageTools = (
   workspaceId: string,
   consoles?: any[],
   preferredConsoleId?: string,
 ): Tool[] => {
-  const mongo = createMongoTools(workspaceId, consoles, preferredConsoleId);
-  const bq = createBigQueryTools(workspaceId, consoles, preferredConsoleId);
+  const config = buildConfig(workspaceId, consoles, preferredConsoleId);
 
-  // Allow discovery-only tools
-  const allowed = new Set([
-    "list_databases",
-    "bq_list_databases",
-    "list_collections",
-    "inspect_collection",
-    "bq_list_datasets",
-    "bq_list_tables",
-    "bq_inspect_table",
-  ]);
+  const toolsByName = new Map<string, Tool>();
 
-  const filtered = [...mongo, ...bq].filter((t: any) => {
-    const name = t?.schema?.name || t?.name;
-    return name && allowed.has(name);
-  });
-
-  // Dedupe by name
-  const map = new Map<string, Tool>();
-  for (const t of filtered) {
-    const name = (t as any)?.schema?.name || (t as any)?.name;
-    if (name && !map.has(name)) map.set(name, t);
+  for (const registration of listAgentRegistrations()) {
+    const discoveryTools = gatherDiscoveryTools(registration, config);
+    for (const tool of discoveryTools) {
+      const name = getToolName(tool);
+      if (name && !toolsByName.has(name)) {
+        toolsByName.set(name, tool);
+      }
+    }
   }
-  return Array.from(map.values());
+
+  return Array.from(toolsByName.values());
 };

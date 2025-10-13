@@ -7,6 +7,7 @@ interface SelectionContext {
   consoles?: ConsoleData[];
   workspaceHasBigQuery?: boolean;
   workspaceHasMongoDB?: boolean;
+  workspaceHasPostgres?: boolean;
 }
 
 /**
@@ -33,6 +34,9 @@ export const selectInitialAgent = (context: SelectionContext): AgentKind => {
     if (containsBigQueryPatterns(consoleContent)) {
       return "bigquery";
     }
+    if (containsPostgresPatterns(consoleContent)) {
+      return "postgres";
+    }
   }
 
   // Priority 3: Analyze user message for database-specific keywords
@@ -48,6 +52,11 @@ export const selectInitialAgent = (context: SelectionContext): AgentKind => {
     return "bigquery";
   }
 
+  // Postgres keywords
+  if (containsPostgresKeywords(messageLower)) {
+    return "postgres";
+  }
+
   // Priority 4: Check workspace capabilities
   // If workspace only has one type of database, prefer that
   if (context.workspaceHasMongoDB && !context.workspaceHasBigQuery) {
@@ -55,6 +64,13 @@ export const selectInitialAgent = (context: SelectionContext): AgentKind => {
   }
   if (context.workspaceHasBigQuery && !context.workspaceHasMongoDB) {
     return "bigquery";
+  }
+  if (
+    context.workspaceHasPostgres &&
+    !context.workspaceHasMongoDB &&
+    !context.workspaceHasBigQuery
+  ) {
+    return "postgres";
   }
 
   // Default: Use triage agent for ambiguous cases
@@ -114,6 +130,29 @@ function containsBigQueryPatterns(content: string): boolean {
 }
 
 /**
+ * Check if content contains Postgres-specific patterns
+ */
+function containsPostgresPatterns(content: string): boolean {
+  const postgresPatterns = [
+    /\bselect\s+.+\s+from\s+.+\b/i,
+    /\bjoin\b/i,
+    /\border\s+by\b/i,
+    /\bgroup\s+by\b/i,
+    /\bwindow\b/i,
+    /\bover\s*\(/i,
+    /\bcommon_table_expression\b/i,
+    /\bwith\s+.+\s+as\s*\(/i,
+    /\bpostgres\b/i,
+    /\bpostgresql\b/i,
+    /\bjsonb?\b/i,
+    /\b::[a-z_]+\b/i,
+    /\binterval\b/i,
+  ];
+
+  return postgresPatterns.some(pattern => pattern.test(content));
+}
+
+/**
  * Check if message contains MongoDB-related keywords
  */
 function containsMongoKeywords(message: string): boolean {
@@ -146,29 +185,65 @@ function containsBigQueryKeywords(message: string): boolean {
   const bigQueryKeywords = [
     "bigquery",
     "bq",
-    "sql",
-    "select",
-    "from",
-    "where",
-    "join",
-    "table",
     "dataset",
-    "schema",
-    "column",
-    "row",
-    "query",
     "struct",
     "array",
     "partition",
     "cluster",
+    "gcp",
+    "project",
+    "lookml",
   ];
 
-  // More strict matching for SQL keywords to avoid false positives
   const sqlPattern =
     /\b(select|insert|update|delete|create)\s+(from|into|table|or)/i;
 
+  const hasBigQueryKeyword = bigQueryKeywords.some(keyword =>
+    message.includes(keyword),
+  );
+
+  if (hasBigQueryKeyword) {
+    return true;
+  }
+
+  // Require both generic SQL pattern and a BigQuery-specific term to avoid collisions
+  const bigQuerySpecificPatterns = [
+    /\bunnest\b/i,
+    /\barray_agg\b/i,
+    /\bsafe_offset\b/i,
+    /\bsafe_cast\b/i,
+  ];
+
   return (
-    bigQueryKeywords.some(keyword => message.includes(keyword)) ||
+    sqlPattern.test(message) &&
+    bigQuerySpecificPatterns.some(pattern => pattern.test(message))
+  );
+}
+
+/**
+ * Check if message contains Postgres-related keywords
+ */
+function containsPostgresKeywords(message: string): boolean {
+  const postgresKeywords = [
+    "postgres",
+    "postgresql",
+    "psql",
+    "relational",
+    "schema",
+    "table",
+    "column",
+    "join",
+    "cte",
+    "window function",
+    "primary key",
+    "foreign key",
+  ];
+
+  const sqlPattern =
+    /\b(select|insert|update|delete|create|alter)\s+(from|into|table|index)/i;
+
+  return (
+    postgresKeywords.some(keyword => message.includes(keyword)) ||
     sqlPattern.test(message)
   );
 }
@@ -218,6 +293,17 @@ export const getSelectionConfidence = (
         reason: "BigQuery patterns detected in console",
       };
     }
+
+    if (
+      selectedAgent === "postgres" &&
+      containsPostgresPatterns(consoleContent)
+    ) {
+      return {
+        agent: selectedAgent,
+        confidence: "high",
+        reason: "Postgres patterns detected in console",
+      };
+    }
   }
 
   // Medium confidence cases
@@ -235,6 +321,14 @@ export const getSelectionConfidence = (
       agent: selectedAgent,
       confidence: "medium",
       reason: "BigQuery keywords in message",
+    };
+  }
+
+  if (selectedAgent === "postgres" && containsPostgresKeywords(messageLower)) {
+    return {
+      agent: selectedAgent,
+      confidence: "medium",
+      reason: "Postgres keywords in message",
     };
   }
 
