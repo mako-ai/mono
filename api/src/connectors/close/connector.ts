@@ -157,6 +157,10 @@ export class CloseConnector extends BaseConnector {
       return await this.fetchUsersChunk(options);
     }
 
+    if (entity === "activities") {
+      return await this.fetchActivitiesChunk(options);
+    }
+
     const api = this.getCloseClient();
     const batchSize = options.batchSize || this.getBatchSize();
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
@@ -346,6 +350,164 @@ export class CloseConnector extends BaseConnector {
     };
   }
 
+  private async fetchActivitiesChunk(
+    options: ResumableFetchOptions,
+  ): Promise<FetchState> {
+    const { onBatch, onProgress, since, state } = options;
+    const api = this.getCloseClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+    const maxIterations = options.maxIterations || 10;
+
+    // Initialize or restore state
+    let recordCount = state?.totalProcessed || 0;
+    let iterations = 0;
+
+    // For date-based pagination metadata
+    const now = new Date();
+    let currentDate = state?.metadata?.currentDate
+      ? new Date(state.metadata.currentDate)
+      : new Date(now);
+    let dailyOffset = state?.metadata?.dailyOffset || 0;
+    const endDate =
+      since ||
+      (state?.metadata?.endDate ? new Date(state.metadata.endDate) : null);
+    let isCheckingForOlderData =
+      state?.metadata?.isCheckingForOlderData || false;
+
+    // Initialize progress if this is the first chunk
+    if (!state && onProgress) {
+      // We can't accurately predict total count with date-based pagination
+      onProgress(0, undefined);
+    }
+
+    while (iterations < maxIterations) {
+      try {
+        const params: any = {
+          _limit: batchSize,
+          _skip: dailyOffset,
+          _order_by: "-date_created", // Most recent first within each day
+        };
+
+        // Build the query based on current state
+        let query = "";
+        if (isCheckingForOlderData) {
+          // Final check: only filter by date_created__lt to see if any older data exists
+          const nextDay = new Date(currentDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          query = `date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+        } else {
+          // Normal date range for a specific day
+          const nextDay = new Date(currentDate);
+          nextDay.setDate(nextDay.getDate() + 1);
+          query = `date_created__gte="${currentDate.toISOString().split("T")[0]}" AND date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+        }
+
+        const postData = {
+          _params: {
+            ...params,
+            query,
+          },
+        };
+
+        const response = await api.post("/activity/", postData, {
+          headers: {
+            "x-http-method-override": "GET",
+          },
+        });
+
+        const data = response.data.data || [];
+
+        if (data.length > 0) {
+          await onBatch(data);
+          recordCount += data.length;
+
+          if (onProgress) {
+            onProgress(recordCount, undefined);
+          }
+        }
+
+        const hasMoreInCurrentQuery = response.data.has_more || false;
+
+        if (hasMoreInCurrentQuery) {
+          // More data in current date/query
+          dailyOffset += batchSize;
+          iterations++;
+          await this.sleep(rateLimitDelay);
+        } else if (isCheckingForOlderData) {
+          // We were checking for older data and found none - we're done
+          return {
+            totalProcessed: recordCount,
+            hasMore: false,
+            iterationsInChunk: iterations,
+            metadata: {
+              currentDate: currentDate.toISOString(),
+              dailyOffset: 0,
+              endDate: endDate?.toISOString(),
+              isCheckingForOlderData: false,
+            },
+          };
+        } else {
+          // Finished current day
+          if (data.length === 0 && !since) {
+            // Found a day with 0 activities in full sync - need to check if older data exists
+            isCheckingForOlderData = true;
+            dailyOffset = 0;
+            iterations++;
+            await this.sleep(rateLimitDelay);
+          } else {
+            // Move to previous day
+            currentDate = new Date(currentDate);
+            currentDate.setDate(currentDate.getDate() - 1);
+            dailyOffset = 0;
+
+            // Check if we've reached the end date (for incremental sync)
+            if (endDate && currentDate < endDate) {
+              return {
+                totalProcessed: recordCount,
+                hasMore: false,
+                iterationsInChunk: iterations,
+                metadata: {
+                  currentDate: currentDate.toISOString(),
+                  dailyOffset: 0,
+                  endDate: endDate.toISOString(),
+                  isCheckingForOlderData: false,
+                },
+              };
+            }
+
+            iterations++;
+            await this.sleep(rateLimitDelay);
+          }
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          const retryAfter = parseInt(
+            error.response.headers["retry-after"] || "60",
+          );
+          console.warn(`Rate limited. Waiting ${retryAfter} seconds...`);
+          await this.sleep(retryAfter * 1000);
+          // Don't increment iterations for rate limit retries
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    // Reached max iterations for this chunk
+    return {
+      totalProcessed: recordCount,
+      hasMore: true,
+      iterationsInChunk: iterations,
+      metadata: {
+        currentDate: currentDate.toISOString(),
+        dailyOffset,
+        endDate: endDate?.toISOString(),
+        isCheckingForOlderData,
+      },
+    };
+  }
+
   async fetchEntity(options: FetchOptions): Promise<void> {
     const { entity, onBatch, onProgress, since } = options;
 
@@ -358,6 +520,12 @@ export class CloseConnector extends BaseConnector {
     // Special handling for users - always do full sync
     if (entity === "users") {
       await this.fetchAllUsers(options);
+      return;
+    }
+
+    // Special handling for activities - use date-based pagination
+    if (entity === "activities") {
+      await this.fetchAllActivities(options);
       return;
     }
 
@@ -590,6 +758,122 @@ export class CloseConnector extends BaseConnector {
         } else {
           throw error;
         }
+      }
+    }
+  }
+
+  private async fetchAllActivities(options: FetchOptions): Promise<void> {
+    const { onBatch, onProgress, since } = options;
+    const api = this.getCloseClient();
+    const batchSize = options.batchSize || this.getBatchSize();
+    const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+
+    let recordCount = 0;
+    const now = new Date();
+    let currentDate = new Date(now);
+    const endDate = since;
+    let isCheckingForOlderData = false;
+    let shouldContinue = true;
+
+    if (onProgress) {
+      // We can't accurately predict total count with date-based pagination
+      onProgress(0, undefined);
+    }
+
+    while (shouldContinue) {
+      let hasMoreInCurrentQuery = true;
+      let dailyOffset = 0;
+
+      while (hasMoreInCurrentQuery) {
+        try {
+          const params: any = {
+            _limit: batchSize,
+            _skip: dailyOffset,
+            _order_by: "-date_created",
+          };
+
+          // Build the query based on current state
+          let query = "";
+          if (isCheckingForOlderData) {
+            // Final check: only filter by date_created__lt to see if any older data exists
+            const nextDay = new Date(currentDate);
+            nextDay.setDate(nextDay.getDate() + 1);
+            query = `date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+          } else {
+            // Normal date range for a specific day
+            const nextDay = new Date(currentDate);
+            nextDay.setDate(nextDay.getDate() + 1);
+            query = `date_created__gte="${currentDate.toISOString().split("T")[0]}" AND date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+          }
+
+          const postData = {
+            _params: {
+              ...params,
+              query,
+            },
+          };
+
+          const response = await api.post("/activity/", postData, {
+            headers: {
+              "x-http-method-override": "GET",
+            },
+          });
+
+          const data = response.data.data || [];
+
+          if (data.length > 0) {
+            await onBatch(data);
+            recordCount += data.length;
+
+            if (onProgress) {
+              onProgress(recordCount, undefined);
+            }
+          }
+
+          hasMoreInCurrentQuery = response.data.has_more || false;
+
+          if (hasMoreInCurrentQuery) {
+            dailyOffset += batchSize;
+            await this.sleep(rateLimitDelay);
+          } else if (isCheckingForOlderData) {
+            // We were checking for older data and found none - we're done
+            shouldContinue = false;
+            break;
+          } else {
+            // Finished current day
+            if (data.length === 0 && !since) {
+              // Found a day with 0 activities in full sync - need to check if older data exists
+              isCheckingForOlderData = true;
+              await this.sleep(rateLimitDelay);
+            } else {
+              // Move on to the next iteration (previous day)
+              break;
+            }
+          }
+        } catch (error) {
+          if (axios.isAxiosError(error) && error.response?.status === 429) {
+            const retryAfter = parseInt(
+              error.response.headers["retry-after"] || "60",
+            );
+            console.warn(`Rate limited. Waiting ${retryAfter} seconds...`);
+            await this.sleep(retryAfter * 1000);
+          } else {
+            throw error;
+          }
+        }
+      }
+
+      if (!isCheckingForOlderData) {
+        // Move to previous day
+        currentDate = new Date(currentDate);
+        currentDate.setDate(currentDate.getDate() - 1);
+
+        // Check if we've reached the end date (for incremental sync)
+        if (endDate && currentDate < endDate) {
+          shouldContinue = false;
+        }
+
+        await this.sleep(rateLimitDelay);
       }
     }
   }
