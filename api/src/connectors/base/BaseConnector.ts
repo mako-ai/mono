@@ -73,6 +73,14 @@ export interface WebhookHandlerOptions {
   secret?: string;
 }
 
+// Entity metadata for hierarchical entity structure
+export interface EntityMetadata {
+  name: string;
+  label?: string;
+  description?: string;
+  subEntities?: EntityMetadata[];
+}
+
 export abstract class BaseConnector {
   protected dataSource: IConnector;
 
@@ -89,6 +97,18 @@ export abstract class BaseConnector {
    * Get available entities that can be fetched from this source
    */
   abstract getAvailableEntities(): string[];
+
+  /**
+   * Get detailed entity metadata including sub-entities
+   * Default implementation converts flat entity list to metadata format
+   */
+  getEntityMetadata(): EntityMetadata[] {
+    // Default implementation for backward compatibility
+    return this.getAvailableEntities().map(entity => ({
+      name: entity,
+      label: entity.charAt(0).toUpperCase() + entity.slice(1),
+    }));
+  }
 
   /**
    * Fetch data for a specific entity using callbacks

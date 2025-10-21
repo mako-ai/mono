@@ -512,11 +512,23 @@ dataSourceRoutes.get("/:id/entities", async c => {
       );
     }
 
-    const entities = connector.getAvailableEntities();
+    // Try to get structured metadata first, fallback to flat list
+    let entityData: any;
+    if (typeof connector.getEntityMetadata === "function") {
+      // Return structured metadata if available
+      entityData = connector.getEntityMetadata();
+    } else {
+      // Fallback to flat list for backward compatibility
+      const entities = connector.getAvailableEntities();
+      entityData = entities.map((entity: string) => ({
+        name: entity,
+        label: entity.charAt(0).toUpperCase() + entity.slice(1),
+      }));
+    }
 
     return c.json({
       success: true,
-      data: entities,
+      data: entityData,
     });
   } catch (error) {
     return c.json(

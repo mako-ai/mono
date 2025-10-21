@@ -21,6 +21,8 @@ import {
   FormGroup,
   Divider,
   CircularProgress,
+  Collapse,
+  IconButton,
 } from "@mui/material";
 import {
   Save as SaveIcon,
@@ -29,6 +31,8 @@ import {
   Storage as DatabaseIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useSyncJobStore } from "../store/syncJobStore";
@@ -52,6 +56,14 @@ interface FormData {
   syncMode: "full" | "incremental";
   enabled: boolean;
   entityFilter: string[];
+}
+
+// Entity metadata interface
+interface EntityMetadata {
+  name: string;
+  label?: string;
+  description?: string;
+  subEntities?: EntityMetadata[];
 }
 
 // Common schedule presets
@@ -112,9 +124,12 @@ export function ScheduledJobForm({
   const [isNewMode, setIsNewMode] = useState(isNew);
 
   // Entity selection state
-  const [availableEntities, setAvailableEntities] = useState<string[]>([]);
+  const [availableEntities, setAvailableEntities] = useState<EntityMetadata[]>(
+    [],
+  );
   const [selectedEntities, setSelectedEntities] = useState<string[]>([]);
   const [selectAllEntities, setSelectAllEntities] = useState(true);
+  const [expandedEntities, setExpandedEntities] = useState<string[]>([]);
   const [entitiesLoadState, setEntitiesLoadState] = useState<
     "idle" | "loading" | "loaded" | "error"
   >("idle");
@@ -192,8 +207,28 @@ export function ScheduledJobForm({
           const list = await useAvailableEntitiesStore
             .getState()
             .fetch(currentWorkspace.id, dataSourceId);
-          setAvailableEntities(list);
+
+          // The API now returns EntityMetadata[], but the store might still return string[]
+          // Convert if necessary
+          const entityMetadata: EntityMetadata[] =
+            Array.isArray(list) &&
+            list.length > 0 &&
+            typeof list[0] === "string"
+              ? list.map((entity: string) => ({
+                  name: entity,
+                  label: entity.charAt(0).toUpperCase() + entity.slice(1),
+                }))
+              : (list as EntityMetadata[]);
+
+          setAvailableEntities(entityMetadata);
           setEntitiesLoadState("loaded");
+
+          // Auto-expand entities with sub-entities
+          const entitiesToExpand = entityMetadata
+            .filter(e => e.subEntities && e.subEntities.length > 0)
+            .map(e => e.name);
+          setExpandedEntities(entitiesToExpand);
+
           if (isNewMode || (!currentJobId && jobs.length === 0)) {
             setSelectedEntities([]);
             setSelectAllEntities(true);
@@ -217,28 +252,63 @@ export function ScheduledJobForm({
   );
 
   // Handle entity selection changes
-  const handleEntityChange = (entity: string, checked: boolean) => {
+  const handleEntityChange = (
+    entity: string,
+    checked: boolean,
+    isSubEntity?: boolean,
+    parentEntity?: string,
+  ) => {
     let newSelectedEntities: string[];
-    if (checked) {
-      newSelectedEntities = [...selectedEntities, entity];
+
+    if (isSubEntity && parentEntity) {
+      // Handle sub-entity selection
+      const subEntityKey = `${parentEntity}:${entity}`;
+      if (checked) {
+        newSelectedEntities = [...selectedEntities, subEntityKey];
+      } else {
+        newSelectedEntities = selectedEntities.filter(e => e !== subEntityKey);
+      }
     } else {
-      newSelectedEntities = selectedEntities.filter(e => e !== entity);
+      // Handle parent entity selection
+      if (checked) {
+        newSelectedEntities = [...selectedEntities, entity];
+      } else {
+        // Remove parent entity and all its sub-entities
+        newSelectedEntities = selectedEntities.filter(e => {
+          return e !== entity && !e.startsWith(`${entity}:`);
+        });
+      }
     }
 
     setSelectedEntities(newSelectedEntities);
+
+    // Calculate total selectable entities including sub-entities
+    const totalSelectableEntities = availableEntities.reduce((count, e) => {
+      return count + 1 + (e.subEntities?.length || 0);
+    }, 0);
+
     setSelectAllEntities(
-      newSelectedEntities.length === availableEntities.length,
+      newSelectedEntities.length === totalSelectableEntities,
     );
 
     // Update form value - empty array means sync all entities
     setValue(
       "entityFilter",
-      newSelectedEntities.length === availableEntities.length
+      newSelectedEntities.length === totalSelectableEntities
         ? []
         : newSelectedEntities,
       {
         shouldDirty: true,
       },
+    );
+  };
+
+  // Toggle entity expansion
+  const toggleEntityExpansion = (entityName: string) => {
+    setExpandedEntities(prev =>
+      prev.includes(entityName)
+        ? prev.filter(e => e !== entityName)
+        : [...prev, entityName],
     );
   };
 
@@ -700,26 +770,142 @@ export function ScheduledJobForm({
                         {/* Individual Entity Options */}
                         <FormGroup sx={{ ml: 2 }}>
                           {availableEntities.map(entity => (
-                            <FormControlLabel
-                              key={entity}
-                              control={
-                                <Checkbox
-                                  checked={
-                                    selectAllEntities ||
-                                    selectedEntities.includes(entity)
+                            <Box key={entity.name}>
+                              <Box
+                                sx={{ display: "flex", alignItems: "center" }}
+                              >
+                                {entity.subEntities &&
+                                  entity.subEntities.length > 0 && (
+                                    <IconButton
+                                      size="small"
+                                      onClick={() =>
+                                        toggleEntityExpansion(entity.name)
+                                      }
+                                      sx={{ p: 0.5 }}
+                                    >
+                                      {expandedEntities.includes(
+                                        entity.name,
+                                      ) ? (
+                                        <ExpandLessIcon />
+                                      ) : (
+                                        <ExpandMoreIcon />
+                                      )}
+                                    </IconButton>
+                                  )}
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={
+                                        selectAllEntities ||
+                                        selectedEntities.includes(
+                                          entity.name,
+                                        ) ||
+                                        entity.subEntities?.some(sub =>
+                                          selectedEntities.includes(
+                                            `${entity.name}:${sub.name}`,
+                                          ),
+                                        ) ||
+                                        false
+                                      }
+                                      onChange={e =>
+                                        handleEntityChange(
+                                          entity.name,
+                                          e.target.checked,
+                                        )
+                                      }
+                                      disabled={selectAllEntities}
+                                      indeterminate={
+                                        !selectAllEntities &&
+                                        !selectedEntities.includes(
+                                          entity.name,
+                                        ) &&
+                                        entity.subEntities?.some(sub =>
+                                          selectedEntities.includes(
+                                            `${entity.name}:${sub.name}`,
+                                          ),
+                                        ) &&
+                                        !entity.subEntities?.every(sub =>
+                                          selectedEntities.includes(
+                                            `${entity.name}:${sub.name}`,
+                                          ),
+                                        )
+                                      }
+                                    />
                                   }
-                                  onChange={e =>
-                                    handleEntityChange(entity, e.target.checked)
+                                  label={
+                                    <Typography variant="body2">
+                                      {entity.label || entity.name}
+                                      {entity.description && (
+                                        <Typography
+                                          variant="caption"
+                                          color="text.secondary"
+                                          display="block"
+                                        >
+                                          {entity.description}
+                                        </Typography>
+                                      )}
+                                    </Typography>
                                   }
-                                  disabled={selectAllEntities}
                                 />
-                              }
-                              label={
-                                <Typography variant="body2">
-                                  {entity}
-                                </Typography>
-                              }
-                            />
+                              </Box>
+                              {/* Sub-entities */}
+                              {entity.subEntities &&
+                                entity.subEntities.length > 0 && (
+                                  <Collapse
+                                    in={expandedEntities.includes(entity.name)}
+                                  >
+                                    <FormGroup sx={{ ml: 4 }}>
+                                      {entity.subEntities.map(subEntity => (
+                                        <FormControlLabel
+                                          key={`${entity.name}:${subEntity.name}`}
+                                          control={
+                                            <Checkbox
+                                              checked={
+                                                selectAllEntities ||
+                                                selectedEntities.includes(
+                                                  entity.name,
+                                                ) ||
+                                                selectedEntities.includes(
+                                                  `${entity.name}:${subEntity.name}`,
+                                                )
+                                              }
+                                              onChange={e =>
+                                                handleEntityChange(
+                                                  subEntity.name,
+                                                  e.target.checked,
+                                                  true,
+                                                  entity.name,
+                                                )
+                                              }
+                                              disabled={
+                                                selectAllEntities ||
+                                                selectedEntities.includes(
+                                                  entity.name,
+                                                )
+                                              }
+                                            />
+                                          }
+                                          label={
+                                            <Typography variant="body2">
+                                              {subEntity.label ||
+                                                subEntity.name}
+                                              {subEntity.description && (
+                                                <Typography
+                                                  variant="caption"
+                                                  color="text.secondary"
+                                                  display="block"
+                                                >
+                                                  {subEntity.description}
+                                                </Typography>
+                                              )}
+                                            </Typography>
+                                          }
+                                        />
+                                      ))}
+                                    </FormGroup>
+                                  </Collapse>
+                                )}
+                            </Box>
                           ))}
                         </FormGroup>
 
@@ -735,7 +921,7 @@ export function ScheduledJobForm({
                             {selectAllEntities
                               ? "All entities will be synced from this connector."
                               : selectedEntities.length > 0
-                                ? `${selectedEntities.length} of ${availableEntities.length} entities selected for sync.`
+                                ? `${selectedEntities.length} entities/sub-entities selected for sync.`
                                 : "No entities selected. Please select at least one entity or choose 'All Entities' to proceed."}
                           </Typography>
                         </Alert>
