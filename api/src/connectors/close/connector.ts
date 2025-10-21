@@ -7,9 +7,39 @@ import {
   WebhookVerificationResult,
   WebhookHandlerOptions,
   WebhookEventMapping,
+  EntityMetadata,
 } from "../base/BaseConnector";
 import axios, { AxiosInstance } from "axios";
 import crypto from "crypto";
+
+// Close.com activity types
+const CLOSE_ACTIVITY_TYPES = [
+  { name: "Email", label: "Email", description: "Email communications" },
+  {
+    name: "EmailThread",
+    label: "Email Thread",
+    description: "Email thread activities",
+  },
+  { name: "Call", label: "Call", description: "Phone calls" },
+  { name: "SMS", label: "SMS", description: "Text messages" },
+  { name: "Meeting", label: "Meeting", description: "Scheduled meetings" },
+  {
+    name: "LeadStatusChange",
+    label: "Lead Status Change",
+    description: "Lead status updates",
+  },
+  {
+    name: "OpportunityStatusChange",
+    label: "Opportunity Status Change",
+    description: "Opportunity status updates",
+  },
+  { name: "Note", label: "Note", description: "Manual notes" },
+  {
+    name: "TaskCompleted",
+    label: "Task Completed",
+    description: "Completed tasks",
+  },
+];
 
 export class CloseConnector extends BaseConnector {
   private closeApi: AxiosInstance | null = null;
@@ -112,13 +142,43 @@ export class CloseConnector extends BaseConnector {
   }
 
   getAvailableEntities(): string[] {
-    return [
+    const baseEntities = [
       "leads",
       "opportunities",
       "activities",
       "contacts",
       "users",
       "custom_fields",
+    ];
+
+    // Add activity sub-entities for validation
+    const activitySubEntities = CLOSE_ACTIVITY_TYPES.map(
+      type => `activities:${type.name}`,
+    );
+
+    return [...baseEntities, ...activitySubEntities];
+  }
+
+  /**
+   * Get entity metadata with sub-entities for activities
+   */
+  getEntityMetadata(): EntityMetadata[] {
+    return [
+      { name: "leads", label: "Leads" },
+      { name: "opportunities", label: "Opportunities" },
+      {
+        name: "activities",
+        label: "Activities",
+        description: "All activity types from Close.com",
+        subEntities: CLOSE_ACTIVITY_TYPES.map(type => ({
+          name: type.name,
+          label: type.label,
+          description: type.description,
+        })),
+      },
+      { name: "contacts", label: "Contacts" },
+      { name: "users", label: "Users" },
+      { name: "custom_fields", label: "Custom Fields" },
     ];
   }
 
@@ -157,7 +217,8 @@ export class CloseConnector extends BaseConnector {
       return await this.fetchUsersChunk(options);
     }
 
-    if (entity === "activities") {
+    // Handle activities and activity sub-entities (e.g., "activities:Call")
+    if (entity === "activities" || entity.startsWith("activities:")) {
       return await this.fetchActivitiesChunk(options);
     }
 
@@ -353,11 +414,18 @@ export class CloseConnector extends BaseConnector {
   private async fetchActivitiesChunk(
     options: ResumableFetchOptions,
   ): Promise<FetchState> {
-    const { onBatch, onProgress, since, state } = options;
+    const { entity, onBatch, onProgress, since, state } = options;
     const api = this.getCloseClient();
     const batchSize = options.batchSize || this.getBatchSize();
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
     const maxIterations = options.maxIterations || 10;
+
+    // Parse sub-entity filter if present (e.g., "activities:Call" -> filter for Call type only)
+    let activityTypeFilter: string[] | undefined;
+    if (entity.includes(":")) {
+      const [, activityType] = entity.split(":");
+      activityTypeFilter = [activityType];
+    }
 
     // Initialize or restore state
     let recordCount = state?.totalProcessed || 0;
@@ -401,6 +469,11 @@ export class CloseConnector extends BaseConnector {
           const nextDay = new Date(currentDate);
           nextDay.setDate(nextDay.getDate() + 1);
           query = `date_created__gte="${currentDate.toISOString().split("T")[0]}" AND date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+        }
+
+        // Add activity type filter if specified
+        if (activityTypeFilter && activityTypeFilter.length > 0) {
+          query += ` AND _type__in="${activityTypeFilter.join(",")}"`;
         }
 
         const postData = {
@@ -524,7 +597,7 @@ export class CloseConnector extends BaseConnector {
     }
 
     // Special handling for activities - use date-based pagination
-    if (entity === "activities") {
+    if (entity === "activities" || entity.startsWith("activities:")) {
       await this.fetchAllActivities(options);
       return;
     }
@@ -763,10 +836,17 @@ export class CloseConnector extends BaseConnector {
   }
 
   private async fetchAllActivities(options: FetchOptions): Promise<void> {
-    const { onBatch, onProgress, since } = options;
+    const { entity, onBatch, onProgress, since } = options;
     const api = this.getCloseClient();
     const batchSize = options.batchSize || this.getBatchSize();
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
+
+    // Parse sub-entity filter if present (e.g., "activities:Call" -> filter for Call type only)
+    let activityTypeFilter: string[] | undefined;
+    if (entity.includes(":")) {
+      const [, activityType] = entity.split(":");
+      activityTypeFilter = [activityType];
+    }
 
     let recordCount = 0;
     const now = new Date();
@@ -804,6 +884,11 @@ export class CloseConnector extends BaseConnector {
             const nextDay = new Date(currentDate);
             nextDay.setDate(nextDay.getDate() + 1);
             query = `date_created__gte="${currentDate.toISOString().split("T")[0]}" AND date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+          }
+
+          // Add activity type filter if specified
+          if (activityTypeFilter && activityTypeFilter.length > 0) {
+            query += ` AND _type__in="${activityTypeFilter.join(",")}"`;
           }
 
           const postData = {
