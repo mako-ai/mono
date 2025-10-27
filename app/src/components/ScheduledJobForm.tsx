@@ -210,15 +210,21 @@ export function ScheduledJobForm({
 
           // The API now returns EntityMetadata[], but the store might still return string[]
           // Convert if necessary
-          const entityMetadata: EntityMetadata[] =
-            Array.isArray(list) &&
-            list.length > 0 &&
-            typeof list[0] === "string"
-              ? list.map((entity: string) => ({
+          let entityMetadata: EntityMetadata[] = [];
+          if (Array.isArray(list) && list.length > 0) {
+            if (typeof list[0] === "string") {
+              // Handle string array
+              entityMetadata = (list as unknown as string[]).map(
+                (entity: string) => ({
                   name: entity,
                   label: entity.charAt(0).toUpperCase() + entity.slice(1),
-                }))
-              : (list as EntityMetadata[]);
+                }),
+              );
+            } else {
+              // Handle EntityMetadata array
+              entityMetadata = list as unknown as EntityMetadata[];
+            }
+          }
 
           setAvailableEntities(entityMetadata);
           setEntitiesLoadState("loaded");
@@ -316,7 +322,7 @@ export function ScheduledJobForm({
   const handleSelectAllChange = (checked: boolean) => {
     setSelectAllEntities(checked);
     if (checked) {
-      setSelectedEntities([...availableEntities]);
+      setSelectedEntities(availableEntities.map(e => e.name));
       setValue("entityFilter", [], { shouldDirty: true }); // Empty means all
     } else {
       setSelectedEntities([]);
@@ -391,8 +397,13 @@ export function ScheduledJobForm({
       const job = jobs.find(j => j._id === currentJobId);
       if (job && job.entityFilter && job.entityFilter.length > 0) {
         // Validate that the job's entities exist in available entities
+        // Also check for sub-entities (e.g., "activities:Call")
+        const availableEntityNames = availableEntities.flatMap(e => [
+          e.name,
+          ...(e.subEntities?.map(sub => `${e.name}:${sub.name}`) || []),
+        ]);
         const validEntities = job.entityFilter.filter(entity =>
-          availableEntities.includes(entity),
+          availableEntityNames.includes(entity),
         );
         if (validEntities.length > 0) {
           setSelectedEntities(validEntities);

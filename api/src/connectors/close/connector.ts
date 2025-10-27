@@ -44,6 +44,26 @@ const CLOSE_ACTIVITY_TYPES = [
 export class CloseConnector extends BaseConnector {
   private closeApi: AxiosInstance | null = null;
 
+  /**
+   * Resolve Close API endpoint for a given activities sub-type.
+   * Falls back to generic /activity/ if unknown.
+   */
+  private getActivityEndpointForType(subType?: string): string {
+    if (!subType) return "/activity/";
+    const map: Record<string, string> = {
+      LeadStatusChange: "/activity/status_change/lead/",
+      OpportunityStatusChange: "/activity/status_change/opportunity/",
+      Call: "/activity/call/",
+      Meeting: "/activity/meeting/",
+      Email: "/activity/email/",
+      EmailThread: "/activity/email_thread/",
+      SMS: "/activity/sms/",
+      Note: "/activity/note/",
+      TaskCompleted: "/activity/task/",
+    };
+    return map[subType] || "/activity/";
+  }
+
   static getConfigSchema() {
     return {
       fields: [
@@ -420,11 +440,11 @@ export class CloseConnector extends BaseConnector {
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
     const maxIterations = options.maxIterations || 10;
 
-    // Parse sub-entity filter if present (e.g., "activities:Call" -> filter for Call type only)
-    let activityTypeFilter: string[] | undefined;
+    // Parse sub-entity for endpoint selection (e.g., "activities:Call")
+    let activitySubType: string | undefined;
     if (entity.includes(":")) {
       const [, activityType] = entity.split(":");
-      activityTypeFilter = [activityType];
+      activitySubType = activityType;
     }
 
     // Initialize or restore state
@@ -452,7 +472,7 @@ export class CloseConnector extends BaseConnector {
     while (iterations < maxIterations) {
       try {
         const params: any = {
-          _limit: batchSize,
+          _limit: isCheckingForOlderData ? 1 : batchSize, // Only check if older data exists, don't fetch it all
           _skip: dailyOffset,
           _order_by: "-date_created", // Most recent first within each day
         };
@@ -461,9 +481,8 @@ export class CloseConnector extends BaseConnector {
         let query = "";
         if (isCheckingForOlderData) {
           // Final check: only filter by date_created__lt to see if any older data exists
-          const nextDay = new Date(currentDate);
-          nextDay.setDate(nextDay.getDate() + 1);
-          query = `date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+          // Query for data BEFORE the current day (not including it, to avoid re-fetching)
+          query = `date_created__lt="${currentDate.toISOString().split("T")[0]}"`;
         } else {
           // Normal date range for a specific day
           const nextDay = new Date(currentDate);
@@ -471,10 +490,7 @@ export class CloseConnector extends BaseConnector {
           query = `date_created__gte="${currentDate.toISOString().split("T")[0]}" AND date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
         }
 
-        // Add activity type filter if specified
-        if (activityTypeFilter && activityTypeFilter.length > 0) {
-          query += ` AND _type__in="${activityTypeFilter.join(",")}"`;
-        }
+        // No _type filter needed: using type-specific endpoint when applicable
 
         const postData = {
           _params: {
@@ -483,15 +499,20 @@ export class CloseConnector extends BaseConnector {
           },
         };
 
-        const response = await api.post("/activity/", postData, {
-          headers: {
-            "x-http-method-override": "GET",
+        const response = await api.post(
+          this.getActivityEndpointForType(activitySubType),
+          postData,
+          {
+            headers: {
+              "x-http-method-override": "GET",
+            },
           },
-        });
+        );
 
         const data = response.data.data || [];
 
-        if (data.length > 0) {
+        // Only process and count data if we're not just checking for existence
+        if (data.length > 0 && !isCheckingForOlderData) {
           await onBatch(data);
           recordCount += data.length;
 
@@ -508,22 +529,38 @@ export class CloseConnector extends BaseConnector {
           iterations++;
           await this.sleep(rateLimitDelay);
         } else if (isCheckingForOlderData) {
-          // We were checking for older data and found none - we're done
-          return {
-            totalProcessed: recordCount,
-            hasMore: false,
-            iterationsInChunk: iterations,
-            metadata: {
-              currentDate: currentDate.toISOString(),
-              dailyOffset: 0,
-              endDate: endDate?.toISOString(),
-              isCheckingForOlderData: false,
-            },
-          };
+          // We were checking for older data
+          if (data.length === 0) {
+            // No older data exists - we're done
+            return {
+              totalProcessed: recordCount,
+              hasMore: false,
+              iterationsInChunk: iterations,
+              metadata: {
+                currentDate: currentDate.toISOString(),
+                dailyOffset: 0,
+                endDate: endDate?.toISOString(),
+                isCheckingForOlderData: false,
+              },
+            };
+          } else {
+            // Older data exists - jump directly to that date and continue normal fetching
+            const oldestRecord = data[0];
+            const dateCreated = new Date(oldestRecord.date_created);
+            currentDate = new Date(
+              dateCreated.getFullYear(),
+              dateCreated.getMonth(),
+              dateCreated.getDate(),
+            );
+            dailyOffset = 0;
+            isCheckingForOlderData = false;
+            iterations++;
+            await this.sleep(rateLimitDelay);
+          }
         } else {
           // Finished current day
-          if (data.length === 0 && !since) {
-            // Found a day with 0 activities in full sync - need to check if older data exists
+          if (data.length < batchSize && !since) {
+            // Found a day with less than a full page in full sync - need to check if older data exists
             isCheckingForOlderData = true;
             dailyOffset = 0;
             iterations++;
@@ -596,7 +633,7 @@ export class CloseConnector extends BaseConnector {
       return;
     }
 
-    // Special handling for activities - use date-based pagination
+    // Special handling for activities (and sub-types) - use date-based pagination and type-specific endpoints
     if (entity === "activities" || entity.startsWith("activities:")) {
       await this.fetchAllActivities(options);
       return;
@@ -841,11 +878,11 @@ export class CloseConnector extends BaseConnector {
     const batchSize = options.batchSize || this.getBatchSize();
     const rateLimitDelay = options.rateLimitDelay || this.getRateLimitDelay();
 
-    // Parse sub-entity filter if present (e.g., "activities:Call" -> filter for Call type only)
-    let activityTypeFilter: string[] | undefined;
+    // Parse sub-entity for endpoint selection (e.g., "activities:Call")
+    let activitySubType: string | undefined;
     if (entity.includes(":")) {
       const [, activityType] = entity.split(":");
-      activityTypeFilter = [activityType];
+      activitySubType = activityType;
     }
 
     let recordCount = 0;
@@ -867,7 +904,7 @@ export class CloseConnector extends BaseConnector {
       while (hasMoreInCurrentQuery) {
         try {
           const params: any = {
-            _limit: batchSize,
+            _limit: isCheckingForOlderData ? 1 : batchSize, // Only check if older data exists, don't fetch it all
             _skip: dailyOffset,
             _order_by: "-date_created",
           };
@@ -876,9 +913,8 @@ export class CloseConnector extends BaseConnector {
           let query = "";
           if (isCheckingForOlderData) {
             // Final check: only filter by date_created__lt to see if any older data exists
-            const nextDay = new Date(currentDate);
-            nextDay.setDate(nextDay.getDate() + 1);
-            query = `date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
+            // Query for data BEFORE the current day (not including it, to avoid re-fetching)
+            query = `date_created__lt="${currentDate.toISOString().split("T")[0]}"`;
           } else {
             // Normal date range for a specific day
             const nextDay = new Date(currentDate);
@@ -886,10 +922,7 @@ export class CloseConnector extends BaseConnector {
             query = `date_created__gte="${currentDate.toISOString().split("T")[0]}" AND date_created__lt="${nextDay.toISOString().split("T")[0]}"`;
           }
 
-          // Add activity type filter if specified
-          if (activityTypeFilter && activityTypeFilter.length > 0) {
-            query += ` AND _type__in="${activityTypeFilter.join(",")}"`;
-          }
+          // No need to add _type filter - hitting type-specific endpoint
 
           const postData = {
             _params: {
@@ -898,15 +931,20 @@ export class CloseConnector extends BaseConnector {
             },
           };
 
-          const response = await api.post("/activity/", postData, {
-            headers: {
-              "x-http-method-override": "GET",
+          const response = await api.post(
+            this.getActivityEndpointForType(activitySubType),
+            postData,
+            {
+              headers: {
+                "x-http-method-override": "GET",
+              },
             },
-          });
+          );
 
           const data = response.data.data || [];
 
-          if (data.length > 0) {
+          // Only process and count data if we're not just checking for existence
+          if (data.length > 0 && !isCheckingForOlderData) {
             await onBatch(data);
             recordCount += data.length;
 
@@ -921,13 +959,29 @@ export class CloseConnector extends BaseConnector {
             dailyOffset += batchSize;
             await this.sleep(rateLimitDelay);
           } else if (isCheckingForOlderData) {
-            // We were checking for older data and found none - we're done
-            shouldContinue = false;
-            break;
+            // We were checking for older data
+            if (data.length === 0) {
+              // No older data exists - we're done
+              shouldContinue = false;
+              break;
+            } else {
+              // Older data exists - jump directly to that date and continue normal fetching
+              const oldestRecord = data[0];
+              const dateCreated = new Date(oldestRecord.date_created);
+              currentDate = new Date(
+                dateCreated.getFullYear(),
+                dateCreated.getMonth(),
+                dateCreated.getDate(),
+              );
+              dailyOffset = 0;
+              isCheckingForOlderData = false;
+              await this.sleep(rateLimitDelay);
+              break; // Break inner loop to continue with next day
+            }
           } else {
             // Finished current day
-            if (data.length === 0 && !since) {
-              // Found a day with 0 activities in full sync - need to check if older data exists
+            if (data.length < batchSize && !since) {
+              // Found a day with less than a full page in full sync - need to check if older data exists
               isCheckingForOlderData = true;
               await this.sleep(rateLimitDelay);
             } else {
