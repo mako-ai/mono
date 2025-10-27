@@ -271,8 +271,12 @@ export async function performSyncChunk(
     );
     db = connection.db;
 
-    // Collection setup
-    const collectionName = `${dataSource.name}_${entity}`;
+    // Collection setup - if entity has sub-entity notation (e.g., activities:Call),
+    // normalize to parent for collection naming so all activity types land together
+    const normalizedEntityName = entity.includes(":")
+      ? entity.split(":")[0]
+      : entity;
+    const collectionName = `${dataSource.name}_${normalizedEntityName}`;
     const stagingCollectionName = `${collectionName}_staging`;
     const useStaging = syncMode === "full"; // Use staging for ALL chunks of full sync
 
@@ -557,7 +561,11 @@ export async function performSync(
       logger?.log("info", `Syncing entity: ${entityName}`);
 
       // Perform sync using clean architecture
-      const collectionName = `${dataSource.name}_${entityName}`;
+      // Normalize sub-entity notation (e.g., activities:Call) to the parent for collection naming
+      const normalizedEntityNameForWrite = entityName.includes(":")
+        ? entityName.split(":")[0]
+        : entityName;
+      const collectionName = `${dataSource.name}_${normalizedEntityNameForWrite}`;
       const stagingCollectionName = `${collectionName}_staging`;
       const useStaging = syncMode === "full";
 
