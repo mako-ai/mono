@@ -108,7 +108,7 @@ gcloud run services update revops-fullstack \
   --region $REGION \
   --env-vars-file env.yaml \
   --min-instances=1 \
-  --timeout=300
+  --timeout=600
 
 # Disable default run.app URL to force traffic through custom domain only (only do this once  )
 # gcloud beta run services update revops-fullstack \

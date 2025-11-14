@@ -215,16 +215,6 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
           result?: any;
         }> = [];
 
-        // Add timeout to prevent hanging connections
-        const timeout = setTimeout(() => {
-          if (isClosed) return;
-          console.error("Stream timeout - closing connection");
-          sendEvent({ type: "timeout", message: "Stream timeout" });
-          isClosed = true;
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          controller.close();
-        }, 120000); // 2 minute timeout
-
         try {
           for await (const event of runStream as AsyncIterable<any>) {
             _eventCount++;
@@ -583,7 +573,6 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
         } catch (streamError: any) {
           // Handle stream processing errors
           console.error("Stream processing error:", streamError);
-          clearTimeout(timeout);
 
           // Don't throw, just log and continue to close gracefully
           if (streamError.message !== "terminated") {
@@ -600,8 +589,6 @@ agentRoutes.post("/stream", async (c: AuthenticatedContext) => {
           console.error("Stream completion error:", completionError);
           // Continue anyway - we may have partial results
         }
-
-        clearTimeout(timeout);
 
         // Check if we got any final output from the stream
         if (!assistantReply && runStream.finalOutput) {
