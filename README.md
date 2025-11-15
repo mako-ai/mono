@@ -78,7 +78,18 @@ pnpm run docker:logs        # View logs
 pnpm run dev                # Start API, frontend, and Inngest dev server
 pnpm run api:dev            # Start API server only (defaults to port 8080)
 pnpm run app:dev            # Start frontend only (defaults to port 5173)
+pnpm run website:dev        # Start the marketing website on http://localhost:3000
 ```
+
+## Public Website
+
+The public-facing marketing site lives in the `website` package, built with Next.js, Tailwind CSS, and ready to deploy on Vercel.
+
+- `pnpm run website:dev` – run the site locally at http://localhost:3000
+- `pnpm run website:build` – create a production build (the command Vercel will run)
+- `pnpm run website:lint` – check the site with ESLint/Next rules
+
+When deploying to Vercel, point the project at the repo root, set the framework preset to Next.js, and override the build command to `pnpm --filter website run build` so only the marketing site is built in that environment.
 
 ## Query Runner
 
@@ -172,11 +183,17 @@ All configuration is securely stored and encrypted in the database!
 ## Development
 
 ```bash
-# Run in development mode
+# Run in development mode (API + App + Inngest)
 pnpm run dev
+
+# Run website only
+pnpm run website:dev
 
 # Build TypeScript
 pnpm run build
+
+# Build website
+pnpm run website:build
 
 # Run tests
 pnpm run test
@@ -285,6 +302,11 @@ data-analytics-platform/
 │       ├── hooks/
 │       ├── lib/
 │       └── store/
+├── website/                 # Public marketing website (Next.js + Tailwind)
+│   └── app/
+│       ├── layout.tsx       # Root layout
+│       ├── page.tsx         # Landing page
+│       └── globals.css      # Global styles
 ├── docs/                    # Documentation
 ├── dist/                    # Compiled shared libraries
 ├── .env                     # Environment variables
