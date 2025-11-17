@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 
 export default function Navigation() {
@@ -32,14 +31,22 @@ export default function Navigation() {
           <div className="flex items-center h-14">
             {/* Logo - Left */}
             <div className="flex items-center flex-1">
-              <Image
-                src="/mako-icon.svg"
-                alt="Mako Logo"
-                width={28}
-                height={28}
-                className="mr-2 w-7 h-7"
-              />
-              <span className="text-2xl font-[900] text-black">MAKO</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="28"
+                height="28"
+                viewBox="0 0 102 90"
+                fill="none"
+                className="mr-2 w-7 h-7 text-black dark:text-white"
+              >
+                <path
+                  fill="currentColor"
+                  d="m58 0 44 77-8 13H7L0 77 43 0h15ZM6 77l3 5 36-64 9 16 17 30h6L45 8 6 77Zm79-8H34l-3 5h64L55 5h-6l36 64Zm-48-5h28L51 39 37 64Z"
+                />
+              </svg>
+              <span className="text-2xl font-[900] text-black dark:text-white">
+                MAKO
+              </span>
             </div>
 
             {/* Links - Center */}
