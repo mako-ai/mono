@@ -46,19 +46,19 @@ export default function Navigation() {
             <div className="hidden md:flex items-center space-x-6 flex-1 justify-center">
               <Link
                 href="#features"
-                className="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+                className="text-base text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 Features
               </Link>
               <Link
                 href="#integrations"
-                className="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+                className="text-base text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 Integrations
               </Link>
               <Link
                 href="#docs"
-                className="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+                className="text-base text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 Documentation
               </Link>
@@ -68,7 +68,7 @@ export default function Navigation() {
             <div className="flex items-center flex-1 justify-end">
               <a
                 href="http://localhost:5173"
-                className="px-3 py-1.5 text-sm rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg"
+                className="px-4 py-2.5 text-base rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg"
               >
                 Launch App
               </a>
