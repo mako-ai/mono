@@ -12,14 +12,15 @@ export default function Home() {
         <div className="mx-auto flex w-full flex-col items-center gap-16 text-center lg:w-[min(96vw,1200px)]">
           <div className="w-full">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6">
-              Agentic RevOps Platform
+              The AI Data Analyst
               <span className="block bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                For Modern SaaS Teams
+                for Modern RevOps
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-12 max-w-3xl mx-auto">
-              Connect all of your data sources, query with natural language, and
-              get insights that drive product and growth.
+              Stop wrestling with SQL and broken spreadsheets. Unify your
+              revenue stack and ask questions in plain English to get instant
+              answers.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
@@ -63,31 +64,31 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-4">
-              Full Stack RevOps Platform
+              The Modern Data Stack, Simplified
             </h2>
             <p className="text-xl text-slate-600 dark:text-slate-300">
-              Everything that you need to build your data warehouse and query it
-              with AI.
+              We replaced the complex web of tools with a single, intelligent
+              platform.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
-              title="Sync All Your Data"
-              description="Connect Stripe, Google Analytics, Posthog, SQL databases, etc... Sync data automatically on your schedule."
+              title="Zero-Config Data Pipelines"
+              description="Connect Stripe, PostHog, and CRMs in seconds. We handle the schema, syncing, and maintenance so you don't have to."
               icon="🔄"
-              replaces={["Airbyte", "Stitch", "Fivetran"]}
+              replaces={["Airbyte", "Fivetran", "Manual Scripts"]}
             />
             <FeatureCard
-              title="Query with AI"
-              description="Ask questions in plain English. Mako's AI Agent writes your queries for you  (think Cursor but for your data warehouse)."
+              title="Conversational Intelligence"
+              description="Your personal data analyst, available 24/7. Ask complex questions and get accurate charts instantly."
               icon="💬"
-              replaces={["ChatGPT", "DataGrip", "DBeaver"]}
+              replaces={["DataGrip", "Tableau", "SQL"]}
             />
             <FeatureCard
-              title="Collaborate with Your Team"
-              description="Share your queries with your team and collaborate on them."
+              title="Turn Insights into Action"
+              description="Share live dashboards, build reports together, and align your team on the metrics that matter."
               icon="🏢"
-              replaces={["Slack", "Email", "Google Sheets"]}
+              replaces={["Slack Screenshots", "Excel", "Emails"]}
             />
           </div>
         </div>
@@ -222,17 +223,17 @@ export default function Home() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-600 to-cyan-600">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-            Ready to unify your data?
+            Your Data, Demystified.
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Start syncing data from multiple sources in minutes. No credit card
-            required.
+            Join the teams replacing their complex data stack with Mako. Start
+            analyzing in minutes.
           </p>
           <a
             href="http://localhost:5173"
             className="inline-block px-8 py-4 rounded-lg bg-white text-blue-600 font-semibold text-lg hover:bg-slate-100 transition-all shadow-lg hover:shadow-xl"
           >
-            Launch App Now
+            Start Analyzing Now
           </a>
         </div>
       </section>
