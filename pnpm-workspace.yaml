@@ -3,5 +3,6 @@ packages:
   - app
   - api
   - website
+  - docs
 ignoredBuiltDependencies:
   - bcrypt
