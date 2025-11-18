@@ -1,0 +1,36 @@
+---
+title: Mako Documentation
+description: Documentation for Mako, the AI-powered data platform.
+template: splash
+hero:
+  tagline: The Cursor for Data. Build your data warehouse and analyze with AI.
+  image:
+    file: ../../assets/houston.webp
+  actions:
+    - text: Read the PRD
+      link: /prd/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/your-repo
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Features
+
+<CardGrid stagger>
+  <Card title="AI-Powered Analysis" icon="magnifier">
+    Ask questions in plain English and get SQL queries and charts instantly.
+  </Card>
+  <Card title="Data Sync" icon="random">
+    Sync data from Stripe, CRM, and databases into a unified warehouse.
+  </Card>
+  <Card title="Open Source" icon="github">
+    Fully open source and self-hostable.
+  </Card>
+  <Card title="Modern Stack" icon="rocket">
+    Built with modern tools for performance and reliability.
+  </Card>
+</CardGrid>

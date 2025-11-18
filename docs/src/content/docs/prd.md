@@ -1,4 +1,7 @@
-# Product Requirements Document (PRD)
+---
+title: Product Requirements Document (PRD)
+description: Product requirements for Mako
+---
 
 ## Document Information
 
@@ -40,7 +43,7 @@ Let's say that a SaaS company wants to build a unified view of their customers i
 
 Mako solves all of these challenges by stacking the following components:
 
-- An ETL pipeline that allows you to connect to a variety of existing data bases and third party apis and sync the data to a data warehouse.
+- An ETL pipeline that allows to connect to a variety of existing data bases and third party apis and sync the data to a data warehouse.
 - A database client that allows to connect to every type of database and run queries on the data.
 - An AI assistant with access to the data warehouse with tools like inspect_schema and execute_query that can help the user write queries and analyse the data.
 - A multi-tenant SaaS product that allows to customize the prompt and share your queries with the rest of the company.
@@ -393,3 +396,4 @@ The goal is not only to make it possible to answer these questions, but also to 
 | Design Lead          | [Name] | **\_\_\_** | **\_** |
 | QA Lead              | [Name] | **\_\_\_** | **\_** |
 | Business Stakeholder | [Name] | **\_\_\_** | **\_** |
+
