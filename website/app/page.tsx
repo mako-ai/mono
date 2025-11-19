@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import Navigation from "./components/Navigation";
+import HeroAnimation from "./components/HeroAnimation";
 
 export default function Home() {
   return (
@@ -8,50 +9,37 @@ export default function Home() {
       <Navigation />
 
       {/* Hero Section */}
-      <section className="pt-20 pb-32 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto flex w-full flex-col items-center gap-16 text-center lg:w-[min(96vw,1200px)]">
-          <div className="w-full">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6">
+      <section className="pt-20 pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+          <div className="w-full flex flex-col items-start text-left z-10">
+            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6 leading-tight">
               The AI Data Analyst
               <span className="block bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
                 for Modern RevOps
               </span>
             </h1>
-            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-12 max-w-3xl mx-auto">
+            <p className="text-xl md:text-2xl text-slate-600 dark:text-slate-300 mb-8 max-w-2xl leading-relaxed">
               Stop wrestling with SQL and broken spreadsheets. Unify your
               revenue stack and ask questions in plain English to get instant
               answers.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4">
               <a
                 href="http://localhost:5173"
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-xl"
+                className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/25"
               >
                 Get Started Free
               </a>
               <Link
                 href="#features"
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold text-lg hover:border-slate-400 dark:hover:border-slate-500 hover:bg-white dark:hover:bg-slate-800 transition-all"
+                className="inline-flex items-center justify-center px-6 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
               >
                 Book a Demo
               </Link>
             </div>
           </div>
-          <div className="relative w-full">
-            <div className="relative mx-auto w-full">
-              <div className="absolute -inset-6 rounded-[36px] bg-gradient-to-r from-blue-600/30 via-cyan-500/30 to-purple-500/30 blur-3xl opacity-50 dark:opacity-40" />
-              <div className="relative overflow-hidden rounded-[8px] border border-slate-200/70 bg-white shadow-2xl dark:border-slate-700/60 dark:bg-slate-900">
-                <Image
-                  src="/app-screenshot.png"
-                  alt="Mako app dashboard showing revenue insights"
-                  width={3210}
-                  height={2072}
-                  sizes="(min-width: 1024px) 60rem, 100vw"
-                  priority
-                  className="w-full h-auto"
-                />
-              </div>
-            </div>
+          <div className="relative w-full h-[500px] perspective-1000">
+            <HeroAnimation />
           </div>
         </div>
       </section>

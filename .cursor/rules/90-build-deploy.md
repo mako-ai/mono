@@ -1,8 +1,3 @@
----
-alwaysApply: false
-description: Build outputs, do-not-edit policy for dist, and deployment entry points
----
-
 # Build & Deploy Rules
 
 - Do not edit generated files in `dist/**`. Sources live in `api/src/**` and `app/src/**`.

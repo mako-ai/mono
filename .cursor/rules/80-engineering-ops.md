@@ -1,8 +1,3 @@
----
-alwaysApply: false
-description: Operational guidance for logging, error handling, and testing
----
-
 # Engineering Ops
 
 - Logging: follow [LOGTAPE_IMPLEMENTATION.md](mdc:LOGTAPE_IMPLEMENTATION.md); prefer structured logs and include workspace IDs.
