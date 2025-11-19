@@ -9,7 +9,7 @@ export default function Home() {
       <Navigation />
 
       {/* Hero Section */}
-      <section className="pt-20 pb-32 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className="pt-20 pb-12 px-4 sm:px-6 lg:px-8 overflow-hidden">
         <div className="mx-auto max-w-7xl grid lg:grid-cols-2 gap-12 lg:gap-8 items-center">
           <div className="w-full flex flex-col items-start text-left z-10">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-slate-900 dark:text-white mb-6 leading-tight">
@@ -44,6 +44,21 @@ export default function Home() {
         </div>
       </section>
 
+      {/* App Screenshot Section */}
+      <section className="py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700">
+            <Image
+              src="/app-screenshot.png"
+              alt="Mako App Interface"
+              width={1200}
+              height={800}
+              className="w-full h-auto"
+              priority
+            />
+          </div>
+        </div>
+      </section>
       {/* Features Section */}
       <section
         id="features"

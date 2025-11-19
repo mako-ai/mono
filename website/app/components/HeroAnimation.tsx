@@ -41,13 +41,6 @@ export default function HeroAnimation() {
             <stop offset="50%" stopColor="#a855f7" stopOpacity="1" />
             <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
           </linearGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="0.5" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
 
         {/* Connection Lines */}
@@ -123,14 +116,14 @@ export default function HeroAnimation() {
         />
 
         {/* Animated Particles */}
-        {/* Blue Particles - Using stroke + vector-effect="non-scaling-stroke" to keep them round */}
+        {/* Blue Particles */}
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#3b82f6"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #3b82f6)" }}
         >
           <animateMotion
             dur="3s"
@@ -148,12 +141,12 @@ export default function HeroAnimation() {
           />
         </circle>
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#3b82f6"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #3b82f6)" }}
         >
           <animateMotion
             dur="3s"
@@ -173,12 +166,12 @@ export default function HeroAnimation() {
           />
         </circle>
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#3b82f6"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #3b82f6)" }}
         >
           <animateMotion
             dur="3s"
@@ -198,12 +191,12 @@ export default function HeroAnimation() {
           />
         </circle>
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#3b82f6"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #3b82f6)" }}
         >
           <animateMotion
             dur="3s"
@@ -225,12 +218,12 @@ export default function HeroAnimation() {
 
         {/* Outgoing Particles - Cyan */}
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#06b6d4"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #06b6d4)" }}
         >
           <animateMotion
             dur="2s"
@@ -250,12 +243,12 @@ export default function HeroAnimation() {
           />
         </circle>
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#06b6d4"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #06b6d4)" }}
         >
           <animateMotion
             dur="2s"
@@ -275,12 +268,12 @@ export default function HeroAnimation() {
           />
         </circle>
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#06b6d4"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #06b6d4)" }}
         >
           <animateMotion
             dur="2s"
@@ -303,12 +296,12 @@ export default function HeroAnimation() {
         {/* AI Interaction Particles - Purple */}
         {/* User Query: Bottom -> Center */}
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#a855f7"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #a855f7)" }}
         >
           <animateMotion
             dur="3s"
@@ -328,12 +321,12 @@ export default function HeroAnimation() {
 
         {/* Agent -> OpenAI: Center -> Top */}
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#a855f7"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #a855f7)" }}
         >
           <animateMotion
             dur="2s"
@@ -355,12 +348,12 @@ export default function HeroAnimation() {
 
         {/* OpenAI -> Agent: Top -> Center */}
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#a855f7"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #a855f7)" }}
         >
           <animateMotion
             dur="2s"
@@ -382,12 +375,12 @@ export default function HeroAnimation() {
 
         {/* Agent -> User: Center -> Bottom */}
         <circle
-          r="0.2"
+          r="0.05"
           fill="none"
-          stroke="#a855f7"
-          strokeWidth="8"
+          stroke="white"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
-          filter="url(#glow)"
+          style={{ filter: "drop-shadow(0 0 4px #a855f7)" }}
         >
           <animateMotion
             dur="3s"
@@ -444,6 +437,7 @@ export default function HeroAnimation() {
           left="50%"
           label="AI Agents"
           align="bottom"
+          invertDark
         />
 
         <NodeIcon
@@ -452,6 +446,7 @@ export default function HeroAnimation() {
           left="50%"
           label="You"
           align="bottom"
+          invertDark
         />
 
         <NodeIcon
@@ -486,12 +481,14 @@ function NodeIcon({
   left,
   label,
   align = "left",
+  invertDark = false,
 }: {
   icon: string;
   top: string;
   left: string;
   label: string;
   align?: "left" | "right" | "top" | "bottom";
+  invertDark?: boolean;
 }) {
   let flexDirection: "row" | "row-reverse" | "column" | "column-reverse" =
     "row";
@@ -515,7 +512,7 @@ function NodeIcon({
           alt={label}
           width={24}
           height={24}
-          className="w-6 h-6"
+          className={`w-6 h-6 ${invertDark ? "dark:invert" : ""}`}
         />
       </div>
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 hidden sm:block">
