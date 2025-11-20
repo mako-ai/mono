@@ -64,7 +64,7 @@ export default function Navigation() {
                 Integrations
               </Link>
               <Link
-                href="#docs"
+                href="https://docs.mako.ai"
                 className="text-base text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
               >
                 Documentation

@@ -274,7 +274,7 @@ export default function Home() {
                 </li>
                 <li>
                   <Link
-                    href="#docs"
+                    href="https://docs.mako.ai"
                     className="text-slate-400 hover:text-white transition-colors"
                   >
                     Documentation
