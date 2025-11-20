@@ -8,9 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/auth-context.tsx";
 
 // Set MUI X Premium license key
-LicenseInfo.setLicenseKey(
-  "f3eba93e264d551ba6584e6c231f023dTz0xMTI5MjMsRT0xNzc4ODAzMTk5MDAwLFM9cHJlbWl1bSxMTT1zdWJzY3JpcHRpb24sUFY9aW5pdGlhbCxLVj0y",
-);
+LicenseInfo.setLicenseKey(import.meta.env.MUI_LICENSE_KEY || "");
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");
