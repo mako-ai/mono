@@ -8,9 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/auth-context.tsx";
 
 // Set MUI X Premium license key
-LicenseInfo.setLicenseKey(
-  "***REMOVED***",
-);
+LicenseInfo.setLicenseKey(import.meta.env.MUI_LICENSE_KEY || "");
 
 const rootElement = document.getElementById("root");
 if (!rootElement) throw new Error("Root element not found");
