@@ -6,9 +6,9 @@ set -e
 source .env
 
 # Override environment variables for production deployment
-export BASE_URL="https://revops.realadvisor.com"
-export CLIENT_URL="https://revops.realadvisor.com"  
-export VITE_API_URL="https://revops.realadvisor.com/api"
+export BASE_URL="https://app.mako.ai"
+export CLIENT_URL="https://app.mako.ai"  
+export VITE_API_URL="https://app.mako.ai/api"
 
 # Install dependencies
 echo "Installing dependencies..."
@@ -103,7 +103,7 @@ docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest
 } > env.yaml
 
 # Update Cloud Run service
-gcloud run services update revops-fullstack \
+gcloud run deploy mako \
   --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPO/$IMAGE_NAME:latest \
   --region $REGION \
   --env-vars-file env.yaml \
