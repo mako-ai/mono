@@ -25,7 +25,7 @@ export default function Home() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <a
-                href="http://localhost:5173"
+                href="https://app.mako.ai"
                 className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg hover:shadow-blue-500/25"
               >
                 Get Started Free
@@ -287,7 +287,7 @@ export default function Home() {
               <ul className="space-y-2">
                 <li>
                   <a
-                    href="https://github.com"
+                    href="https://github.com/mako-ai/mono"
                     className="text-slate-400 hover:text-white transition-colors"
                   >
                     GitHub

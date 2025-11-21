@@ -74,7 +74,7 @@ export default function Navigation() {
             {/* Login Button - Right */}
             <div className="flex items-center flex-1 justify-end">
               <a
-                href="http://localhost:5173"
+                href="https://app.mako.ai"
                 className="px-4 py-2.5 text-base rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium hover:from-blue-700 hover:to-cyan-700 transition-all shadow-md hover:shadow-lg"
               >
                 Launch App

@@ -1,328 +1,117 @@
-# Data Analytics Platform
+# Mako 🦈
 
-A flexible data analytics platform that syncs data from multiple sources (Close.com, Stripe, etc.) to MongoDB databases.
+**The AI Data Analyst for Modern RevOps.**
 
-## Architecture
+> **The Cursor for Data.** Build your data warehouse and analyze it with AI.
 
-The platform uses a data source-based architecture where each connection (API or database) is treated as an independent data source with its own configuration.
+Stop wrestling with SQL and broken spreadsheets. Unify your revenue stack and ask questions in plain English to get instant answers.
 
-## Configuration
+![Mako App Interface](./website/public/app-screenshot.png)
 
-Data sources and databases are now managed through the web interface, stored in MongoDB. This provides:
+## 🚀 Why Mako?
 
-- Secure encrypted storage of API keys and connection strings
-- Multi-workspace support
-- Real-time configuration updates
-- Database connection testing
+We replaced the complex web of data tools with a single, intelligent platform.
 
-Access the web interface at http://localhost:5173 to:
+- **🔄 Zero-Config Data Pipelines**: Connect Stripe, PostHog, and CRMs in seconds. We handle the schema, syncing, and maintenance.
+  - _Replaces: Airbyte, Fivetran, Manual Scripts_
+- **💬 Conversational Intelligence**: Your personal data analyst, available 24/7. Ask complex questions and get accurate charts instantly.
+  - _Replaces: DataGrip, Tableau, SQL_
+- **🏢 Turn Insights into Action**: Share live dashboards, build reports together, and align your team on the metrics that matter.
+  - _Replaces: Slack Screenshots, Excel, Emails_
 
-- Add and configure data sources (Close.com, Stripe, GraphQL)
-- Manage database connections
-- Set up sync schedules
-- Monitor sync status
+## 🔌 Integrations
 
-## Sync Commands
+Connect your favorite tools and platforms.
 
-Use the interactive sync tool to sync any configured data source to a destination database:
+### Databases
 
-```bash
-# Interactive mode (recommended)
-pnpm run sync
+| Integration    | Status  | Description                                         |
+| -------------- | ------- | --------------------------------------------------- |
+| **PostgreSQL** | ✅ Live | Connect to PostgreSQL for relational data queries   |
+| **MongoDB**    | ✅ Live | Connect to MongoDB for flexible document-based data |
+| **BigQuery**   | ✅ Live | Analyze large datasets with Google BigQuery         |
+| **MySQL**      | 🚧 Soon | Query MySQL databases with natural language         |
+| **Snowflake**  | 🚧 Soon | Query Snowflake databases with natural language     |
+| **Databricks** | 🚧 Soon | Query Databricks databases with natural language    |
 
-# Help
-pnpm run sync --help
+### Connectors
 
-# Non-interactive examples
-# Sync all entities from a source to a destination
-pnpm run sync -s <source_id> -d <destination_id>
+| Integration               | Status  | Description                                      |
+| ------------------------- | ------- | ------------------------------------------------ |
+| **Stripe**                | ✅ Live | Track payments, subscriptions, and billing data  |
+| **PostHog**               | ✅ Live | Analyze product analytics and user behavior      |
+| **Google Analytics**      | ✅ Live | Connect website traffic and conversion data      |
+| **Google Search Console** | ✅ Live | Connect Google Search Console data               |
+| **Close.com**             | ✅ Live | Sync CRM data (leads, opportunities, activities) |
+| **GraphQL**               | ✅ Live | Query any GraphQL API with custom endpoints      |
+| **REST**                  | ✅ Live | Query any REST API with custom endpoints         |
+| **Hubspot**               | 🚧 Soon | Sync CRM contacts, companies, deals              |
+| **Salesforce**            | 🚧 Soon | Sync CRM accounts, contacts, opportunities       |
+| **Pipedrive**             | 🚧 Soon | Sync CRM deals, activities, contacts             |
 
-# Sync specific entities
-pnpm run sync -s <source_id> -d <destination_id> -e leads -e opportunities
+## 🛠️ Quick Start
 
-# Incremental sync (only new/updated records)
-pnpm run sync -s <source_id> -d <destination_id> -e leads --incremental
-```
-
-**Note:** Data source IDs are automatically generated when you add data sources through the web interface. You can find these IDs in the Data Sources page.
-
-### Available Entities
-
-**Close.com:**
-
-- leads
-- opportunities
-- contacts
-- activities
-- users
-- custom_fields
-
-**Stripe:**
-
-- customers
-- subscriptions
-- charges
-- invoices
-- products
-- plans
-
-## Management Commands
-
-```bash
-# Docker management
-pnpm run docker:up          # Start MongoDB and other services
-pnpm run docker:down        # Stop all services
-pnpm run docker:logs        # View logs
-
-# Development
-pnpm run dev                # Start API, frontend, and Inngest dev server
-pnpm run api:dev            # Start API server only (defaults to port 8080)
-pnpm run app:dev            # Start frontend only (defaults to port 5173)
-pnpm run website:dev        # Start the marketing website on http://localhost:3000
-```
-
-## Public Website
-
-The public-facing marketing site lives in the `website` package, built with Next.js, Tailwind CSS, and ready to deploy on Vercel.
-
-- `pnpm run website:dev` – run the site locally at http://localhost:3000
-- `pnpm run website:build` – create a production build (the command Vercel will run)
-- `pnpm run website:lint` – check the site with ESLint/Next rules
-
-When deploying to Vercel, point the project at the repo root, set the framework preset to Next.js, and override the build command to `pnpm --filter website run build` so only the marketing site is built in that environment.
-
-## Query Runner
-
-Run MongoDB aggregation pipelines against your synced databases using the CLI tool in the API package:
-
-```bash
-# Using tsx directly
-pnpm --filter api exec tsx src/sync/query-runner.ts
-```
-
-The query runner reads a JSON aggregation pipeline from a file, supports selecting the target data source, and uses the unified MongoDB connection pool.
-
-## Setup
-
-1. Install dependencies:
+1. **Clone & Install**
 
    ```bash
-   npm install
-   # or
-   yarn install
-   # or
+   git clone https://github.com/mako-ai/mono.git
+   cd mono
    pnpm install
    ```
 
-2. Configure environment variables in `.env`:
+2. **Configure Environment**
+   Copy `.env.example` (if available) or create `.env`:
 
    ```env
    DATABASE_URL=mongodb://localhost:27017/mako
    ENCRYPTION_KEY=your_32_character_hex_key_for_encryption
-   # API server port (defaults to 8080 if not set)
    WEB_API_PORT=8080
-   # OAuth and client URLs
    BASE_URL=http://localhost:8080
    CLIENT_URL=http://localhost:5173
    ```
 
-3. Start MongoDB:
+3. **Start Services**
 
    ```bash
+   # Start MongoDB and dependencies
    pnpm run docker:up
-   ```
 
-4. Start the development servers:
-
-   ```bash
+   # Start the full stack (API + App + Inngest)
    pnpm run dev
    ```
 
-5. Configure your first data source:
+4. **Analyze**
+   - Open **http://localhost:5173** to access the app.
+   - Add a Data Source (e.g., Stripe or Close.com).
+   - Use the chat interface to ask questions about your data.
 
-   - Open http://localhost:5173 in your browser
-   - Navigate to Data Sources and add your first connector
-   - Add a target database in the Databases section
+## 🏗️ Architecture
 
-6. Start syncing:
+Mako uses a modern, scalable architecture designed for flexibility and performance.
 
-   ```bash
-   # Interactive mode
-   pnpm run sync
+- **Frontend**: React + Vite (Web App), Next.js (Website)
+- **Backend**: Node.js + Hono (API), Inngest (Job Queues)
+- **Database**: MongoDB (Metadata & Data Warehouse)
+- **Sync Engine**: Custom incremental sync with atomic collection swaps
 
-   # Or non-interactive
-   pnpm run sync -s <source_id> -d <destination_id>
-   ```
+## 💻 Development Commands
 
-## Adding New Data Sources
+| Command              | Description                                 |
+| -------------------- | ------------------------------------------- |
+| `pnpm run dev`       | Start API, frontend, and Inngest dev server |
+| `pnpm run sync`      | Run the interactive sync tool               |
+| `pnpm run docker:up` | Start MongoDB and other services            |
+| `pnpm run test`      | Run test suite                              |
+| `pnpm run build`     | Build all packages                          |
 
-Add new data sources through the web interface:
+## 🤝 Community & Support
 
-1. Open http://localhost:3000
-2. Navigate to the Data Sources page
-3. Click "Add Data Source"
-4. Choose your connector type (Close.com, Stripe, GraphQL)
-5. Enter your connection details (API keys, endpoints, etc.)
-6. Test the connection
-7. Save the configuration
+- **Documentation**: [docs.mako.ai](https://docs.mako.ai)
+- **GitHub**: [mako-ai/mono](https://github.com/mako-ai/mono)
+- **Website**: [mako.ai](https://mako.ai)
 
-Then sync it using the data source ID:
+---
 
-```bash
-pnpm run sync <data_source_id>
-```
-
-All configuration is securely stored and encrypted in the database!
-
-## Data Source Types
-
-- **API Sources**: Close.com, Stripe, REST APIs
-- **Database Sources**: MongoDB (used as sync targets)
-- **Future**: PostgreSQL, MySQL, GraphQL APIs
-
-## Development
-
-```bash
-# Run in development mode (API + App + Inngest)
-pnpm run dev
-
-# Run website only
-pnpm run website:dev
-
-# Build TypeScript
-pnpm run build
-
-# Build website
-pnpm run website:build
-
-# Run tests
-pnpm run test
-
-# Lint code
-pnpm run lint
-
-# Format code
-pnpm run format
-```
-
-## Data Structure
-
-The sync process creates MongoDB collections for each entity type. Each record includes:
-
-- Original data from the source
-- `_dataSourceId`: The ID of the source
-- `_dataSourceName`: The name of the source
-- `_syncedAt`: Timestamp of when the data was synced
-
-### Atomic Updates
-
-The sync process uses a staging approach to ensure data consistency:
-
-1. Downloads all data to a staging collection
-2. Swaps collections atomically
-3. Drops the old collection
-
-This ensures your queries never see partial data.
-
-## Querying Data
-
-### Using MongoDB Compass
-
-Connect to: `mongodb://localhost:27017/mako`
-
-### Using the Web Interface
-
-1. Open http://localhost:5173
-2. Navigate to the chat interface
-3. Use natural language to query your data
-4. The AI assistant will help you explore your databases
-
-### Command Line
-
-```bash
-# Connect to MongoDB directly
-mongosh mongodb://localhost:27017/mako
-
-# Example query (replace data_source_id with your actual ID)
-db.leads.find({_dataSourceId: "<your_data_source_id>"}).count()
-```
-
-## Sample Analytics
-
-Use the web app chat and explorers to build and run queries, or provide your own aggregation pipelines to the query runner.
-
-## Troubleshooting
-
-### Common Issues
-
-**API Rate Limiting:**
-
-- Increase `rate_limit_delay_ms` in the data source configuration
-- The sync will automatically retry with exponential backoff
-
-**MongoDB Connection Issues:**
-
-- Ensure Docker containers are running: `pnpm run docker:up`
-- Check logs: `pnpm run docker:logs`
-
-**Large Dataset Sync:**
-
-- The process handles large datasets automatically
-- Monitor progress in console output
-- Adjust `sync_batch_size` for optimal performance
-
-### Performance Tips
-
-- Run syncs during off-hours to avoid API limits
-- Use appropriate batch sizes (50-100 for most APIs)
-- Monitor memory usage for very large datasets
-
-## Project Structure
-
-```
-data-analytics-platform/
-├── api/                     # Backend API server (Hono)
-│   └── src/
-│       ├── connectors/      # Connector implementations
-│       │   ├── base/        # Base connector interface
-│       │   ├── close/       # Close.com connector
-│       │   ├── stripe/      # Stripe connector
-│       │   ├── graphql/     # GraphQL connector
-│       │   └── registry.ts  # Connector registry (runtime discovery)
-│       ├── sync/            # Sync CLI and orchestrator (Inngest integrated)
-│       ├── routes/          # API endpoints
-│       ├── database/        # MongoDB schemas
-│       ├── auth/            # Authentication (Lucia + Arctic)
-│       ├── services/        # Business logic services
-│       └── middleware/      # API middleware
-├── app/                     # Frontend React application (Vite + React)
-│   └── src/
-│       ├── components/
-│       ├── contexts/
-│       ├── hooks/
-│       ├── lib/
-│       └── store/
-├── website/                 # Public marketing website (Next.js + Tailwind)
-│   └── app/
-│       ├── layout.tsx       # Root layout
-│       ├── page.tsx         # Landing page
-│       └── globals.css      # Global styles
-├── docs/                    # Documentation
-├── dist/                    # Compiled shared libraries
-├── .env                     # Environment variables
-└── package.json             # Dependencies and scripts
-```
-
-## Next Steps
-
-- [ ] Add more source types (PostgreSQL, MySQL, GraphQL)
-- [ ] Add real-time sync capabilities
-- [ ] Create analytics dashboard
-- [ ] Add data transformation pipelines
-- [ ] Add scheduling with cron jobs
-
-## Support
-
-- Close.com API: https://developer.close.com/
-- Stripe API: https://stripe.com/docs/api
-- MongoDB: https://docs.mongodb.com/
+<p align="center">
+  Built with ❤️ by the Mako Team. Open Source and self-hostable.
+</p>

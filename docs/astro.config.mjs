@@ -36,6 +36,12 @@ export default defineConfig({
           ],
         },
         {
+          label: "Databases",
+          items: [
+            { label: "Connect Databases", slug: "databases/connect-databases" },
+          ],
+        },
+        {
           label: "Reference",
           items: [{ label: "API Reference", slug: "api-reference" }],
         },
