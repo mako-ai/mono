@@ -256,7 +256,7 @@ authRoutes.get("/google/callback", async c => {
         "https://openidconnect.googleapis.com/v1/userinfo",
         {
           headers: {
-            Authorization: `Bearer ${tokens.accessToken}`,
+            Authorization: `Bearer ${tokens.accessToken()}`,
           },
         },
       );
@@ -342,7 +342,7 @@ authRoutes.get("/github/callback", async c => {
     // Get user info from GitHub
     const userResponse = await fetch("https://api.github.com/user", {
       headers: {
-        Authorization: `Bearer ${tokens.accessToken}`,
+        Authorization: `Bearer ${tokens.accessToken()}`,
       },
     });
 
@@ -356,7 +356,7 @@ authRoutes.get("/github/callback", async c => {
     // Get primary email
     const emailResponse = await fetch("https://api.github.com/user/emails", {
       headers: {
-        Authorization: `Bearer ${tokens.accessToken}`,
+        Authorization: `Bearer ${tokens.accessToken()}`,
       },
     });
 
