@@ -43,6 +43,7 @@ interface DatabaseState {
   fetchDatabaseData: (workspaceId: string, databaseId: string) => Promise<void>;
   clearDatabaseData: (workspaceId: string) => void;
   fetchDatabases: () => Promise<void>;
+  deleteDatabase: (workspaceId: string, databaseId: string) => Promise<void>;
 }
 
 export const useDatabaseStore = create<DatabaseState>()(
@@ -180,6 +181,17 @@ export const useDatabaseStore = create<DatabaseState>()(
       const workspaceId = localStorage.getItem("activeWorkspaceId");
       if (workspaceId && !get().servers[workspaceId]) {
         await get().fetchServers(workspaceId);
+      }
+    },
+
+    deleteDatabase: async (workspaceId: string, databaseId: string) => {
+      const response = await apiClient.delete<{ success: boolean }>(
+        `/workspaces/${workspaceId}/databases/${databaseId}`,
+      );
+
+      if (response.success) {
+        // Refresh the servers list to reflect the deletion
+        await get().refreshServers(workspaceId);
       }
     },
   })),

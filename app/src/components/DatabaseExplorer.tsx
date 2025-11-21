@@ -107,8 +107,14 @@ function DatabaseExplorer({
     loading: loadingMap,
     refreshServers,
     initServers,
+    deleteDatabase,
   } = useDatabaseStore();
-  const { fetchRoot, fetchChildren, nodes } = useDatabaseTreeStore();
+  const {
+    fetchRoot,
+    fetchChildren,
+    nodes,
+    loading: treeLoading,
+  } = useDatabaseTreeStore();
 
   const { currentWorkspace } = useWorkspace();
 
@@ -138,19 +144,11 @@ function DatabaseExplorer({
     toggleServer,
     toggleDatabase,
     isDatabaseExpanded,
+    expandedNodes,
+    toggleNode,
   } = useDatabaseExplorerStore();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-
-  const toggleNode = (key: string) => {
-    setExpandedNodes(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
 
   const refreshServersLocal = async () => {
     if (!currentWorkspace) return;
@@ -262,6 +260,76 @@ function DatabaseExplorer({
     ));
   };
 
+  const renderNodeSkeleton = (level: number) => {
+    return Array.from({ length: 3 }).map((_, index) => (
+      <ListItem key={`node-skeleton-${index}`} disablePadding>
+        <ListItemButton sx={{ py: 0.25, pl: 3 + (level + 1) * 2 }}>
+          <ListItemIcon sx={{ minWidth: 28 }}>
+            <Skeleton variant="circular" width={16} height={16} />
+          </ListItemIcon>
+          <ListItemText
+            primary={
+              <Skeleton
+                variant="text"
+                width={`${50 + Math.random() * 30}%`}
+                height={16}
+              />
+            }
+          />
+        </ListItemButton>
+      </ListItem>
+    ));
+  };
+
+  // ---------------- Context menu for databases ----------------
+  const [databaseContextMenu, setDatabaseContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    item: { databaseId: string; databaseName: string };
+  } | null>(null);
+
+  const handleDatabaseContextMenu = (
+    event: React.MouseEvent,
+    databaseId: string,
+    databaseName: string,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDatabaseContextMenu(
+      contextMenu === null
+        ? {
+            mouseX: event.clientX + 2,
+            mouseY: event.clientY - 6,
+            item: { databaseId, databaseName },
+          }
+        : null,
+    );
+  };
+
+  const handleDropDatabase = async () => {
+    if (!databaseContextMenu) return;
+    const { databaseId, databaseName } = databaseContextMenu.item;
+
+    if (
+      !window.confirm(
+        `Are you sure you want to delete database "${databaseName}"? This action cannot be undone.`,
+      )
+    ) {
+      setDatabaseContextMenu(null);
+      return;
+    }
+
+    try {
+      if (currentWorkspace) {
+        await deleteDatabase(currentWorkspace.id, databaseId);
+      }
+    } catch (error: any) {
+      alert(error.message || "Failed to delete database");
+    } finally {
+      setDatabaseContextMenu(null);
+    }
+  };
+
   // ---------------- Context menu for collections ----------------
   const [contextMenu, setContextMenu] = useState<{
     mouseX: number;
@@ -306,7 +374,9 @@ function DatabaseExplorer({
   ): React.ReactNode => {
     const nodeKey = `${databaseId}:${node.kind}:${node.id}`;
     const isExpanded = expandedNodes.has(nodeKey);
-    const children = nodes[databaseId]?.[`${node.kind}:${node.id}`] || [];
+    const childKey = `${node.kind}:${node.id}`;
+    const children = nodes[databaseId]?.[childKey];
+    const isLoading = treeLoading[`${databaseId}:${childKey}`];
 
     const getIcon = () => {
       switch (node.kind) {
@@ -328,13 +398,14 @@ function DatabaseExplorer({
       <React.Fragment key={nodeKey}>
         <ListItem disablePadding>
           <ListItemButton
-            onClick={async () => {
+            onClick={() => {
               if (node.hasChildren) {
-                if (!children.length) {
-                  if (!currentWorkspace) return;
-                  await fetchChildren(currentWorkspace.id, databaseId, node);
-                }
                 toggleNode(nodeKey);
+                if (!children && !isExpanded) {
+                  if (currentWorkspace) {
+                    fetchChildren(currentWorkspace.id, databaseId, node);
+                  }
+                }
               } else {
                 handleCollectionClick(databaseId, {
                   name: node.id,
@@ -345,11 +416,15 @@ function DatabaseExplorer({
             }}
             sx={{ py: 0.25, pl: 3 + level * 2 }}
           >
-            {node.hasChildren && (
-              <ListItemIcon sx={{ minWidth: 28 }}>
-                {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-              </ListItemIcon>
-            )}
+            <ListItemIcon sx={{ minWidth: node.hasChildren ? 28 : 18 }}>
+              {node.hasChildren ? (
+                isExpanded ? (
+                  <ExpandMoreIcon />
+                ) : (
+                  <ChevronRightIcon />
+                )
+              ) : null}
+            </ListItemIcon>
             <ListItemIcon sx={{ minWidth: 28 }}>{getIcon()}</ListItemIcon>
             <ListItemText
               primary={<Typography variant="body2">{node.label}</Typography>}
@@ -359,7 +434,24 @@ function DatabaseExplorer({
         {node.hasChildren && (
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <List dense disablePadding>
-              {children.map(child => renderNode(databaseId, child, level + 1))}
+              {isLoading || (!children && isExpanded) ? (
+                renderNodeSkeleton(level)
+              ) : children && children.length === 0 ? (
+                <ListItem
+                  disablePadding
+                  sx={{ pl: 3 + (level + 1) * 2 + 4, py: 0.25 }}
+                >
+                  <ListItemText
+                    secondary={
+                      <Typography variant="caption" color="text.secondary">
+                        Empty
+                      </Typography>
+                    }
+                  />
+                </ListItem>
+              ) : (
+                children?.map(child => renderNode(databaseId, child, level + 1))
+              )}
             </List>
           </Collapse>
         )}
@@ -500,6 +592,13 @@ function DatabaseExplorer({
                                 onClick={() =>
                                   handleDatabaseToggle(database.id)
                                 }
+                                onContextMenu={e =>
+                                  handleDatabaseContextMenu(
+                                    e,
+                                    database.id,
+                                    database.displayName,
+                                  )
+                                }
                                 sx={{ py: 0.5, pl: 2 }}
                               >
                                 <ListItemIcon sx={{ minWidth: 32 }}>
@@ -604,6 +703,44 @@ function DatabaseExplorer({
             <DeleteIcon size={18} strokeWidth={1.5} />
           </ListItemIcon>
           Delete collection
+        </MenuItem>
+      </Menu>
+
+      {/* Context Menu for database */}
+      <Menu
+        open={databaseContextMenu !== null}
+        onClose={() => setDatabaseContextMenu(null)}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          databaseContextMenu !== null
+            ? {
+                top: databaseContextMenu.mouseY,
+                left: databaseContextMenu.mouseX,
+              }
+            : undefined
+        }
+        PaperProps={{
+          elevation: 2,
+          sx: {
+            boxShadow: "0px 2px 4px rgba(0,0,0,0.12)",
+            minWidth: 180,
+          },
+        }}
+      >
+        <MenuItem
+          onClick={handleDropDatabase}
+          sx={{
+            pl: 1,
+            pr: 1,
+            "& .MuiListItemIcon-root": {
+              minWidth: 26,
+            },
+          }}
+        >
+          <ListItemIcon>
+            <DeleteIcon size={18} strokeWidth={1.5} />
+          </ListItemIcon>
+          Delete database
         </MenuItem>
       </Menu>
     </Box>

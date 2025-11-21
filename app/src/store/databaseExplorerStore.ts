@@ -15,6 +15,9 @@ export const useDatabaseExplorerStore = () => {
   const expandedViewGroupsArray = useAppStore(
     s => s.explorers.database.expandedViewGroups,
   );
+  const expandedNodesArray = useAppStore(
+    s => s.explorers.database.expandedNodes,
+  );
 
   const value = useMemo(() => {
     // Convert arrays to Sets for backward compatibility
@@ -22,12 +25,14 @@ export const useDatabaseExplorerStore = () => {
     const expandedDatabases = new Set(expandedDatabasesArray);
     const expandedCollectionGroups = new Set(expandedCollectionGroupsArray);
     const expandedViewGroups = new Set(expandedViewGroupsArray);
+    const expandedNodes = new Set(expandedNodesArray);
 
     return {
       expandedServers,
       expandedDatabases,
       expandedCollectionGroups,
       expandedViewGroups,
+      expandedNodes,
 
       // Actions
       toggleServer: (serverId: string) =>
@@ -54,6 +59,12 @@ export const useDatabaseExplorerStore = () => {
           payload: { databaseId },
         } as any),
 
+      toggleNode: (nodeId: string) =>
+        dispatch({
+          type: "TOGGLE_DATABASE_NODE",
+          payload: { nodeId },
+        } as any),
+
       expandServer: (serverId: string) =>
         dispatch({
           type: "EXPAND_DATABASE_SERVER",
@@ -74,6 +85,7 @@ export const useDatabaseExplorerStore = () => {
         expandedCollectionGroups.has(databaseId),
       isViewGroupExpanded: (databaseId: string) =>
         expandedViewGroups.has(databaseId),
+      isNodeExpanded: (nodeId: string) => expandedNodes.has(nodeId),
     };
   }, [
     dispatch,
@@ -81,6 +93,7 @@ export const useDatabaseExplorerStore = () => {
     expandedDatabasesArray,
     expandedCollectionGroupsArray,
     expandedViewGroupsArray,
+    expandedNodesArray,
   ]);
 
   return value;

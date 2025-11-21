@@ -5,7 +5,7 @@ import {
   requireWorkspaceRole,
   AuthenticatedContext,
 } from "../middleware/workspace.middleware";
-import { Database, IDatabase } from "../database/workspace-schema";
+import { Database, IDatabase, SyncJob } from "../database/workspace-schema";
 import { databaseConnectionService } from "../services/database-connection.service";
 import { Types } from "mongoose";
 
@@ -330,6 +330,23 @@ workspaceDatabaseRoutes.delete(
 
       if (!Types.ObjectId.isValid(databaseId)) {
         return c.json({ success: false, error: "Invalid database ID" }, 400);
+      }
+
+      // Check for dependent sync jobs
+      const dependentJob = await SyncJob.findOne({
+        destinationDatabaseId: new Types.ObjectId(databaseId),
+        workspaceId: workspace._id,
+      });
+
+      if (dependentJob) {
+        return c.json(
+          {
+            success: false,
+            error:
+              "Cannot delete database because it is used by one or more sync jobs",
+          },
+          409,
+        );
       }
 
       const result = await Database.deleteOne({

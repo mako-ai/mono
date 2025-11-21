@@ -49,6 +49,7 @@ export interface GlobalState {
       expandedDatabases: string[];
       expandedCollectionGroups: string[];
       expandedViewGroups: string[];
+      expandedNodes: string[];
     };
     console: {
       expandedFolders: string[];
@@ -93,6 +94,7 @@ export const initialState: GlobalState = {
       expandedDatabases: [],
       expandedCollectionGroups: [],
       expandedViewGroups: [],
+      expandedNodes: [],
     },
     console: {
       expandedFolders: [],
@@ -177,6 +179,7 @@ export type Action =
       payload: { databaseId: string };
     }
   | { type: "TOGGLE_DATABASE_VIEW_GROUP"; payload: { databaseId: string } }
+  | { type: "TOGGLE_DATABASE_NODE"; payload: { nodeId: string } }
   | { type: "EXPAND_DATABASE_SERVER"; payload: { serverId: string } }
   | { type: "EXPAND_DATABASE_DATABASE"; payload: { databaseId: string } }
   | { type: "TOGGLE_CONSOLE_FOLDER"; payload: { folderPath: string } }
@@ -480,6 +483,18 @@ export const reducer = (state: GlobalState, action: Action): void => {
         );
       } else {
         state.explorers.database.expandedViewGroups.push(databaseId);
+      }
+      break;
+    }
+    case "TOGGLE_DATABASE_NODE": {
+      const { nodeId } = action.payload;
+      const expandedNodes = state.explorers.database.expandedNodes;
+      if (expandedNodes.includes(nodeId)) {
+        state.explorers.database.expandedNodes = expandedNodes.filter(
+          id => id !== nodeId,
+        );
+      } else {
+        state.explorers.database.expandedNodes.push(nodeId);
       }
       break;
     }
