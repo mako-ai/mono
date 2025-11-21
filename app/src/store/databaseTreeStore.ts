@@ -50,9 +50,10 @@ export const useDatabaseTreeStore = create<DatabaseTreeState>()(
           s.error[key] = null;
         });
         try {
-          const res = await apiClient.get<{ success: boolean; data: TreeNode[] }>(
-            `/workspaces/${workspaceId}/databases/${databaseId}/tree`,
-          );
+          const res = await apiClient.get<{
+            success: boolean;
+            data: TreeNode[];
+          }>(`/workspaces/${workspaceId}/databases/${databaseId}/tree`);
           const data = res.success ? (res as any).data : [];
           set(s => {
             s.nodes[databaseId] = s.nodes[databaseId] || {};
@@ -85,7 +86,10 @@ export const useDatabaseTreeStore = create<DatabaseTreeState>()(
           if (node.metadata) {
             params.set("metadata", JSON.stringify(node.metadata));
           }
-          const res = await apiClient.get<{ success: boolean; data: TreeNode[] }>(
+          const res = await apiClient.get<{
+            success: boolean;
+            data: TreeNode[];
+          }>(
             `/workspaces/${workspaceId}/databases/${databaseId}/tree?${params.toString()}`,
           );
           const data = res.success ? (res as any).data : [];
