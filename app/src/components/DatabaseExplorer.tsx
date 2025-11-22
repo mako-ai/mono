@@ -23,6 +23,7 @@ import {
   Eye as ViewIcon,
   RotateCw as RefreshIcon,
   FolderClosed as FolderIcon,
+  FolderOpen as FolderOpenIcon,
   Plus as AddIcon,
   Trash2 as DeleteIcon,
   HardDrive as ServerIcon,
@@ -381,7 +382,11 @@ function DatabaseExplorer({
         case "dataset":
         case "group":
         case "schema":
-          return <FolderIcon size={18} strokeWidth={1.5} />;
+          return isExpanded ? (
+            <FolderOpenIcon size={18} strokeWidth={1.5} />
+          ) : (
+            <FolderIcon size={18} strokeWidth={1.5} />
+          );
         case "table":
         case "collection":
           return <CollectionIcon size={18} strokeWidth={1.5} />;

@@ -21,8 +21,6 @@ import {
   Alert,
 } from "@mui/material";
 import {
-  ExpandMore as ExpandMoreIcon,
-  ChevronRight as ChevronRightIcon,
   CreateNewFolder as CreateFolderIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -33,6 +31,8 @@ import {
   FolderOpen as FolderOpenIcon,
   RotateCw as RefreshIcon,
   Plus as AddIcon,
+  ChevronRight as ChevronRightIcon,
+  ChevronDown as ChevronDownIcon,
 } from "lucide-react";
 import { useAppStore } from "../store/appStore";
 import { useConsoleStore } from "../store/consoleStore";
@@ -362,16 +362,20 @@ function ConsoleExplorer(
             <ListItemButton
               onClick={() => handleFolderToggle(node.path)}
               onContextMenu={e => handleContextMenu(e, node)}
-              sx={{ py: 0.5, pl: 0.5 + depth }}
+              sx={{ py: 0.25, pl: 0.5 + depth * 1.5 }}
             >
-              <ListItemIcon sx={{ minWidth: 20, mr: 0.25 }}>
-                {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-              </ListItemIcon>
-              <ListItemIcon sx={{ minWidth: 32 }}>
+              <ListItemIcon sx={{ minWidth: 22, mr: 0 }}>
                 {isExpanded ? (
-                  <FolderOpenIcon strokeWidth={1.5} />
+                  <ChevronDownIcon strokeWidth={1.5} size={20} />
                 ) : (
-                  <FolderIcon strokeWidth={1.5} />
+                  <ChevronRightIcon strokeWidth={1.5} size={20} />
+                )}
+              </ListItemIcon>
+              <ListItemIcon sx={{ minWidth: 24 }}>
+                {isExpanded ? (
+                  <FolderOpenIcon strokeWidth={1.5} size={18} />
+                ) : (
+                  <FolderIcon strokeWidth={1.5} size={18} />
                 )}
               </ListItemIcon>
               <ListItemText
@@ -404,12 +408,13 @@ function ConsoleExplorer(
           onContextMenu={e => handleContextMenu(e, node)}
           selected={isActive}
           sx={{
-            pl: 0.5 + depth,
+            py: 0.25,
+            pl: 0.5 + depth * 1.5,
           }}
         >
-          <ListItemIcon sx={{ minWidth: 20, visibility: "hidden", mr: 0.5 }} />
-          <ListItemIcon sx={{ minWidth: 28 }}>
-            <ConsoleIcon size={20} />
+          <ListItemIcon sx={{ minWidth: 22, visibility: "hidden", mr: 0 }} />
+          <ListItemIcon sx={{ minWidth: 24 }}>
+            <ConsoleIcon size={18} strokeWidth={1.5} />
           </ListItemIcon>
           <ListItemText
             primary={node.name}
@@ -430,10 +435,10 @@ function ConsoleExplorer(
 
   const renderSkeletonItems = () => {
     return Array.from({ length: 3 }).map((_, index) => (
-      <ListItemButton key={`skeleton-${index}`} sx={{ pl: 0.5 }}>
-        <ListItemIcon sx={{ minWidth: 20, visibility: "hidden", mr: 0.5 }} />
-        <ListItemIcon sx={{ minWidth: 28 }}>
-          <Skeleton variant="circular" width={20} height={20} />
+      <ListItemButton key={`skeleton-${index}`} sx={{ py: 0.25, pl: 0.5 }}>
+        <ListItemIcon sx={{ minWidth: 22, visibility: "hidden", mr: 0 }} />
+        <ListItemIcon sx={{ minWidth: 24 }}>
+          <Skeleton variant="circular" width={18} height={18} />
         </ListItemIcon>
         <ListItemText
           primary={
