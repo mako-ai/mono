@@ -9,7 +9,6 @@ import {
   ListItemText,
   Alert,
   IconButton,
-  Collapse,
   Skeleton,
   Menu,
   MenuItem,
@@ -448,26 +447,24 @@ function DatabaseExplorer({
             />
           </ListItemButton>
         </ListItem>
-        {node.hasChildren && (
-          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-            <List dense disablePadding>
-              {isLoading || (!children && isExpanded) ? (
-                renderNodeSkeleton(level)
-              ) : children && children.length === 0 ? (
-                <ListItem disablePadding sx={{ pl: 4 + (level + 1) * 2 }}>
-                  <ListItemText
-                    secondary={
-                      <Typography variant="caption" color="text.secondary">
-                        Empty
-                      </Typography>
-                    }
-                  />
-                </ListItem>
-              ) : (
-                children?.map(child => renderNode(databaseId, child, level + 1))
-              )}
-            </List>
-          </Collapse>
+        {node.hasChildren && isExpanded && (
+          <List dense disablePadding>
+            {isLoading || (!children && isExpanded) ? (
+              renderNodeSkeleton(level)
+            ) : children && children.length === 0 ? (
+              <ListItem disablePadding sx={{ pl: 4 + (level + 1) * 2 }}>
+                <ListItemText
+                  secondary={
+                    <Typography variant="caption" color="text.secondary">
+                      Empty
+                    </Typography>
+                  }
+                />
+              </ListItem>
+            ) : (
+              children?.map(child => renderNode(databaseId, child, level + 1))
+            )}
+          </List>
         )}
       </React.Fragment>
     );
@@ -588,7 +585,7 @@ function DatabaseExplorer({
                     </ListItemButton>
                   </ListItem>
 
-                  <Collapse in={isServerExpanded} timeout="auto" unmountOnExit>
+                  {isServerExpanded && (
                     <List dense disablePadding>
                       {server.databases.map(database => {
                         const isDatabaseExpanded = expandedDatabases.has(
@@ -660,11 +657,7 @@ function DatabaseExplorer({
                               </ListItemButton>
                             </ListItem>
 
-                            <Collapse
-                              in={isDatabaseExpanded}
-                              timeout="auto"
-                              unmountOnExit
-                            >
+                            {isDatabaseExpanded && (
                               <List dense disablePadding>
                                 {isLoadingData
                                   ? renderCollectionSkeletonItems()
@@ -672,12 +665,12 @@ function DatabaseExplorer({
                                       renderNode(database.id, node, 1),
                                     )}
                               </List>
-                            </Collapse>
+                            )}
                           </React.Fragment>
                         );
                       })}
                     </List>
-                  </Collapse>
+                  )}
                 </React.Fragment>
               );
             })

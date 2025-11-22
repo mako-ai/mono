@@ -5,7 +5,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Collapse,
   Typography,
   IconButton,
   Skeleton,
@@ -390,11 +389,11 @@ function ConsoleExplorer(
                 }}
               />
             </ListItemButton>
-            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+            {isExpanded && (
               <List component="div" disablePadding dense>
                 {node.children && renderTree(node.children, depth + 1)}
               </List>
-            </Collapse>
+            )}
           </div>
         );
       }
