@@ -16,11 +16,8 @@ import {
   Tooltip,
 } from "@mui/material";
 import {
-  ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
-  DnsOutlined as ServerIcon,
-} from "@mui/icons-material";
-import {
+  ChevronDown as ChevronDownIcon,
   Database as DatabaseIcon,
   Table as CollectionIcon,
   Eye as ViewIcon,
@@ -28,6 +25,7 @@ import {
   FolderClosed as FolderIcon,
   Plus as AddIcon,
   Trash2 as DeleteIcon,
+  HardDrive as ServerIcon,
 } from "lucide-react";
 import { useDatabaseExplorerStore } from "../store";
 import { useWorkspace } from "../contexts/workspace-context";
@@ -243,7 +241,7 @@ function DatabaseExplorer({
     return Array.from({ length: 3 }).map((_, index) => (
       <ListItem key={`collection-skeleton-${index}`} disablePadding>
         <ListItemButton sx={{ py: 0.25, pl: 7.5 }}>
-          <ListItemIcon sx={{ minWidth: 28 }}>
+          <ListItemIcon sx={{ minWidth: 24 }}>
             <Skeleton variant="circular" width={16} height={16} />
           </ListItemIcon>
           <ListItemText
@@ -414,20 +412,34 @@ function DatabaseExplorer({
                 } as any);
               }
             }}
-            sx={{ py: 0.25, pl: 3 + level * 2 }}
+            sx={{
+              py: 0.25,
+              pl: node.hasChildren ? 0.5 + level * 3 : 0.5 + level * 2,
+            }}
           >
-            <ListItemIcon sx={{ minWidth: node.hasChildren ? 28 : 18 }}>
+            <ListItemIcon sx={{ minWidth: 22 }}>
               {node.hasChildren ? (
                 isExpanded ? (
-                  <ExpandMoreIcon />
+                  <ChevronDownIcon strokeWidth={1.5} size={20} />
                 ) : (
-                  <ChevronRightIcon />
+                  <ChevronRightIcon strokeWidth={1.5} size={20} />
                 )
               ) : null}
             </ListItemIcon>
-            <ListItemIcon sx={{ minWidth: 28 }}>{getIcon()}</ListItemIcon>
+            <ListItemIcon sx={{ minWidth: 24 }}>{getIcon()}</ListItemIcon>
             <ListItemText
-              primary={<Typography variant="body2">{node.label}</Typography>}
+              primary={
+                <Typography
+                  variant="body2"
+                  sx={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {node.label}
+                </Typography>
+              }
             />
           </ListItemButton>
         </ListItem>
@@ -437,10 +449,7 @@ function DatabaseExplorer({
               {isLoading || (!children && isExpanded) ? (
                 renderNodeSkeleton(level)
               ) : children && children.length === 0 ? (
-                <ListItem
-                  disablePadding
-                  sx={{ pl: 3 + (level + 1) * 2 + 4, py: 0.25 }}
-                >
+                <ListItem disablePadding sx={{ pl: 4 + (level + 1) * 2 }}>
                   <ListItemText
                     secondary={
                       <Typography variant="caption" color="text.secondary">
@@ -534,11 +543,11 @@ function DatabaseExplorer({
                       onClick={() => handleServerToggle(server.id)}
                       sx={{ py: 0.5, pl: 0.5 }}
                     >
-                      <ListItemIcon sx={{ minWidth: 24, mr: 0 }}>
+                      <ListItemIcon sx={{ minWidth: 22, mr: 0 }}>
                         {isServerExpanded ? (
-                          <ExpandMoreIcon />
+                          <ChevronDownIcon strokeWidth={1.5} size={20} />
                         ) : (
-                          <ChevronRightIcon />
+                          <ChevronRightIcon strokeWidth={1.5} size={20} />
                         )}
                       </ListItemIcon>
                       <ListItemIcon sx={{ minWidth: 24 }}>
@@ -601,14 +610,20 @@ function DatabaseExplorer({
                                 }
                                 sx={{ py: 0.5, pl: 2 }}
                               >
-                                <ListItemIcon sx={{ minWidth: 32 }}>
+                                <ListItemIcon sx={{ minWidth: 22 }}>
                                   {isDatabaseExpanded ? (
-                                    <ExpandMoreIcon />
+                                    <ChevronDownIcon
+                                      strokeWidth={1.5}
+                                      size={20}
+                                    />
                                   ) : (
-                                    <ChevronRightIcon />
+                                    <ChevronRightIcon
+                                      strokeWidth={1.5}
+                                      size={20}
+                                    />
                                   )}
                                 </ListItemIcon>
-                                <ListItemIcon sx={{ minWidth: 32 }}>
+                                <ListItemIcon sx={{ minWidth: 22 }}>
                                   <DatabaseTypeIcon
                                     type={database.type}
                                     typeToIconUrl={typeToIconUrl}

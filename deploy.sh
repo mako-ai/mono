@@ -5,6 +5,9 @@ set -e
 
 source .env
 
+# Use a different port for testing to avoid conflicts with local dev server
+TEST_PORT=8090
+
 # Override environment variables for production deployment
 export BASE_URL="https://app.mako.ai"
 export CLIENT_URL="https://app.mako.ai"  
@@ -37,7 +40,7 @@ fi
 
 # Quickly start the API to ensure it boots up. Run in the background, wait a few seconds, then kill.
 echo "Starting API locally to verify it starts..."
-pnpm run api:start &
+WEB_API_PORT=$TEST_PORT pnpm run api:start &
 API_PID=$!
 
 # Give the server a few seconds to initialise
@@ -68,14 +71,21 @@ echo "API startup verification succeeded."
 
 # Rebuild and redeploy (explicitly build for linux/amd64 platform)
 echo "Building Docker image..."
+
+# Create a temporary .env.production file for the build to pick up variables
+echo "VITE_API_URL=$VITE_API_URL" > .env.production
+echo "VITE_MUI_LICENSE_KEY=$VITE_MUI_LICENSE_KEY" >> .env.production
+
 if ! docker build --platform linux/amd64 -t $IMAGE_NAME:latest .; then
     echo "❌ Docker build failed!"
+    rm .env.production
     exit 1
 fi
+rm .env.production
 
 # Verify that the freshly built image can start successfully.
 echo "Testing Docker image locally..."
-if ! docker run --rm -d --name revops_test -p 8080:8080 $IMAGE_NAME:latest; then
+if ! docker run --rm -d --name revops_test -p $TEST_PORT:8080 $IMAGE_NAME:latest; then
     echo "❌ Docker container failed to start! Aborting deploy."
     exit 1
 fi
